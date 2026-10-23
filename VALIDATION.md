@@ -1,12 +1,12 @@
 # Verification record
 
-Version 0.3.1 verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
+Version 0.4.0 verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` with `EAL_CORE` set | 119 passed, 0 failed, 4 external integration tests ignored |
+| `cargo test --locked` with `EAL_CORE` set | 122 passed, 0 failed, 4 external integration tests ignored |
 | `cargo build --locked --release` | Passed |
 | Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
 | Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
@@ -25,6 +25,9 @@ Version 0.3.1 verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | EAL assumption-to-objection propagation | Passed against the actual evaluator using isolated synthetic observation fixtures |
 | Release CLI with real host/server | Export, source/bundle validation, plan, assess, explain, packet, describe and invalid-source exit checks passed |
 | Requested and returned service tiers | Exact `gpt-6.1-sol` / `ultrafast` request and differing returned tier retained in HTTP and six-stage CLI tests |
+| Optional reasoning effort | Correct nested Responses and root Chat fields, omission when unset, bounded identifiers and explicit HTTP400 failure without fallback passed |
+| Reasoning configuration and receipts | CLI overrides environment, environment-only configuration works, requested/reported values remain separate, and old reports deserialize with unknown effort |
+| Release reasoning-effort workflow | Single-call release CLI passed against a local HTTP double, retaining requested high and provider-reported medium in its audit and report |
 | Remote MCP deployment | Configuration and credential handling tested locally, no real remote service contacted |
 | Live model execution | Not performed: no provider API key was available |
 | Comparative argument-quality evaluation | Not performed; see EVALUATION.md |

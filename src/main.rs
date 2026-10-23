@@ -2,7 +2,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use engarg::{
     Error,
     domain::{ArgumentCase, Request, case_schema, validate_case, validate_request},
-    engine::{Mode, RunConfig},
+    engine::{Mode, ProviderRunConfig, RunConfig},
     presentations,
     provider::{ApiStyle, HttpConfig, HttpModel, Role},
     render,
@@ -92,6 +92,10 @@ struct Analyse {
     /// Requested service tier, passed unchanged and recorded in the audit.
     #[arg(long, env = "ENGARG_SERVICE_TIER")]
     service_tier: Option<String>,
+    /// Optional model-specific effort, such as low, medium, high, xhigh or max.
+    /// Omit to leave the provider default and support models without this option.
+    #[arg(long, env = "ENGARG_REASONING_EFFORT")]
+    reasoning_effort: Option<String>,
     /// Per-role override: sceptic=MODEL. Repeat for multiple roles.
     #[arg(long, value_name = "ROLE=MODEL")]
     role_model: Vec<String>,
@@ -228,6 +232,16 @@ fn report_content(
     Ok(content)
 }
 
+#[derive(Serialize)]
+struct StartAudit<'a> {
+    event: &'static str,
+    version: &'static str,
+    request: &'a Request,
+    config: &'a RunConfig,
+    #[serde(flatten)]
+    provider_config: &'a ProviderRunConfig,
+}
+
 fn audit_event(file: &Option<Mutex<File>>, event: &impl Serialize) -> Result<(), Error> {
     if let Some(file) = file {
         let mut f = file
@@ -296,12 +310,23 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         max_input_bytes: args.max_input_bytes,
         max_response_bytes: args.max_response_bytes,
     };
-    let metadata = json!({"event":"start","version":env!("CARGO_PKG_VERSION"),"request":request,"config":config,"endpoint":args.endpoint,"api":format!("{:?}",args.api),"default_model":args.model,"requested_service_tier":args.service_tier,"role_models":role_models,"max_output_tokens":args.max_output_tokens,"request_timeout_secs":args.request_timeout_secs,"timeout_secs":args.timeout_secs});
+    let provider_config = ProviderRunConfig {
+        endpoint: args.endpoint.clone(),
+        api: format!("{:?}", args.api),
+        default_model: args.model.clone(),
+        requested_service_tier: args.service_tier.clone(),
+        requested_reasoning_effort: args.reasoning_effort.clone(),
+        role_models: role_models.clone(),
+        max_output_tokens: args.max_output_tokens,
+        request_timeout_secs: args.request_timeout_secs,
+        timeout_secs: args.timeout_secs,
+    };
     let model = HttpModel::new(HttpConfig {
         endpoint: args.endpoint,
         api_key: key,
         model: args.model,
         service_tier: args.service_tier,
+        reasoning_effort: args.reasoning_effort,
         role_models,
         style: args.api,
         timeout: Duration::from_secs(args.request_timeout_secs),
@@ -317,7 +342,16 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         .as_ref()
         .map(|path| private_file(path).map(Mutex::new))
         .transpose()?;
-    audit_event(&audit, &metadata)?;
+    audit_event(
+        &audit,
+        &StartAudit {
+            event: "start",
+            version: env!("CARGO_PKG_VERSION"),
+            request: &request,
+            config: &config,
+            provider_config: &provider_config,
+        },
+    )?;
     let observer = |record: &engarg::engine::CallRecord| {
         audit_event(&audit, &json!({"event":"completion","record":record}))
     };
@@ -328,22 +362,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
     };
     match result {
         Ok(mut report) => {
-            let provider_config = [
-                "endpoint",
-                "api",
-                "default_model",
-                "requested_service_tier",
-                "role_models",
-                "max_output_tokens",
-                "request_timeout_secs",
-                "timeout_secs",
-            ]
-            .into_iter()
-            .map(|name| (name.to_owned(), metadata[name].clone()))
-            .collect::<serde_json::Map<String, serde_json::Value>>();
-            report.provider_config = Some(serde_json::from_value(serde_json::Value::Object(
-                provider_config,
-            ))?);
+            report.provider_config = Some(provider_config);
             let content = report_content(&args.output, &request, &report.argument, &report)?;
             match emit(&args.output, content) {
                 Ok(()) => audit_event(

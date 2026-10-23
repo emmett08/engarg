@@ -39,12 +39,21 @@ engarg analyse \
   --claim 'Parallelising independent CI test groups reduces pipeline duration without changing test outcomes.' \
   --model gpt-6.1-sol \
   --service-tier ultrafast \
+  --reasoning-effort high \
   --format json \
   --audit run.audit.jsonl \
   --output run.json
 ```
 
 `--service-tier` also reads `ENGARG_SERVICE_TIER`. The adapter passes the requested value unchanged and records it in the audit. Each completion records the tier returned by the provider when present. An omitted returned tier remains unknown. EngArg preserves the requested model and tier and reports API errors explicitly, so an unsupported combination is visible. Provider availability, entitlement, pricing and rate limits apply. OpenAI documents this combination in the [GPT-6.1 Sol model guide](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and [Ultrafast mode guide](https://developers.openai.com/api/docs/guides/ultrafast-mode). Compatible endpoints must support the supplied `service_tier` value themselves.
+
+Reasoning effort is optional. Use `--reasoning-effort VALUE` or set `ENGARG_REASONING_EFFORT`. For `gpt-6.1-sol`, official OpenAI documentation lists `low`, `medium` (the model default), `high`, `xhigh` and `max`. That model does not support `none` or `minimal`. See the [model guide](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and [reasoning guide](https://developers.openai.com/api/docs/guides/reasoning).
+
+The Responses adapter sends `reasoning: {"effort": "VALUE"}`. The Chat adapter sends `reasoning_effort: "VALUE"`. An unset option sends neither field, so models without configurable reasoning retain their existing behaviour. The configured value applies to every stage, including per-role model overrides. Select an effort supported by each model used in that run. The endpoint validates model compatibility. Rejected combinations fail explicitly, and EngArg preserves the requested value without substituting another effort or retrying with it removed. Provider-specific identifiers are passed unchanged after bounded identifier validation.
+
+The audit start record and saved report record `requested_reasoning_effort`. Each completion records `reasoning_effort` only from provider-reported metadata, with an unknown value when absent. These records describe configuration and reported settings, rather than a measurement of internal computation or argument quality. Existing saved reports without these fields remain readable. Rust library callers must initialise the new optional configuration field when constructing `HttpConfig` directly.
+
+Reasoning tokens share OpenAI's output-token allowance with the visible argument. Existing token and time limits still apply. Adjust `--max-output-tokens`, `--request-timeout-secs` and `--timeout-secs` for your chosen workload when necessary. EngArg keeps these budgets explicit.
 
 For an OpenAI-compatible Chat Completions endpoint that implements strict JSON Schema:
 

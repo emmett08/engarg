@@ -76,6 +76,9 @@ pub struct Completion {
     /// Provider-reported tier, which may differ from the requested tier.
     #[serde(default)]
     pub service_tier: Option<String>,
+    /// Provider-reported effort when available, never inferred from the request.
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
 }
 
 /// Small dependency-inversion boundary; implement it for another API or replay.
@@ -100,6 +103,7 @@ pub struct HttpModel {
     model: String,
     role_models: HashMap<Role, String>,
     service_tier: Option<String>,
+    reasoning_effort: Option<String>,
     style: ApiStyle,
     max_output_tokens: u32,
     max_body_bytes: usize,
@@ -112,6 +116,8 @@ pub struct HttpConfig {
     pub role_models: HashMap<Role, String>,
     /// Passed through exactly when set. Availability is provider-specific.
     pub service_tier: Option<String>,
+    /// Optional effort identifier. The endpoint validates model compatibility.
+    pub reasoning_effort: Option<String>,
     pub style: ApiStyle,
     pub timeout: Duration,
     pub max_output_tokens: u32,
@@ -144,13 +150,13 @@ fn validate_endpoint(endpoint: &str) -> Result<Url, Error> {
     Ok(url)
 }
 
-fn validate_service_tier(tier: Option<&str>) -> Result<(), Error> {
-    if tier.is_some_and(|tier| {
-        tier.is_empty() || tier.len() > 64 || !tier.bytes().all(|byte| byte.is_ascii_graphic())
+fn validate_option_identifier(name: &str, value: Option<&str>) -> Result<(), Error> {
+    if value.is_some_and(|value| {
+        value.is_empty() || value.len() > 64 || !value.bytes().all(|byte| byte.is_ascii_graphic())
     }) {
-        return Err(Error::InvalidInput(
-            "service tier must contain 1 to 64 visible ASCII characters".into(),
-        ));
+        return Err(Error::InvalidInput(format!(
+            "{name} must contain 1 to 64 visible ASCII characters"
+        )));
     }
     Ok(())
 }
@@ -158,7 +164,8 @@ fn validate_service_tier(tier: Option<&str>) -> Result<(), Error> {
 impl HttpModel {
     pub fn new(config: HttpConfig) -> Result<Self, Error> {
         let endpoint = validate_endpoint(&config.endpoint)?;
-        validate_service_tier(config.service_tier.as_deref())?;
+        validate_option_identifier("service tier", config.service_tier.as_deref())?;
+        validate_option_identifier("reasoning effort", config.reasoning_effort.as_deref())?;
         if config.model.trim().is_empty()
             || config.role_models.values().any(|m| m.trim().is_empty())
         {
@@ -184,6 +191,7 @@ impl HttpModel {
             model: config.model,
             role_models: config.role_models,
             service_tier: config.service_tier,
+            reasoning_effort: config.reasoning_effort,
             style: config.style,
             max_output_tokens: config.max_output_tokens,
             max_body_bytes: config.max_body_bytes,
@@ -206,6 +214,12 @@ impl HttpModel {
         };
         if let Some(tier) = &self.service_tier {
             body["service_tier"] = json!(tier);
+        }
+        if let Some(effort) = &self.reasoning_effort {
+            match self.style {
+                ApiStyle::Responses => body["reasoning"] = json!({"effort": effort}),
+                ApiStyle::Chat => body["reasoning_effort"] = json!(effort),
+            }
         }
         body
     }
@@ -263,6 +277,19 @@ fn decode(value: Value, style: ApiStyle, fallback_model: &str) -> Result<Complet
         Some(Value::String(tier)) => Some(tier.clone()),
         Some(_) => return Err(failure()),
     };
+    let effort = match style {
+        ApiStyle::Responses => match value.get("reasoning") {
+            None | Some(Value::Null) => None,
+            Some(Value::Object(reasoning)) => reasoning.get("effort"),
+            Some(_) => return Err(failure()),
+        },
+        ApiStyle::Chat => value.get("reasoning_effort"),
+    };
+    let reasoning_effort = match effort {
+        None | Some(Value::Null) => None,
+        Some(Value::String(effort)) => Some(effort.clone()),
+        Some(_) => return Err(failure()),
+    };
     Ok(Completion {
         content,
         model: value["model"].as_str().unwrap_or(fallback_model).into(),
@@ -270,6 +297,7 @@ fn decode(value: Value, style: ApiStyle, fallback_model: &str) -> Result<Complet
         output_tokens: output,
         request_id: value["id"].as_str().map(str::to_owned),
         service_tier,
+        reasoning_effort,
     })
 }
 
@@ -381,24 +409,32 @@ mod tests {
         assert_eq!(c.input_tokens, None);
     }
     #[test]
-    fn service_tier_validation_is_bounded_without_an_enum_whitelist() {
-        for tier in [None, Some("ultrafast"), Some("provider-tier_vNext")] {
-            assert!(validate_service_tier(tier).is_ok());
+    fn optional_provider_identifiers_are_bounded_without_an_enum_whitelist() {
+        for name in ["service tier", "reasoning effort"] {
+            for value in [
+                None,
+                Some("ultrafast"),
+                Some("high"),
+                Some("provider_vNext"),
+            ] {
+                assert!(validate_option_identifier(name, value).is_ok());
+            }
+            for value in ["", " ", "high\n", "\tpriority", "prîority"] {
+                assert!(validate_option_identifier(name, Some(value)).is_err());
+            }
+            assert!(validate_option_identifier(name, Some(&"a".repeat(65))).is_err());
         }
-        for tier in ["", " ", "ultrafast\n", "\tpriority", "prîority"] {
-            assert!(validate_service_tier(Some(tier)).is_err());
-        }
-        assert!(validate_service_tier(Some(&"a".repeat(65))).is_err());
     }
 
     #[test]
-    fn completion_deserialisation_keeps_old_receipts_without_fabricating_a_tier() {
+    fn completion_deserialisation_keeps_old_receipts_without_fabricating_provider_settings() {
         let completion: Completion = serde_json::from_value(json!({
             "content":"{}", "model":"recorded-model", "input_tokens":null,
             "output_tokens":null, "request_id":null
         }))
         .unwrap();
         assert_eq!(completion.service_tier, None);
+        assert_eq!(completion.reasoning_effort, None);
         let decoded = decode(
             json!({
                 "choices":[{"finish_reason":"stop","message":{"content":"{}"}}],
@@ -408,5 +444,53 @@ mod tests {
             "m",
         );
         assert!(decoded.is_err());
+    }
+
+    #[test]
+    fn provider_reported_effort_is_optional_and_rejects_malformed_metadata() {
+        for style in [ApiStyle::Responses, ApiStyle::Chat] {
+            let base = match style {
+                ApiStyle::Responses => {
+                    json!({"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"{}"}]}]})
+                }
+                ApiStyle::Chat => {
+                    json!({"choices":[{"finish_reason":"stop","message":{"content":"{}"}}]})
+                }
+            };
+            assert_eq!(
+                decode(base.clone(), style, "m").unwrap().reasoning_effort,
+                None
+            );
+            for effort in [
+                Value::Null,
+                json!("medium"),
+                json!("provider_vNext"),
+                json!(42),
+            ] {
+                let mut response = base.clone();
+                match style {
+                    ApiStyle::Responses => response["reasoning"] = json!({"effort": effort}),
+                    ApiStyle::Chat => response["reasoning_effort"] = effort.clone(),
+                }
+                let result = decode(response, style, "m");
+                match effort {
+                    Value::Null => assert_eq!(result.unwrap().reasoning_effort, None),
+                    Value::String(effort) => {
+                        assert_eq!(result.unwrap().reasoning_effort, Some(effort))
+                    }
+                    _ => assert!(result.is_err()),
+                }
+            }
+            if matches!(style, ApiStyle::Responses) {
+                for reasoning in [Value::Null, json!({}), json!({"summary":null})] {
+                    let mut response = base.clone();
+                    response["reasoning"] = reasoning;
+                    assert_eq!(decode(response, style, "m").unwrap().reasoning_effort, None);
+                }
+                let mut invalid = base;
+                invalid["reasoning"] = json!("invalid-container");
+                assert!(decode(invalid, style, "m").is_err());
+            }
+        }
     }
 }

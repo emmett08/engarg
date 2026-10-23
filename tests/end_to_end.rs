@@ -61,6 +61,8 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
             let body = receive(&mut stream);
             assert_eq!(body["model"], "gpt-6.1-sol");
             assert_eq!(body["service_tier"], "ultrafast");
+            assert_eq!(body["reasoning"], json!({"effort":"high"}));
+            assert!(body.get("reasoning_effort").is_none());
             let envelope: Value = serde_json::from_str(body["input"].as_str().unwrap()).unwrap();
             assert_eq!(envelope["request"]["claim"], expected_claim);
             if claim_only {
@@ -90,7 +92,7 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
             } else {
                 json!({"findings":["Synthetic API test fixture."],"objections":[],"evidence_gaps":[]}).to_string()
             };
-            let response=json!({"id":format!("test-response-{index}"),"status":"completed","model":"deterministic-http-double","service_tier":"default","output":[{"type":"message","content":[{"type":"output_text","text":content}]}],"usage":{"input_tokens":10,"output_tokens":20}}).to_string();
+            let response=json!({"id":format!("test-response-{index}"),"status":"completed","model":"deterministic-http-double","service_tier":"default","reasoning":{"effort":"medium"},"output":[{"type":"message","content":[{"type":"output_text","text":content}]}],"usage":{"input_tokens":10,"output_tokens":20}}).to_string();
             write!(stream,"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",response.len(),response).unwrap();
         }
     });
@@ -116,6 +118,13 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
             std::fs::write(&path, request_text).unwrap();
             command.arg("--input").arg(path);
         }
+    }
+    if matches!(input, Input::MinimalJson) {
+        command.env("ENGARG_REASONING_EFFORT", "high");
+    } else {
+        command
+            .args(["--reasoning-effort", "high"])
+            .env("ENGARG_REASONING_EFFORT", "low");
     }
     let result = command
         .args([
@@ -165,6 +174,32 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
             report["provider_config"]["requested_service_tier"],
             "ultrafast"
         );
+        assert_eq!(
+            report["provider_config"]["requested_reasoning_effort"],
+            "high"
+        );
+        let mut legacy = report.clone();
+        legacy["provider_config"]
+            .as_object_mut()
+            .unwrap()
+            .remove("requested_reasoning_effort");
+        for call in legacy["transcript"].as_array_mut().unwrap() {
+            call["response"]
+                .as_object_mut()
+                .unwrap()
+                .remove("reasoning_effort");
+        }
+        let legacy: engarg::engine::RunReport = serde_json::from_value(legacy).unwrap();
+        assert_eq!(
+            legacy.provider_config.unwrap().requested_reasoning_effort,
+            None
+        );
+        assert!(
+            legacy
+                .transcript
+                .iter()
+                .all(|call| call.response.reasoning_effort.is_none())
+        );
         let typed_report: engarg::engine::RunReport =
             serde_json::from_value(report.clone()).unwrap();
         assert_eq!(
@@ -176,6 +211,14 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
             Some("ultrafast")
         );
         assert_eq!(events[0]["requested_service_tier"], "ultrafast");
+        assert_eq!(events[0]["requested_reasoning_effort"], "high");
+        assert!(
+            report["transcript"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|record| { record["response"]["reasoning_effort"] == "medium" })
+        );
         assert_eq!(
             report["transcript"][0]["response"]["model"],
             "deterministic-http-double"

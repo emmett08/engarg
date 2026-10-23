@@ -90,6 +90,8 @@ pub struct ProviderRunConfig {
     pub api: String,
     pub default_model: String,
     pub requested_service_tier: Option<String>,
+    #[serde(default)]
+    pub requested_reasoning_effort: Option<String>,
     pub role_models: HashMap<Role, String>,
     pub max_output_tokens: u32,
     pub request_timeout_secs: u64,
@@ -512,6 +514,7 @@ mod tests {
                 output_tokens: None,
                 request_id: None,
                 service_tier: None,
+                reasoning_effort: None,
             })
         }
     }
