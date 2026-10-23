@@ -1,0 +1,400 @@
+{
+  "original_claim": "Parallelising independent CI test groups reduces pipeline duration without changing test outcomes.",
+  "current_claim": {
+    "text": "Parallelising independent CI test groups reduces pipeline duration while preserving test outcomes when useful overlap shortens the pipeline critical path and equivalent, isolated execution preserves the required checks.",
+    "qualifier": "Conditional on the assumed premises and untested comparison and coverage assumptions. The claim alone supplies no observations establishing those conditions in a real pipeline."
+  },
+  "stronger_target": {
+    "text": "For a frozen revision set and runner configuration, parallel scheduling lowers median pipeline elapsed time relative to sequential scheduling while meeting prospectively declared test-selection, isolation and outcome-equivalence criteria.",
+    "qualifier": "An empirical target for specified conditions, requiring retained paired measurements and outcome checks. No numerical improvement threshold or achieved result is proposed here."
+  },
+  "status": "conditional",
+  "scope": {
+    "system_boundary": "The complete CI pipeline, including group execution, fixture setup, scheduling, teardown and dependent stages.",
+    "configuration": "Repository revisions, group membership, worker count, runner capacity and fixture ownership remain parameters to specify before empirical assessment.",
+    "operating_conditions": "The proposed argument requires comparable cache state, external load, test inputs and randomness, with representative contention conditions.",
+    "units": "Pipeline and stage elapsed time in seconds. Required test selection, isolation properties and outcome discrepancies use explicitly declared checks.",
+    "time_horizon": "The conditional mechanism is restricted to its stated conditions. Any empirical conclusion would apply to the frozen revisions and observed operating envelope.",
+    "consequences": "A scheduling change is useful when faster feedback preserves the reliability and visibility of the required test outcomes."
+  },
+  "subclaims": [
+    {
+      "id": "S1",
+      "text": "Useful concurrent overlap shortens total pipeline elapsed time when it removes critical-path work and exceeds every additional critical-path cost.",
+      "qualifier": "A proposed conditional timing mechanism. Its applicability to a particular pipeline remains untested."
+    }
+  ],
+  "grounds": [
+    {
+      "id": "G1",
+      "statement": "Eligible groups occupy overlapping portions of the sequential pipeline critical path, and the overlap saves more elapsed time than additional scheduling, setup and resource-contention costs.",
+      "evidence_ids": [],
+      "status": "assumed"
+    },
+    {
+      "id": "G2",
+      "statement": "The parallel schedule preserves required test selection, initial state, inputs, controlled randomness, outcome evaluation and failure visibility, while isolating mutable resources.",
+      "evidence_ids": [],
+      "status": "assumed"
+    },
+    {
+      "id": "G3",
+      "statement": "Paired measurements and scoped outcome-equivalence checks support lower pipeline duration and preserved outcomes for the declared revisions and conditions.",
+      "evidence_ids": [],
+      "status": "missing"
+    }
+  ],
+  "warrants": [
+    {
+      "id": "W1",
+      "rule": "Overlapping critical-path work reduces pipeline elapsed time when the saved serial time exceeds all additional critical-path costs and the comparison holds the remaining work constant.",
+      "conclusion_id": "S1",
+      "premise_ids": [
+        "G1"
+      ],
+      "backing_evidence_ids": [],
+      "inference": "causal",
+      "applicability": "A scheduling mechanism proposed for the conditions in G1 and A1. Its timing decomposition and empirical applicability require the backing investigation N-W1."
+    },
+    {
+      "id": "W2",
+      "rule": "A duration-reduction mechanism and an outcome-preserving execution relation jointly support the combined claim under the same configuration and scope.",
+      "conclusion_id": "current_claim",
+      "premise_ids": [
+        "S1",
+        "G2"
+      ],
+      "backing_evidence_ids": [],
+      "inference": "deductive",
+      "applicability": "Conditional composition of S1 and G2. Their truth and scope compatibility remain obligations, and N-W2 must justify the composition and outcome-preservation relation."
+    },
+    {
+      "id": "W3",
+      "rule": "A controlled paired comparison with adequate outcome checks can support a bounded empirical scheduling claim when measurement and transfer assumptions hold.",
+      "conclusion_id": "stronger_target",
+      "premise_ids": [
+        "S1",
+        "G2",
+        "G3"
+      ],
+      "backing_evidence_ids": [],
+      "inference": "inductive",
+      "applicability": "Requires a prospective comparison design and retained observations. Sampling, uncertainty and outcome-equivalence adequacy require the methodological backing in N-W3."
+    }
+  ],
+  "compositions": [
+    {
+      "conclusion_id": "S1",
+      "relationship": "jointly_required",
+      "selected_warrant_ids": [
+        "W1"
+      ],
+      "rationale": "The conditional timing subclaim relies on W1 and its declared critical-path premise."
+    },
+    {
+      "conclusion_id": "current_claim",
+      "relationship": "jointly_required",
+      "selected_warrant_ids": [
+        "W2"
+      ],
+      "rationale": "W2 requires both the timing mechanism and outcome-preserving execution. A performance benefit alone cannot supply the combined conclusion."
+    },
+    {
+      "conclusion_id": "stronger_target",
+      "relationship": "jointly_required",
+      "selected_warrant_ids": [
+        "W3"
+      ],
+      "rationale": "The empirical target additionally requires G3 and the methodological conditions for interpreting the comparison."
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "A1",
+      "statement": "The sequential and parallel configurations differ only in declared scheduling and necessary isolation changes, with other elapsed-time influences controlled or recorded.",
+      "critical": true,
+      "status": "untested",
+      "evidence_ids": [],
+      "applies_to": [
+        "W1",
+        "W3"
+      ],
+      "validation": "Freeze configurations and counterbalance run order while recording cache state, runner load, setup costs and other timing influences."
+    },
+    {
+      "id": "A2",
+      "statement": "The selected revisions, operating conditions and outcome checks adequately cover the intended use of the claim.",
+      "critical": true,
+      "status": "untested",
+      "evidence_ids": [],
+      "applies_to": [
+        "W2",
+        "W3"
+      ],
+      "validation": "Justify the selected workload and failure conditions, test-selection invariants and outcome-equivalence criteria before interpreting decisive results."
+    }
+  ],
+  "defeaters": [
+    {
+      "id": "D1",
+      "kind": "undercutting",
+      "target_id": "W1",
+      "challenge": "Shorter group execution can leave total pipeline duration unchanged when another stage remains critical or concurrency adds equivalent contention and setup costs.",
+      "status": "open",
+      "material": true,
+      "basis": "hypothetical",
+      "response": "Profile the complete pipeline and compare critical-path changes, including additional costs. This remains a proposed challenge until investigated.",
+      "evidence_ids": []
+    },
+    {
+      "id": "D2",
+      "kind": "undermining",
+      "target_id": "G2",
+      "challenge": "Hidden fixture sharing or order-dependent state can change test outcomes when groups execute concurrently.",
+      "status": "open",
+      "material": true,
+      "basis": "hypothetical",
+      "response": "Inspect mutable-resource ownership and perturb scheduling while checking identical required test selection and outcome evaluation. No interference has been observed in this claim-only input.",
+      "evidence_ids": []
+    }
+  ],
+  "alternatives": [
+    {
+      "explanation": "Sequential scheduling can be faster when runner contention or duplicated fixture setup exceeds overlap savings.",
+      "distinguishing_test": "Compare complete pipeline timing and resource profiles under sequential and parallel scheduling on the same declared configurations.",
+      "evidence_ids": []
+    },
+    {
+      "explanation": "An apparent improvement can arise from warmer caches or lower external runner load rather than from the scheduling change.",
+      "distinguishing_test": "Counterbalance configuration order and compare both schedules within recorded cache and load conditions.",
+      "evidence_ids": []
+    }
+  ],
+  "evidence_plan": [
+    {
+      "id": "N-G1",
+      "target_id": "G1",
+      "question": "Does concurrent overlap reduce the complete pipeline critical path after all added costs?",
+      "method": "Profile sequential and parallel schedules, including setup, teardown and dependent stages.",
+      "measurement": "Complete-pipeline, stage and setup elapsed times in seconds, with resource profiles.",
+      "comparator": "The same declared revisions and runner capacity under sequential scheduling.",
+      "acceptance_criterion": "Proposed criterion: The retained timing decomposition supports a net reduction under the declared conditions.",
+      "if_failed": "Narrow the mechanism or retain sequential scheduling where added costs erase the benefit.",
+      "enables_claim": "current_claim",
+      "priority": 1,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-G2",
+      "target_id": "G2",
+      "question": "Does parallel execution preserve the required execution and isolation invariants?",
+      "method": "Audit group membership and resource ownership, then perturb execution order and repeat the scoped checks.",
+      "measurement": "Required-check selection, mutable-resource access and outcome discrepancies under declared scheduling conditions.",
+      "comparator": "Sequential execution and a parallel schedule with isolated resources.",
+      "acceptance_criterion": "Proposed criterion: Required checks and outcome evaluation remain equivalent within explicitly justified coverage.",
+      "if_failed": "Repair isolation or restrict the claim to groups whose outcome preservation is supported.",
+      "enables_claim": "current_claim",
+      "priority": 1,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-G3",
+      "target_id": "G3",
+      "question": "Does the empirical comparison support both lower duration and preserved outcomes?",
+      "method": "After a pilot, preregister a paired counterbalanced study and retain timing, configuration and outcome records.",
+      "measurement": "Pipeline elapsed time in seconds, paired duration differences and declared outcome-equivalence results.",
+      "comparator": "Sequential scheduling on matched revisions and runner conditions.",
+      "acceptance_criterion": "Proposed criterion: The predeclared uncertainty analysis supports lower duration and the independently justified outcome criteria pass.",
+      "if_failed": "Reject or narrow the empirical target according to the retained findings.",
+      "enables_claim": "stronger_target",
+      "priority": 2,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-A1",
+      "target_id": "A1",
+      "question": "Are alternative timing influences controlled sufficiently for attribution?",
+      "method": "Freeze configurations, counterbalance order and record cache, load and changed setup costs.",
+      "measurement": "Configuration differences, cache categories, runner utilisation and elapsed times in declared units.",
+      "comparator": "Both schedules within the same recorded conditions.",
+      "acceptance_criterion": "Proposed criterion: The scheduling attribution survives the predeclared comparison checks, or its scope is restricted.",
+      "if_failed": "Control the identified influence or qualify the causal interpretation.",
+      "enables_claim": "current_claim",
+      "priority": 1,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-A2",
+      "target_id": "A2",
+      "question": "Do workload selection and outcome checks cover the intended claim?",
+      "method": "Review representative revisions, failure conditions and the completeness of required-check and equivalence criteria.",
+      "measurement": "A traceable coverage map and explicit outcome criteria.",
+      "comparator": "The stated intended use and the existing sequential test obligations.",
+      "acceptance_criterion": "Proposed criterion: Every material requirement has justified coverage or an explicit restriction on the claim.",
+      "if_failed": "Add the missing cases or narrow the claim to the supported operating envelope.",
+      "enables_claim": "current_claim",
+      "priority": 1,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-D1",
+      "target_id": "D1",
+      "question": "Could contention, setup or a remaining bottleneck erase the proposed benefit?",
+      "method": "Use the N-G1 profiles to compare critical paths across representative contention conditions.",
+      "measurement": "Critical-path and added-cost durations in seconds with corresponding resource utilisation.",
+      "comparator": "Matched sequential and parallel complete-pipeline runs.",
+      "acceptance_criterion": "Proposed criterion: The proposed mechanism survives the recorded bottleneck and overhead checks.",
+      "if_failed": "Revise worker allocation, grouping or scope before claiming a net benefit.",
+      "enables_claim": "current_claim",
+      "priority": 1,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-D2",
+      "target_id": "D2",
+      "question": "Does hidden shared state make outcomes scheduling-dependent?",
+      "method": "Use the N-G2 ownership audit and order perturbation checks, retaining individual failures and fixtures.",
+      "measurement": "Observed cross-group interference and outcome discrepancies with revision and schedule identities.",
+      "comparator": "Sequential execution and isolated-resource parallel execution.",
+      "acceptance_criterion": "Proposed criterion: The specified checks support isolation, with finite-coverage limits retained.",
+      "if_failed": "Repair the affected fixtures or retain sequential execution for affected groups.",
+      "enables_claim": "current_claim",
+      "priority": 1,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-W1",
+      "target_id": "W1",
+      "question": "Is the timing mechanism justified for this pipeline?",
+      "method": "Derive the critical-path timing decomposition and compare its assumptions with the retained N-G1 profiles.",
+      "measurement": "A source-located derivation, timing terms in seconds and model-to-pipeline correspondence.",
+      "comparator": "Observed sequential and parallel critical paths under matched conditions.",
+      "acceptance_criterion": "Proposed criterion: The derivation accounts for overlap and all material added costs in the declared boundary.",
+      "if_failed": "Revise the timing model and the conditions attached to the claim.",
+      "enables_claim": "current_claim",
+      "priority": 1,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-W2",
+      "target_id": "W2",
+      "question": "Does the conjunction preserve scope and justify outcome preservation?",
+      "method": "Review the logical composition and the execution-equivalence argument against the declared test semantics.",
+      "measurement": "A traceable inference check and correspondence between required checks, scope and outcomes.",
+      "comparator": "The exact S1 and G2 propositions under the same configuration.",
+      "acceptance_criterion": "Proposed criterion: The combined conclusion follows conditionally without strengthening either imported premise.",
+      "if_failed": "Repair the inference or qualify the combined claim.",
+      "enables_claim": "current_claim",
+      "priority": 1,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    },
+    {
+      "id": "N-W3",
+      "target_id": "W3",
+      "question": "Is the proposed empirical method adequate for the stronger target?",
+      "method": "Justify paired sampling, workload coverage, uncertainty estimation and outcome-equivalence criteria before decisive results.",
+      "measurement": "A retained protocol and explicit assumptions for its estimands and acceptance criteria.",
+      "comparator": "The stronger target and serious competing explanations under the same standards.",
+      "acceptance_criterion": "Proposed criterion: The method can discriminate the proposed benefit from confounding and scope failure.",
+      "if_failed": "Revise the protocol or restrict the empirical conclusion.",
+      "enables_claim": "stronger_target",
+      "priority": 2,
+      "cost": "Proposed engineering and CI execution effort, to estimate before the study."
+    }
+  ],
+  "reading": [
+    {
+      "claim_id": "current_claim",
+      "title": "The strongest conditional argument from the claim alone",
+      "paragraphs": [
+        {
+          "purpose": "answer",
+          "text": "Parallelising independent CI test groups reduces pipeline duration while preserving test outcomes when useful overlap shortens the pipeline critical path and equivalent, isolated execution preserves the required checks. This is a conditional formulation of the proposed benefit.",
+          "reference_ids": [
+            "current_claim",
+            "S1",
+            "G2"
+          ]
+        },
+        {
+          "purpose": "finding",
+          "text": "The input supplies the claim alone. Useful critical-path overlap and outcome-preserving execution are assumed premises, while the measurements required for the empirical target remain missing.",
+          "reference_ids": [
+            "G1",
+            "G2",
+            "G3"
+          ]
+        },
+        {
+          "purpose": "connection",
+          "text": "W1 connects useful critical-path overlap to shorter pipeline duration. W2 combines that mechanism with equivalent isolated execution, so both conditions are required for the original combined claim.",
+          "reference_ids": [
+            "W1",
+            "W2",
+            "S1",
+            "G2"
+          ]
+        },
+        {
+          "purpose": "complication",
+          "text": "A different bottleneck can consume the expected timing benefit, and shared fixtures can change outcomes. The comparison and coverage assumptions therefore require their own checks.",
+          "reference_ids": [
+            "D1",
+            "D2",
+            "A1",
+            "A2"
+          ]
+        },
+        {
+          "purpose": "conclusion",
+          "text": "Retain the positive claim conditionally on the stated mechanism and execution invariants. Establish those premises and their warrant backing before using paired observations to assess the stronger empirical target.",
+          "reference_ids": [
+            "current_claim",
+            "stronger_target",
+            "N-G1",
+            "N-G2",
+            "N-G3",
+            "N-W1",
+            "N-W2",
+            "N-W3"
+          ]
+        }
+      ]
+    },
+    {
+      "claim_id": "S1",
+      "title": "Why overlap could shorten the pipeline",
+      "paragraphs": [
+        {
+          "purpose": "answer",
+          "text": "Useful overlap shortens the pipeline when it removes serial work from the critical path and exceeds every added critical-path cost.",
+          "reference_ids": [
+            "S1",
+            "G1"
+          ]
+        },
+        {
+          "purpose": "conclusion",
+          "text": "The mechanism remains conditional until complete-pipeline profiles and the timing decomposition establish its applicability, with bottlenecks and comparison conditions assessed explicitly.",
+          "reference_ids": [
+            "S1",
+            "W1",
+            "A1",
+            "D1",
+            "N-G1",
+            "N-W1"
+          ]
+        }
+      ]
+    }
+  ],
+  "residual_risks": [
+    "Finite trials can miss rare interference, nondeterministic outcomes or unobserved runner conditions.",
+    "A reduction measured for one revision set requires a transfer argument before broader use."
+  ],
+  "decision_limits": [
+    "Use the conditional argument to identify what would establish or defeat the proposed benefit.",
+    "Empirical reliance requires actual retained observations, adequate warrant backing and justified comparison criteria."
+  ],
+  "adjudication": "The claim admits a positive conditional argument: critical-path overlap supplies the timing mechanism, and equivalent isolated execution supplies outcome preservation. G1 and G2 are assumed, G3 is missing, A1 and A2 are untested, and D1 and D2 remain hypothetical material challenges. The report therefore preserves the claim as conditional and specifies investigations for its premises, warrants and stronger empirical target."
+}

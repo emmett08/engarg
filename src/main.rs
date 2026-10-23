@@ -24,7 +24,7 @@ mod eal_commands;
 #[command(
     version,
     about = "Construct, challenge and qualify engineering arguments",
-    long_about = "Evidence-bounded extended Toulmin arguments. Model judgements remain provisional; source truth and logical soundness require separate checks."
+    long_about = "Start with a claim. EngArg develops an extended Toulmin argument, challenges its reasoning and specifies the evidence needed to establish it. Context and evidence are optional. Model judgements remain provisional."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -33,7 +33,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run separate LLM calls. Supplied evidence is sent to the configured endpoint.
+    /// Develop an argument and evidence plan from a claim through separate LLM calls.
     Analyse(Box<Analyse>),
     /// Convert to EAL/3 and invoke eal-mcp through its official host.
     Eal {
@@ -41,7 +41,13 @@ enum Command {
         command: eal_commands::EalCommand,
     },
     /// Display a labelled synthetic case without model calls or credentials.
-    Demo(Output),
+    Demo {
+        /// Show argument construction from a claim with no supplied evidence.
+        #[arg(long)]
+        claim_only: bool,
+        #[command(flatten)]
+        output: Output,
+    },
     /// Render a saved JSON run in another view, without model calls.
     Render {
         #[arg(long)]
@@ -68,10 +74,10 @@ enum Command {
 #[derive(Args)]
 #[group(required = true, multiple = false)]
 struct Source {
-    /// Claim text. Use --input for a claim with evidence and context.
+    /// Claim to develop. Context and evidence are optional.
     #[arg(long)]
     claim: Option<String>,
-    /// JSON Request. Sources are identifiers or text, never automatically fetched.
+    /// JSON containing a claim and optional context/evidence. Sources are not fetched.
     #[arg(long)]
     input: Option<PathBuf>,
 }
@@ -367,10 +373,20 @@ async fn execute(cli: Cli) -> Result<(), Error> {
     match cli.command {
         Command::Analyse(args) => analyse(*args).await,
         Command::Eal { command } => eal_commands::execute(command).await,
-        Command::Demo(output) => {
-            let request: Request = serde_json::from_str(include_str!("../examples/request.json"))?;
-            let argument: ArgumentCase =
-                serde_json::from_str(include_str!("../examples/case.json"))?;
+        Command::Demo { claim_only, output } => {
+            let (request_text, argument_text) = if claim_only {
+                (
+                    include_str!("../examples/claim-only-request.json"),
+                    include_str!("../examples/claim-only-case.json"),
+                )
+            } else {
+                (
+                    include_str!("../examples/request.json"),
+                    include_str!("../examples/case.json"),
+                )
+            };
+            let request: Request = serde_json::from_str(request_text)?;
+            let argument: ArgumentCase = serde_json::from_str(argument_text)?;
             validate_case(&request, &argument).map_err(|v| Error::InvalidOutput(v.join("; ")))?;
             let report = json!({"schema_version":"engarg.demo.v2","execution_mode":"offline_synthetic_fixture","request":request,"argument":argument,"limitations":["No model calls, evidence verification or experiments were performed. This is a synthetic demonstration."]});
             let content = report_content(&output, &request, &argument, &report)?;

@@ -1,9 +1,9 @@
 [package]
 name = "engarg"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 rust-version = "1.99"
-description = "Evidence-bounded engineering arguments using extended Toulmin models"
+description = "Claim-first engineering arguments and evidence plans using extended Toulmin models"
 license = "GPL-3.0-only"
 repository = "https://github.com/emmett08/engarg"
 

@@ -215,3 +215,50 @@ fn outline_depth_is_bounded_at_the_cli() {
         );
     }
 }
+
+#[test]
+fn minimal_request_schema_requires_only_the_claim() {
+    let output = cli().args(["schema", "request"]).output().unwrap();
+    assert!(output.status.success());
+    let schema: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(schema["required"], serde_json::json!(["claim"]));
+    assert_eq!(schema["properties"]["context"]["default"], "");
+    assert_eq!(
+        schema["properties"]["evidence"]["default"],
+        serde_json::json!([])
+    );
+}
+
+#[test]
+fn claim_only_demo_contains_a_conditional_argument_and_required_evidence() {
+    let output = cli()
+        .args(["demo", "--claim-only", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["execution_mode"], "offline_synthetic_fixture");
+    assert_eq!(report["request"]["evidence"], serde_json::json!([]));
+    assert_eq!(report["argument"]["status"], "conditional");
+    assert!(
+        !report["argument"]["warrants"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        !report["argument"]["evidence_plan"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let text = cli().args(["demo", "--claim-only"]).output().unwrap();
+    assert!(text.status.success());
+    let text = String::from_utf8(text.stdout).unwrap();
+    assert!(text.contains("14. Decision basis and revision triggers"));
+    assert!(text.contains("Evidence obligations for the stronger target"));
+}

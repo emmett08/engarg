@@ -167,6 +167,25 @@ fn argument(record: &CallRecord) -> Result<ArgumentCase, Error> {
     })
 }
 
+/// Generation must construct reasoning rather than return an assessment alone.
+/// Call after graph validation: its acyclicity, attachment and premise checks
+/// then guarantee that a root warrant reaches an explicitly represented ground.
+fn validate_construction(case: &ArgumentCase) -> Result<(), Error> {
+    if case.grounds.is_empty()
+        || !case.warrants.iter().any(|warrant| {
+            matches!(
+                warrant.conclusion_id.as_str(),
+                "current_claim" | "stronger_target"
+            )
+        })
+    {
+        return Err(Error::InvalidOutput(
+            "generation must construct at least one argument from represented grounds through a warrant to current_claim or stronger_target; an assessment and evidence plan alone are insufficient".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn prompt(role: Role, data: Value, schema: Value) -> Result<CompletionRequest, Error> {
     Ok(CompletionRequest {
         role,
@@ -237,7 +256,7 @@ fn sha256_hex(bytes: impl AsRef<[u8]>) -> String {
 
 fn limitations(mode: Mode) -> Vec<String> {
     let mut values = vec![
-        "This is an LLM assessment relative to supplied evidence and explored alternatives. It does not establish global optimality, premise truth or deductive soundness.".to_owned(),
+        "This is an LLM-constructed argument and assessment of its explicit assumptions, available evidence and explored alternatives. Required observations remain obligations until acquired and checked. Global optimality, premise truth and deductive soundness remain unverified.".to_owned(),
         "No source retrieval, independent evidence verification, experiment execution or proof checking was performed by this workflow.".to_owned(),
         "Deterministic validation checks structure and reference integrity. It does not establish semantic sufficiency or the quality of the proposed tests.".to_owned(),
         "Agent agreement is not evidence. Related models can share errors and the adjudicator can retain bias.".to_owned(),
@@ -306,6 +325,7 @@ where
     };
     validate_case(request, &final_case)
         .map_err(|errors| Error::InvalidOutput(errors.join("; ")))?;
+    validate_construction(&final_case)?;
     Ok(RunReport {
         schema_version: "engarg.run.v2".to_owned(),
         execution_mode: "provider_calls".to_owned(),
@@ -498,6 +518,138 @@ mod tests {
 
     fn request() -> Request {
         serde_json::from_str(include_str!("../examples/request.json")).unwrap()
+    }
+
+    struct ConstructedCaseModel {
+        case: ArgumentCase,
+        inner: MockModel,
+    }
+
+    impl LanguageModel for ConstructedCaseModel {
+        async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
+            let role = request.role;
+            let mut completion = self.inner.complete(request).await?;
+            if matches!(role, Role::Synthesiser | Role::Adjudicator | Role::Single) {
+                completion.content = serde_json::to_string(&self.case)?;
+            }
+            Ok(completion)
+        }
+    }
+
+    fn claim_only_candidate() -> (Request, ArgumentCase) {
+        (
+            serde_json::from_str(include_str!("../examples/claim-only-request.json")).unwrap(),
+            serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap(),
+        )
+    }
+
+    fn assessment_without_argument(mut case: ArgumentCase) -> ArgumentCase {
+        case.status = crate::domain::CaseStatus::Unsupported;
+        case.current_claim.text =
+            "An argument for the supplied claim remains to be constructed.".into();
+        case.current_claim.qualifier = "An assessment and investigation plan only.".into();
+        case.grounds.clear();
+        case.warrants.clear();
+        case.subclaims.clear();
+        case.compositions.clear();
+        case.assumptions.clear();
+        case.defeaters.clear();
+        case.alternatives.clear();
+        case.evidence_plan.truncate(1);
+        case.evidence_plan[0].target_id = "current_claim".into();
+        case.evidence_plan[0].enables_claim = "current_claim".into();
+        case.reading
+            .retain(|section| section.claim_id == "current_claim");
+        for paragraph in &mut case.reading[0].paragraphs {
+            paragraph.text =
+                "The requested claim requires an argument and investigation before reliance."
+                    .into();
+            paragraph.reference_ids = vec!["current_claim".into()];
+        }
+        case
+    }
+
+    #[tokio::test]
+    async fn generation_rejects_an_empty_assessment_graph_in_both_modes() {
+        let (request, candidate) = claim_only_candidate();
+        let case = assessment_without_argument(candidate);
+        // Assessment-only cases remain valid for import and presentation.
+        assert_eq!(validate_case(&request, &case), Ok(()));
+        for mode in [Mode::Single, Mode::Hybrid] {
+            let model = ConstructedCaseModel {
+                case: case.clone(),
+                inner: MockModel::new(false),
+            };
+            let config = RunConfig {
+                mode,
+                ..RunConfig::default()
+            };
+            assert!(matches!(run(&model, &request, &config).await,
+                    Err(Error::InvalidOutput(message)) if message.contains("generation must construct at least one argument")));
+            assert_eq!(
+                model.inner.calls.lock().unwrap().len(),
+                if mode == Mode::Single { 1 } else { 6 }
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn generation_accepts_a_substantive_claim_only_conditional_argument() {
+        let (request, case) = claim_only_candidate();
+        assert!(request.evidence.is_empty());
+        for mode in [Mode::Single, Mode::Hybrid] {
+            let model = ConstructedCaseModel {
+                case: case.clone(),
+                inner: MockModel::new(false),
+            };
+            let report = run(
+                &model,
+                &request,
+                &RunConfig {
+                    mode,
+                    ..RunConfig::default()
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                report.argument.status,
+                crate::domain::CaseStatus::Conditional
+            );
+            assert!(!report.argument.grounds.is_empty());
+            assert!(!report.argument.warrants.is_empty());
+            assert!(!report.argument.evidence_plan.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn construction_allows_a_reasoned_qualification_of_an_overstated_original_claim() {
+        let (mut request, mut case) = claim_only_candidate();
+        request.claim = "Parallel scheduling always shortens every CI pipeline.".into();
+        case.original_claim = request.claim.clone();
+        case.current_claim.text = "A speedup remains conditional on useful critical-path overlap and equivalent execution of the required checks.".into();
+        case.current_claim.qualifier = "The universal original claim requires qualification; the represented mechanism applies only when its explicit conditions hold.".into();
+        assert_eq!(validate_case(&request, &case), Ok(()));
+        let model = ConstructedCaseModel {
+            case,
+            inner: MockModel::new(false),
+        };
+        let report = run(
+            &model,
+            &request,
+            &RunConfig {
+                mode: Mode::Single,
+                max_calls: 1,
+                ..RunConfig::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_ne!(report.argument.current_claim.text, request.claim);
+        assert_eq!(
+            report.argument.status,
+            crate::domain::CaseStatus::Conditional
+        );
     }
 
     #[tokio::test]

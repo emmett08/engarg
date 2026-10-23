@@ -1,8 +1,8 @@
 # EngArg
 
-A Rust command-line tool that constructs, challenges and qualifies engineering arguments. Given a claim and supplied evidence, it returns an extended Toulmin model and a prioritised plan for obtaining the evidence needed for a stronger claim.
+A Rust command-line tool that develops the strongest defensible engineering argument it can construct from a claim. Give it the claim and it builds an extended Toulmin argument, examines the consequential objections and specifies the evidence needed to establish its premises and warrants. Context and evidence are optional.
 
-The strongest output is the strongest formulation defensible from the supplied evidence and explored alternatives. An LLM cannot certify that it found the globally soundest argument. `unsupported` is a useful result when the evidence does not warrant the requested claim.
+For a claim alone, EngArg develops a substantive conditional argument with explicit mechanisms, premises, working scope and assumptions. It then explains what evidence would support, weaken or overturn that argument. The distinction between a coherent candidate and an established conclusion remains visible through the claim qualifier and assessment status. LLM construction and critique provide candidates for review, with their limits and unresolved obligations retained.
 
 ## Try it
 
@@ -10,20 +10,20 @@ Install the pinned Rust toolchain using [rustup](https://rustup.rs/). A C compil
 
 ```sh
 cargo install --path . --locked
-engarg demo --format markdown
+engarg demo --claim-only --format markdown
 engarg demo --format outline
 engarg demo --format prose
 engarg schema request
 engarg validate --input examples/request.json --case examples/case.json
 ```
 
-The demo is synthetic and makes no model calls. Inspect `examples/request.json` before adapting it to your claim.
+The demo is synthetic and makes no model calls. `engarg demo --claim-only` shows a complete argument and evidence plan starting from the minimal request in `examples/claim-only-request.json`. Omit `--claim-only` to inspect an example with an optional source record.
 
 For a provider run, set `ENGARG_API_KEY` through your secret manager or environment, and set `ENGARG_MODEL` to an exact model identifier supported by that endpoint. Then:
 
 ```sh
 engarg analyse \
-  --input examples/request.json \
+  --claim 'Parallelising independent CI test groups reduces pipeline duration without changing test outcomes.' \
   --model "$ENGARG_MODEL" \
   --format json \
   --audit run.audit.jsonl \
@@ -36,7 +36,7 @@ To request GPT-6.1 Sol with Ultrafast processing through the Responses API:
 
 ```sh
 engarg analyse \
-  --input examples/request.json \
+  --claim 'Parallelising independent CI test groups reduces pipeline duration without changing test outcomes.' \
   --model gpt-6.1-sol \
   --service-tier ultrafast \
   --format json \
@@ -67,7 +67,17 @@ The default hybrid workflow performs six calls. `--mode single --max-calls 1` su
 
 ## Input and output
 
-The input contains a `claim`, free-text `context`, and `evidence` records. Each record supplies a stable `id`, `title`, `source`, `excerpt`, `kind`, and a `checked_by_user` assertion. Include adverse evidence alongside supporting evidence. A source URL is a provenance label: the program does not fetch it. Put the actual relevant passage or measurement summary in `excerpt`. Use stable revision identifiers, configuration details and measurement units where relevant.
+Only `claim` is required. The simplest JSON input is:
+
+```json
+{
+  "claim": "Parallelising independent CI test groups reduces pipeline duration without changing test outcomes."
+}
+```
+
+Use `--claim TEXT` directly or save that object and pass it with `--input FILE`. Omitted `context` and `evidence` default to an empty string and array. The tool derives proposed working definitions and scope, builds the argument, tests alternatives and gives each unmet premise, critical assumption and warrant-backing gap an evidence or reasoning obligation. Each obligation identifies the affected inference, the investigation, comparison, measurement, proposed acceptance criterion and consequence of an adverse or inconclusive result.
+
+When useful, add free-text `context` or optional `evidence` records to refine the argument. Each evidence record supplies a stable `id`, `title`, `source`, `excerpt`, `kind` and `checked_by_user` assertion. Include adverse evidence alongside supporting evidence. A source URL records provenance. Put its actual relevant passage or measurement summary in `excerpt`, with revision identifiers, configuration details and units where available. For example:
 
 ```json
 {
@@ -86,15 +96,15 @@ The input contains a `claim`, free-text `context`, and `evidence` records. Each 
 }
 ```
 
-This is an input-format illustration, not evidence for the throughput claim. Replace its contents with actual evidence before making an assessment.
+The expanded object illustrates the optional source format. Use actual artefacts when adding evidence. Claim-only construction works without this object or any source record.
 
 The argument contains:
 
 | Toulmin component or extension | Representation |
 | --- | --- |
 | Claim and qualifier | Original wording, current defensible formulation, stronger conditional target |
-| Grounds | Evidence-linked premises distinguished as reported, assumed or missing |
-| Warrant and backing | Inference type, applicability, premise identifiers, conclusion identifier, backing evidence |
+| Grounds | Required premises distinguished as assumed, missing or reported with evidence |
+| Warrant and backing | Inference, applicability and required backing, with available evidence linked when supplied |
 | Intermediate reasoning | Subclaims and an acyclic dependency graph |
 | Assumptions | Criticality, support status, affected nodes and validation needs |
 | Rebuttals and other attacks | Undermining, rebutting and undercutting, with targets, basis, materiality and disposition |
@@ -102,6 +112,8 @@ The argument contains:
 | Alternatives | Competing explanations and discriminating tests |
 | Evidence acquisition | Method, measurement, comparator, acceptance criterion, enabled claim, failure interpretation, priority and effort |
 | Reliance | Residual risks, decision limits and adjudication rationale |
+
+A claim-only result can contain a complete conditional argument while its evidence remains to be obtained. The output retains the requested proposition under defensible conditions, alongside a stronger target and its additional requirements. Proposed premises use `assumed`, absent observations use `missing`, and proposed scope choices remain explicit assumptions. The acquisition plan describes future work.
 
 `status` assesses `current_claim`. It is `unsupported`, `conditional`, `provisionally_supported` or `refuted`. Refutation requires an evidence-linked sustained rebuttal aimed at that claim. Lack of support alone establishes no refutation. Evidence needed solely for `stronger_target` does not invalidate a supported narrower claim.
 
@@ -147,7 +159,7 @@ engarg eal export --input run.json --format json --output case.eal.json
 engarg eal export --input run.json --output case.eal --manifest case-manifest.json
 ```
 
-The JSON bundle retains the generated source, original request and case, export revision, identifier source map, mapped claim names and outstanding review obligations. The `.eal` file supplies an executable structural projection. Preserve its bundle or manifest when the original prose, evidence provenance and full canonical graph must be recoverable. Source alone provides a narrower representation.
+The JSON bundle retains the generated source, original request and case, export revision, identifier source map, mapped claim names and outstanding review obligations. After upgrading the exporter, re-export saved canonical JSON reports to produce bundles with the current revision identity. Existing reports remain usable. The `.eal` file supplies an executable structural projection. Preserve its bundle or manifest when the original prose, evidence provenance and full canonical graph must be recoverable. Source alone provides a narrower representation.
 
 See [the EAL mapping contract](docs/EAL_MAPPING.md) for the semantic projection, review policy and architecture rationale. The EAL service applies its own source, declaration, depth and execution budgets, which can reject a large or deep export even when the original EngArg case passes its checks.
 
@@ -192,7 +204,7 @@ Export creates review contracts rather than accepted observations. An excerpt, a
 
 ```mermaid
 flowchart TD
-    I["Claim and evidence"] --> C["Constructor"]
+    I["Claim and optional evidence"] --> C["Constructor"]
     I --> S["Sceptic"]
     I --> E["Evidence auditor"]
     C --> Y["Synthesis"]
@@ -206,13 +218,15 @@ flowchart TD
     V --> O["Argument and evidence plan"]
 ```
 
-The orchestrator controls a star topology. The first three calls receive the same original evidence and cannot see each other's responses. Synthesis uses all three. The final critic examines the draft, original evidence and initial assessments. Adjudication receives those materials directly and retains every declared objection with its original identifier and wording.
+The orchestrator controls a star topology. The first three calls receive the same claim and optional evidence and cannot see each other's responses. The constructor develops the positive argument, the sceptic tests its mechanism and alternatives, and the evidence auditor designs the investigations needed to establish it. Synthesis integrates their reasoning. The final critic examines the candidate against the original claim and its conditions. Adjudication revises the argument and evidence requirements while retaining every declared objection with its original identifier and wording.
 
 The argument itself is a directed acyclic graph. Warrants connect jointly required premises to explicit conclusions. A composition record states how multiple arguments support the same claim. Joint and cumulative compositions retain every declared contribution. An alternative composition records at most one selected adequate route, with a rationale and the same scope and assessment criterion. Other candidate routes remain visible. Unmet premises in an unselected alternative leave that route unresolved while a selected adequate route can preserve support for the conclusion. Choosing an adequate route is a model judgement, and structural checks preserve that declared choice. Reselection requires a revised assessment. Cumulative compositions require an explicit combining rationale that addresses shared dependencies. No numerical confidence follows automatically from the graph.
 
 A full mesh is an alternative to investigate if evaluation demonstrates a benefit. Additional discussion can spread shared errors and increase cost. The fixed workflow bounds that exposure and preserves initial dissent. The choice is an engineering hypothesis to test, not a proven optimum.
 
 ## Checks and resource bounds
+
+New model runs must return represented grounds and an attached warrant concluding the current claim or stronger target. A bare assessment and investigation list fails construction checks. Saved assessment-only cases remain available through `validate` and `render`. These structural checks establish the presence of reasoning, while its substantive adequacy remains a review question.
 
 Run checks reject unknown or duplicated identifiers, broken references, cyclic inference dependencies, unused argument nodes, missing plans for decisive gaps, ambiguous compositions, invalid reading references, unsupported status upgrades and dropped specialist objections. The engine checks objection retention against its transcripts; standalone `validate` checks the supplied case structure. Provisional support requires attached inference and reported grounds, including a user-checked source. That flag records the user's assertion of checking, not an independent verification by this tool. The validator applies status rules to the relied-upon dependency closure of the current claim.
 

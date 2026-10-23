@@ -1,4 +1,4 @@
-//! Construct and challenge evidence-bounded engineering arguments.
+//! Construct and challenge engineering arguments from a claim and optional evidence.
 //!
 //! Validation checks references and explicit status rules. It cannot establish
 //! empirical truth, logical soundness or the completeness of explored alternatives.

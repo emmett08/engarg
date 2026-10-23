@@ -1,14 +1,18 @@
 # Verification record
 
-Verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
+Version 0.3.1 verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` with `EAL_CORE` set | 104 passed, 0 failed, 4 external integration tests ignored |
+| `cargo test --locked` with `EAL_CORE` set | 119 passed, 0 failed, 4 external integration tests ignored |
 | `cargo build --locked --release` | Passed |
-| Offline demo and fixture validation | Passed |
+| Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
+| Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
+| Claim-only provider workflow | Single and six-stage hybrid paths passed against deterministic HTTP doubles, including all output views and EAL export |
+| Generation completeness | Empty assessment-only graphs rejected in both modes, while previously saved assessment cases remain valid |
+| Claim-only release CLI and real MCP | Positive conditional fixture with ten evidence requirements rendered in all four views, then validated, planned, assessed and retrieved through the actual server |
 | CLI through HTTP adapter through all six stages | Passed against a deterministic local API double |
 | Invalid final case retains completion audit and produces failure | Passed against the same API double |
 | One saved graph renders template, outline, prose and expandable HTML | Passed without provider credentials or further model calls |
@@ -26,7 +30,7 @@ Verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. This record conce
 | Comparative argument-quality evaluation | Not performed; see EVALUATION.md |
 | macOS build | Not executed here; a macOS CI job is supplied |
 
-The tests cover argument-reference integrity, unsupported versus refuted status, current-claim dependency closure, hypothetical material challenges, cycles, unattached support, independent first-pass context, retained dissent, call/byte limits, oversized-output audit receipts, refusal, truncation, rate limits, response size limits, credential-safe redirects, CLI inputs and private file creation. They also cover EAL source and bundle identity, conjunction and selected-alternative mapping, review obligations, exact JSON integers, stdin EOF, private export rollback, process input/output/deadline limits, host error envelopes, credential redaction, requested/returned service tiers, alternative-route selection, joint and cumulative support, narrative section organisation and references, template records, shared-node presentation, HTML escaping and depth-bounded outlines. Simulated HTTP success establishes protocol integration rather than vendor/model compatibility or useful reasoning quality.
+The tests cover optional input defaults, required-claim schema, no-source conditional arguments, preserved empirical status rules, generation completeness, claim-only rendering and export, argument-reference integrity, unsupported versus refuted status, current-claim dependency closure, hypothetical material challenges, cycles, unattached support, independent first-pass context, retained dissent, call/byte limits, oversized-output audit receipts, refusal, truncation, rate limits, response size limits, credential-safe redirects, CLI inputs and private file creation. They also cover EAL source and bundle identity, conjunction and selected-alternative mapping, review obligations, exact JSON integers, stdin EOF, private export rollback, process input/output/deadline limits, host error envelopes, credential redaction, requested/returned service tiers, alternative-route selection, joint and cumulative support, narrative section organisation and references, template records, shared-node presentation, HTML escaping and depth-bounded outlines. Simulated HTTP success establishes protocol integration rather than vendor/model compatibility or useful reasoning quality.
 
 Latest non-yanked stable direct crate releases were checked against the crates.io sparse index before resolving Cargo.lock:
 
