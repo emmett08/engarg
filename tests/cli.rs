@@ -1,0 +1,217 @@
+use std::process::Command;
+
+fn cli() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_engarg"))
+}
+
+#[test]
+fn demo_is_explicitly_offline_and_structurally_valid() {
+    let result = cli().args(["demo", "--format", "json"]).output().unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["execution_mode"], "offline_synthetic_fixture");
+    let request = serde_json::from_value(value["request"].clone()).unwrap();
+    let case = serde_json::from_value(value["argument"].clone()).unwrap();
+    assert!(engarg::domain::validate_case(&request, &case).is_ok());
+}
+
+#[test]
+fn outputs_are_private_and_existing_files_are_preserved() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = dir.path().join("case.json");
+    assert!(
+        cli()
+            .args(["demo", "--format", "json", "--output"])
+            .arg(&output)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let before = std::fs::read(&output).unwrap();
+    let second = cli()
+        .args(["demo", "--output"])
+        .arg(&output)
+        .output()
+        .unwrap();
+    assert!(!second.status.success());
+    assert_eq!(std::fs::read(&output).unwrap(), before);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            std::fs::metadata(output).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+}
+
+#[test]
+fn rejects_ambiguous_input_and_has_no_implicit_model_selection() {
+    let result = cli()
+        .args([
+            "analyse", "--claim", "C", "--input", "x.json", "--model", "m",
+        ])
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    let result = cli()
+        .env_remove("ENGARG_MODEL")
+        .args(["analyse", "--claim", "C"])
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+}
+
+#[test]
+fn conflicting_output_and_audit_paths_fail_before_transport_setup() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("same.json");
+    let result = cli()
+        .args(["analyse", "--claim", "C", "--model", "M", "--output"])
+        .arg(&path)
+        .arg("--audit")
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("different paths"));
+    assert!(!path.exists());
+}
+
+#[test]
+fn exported_schema_closes_every_object_and_has_required_fields() {
+    let result = cli().args(["schema", "case"]).output().unwrap();
+    assert!(result.status.success());
+    let schema: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    fn check(value: &serde_json::Value) {
+        match value {
+            serde_json::Value::Object(object) => {
+                if object.get("type").and_then(|v| v.as_str()) == Some("object") {
+                    assert_eq!(
+                        object.get("additionalProperties"),
+                        Some(&serde_json::json!(false))
+                    );
+                    let props = object["properties"].as_object().unwrap();
+                    let required = object["required"].as_array().unwrap();
+                    assert_eq!(props.len(), required.len());
+                }
+                for v in object.values() {
+                    check(v);
+                }
+            }
+            serde_json::Value::Array(values) => {
+                for v in values {
+                    check(v)
+                }
+            }
+            _ => {}
+        }
+    }
+    check(&schema);
+    assert!(schema["properties"].get("subclaims").is_some());
+    assert!(schema["properties"].get("compositions").is_some());
+    assert!(schema["properties"].get("reading").is_some());
+}
+
+#[test]
+fn default_output_uses_the_attached_template_and_original_is_available() {
+    let result = cli().arg("demo").output().unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let text = String::from_utf8(result.stdout).unwrap();
+    assert!(text.contains("Argument context"));
+    assert!(text.contains("14. Decision basis and revision triggers"));
+    assert!(text.contains("Evidence register"));
+    assert!(text.contains("Synthetic demonstration"));
+    let original = cli().arg("template").output().unwrap();
+    assert!(original.status.success());
+    assert_eq!(
+        original.stdout,
+        include_bytes!("../templates/engineering-toulmin.md")
+    );
+}
+
+#[test]
+fn one_saved_graph_can_render_every_presentation_without_a_provider_key() {
+    let directory = tempfile::tempdir().unwrap();
+    let canonical = directory.path().join("run.json");
+    let result = cli()
+        .args(["demo", "--format", "json", "--output"])
+        .arg(&canonical)
+        .output()
+        .unwrap();
+    assert!(result.status.success());
+    let before = std::fs::read(&canonical).unwrap();
+    for (format, marker) in [
+        ("markdown", "Argument context"),
+        ("outline", "current\\_claim"),
+        ("prose", "controlled parallelisation"),
+        ("html", "<details"),
+        ("expandable", "<details"),
+    ] {
+        let result = cli()
+            .env_remove("ENGARG_API_KEY")
+            .env_remove("OPENAI_API_KEY")
+            .args(["render", "--input"])
+            .arg(&canonical)
+            .args(["--format", format])
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{format}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let text = String::from_utf8(result.stdout).unwrap();
+        assert!(text.contains(marker), "{format} lacks {marker}");
+        assert!(text.contains("Synthetic demonstration"));
+    }
+    assert_eq!(std::fs::read(canonical).unwrap(), before);
+}
+
+#[test]
+fn invalid_saved_graph_is_rejected_before_it_can_be_presented() {
+    let directory = tempfile::tempdir().unwrap();
+    let report = directory.path().join("bad.json");
+    let mut value: serde_json::Value = serde_json::from_slice(
+        &cli()
+            .args(["demo", "--format", "json"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    value["argument"]["reading"][0]["paragraphs"][0]["reference_ids"] =
+        serde_json::json!(["invented-reference"]);
+    std::fs::write(&report, serde_json::to_vec(&value).unwrap()).unwrap();
+    let result = cli()
+        .args(["render", "--input"])
+        .arg(report)
+        .args(["--format", "prose"])
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(result.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("invented-reference"));
+}
+
+#[test]
+fn outline_depth_is_bounded_at_the_cli() {
+    for depth in ["0", "7"] {
+        assert!(
+            !cli()
+                .args(["demo", "--format", "outline", "--outline-depth", depth])
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    }
+}

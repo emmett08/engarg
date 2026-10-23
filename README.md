@@ -1,2 +1,261 @@
-# engarg
-An LLM-assisted CLI for constructing and assessing engineering arguments, with evidence-linked reasoning, readable prose and structured outlines.
+# EngArg
+
+A Rust command-line tool that constructs, challenges and qualifies engineering arguments. Given a claim and supplied evidence, it returns an extended Toulmin model and a prioritised plan for obtaining the evidence needed for a stronger claim.
+
+The strongest output is the strongest formulation defensible from the supplied evidence and explored alternatives. An LLM cannot certify that it found the globally soundest argument. `unsupported` is a useful result when the evidence does not warrant the requested claim.
+
+## Try it
+
+Install the pinned Rust toolchain using [rustup](https://rustup.rs/). A C compiler is required by the TLS dependencies. From this directory:
+
+```sh
+cargo install --path . --locked
+engarg demo --format markdown
+engarg demo --format outline
+engarg demo --format prose
+engarg schema request
+engarg validate --input examples/request.json --case examples/case.json
+```
+
+The demo is synthetic and makes no model calls. Inspect `examples/request.json` before adapting it to your claim.
+
+For a provider run, set `ENGARG_API_KEY` through your secret manager or environment, and set `ENGARG_MODEL` to an exact model identifier supported by that endpoint. Then:
+
+```sh
+engarg analyse \
+  --input examples/request.json \
+  --model "$ENGARG_MODEL" \
+  --format json \
+  --audit run.audit.jsonl \
+  --output run.json
+```
+
+The default endpoint is OpenAI's Responses API. To use an existing `OPENAI_API_KEY`, select its environment variable name with `--api-key-env OPENAI_API_KEY`. Keys never belong in command-line arguments or input JSON. Claim text, evidence and prior assessments are sent to the configured provider. The adapter sends `store: false`; provider-specific retention and deployment policies remain outside this program.
+
+To request GPT-6.1 Sol with Ultrafast processing through the Responses API:
+
+```sh
+engarg analyse \
+  --input examples/request.json \
+  --model gpt-6.1-sol \
+  --service-tier ultrafast \
+  --format json \
+  --audit run.audit.jsonl \
+  --output run.json
+```
+
+`--service-tier` also reads `ENGARG_SERVICE_TIER`. The adapter passes the requested value unchanged and records it in the audit. Each completion records the tier returned by the provider when present. An omitted returned tier remains unknown. EngArg preserves the requested model and tier and reports API errors explicitly, so an unsupported combination is visible. Provider availability, entitlement, pricing and rate limits apply. OpenAI documents this combination in the [GPT-6.1 Sol model guide](https://developers.openai.com/api/docs/models/gpt-6.1-sol) and [Ultrafast mode guide](https://developers.openai.com/api/docs/guides/ultrafast-mode). Compatible endpoints must support the supplied `service_tier` value themselves.
+
+For an OpenAI-compatible Chat Completions endpoint that implements strict JSON Schema:
+
+```sh
+engarg analyse \
+  --claim 'The proposed cache reduces p95 request latency under the declared workload.' \
+  --model YOUR_MODEL_ID \
+  --format json \
+  --api chat \
+  --endpoint http://localhost:8000/v1/chat/completions \
+  --audit cache.audit.jsonl \
+  --output cache.json
+```
+
+HTTP is permitted on loopback only. Other destinations require HTTPS. Compatible endpoints must implement `json_schema`, `strict`, the selected token-limit field and `store`; the client fails explicitly when the endpoint rejects the contract. There is no silent fallback to unconstrained text.
+
+Use `--role-model sceptic=MODEL_ID` or `--role-model adjudicator=MODEL_ID` to use different models through the same endpoint. Valid role names are `constructor`, `sceptic`, `evidence_auditor`, `synthesiser`, `final_critic`, `adjudicator` and `single`. Independent calls do not imply independent model errors.
+
+The default hybrid workflow performs six calls. `--mode single --max-calls 1` supplies an inexpensive evaluation baseline. Choose model identifiers explicitly rather than relying on a model alias embedded in the executable.
+
+## Input and output
+
+The input contains a `claim`, free-text `context`, and `evidence` records. Each record supplies a stable `id`, `title`, `source`, `excerpt`, `kind`, and a `checked_by_user` assertion. Include adverse evidence alongside supporting evidence. A source URL is a provenance label: the program does not fetch it. Put the actual relevant passage or measurement summary in `excerpt`. Use stable revision identifiers, configuration details and measurement units where relevant.
+
+```json
+{
+  "claim": "The change improves throughput under workload W.",
+  "context": "Service revision A versus B, identical hardware and workload W.",
+  "evidence": [
+    {
+      "id": "E1",
+      "title": "Benchmark report",
+      "source": "benchmark/report.json at revision REVISION",
+      "excerpt": "Insert actual measurements, repetitions, uncertainty and configuration here.",
+      "kind": "benchmark_report",
+      "checked_by_user": false
+    }
+  ]
+}
+```
+
+This is an input-format illustration, not evidence for the throughput claim. Replace its contents with actual evidence before making an assessment.
+
+The argument contains:
+
+| Toulmin component or extension | Representation |
+| --- | --- |
+| Claim and qualifier | Original wording, current defensible formulation, stronger conditional target |
+| Grounds | Evidence-linked premises distinguished as reported, assumed or missing |
+| Warrant and backing | Inference type, applicability, premise identifiers, conclusion identifier, backing evidence |
+| Intermediate reasoning | Subclaims and an acyclic dependency graph |
+| Assumptions | Criticality, support status, affected nodes and validation needs |
+| Rebuttals and other attacks | Undermining, rebutting and undercutting, with targets, basis, materiality and disposition |
+| Engineering scope | System boundary, configuration, operating conditions, units, time horizon and consequences |
+| Alternatives | Competing explanations and discriminating tests |
+| Evidence acquisition | Method, measurement, comparator, acceptance criterion, enabled claim, failure interpretation, priority and effort |
+| Reliance | Residual risks, decision limits and adjudication rationale |
+
+`status` assesses `current_claim`. It is `unsupported`, `conditional`, `provisionally_supported` or `refuted`. Refutation requires an evidence-linked sustained rebuttal aimed at that claim. Lack of support alone establishes no refutation. Evidence needed solely for `stronger_target` does not invalidate a supported narrower claim.
+
+`engarg schema case` exports the exact output schema. `engarg validate` checks a bare argument case. A successful run wraps the case in `argument`, with its request, model exchanges, token usage where available, timings and an input SHA-256. Extract `argument` from a run report before using it with `validate`.
+
+## One graph, several presentations
+
+Markdown is the default presentation and follows the supplied [Engineering Extended Toulmin Argument Template](templates/engineering-toulmin.md). It includes one 14-component record per warrant and the shared evidence, assumption, challenge and composition registers. `engarg template` prints the original template. Missing assessments are labelled explicitly. Formatting the record establishes traceability while substantive adequacy still requires assessment.
+
+| Format | Reader task |
+| --- | --- |
+| `markdown` or `template` | Inspect every component of the attached template and the complete audit appendix |
+| `outline` | Inspect one line per claim, indentation and explicit relationships between supporting arguments |
+| `prose` | Read connected paragraphs, each performing a declared reasoning task |
+| `html` or `expandable` | Open a self-contained expandable argument view in a browser |
+| `json` | Save the canonical graph, reading paragraphs and run audit for further rendering |
+
+Generate a canonical JSON report once, then render each presentation without further model calls:
+
+```sh
+engarg render --input run.json --format outline --outline-depth 3 --output outline.md
+engarg render --input run.json --format prose --output reading.md
+engarg render --input run.json --format html --output argument.html
+engarg render --input run.json --format markdown --output assessment.md
+```
+
+Saved JSON rendering accepts files up to 16 MiB and validates the case before presenting it. The examples directory includes a synthetic canonical report and each of its presentations.
+
+The outline states each claim with its qualifier and shows the composition relationship explicitly. Each warrant requires its own premises jointly. Multiple warrants for a conclusion are distinguished as jointly required contributions, alternative routes, or cumulative evidence. Indentation conveys hierarchy while the relationship label states how that hierarchy supports the conclusion. Shared subclaims are explained once and referenced on later uses. The default outline depth is three, with deeper support placed in separate argument records. This display limit preserves the underlying graph.
+
+In the expandable view, a collapsed claim retains its qualifier and consequential unresolved conditions. Supporting findings and objections appear beside the nodes they affect. The HTML file contains no scripts or external assets, and dynamic text is escaped.
+
+The synthesiser authors the reading paragraphs as an explanatory view of the same graph. Each paragraph declares a single task: answer, finding, connection, complication or conclusion. The opening gives the qualified answer. Subsequent paragraphs explain the decisive finding, its inferential connection and the complication that limits the conclusion. Substantial child arguments receive one short section each. The final critic checks the prose against the graph for overstated claims, omitted conditions and invented support. Structural checks validate paragraph references and organisation. Semantic fidelity and reader comprehension remain assessment questions.
+
+The `0.2.0` case schema requires `compositions` and `reading`. Earlier `0.1.0` case files need those records before they can be validated or rendered. Presentation does not silently manufacture missing reasoning.
+
+## EAL/3 export and MCP assessment
+
+Version `0.3.0` adds a deterministic EAL/3 projection and an adapter to the official `eal-host` MCP client. Export the canonical JSON report rather than extracting information from a presentation:
+
+```sh
+engarg eal export --input run.json --format json --output case.eal.json
+engarg eal export --input run.json --output case.eal --manifest case-manifest.json
+```
+
+The JSON bundle retains the generated source, original request and case, export revision, identifier source map, mapped claim names and outstanding review obligations. The `.eal` file supplies an executable structural projection. Preserve its bundle or manifest when the original prose, evidence provenance and full canonical graph must be recoverable. Source alone provides a narrower representation.
+
+See [the EAL mapping contract](docs/EAL_MAPPING.md) for the semantic projection, review policy and architecture rationale. The EAL service applies its own source, declaration, depth and execution budgets, which can reject a large or deep export even when the original EngArg case passes its checks.
+
+Install the official host and its companion executables into the same prefix. The integration boundary is [eal-mcp revision `d311d5a`](https://github.com/emmett08/eal-mcp/tree/d311d5a4f9e294ba3228127bc5210b48c5de3a12). From a checkout of that revision:
+
+```sh
+cargo +1.99.1 install --path crates/eal-runtime --locked
+cargo +1.99.1 install --path crates/eal-cli --locked
+cargo +1.99.1 install --path crates/eal-mcp --locked
+cargo +1.99.1 install --path crates/eal-coordination --locked
+```
+
+This follows the companion repository's application-package installation sequence. The local path uses `eal-host`, which starts its installed sibling `eal-mcp` and communicates through the official Rust MCP SDK. See its [installation instructions](https://github.com/emmett08/eal-mcp/blob/d311d5a4f9e294ba3228127bc5210b48c5de3a12/README.md#build-and-use) and [host policy](https://github.com/emmett08/eal-mcp/blob/d311d5a4f9e294ba3228127bc5210b48c5de3a12/docs/text-host.md) for the supported private-store environment and deployment settings.
+
+Validate, plan and assess the exported case without making further LLM calls:
+
+```sh
+engarg eal validate --input case.eal.json --workspace .
+engarg eal plan --input case.eal.json --claim current_claim --workspace .
+engarg eal assess --input case.eal.json --now 2026-10-23T12:00:00Z --workspace .
+engarg eal describe --workspace .
+```
+
+Choose the explicit assessment instant appropriate to the retained observations. With a bundle, `current_claim` is translated through its claim-name map and the export-bound context is supplied by default. Raw EAL uses its declared identifiers directly. `--input-format eal` explicitly treats an input as source, while `--input-format json` requires an export bundle. The default `auto` detects a bundle from an opening JSON object. `assess` accepts an optional context-object file through `--context` and an existing observation collection through `--collection-id`. It performs assessment without collecting evidence. Missing review observations leave the corresponding support unavailable.
+
+| Command or option | Purpose |
+| --- | --- |
+| `eal explain --assessment-id ID` | Recover the retained assessment explanation, optionally restricted by `--claim EAL_IDENTIFIER` |
+| `eal packet --assessment-id ID` | Obtain a bounded assessment packet, optionally selecting a claim and `--max-bytes` or `--max-statement-bytes` |
+| `--eal-host PATH` | Select the installed host. `ENGARG_EAL_HOST` provides the environment default, otherwise `eal-host` is used |
+| `--workspace DIR`, `--database SQLITE` | Set the local service boundary and optional private database |
+| `--url HTTPS_URL`, `--token-env NAME` | Connect through the host to an existing authenticated MCP service. Pass the token's environment variable name |
+| `--timeout-secs N`, `--output FILE` | Bound a host operation, defaulting to 30 seconds, and optionally retain its JSON response in a new private file |
+
+Host options follow the leaf operation, as in `engarg eal plan --input case.eal.json --eal-host /path/to/eal-host`. Host responses retain their JSON envelope. Tool errors and failed validation return a nonzero exit status. Remote mode uses the existing service's state rather than starting a local reasoning service.
+
+Each warrant becomes an intermediate route claim. Joint and cumulative compositions combine their required routes with conjunction. A selected alternative connects to its original conclusion while other candidate routes remain queryable. Reconsidering that selection requires a revised EngArg assessment. The EAL `structured/1` method retains authored reasoning and its review dependencies. Its result leaves the adequacy of a prose warrant and any cumulative weighting subject to the declared review obligations.
+
+Export creates review contracts rather than accepted observations. An excerpt, an LLM verdict or `checked_by_user` cannot satisfy those contracts by itself. Configure trusted collectors or retain compatible independent observations in EAL before relying on assessment results. The source map binds those obligations to their original claim, premise, warrant, assumption or challenge. Export and MCP conformance provide traceability, while evidential adequacy and engineering authorisation retain their separate criteria.
+
+## Workflow
+
+```mermaid
+flowchart TD
+    I["Claim and evidence"] --> C["Constructor"]
+    I --> S["Sceptic"]
+    I --> E["Evidence auditor"]
+    C --> Y["Synthesis"]
+    S --> Y
+    E --> Y
+    Y --> F["Final critic"]
+    F --> A["Adjudicator"]
+    Y --> A
+    I --> A
+    A --> V["Structural checks"]
+    V --> O["Argument and evidence plan"]
+```
+
+The orchestrator controls a star topology. The first three calls receive the same original evidence and cannot see each other's responses. Synthesis uses all three. The final critic examines the draft, original evidence and initial assessments. Adjudication receives those materials directly and retains every declared objection with its original identifier and wording.
+
+The argument itself is a directed acyclic graph. Warrants connect jointly required premises to explicit conclusions. A composition record states how multiple arguments support the same claim. Joint and cumulative compositions retain every declared contribution. An alternative composition records at most one selected adequate route, with a rationale and the same scope and assessment criterion. Other candidate routes remain visible. Unmet premises in an unselected alternative leave that route unresolved while a selected adequate route can preserve support for the conclusion. Choosing an adequate route is a model judgement, and structural checks preserve that declared choice. Reselection requires a revised assessment. Cumulative compositions require an explicit combining rationale that addresses shared dependencies. No numerical confidence follows automatically from the graph.
+
+A full mesh is an alternative to investigate if evaluation demonstrates a benefit. Additional discussion can spread shared errors and increase cost. The fixed workflow bounds that exposure and preserves initial dissent. The choice is an engineering hypothesis to test, not a proven optimum.
+
+## Checks and resource bounds
+
+Run checks reject unknown or duplicated identifiers, broken references, cyclic inference dependencies, unused argument nodes, missing plans for decisive gaps, ambiguous compositions, invalid reading references, unsupported status upgrades and dropped specialist objections. The engine checks objection retention against its transcripts; standalone `validate` checks the supplied case structure. Provisional support requires attached inference and reported grounds, including a user-checked source. That flag records the user's assertion of checking, not an independent verification by this tool. The validator applies status rules to the relied-upon dependency closure of the current claim.
+
+The model still judges relevance, materiality, adequacy of a warrant, whether a revision answers an objection, and whether proposed acceptance criteria are suitable. An internally consistent output can contain a mistaken argument. Source verification, experiment execution and proof checking require separately identified tools or review. There is no calibrated confidence score and no vote-to-truth rule.
+
+Defaults are six calls, 1 MiB per encoded agent request, 128 KiB per returned model content, 10,000 output tokens per call, 120 seconds per HTTP request and 480 seconds per run. HTTP envelopes have their own byte cap. These are call, byte, time and output-token limits, not a guaranteed monetary cost cap. Input token costs depend on the chosen model. No retries, unbounded debate rounds or automatic repair calls are hidden behind those limits. Cancellation stops local work; a provider can still complete and bill an already submitted request.
+
+Use `--audit PATH` to retain completed calls even when a later response is invalid or the deadline expires. Oversized model content is replaced by size and digest metadata in that audit. Failed HTTP attempts have no fabricated completion or usage count. Output files use exclusive creation and permissions `0600` on Unix. Reports contain your evidence and model assessments, so apply your normal data-handling policy to them. They contain no API credential from the adapter. Evidence prompts cannot invoke tools or change endpoint configuration, although prompt instructions alone do not guarantee resistance to semantic injection.
+
+## Rust architecture
+
+The code uses composition, enums, owned records, typed errors, static generic dispatch and a small trait boundary. It does not reproduce an inheritance hierarchy from another language.
+
+| Principle or pattern | Implementation |
+| --- | --- |
+| Single responsibility | `domain` owns representation and checks, `engine` owns ordering, `provider` owns transport, `render` owns presentation, CLI owns configuration |
+| Open/closed and dependency inversion | Implement `LanguageModel` for another transport, local model, replay or instrumented adapter without changing orchestration |
+| Interface segregation | The model port exposes one asynchronous completion operation |
+| Substitutability | Adapters return a completion or an explicit error; refusals and truncation do not masquerade as successful arguments |
+| Ports and adapters | Domain and engine depend on the model port rather than the HTTP client |
+| Fixed workflow and observer | Bounded stages determine context disclosure; a concurrency-safe observer records completions incrementally |
+| Composition root | `main.rs` builds configuration and the provider, then delegates to the engine |
+
+The default model adapter supports Responses and strict Chat Completions wire formats. EAL export and MCP invocation have separate modules and use the installed official host rather than introducing another reasoning runtime. A richer model router, retrieval adapter or formal verifier should remain a separate port with explicit provenance. No additional distributed runtime is required for the process-local LLM workflow. It does not claim Nehemiah wire-protocol or A2A conformance.
+
+## Build and verify
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+cargo build --locked --release
+```
+
+Rust 1.99.1 and the latest non-yanked stable direct dependencies were checked against the official stable manifest and crates.io index on 23 October 2026. `Cargo.lock` fixes the resolved dependency graph. Re-run the checks when updating it. See [VALIDATION.md](VALIDATION.md) for the actual verification performed and [EVALUATION.md](EVALUATION.md) for the evaluation needed before claiming an improvement in argument quality.
+
+## Design sources
+
+- [Toulmin, *The Uses of Argument*](https://doi.org/10.1017/CBO9780511840005): the claim, grounds, warrant, backing, qualifier and rebuttal framework. The engineering extensions above are explicit design choices.
+- [Bloomfield, Netkachova and Rushby, 2024](https://arxiv.org/html/2405.15800v1): explicit defeaters and distinct unsupported outcomes in assurance arguments.
+- [Du et al., ICML 2024](https://composable-models.github.io/llm_debate/): debate improvements on selected benchmarks.
+- [Choi, Zhu and Li, 2025](https://arxiv.org/html/2508.17536v1): debate gains can largely reflect independent initial responses, which motivates evaluation against simpler baselines.
+- [Wynn et al., 2025](https://arxiv.org/html/2509.05396v2): peer reasoning can move agents from correct to incorrect answers.
+- [Official structured-output documentation](https://developers.openai.com/api/docs/guides/structured-outputs): schema-constrained API output and explicit refusal/incompletion handling.
+
+GPL-3.0-only licensed. No model service, API access or paid inference is bundled.

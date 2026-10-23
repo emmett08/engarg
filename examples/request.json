@@ -1,0 +1,14 @@
+{
+  "claim": "Parallelising the integration-test groups will reduce CI elapsed time by at least 40% without changing test outcomes.",
+  "context": "Synthetic demonstration only. A Linux CI runner executes four integration-test groups. The desired decision is whether to trial a parallel runner configuration. No production measurements are supplied.",
+  "evidence": [
+    {
+      "id": "E1",
+      "title": "Synthetic workflow description",
+      "source": "synthetic:example-fixture",
+      "excerpt": "The example workflow runs four integration-test groups in sequence. The groups may share a fixture database. No elapsed-time measurements or isolation checks have been recorded.",
+      "kind": "synthetic demonstration",
+      "checked_by_user": false
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# Evaluate argument quality before selecting a topology
+
+Structural tests establish program behaviour. Expert assessment and experiments establish whether the resulting arguments help engineers.
+
+1. Freeze 30–50 engineering cases spanning missing support, credible support, conflicting evidence, causal overclaiming, version mismatches, boundary failures and supported narrow claims with unsupported stronger targets. Include mathematical claims requiring a proof and empirical claims requiring measurements. Keep reference assessments outside model inputs.
+2. Have at least two engineers independently identify the strongest supportable formulation, decisive inference, critical assumptions, material challenges and smallest discriminating investigation. Resolve disagreements transparently or retain competing justified assessments.
+3. Run `single` and `hybrid` on identical evidence, explicitly identified models and output limits. Repeat a subset to estimate instability. Also compare modes under a declared total inference budget; six calls and one call consume different resources.
+4. Blind reviewers to mode and randomise output order. Score scope fidelity, evidence fidelity, warrant adequacy, material-defeater coverage and usefulness of the evidence plan using anchored criteria defined before seeing outputs.
+5. Record unsupported factual assertions, omitted decisive defects, invented references, appropriate narrowing/withholding, schema failures, rate-limit failures, refusals, input/output tokens, wall time and known cost. Keep failed runs in the comparison. An unobserved cost is missing, not zero.
+6. Compare paired cases and report uncertainty and reviewer agreement. Retain representative failures and separate improvements in writing from improvements in reasoning. The evaluation supports conclusions about those tasks, models and budgets.
+
+Use adversarial cases where an articulate but irrelevant citation is supplied, adverse measurements challenge the preferred design, an excerpt contains instructions, a reviewer is wrong, or an obvious performance improvement fails under resource contention. A useful adjudicator must retain an objection while rejecting its force when evidence warrants that judgement.
+
+Before adding a mesh, additional debate rounds, retrieval or a formal verifier, identify the observed failure that the extension should repair and specify its acceptance criterion. Compare the added benefit with its full latency and cost. A proof checker verifies its formal target; it does not verify empirical premises or the accuracy of their formalisation.
+
+For the outline, prose and expandable views, use the same frozen graph for every comparison. Check whether readers can identify the qualified conclusion, the decisive finding, the governing warrant and the unresolved complication. Ask them to explain whether child arguments are jointly required, alternative routes or cumulative contributions. Record omitted conditions, mistaken dependency interpretations and time spent locating the decisive gap. Inspect prose against the graph for altered quantifiers, scope or epistemic force. Treat paragraph-reference validity separately from semantic fidelity and reader comprehension.
