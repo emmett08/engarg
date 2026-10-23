@@ -76,11 +76,12 @@ async fn preserves_exact_json_and_passes_explicit_server_configuration() {
     assert_eq!(received["test_number"].to_string(), integer);
     let actual_args = fs::read_to_string(args).unwrap();
     let actual_args: Vec<_> = actual_args.lines().collect();
+    let canonical_workspace = config.workspace.canonicalize().unwrap();
     assert_eq!(
         actual_args,
         vec![
             "--workspace",
-            config.workspace.to_str().unwrap(),
+            canonical_workspace.to_str().unwrap(),
             "--exposure",
             "operator",
             "--methods",
