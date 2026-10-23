@@ -217,6 +217,72 @@ fn outline_depth_is_bounded_at_the_cli() {
 }
 
 #[test]
+fn generation_and_display_depth_are_distinct_cli_controls() {
+    for option in ["--argument-depth", "--display-depth"] {
+        for invalid in ["0", "17"] {
+            let result = cli()
+                .args(["analyse", "--claim", "C", "--model", "M", option, invalid])
+                .output()
+                .unwrap();
+            assert!(!result.status.success());
+            assert!(String::from_utf8_lossy(&result.stderr).contains("invalid value"));
+        }
+    }
+    for invalid in ["4", "-1"] {
+        assert!(
+            !cli()
+                .args([
+                    "analyse",
+                    "--claim",
+                    "C",
+                    "--model",
+                    "M",
+                    "--max-repairs",
+                    invalid
+                ])
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("run.json");
+    assert!(
+        cli()
+            .args(["demo", "--format", "json", "--output"])
+            .arg(&path)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    let original = std::fs::read(&path).unwrap();
+    for format in ["outline", "prose", "html"] {
+        let result = cli()
+            .args(["render", "--input"])
+            .arg(&path)
+            .args(["--format", format, "--display-depth", "1"])
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+        assert!(String::from_utf8_lossy(&result.stdout).contains("Detailed claim levels: 1"));
+    }
+    let json = cli()
+        .args(["render", "--input"])
+        .arg(&path)
+        .args(["--format", "json", "--display-depth", "1"])
+        .output()
+        .unwrap();
+    assert!(json.status.success());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&json.stdout).unwrap(),
+        serde_json::from_slice::<serde_json::Value>(&original).unwrap()
+    );
+    assert_eq!(std::fs::read(path).unwrap(), original);
+}
+
+#[test]
 fn minimal_request_schema_requires_only_the_claim() {
     let output = cli().args(["schema", "request"]).output().unwrap();
     assert!(output.status.success());

@@ -268,3 +268,36 @@ fn target_without_authored_section_still_has_one_explicit_scope_and_qualificatio
         1
     );
 }
+
+#[test]
+fn display_depth_omits_deeper_details_without_changing_the_graph_or_hiding_conditions() {
+    let (request, case) = fixtures();
+    let before = serde_json::to_value(&case).unwrap();
+    let deeper_warrant = case
+        .warrants
+        .iter()
+        .find(|w| w.conclusion_id == "S1")
+        .unwrap();
+    let deeper_reading = case.reading.iter().find(|s| s.claim_id == "S1").unwrap();
+    let outline = presentations::outline_with_depth(&request, &case, 3, Some(1));
+    assert!(!outline.contains(&format!("ARG-{} — Warrant", deeper_warrant.id)));
+    assert!(outline.contains("Supporting detail collapsed by display-depth"));
+    assert!(outline.contains("Qualification:"));
+    assert!(outline.contains(&case.current_claim.qualifier));
+    assert!(outline.contains(&case.assumptions[0].statement));
+    assert!(outline.contains(&case.defeaters[0].challenge));
+    let prose = presentations::prose_with_depth(&request, &case, Some(1));
+    let html = presentations::html_with_depth(&request, &case, Some(1));
+    assert!(!prose.contains(&deeper_reading.paragraphs[0].text));
+    assert!(!html.contains(&escaped(&deeper_reading.paragraphs[0].text)));
+    for output in [&prose, &html] {
+        assert!(output.contains("canonical JSON"));
+        // These fixture conditions have no Markdown/HTML metacharacters.
+        assert!(output.contains(&case.assumptions[0].statement));
+        assert!(output.contains(&case.defeaters[0].challenge));
+    }
+    assert!(!html.contains(&format!("<h4>ARG-{}", deeper_warrant.id)));
+    let full = presentations::outline_with_depth(&request, &case, 3, Some(2));
+    assert!(full.contains(&format!("ARG-{} — Warrant", deeper_warrant.id)));
+    assert_eq!(serde_json::to_value(&case).unwrap(), before);
+}

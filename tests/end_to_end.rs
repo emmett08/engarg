@@ -44,6 +44,10 @@ enum Input {
 }
 
 fn run_case(corrupt_final: bool, input: Input, mode: &str) {
+    run_configured(corrupt_final, input, mode, false);
+}
+
+fn run_configured(corrupt_final: bool, input: Input, mode: &str, repair_missing_plan: bool) {
     let claim_only = !matches!(input, Input::Evidence);
     let request_text = if claim_only {
         include_str!("../examples/claim-only-request.json")
@@ -52,7 +56,8 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
     };
     let request: Value = serde_json::from_str(request_text).unwrap();
     let expected_claim = request["claim"].as_str().unwrap().to_owned();
-    let calls = if mode == "single" { 1 } else { 6 };
+    let base_calls = if mode == "single" { 1 } else { 6 };
+    let calls = base_calls + usize::from(repair_missing_plan);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let server = thread::spawn(move || {
@@ -75,6 +80,14 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
                         .contains("A claim alone is a complete starting input")
                 );
             }
+            if repair_missing_plan {
+                assert!(
+                    body["instructions"]
+                        .as_str()
+                        .unwrap()
+                        .contains("Use at most 2 warrant layers")
+                );
+            }
             let is_case = body["text"]["format"]["schema"]["properties"]
                 .get("current_claim")
                 .is_some();
@@ -87,6 +100,25 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
                 let mut case: Value = serde_json::from_str(case_text).unwrap();
                 if corrupt_final && index == 5 {
                     case["original_claim"] = json!("silently changed claim");
+                }
+                if repair_missing_plan {
+                    let mut objection = case["defeaters"][0].clone();
+                    objection["id"] = json!("auditor-5");
+                    case["defeaters"].as_array_mut().unwrap().push(objection);
+                    if index == base_calls {
+                        assert_eq!(envelope["repair_attempt"], 1);
+                        assert!(envelope["validation_errors"].as_array().unwrap().iter().any(|error| error == "unresolved material defeater auditor-5 needs an evidence plan"));
+                        let mut plan = case["evidence_plan"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .find(|need| need["target_id"] == "D1")
+                            .unwrap()
+                            .clone();
+                        plan["id"] = json!("repair-plan");
+                        plan["target_id"] = json!("auditor-5");
+                        case["evidence_plan"].as_array_mut().unwrap().push(plan);
+                    }
                 }
                 case.to_string()
             } else {
@@ -101,6 +133,18 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
     let output = directory.path().join("report.json");
     let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
     command.args(["analyse", "--format", "json", "--mode", mode]);
+    if repair_missing_plan {
+        command.args([
+            "--argument-depth",
+            "2",
+            "--display-depth",
+            "1",
+            "--max-repairs",
+            "1",
+            "--max-calls",
+            "7",
+        ]);
+    }
     match input {
         Input::Evidence => {
             command.args([
@@ -179,6 +223,7 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
             "high"
         );
         let mut legacy = report.clone();
+        legacy.as_object_mut().unwrap().remove("run_config");
         legacy["provider_config"]
             .as_object_mut()
             .unwrap()
@@ -190,6 +235,7 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
                 .remove("reasoning_effort");
         }
         let legacy: engarg::engine::RunReport = serde_json::from_value(legacy).unwrap();
+        assert!(legacy.run_config.is_none());
         assert_eq!(
             legacy.provider_config.unwrap().requested_reasoning_effort,
             None
@@ -212,6 +258,23 @@ fn run_case(corrupt_final: bool, input: Input, mode: &str) {
         );
         assert_eq!(events[0]["requested_service_tier"], "ultrafast");
         assert_eq!(events[0]["requested_reasoning_effort"], "high");
+        if repair_missing_plan {
+            assert_eq!(report["run_config"]["max_argument_depth"], 2);
+            assert_eq!(report["run_config"]["max_repairs"], 1);
+            assert_eq!(events[0]["config"]["max_argument_depth"], 2);
+            assert_eq!(events[0]["config"]["max_repairs"], 1);
+            assert!(
+                report["argument"]["evidence_plan"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|need| need["target_id"] == "auditor-5")
+            );
+            assert_eq!(
+                events[events.len() - 2]["record"]["prompt"]["role"],
+                "adjudicator"
+            );
+        }
         assert!(
             report["transcript"]
                 .as_array()
@@ -326,4 +389,9 @@ fn claim_alone_constructs_the_hybrid_argument_plan_and_all_presentations() {
 #[test]
 fn minimal_claim_json_constructs_a_single_call_argument_without_context_or_evidence() {
     run_case(false, Input::MinimalJson, "single");
+}
+
+#[test]
+fn cli_repairs_a_missing_material_defeater_plan_within_the_recorded_call_budget() {
+    run_configured(false, Input::Claim, "hybrid", true);
 }

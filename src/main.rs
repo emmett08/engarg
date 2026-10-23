@@ -112,6 +112,12 @@ struct Analyse {
     api_key_env: String,
     #[arg(long, default_value_t = 6)]
     max_calls: u32,
+    /// Maximum warrant layers from either root to a ground; unset leaves depth unbounded.
+    #[arg(long, value_name = "N", value_parser = clap::value_parser!(u8).range(1..=16))]
+    argument_depth: Option<u8>,
+    /// Extra calls to correct invalid final model output. Reserve these in max-calls.
+    #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=3))]
+    max_repairs: u8,
     #[arg(long, default_value_t = 1_048_576)]
     max_input_bytes: usize,
     #[arg(long, default_value_t = 131_072)]
@@ -153,6 +159,9 @@ struct Output {
     /// Maximum visible outline depth. Deeper arguments get separate records.
     #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(u8).range(1..=6))]
     outline_depth: u8,
+    /// Detailed claim levels in outline/prose/HTML. JSON and template stay complete.
+    #[arg(long, value_name = "N", value_parser = clap::value_parser!(u8).range(1..=16))]
+    display_depth: Option<u8>,
     /// New output file. Existing files are preserved. Omit for stdout.
     #[arg(short, long)]
     output: Option<PathBuf>,
@@ -214,11 +223,14 @@ fn report_content(
     let mut content = match output.format {
         Format::Json => return Ok(serde_json::to_string_pretty(&value)?),
         Format::Markdown => render::with_audit(render::markdown(request, argument), &value)?,
-        Format::Outline => {
-            presentations::outline(request, argument, usize::from(output.outline_depth))
-        }
-        Format::Prose => presentations::prose(request, argument),
-        Format::Html => presentations::html(request, argument),
+        Format::Outline => presentations::outline_with_depth(
+            request,
+            argument,
+            usize::from(output.outline_depth),
+            output.display_depth,
+        ),
+        Format::Prose => presentations::prose_with_depth(request, argument, output.display_depth),
+        Format::Html => presentations::html_with_depth(request, argument, output.display_depth),
     };
     if synthetic {
         let notice = "Synthetic demonstration. No model calls, source verification or experiments were performed.";
@@ -307,6 +319,8 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
     let config = RunConfig {
         mode: args.mode,
         max_calls: args.max_calls,
+        max_argument_depth: args.argument_depth,
+        max_repairs: args.max_repairs,
         max_input_bytes: args.max_input_bytes,
         max_response_bytes: args.max_response_bytes,
     };

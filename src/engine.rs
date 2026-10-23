@@ -8,10 +8,13 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     Error,
-    domain::{ArgumentCase, Request, case_schema, validate_case, validate_request},
+    domain::{ArgumentCase, Request, case_schema, validate_request},
+    output_validation::{self, RetainedObjection},
     prompts,
     provider::{Completion, CompletionRequest, LanguageModel, Role},
 };
+
+mod repair;
 
 /// Architecture selected for a run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,6 +53,12 @@ impl std::fmt::Display for Mode {
 pub struct RunConfig {
     pub mode: Mode,
     pub max_calls: u32,
+    /// Optional maximum number of warrant layers on every root-to-ground route.
+    #[serde(default)]
+    pub max_argument_depth: Option<u8>,
+    /// Extra validation-guided calls, reserved within max_calls before execution.
+    #[serde(default)]
+    pub max_repairs: u8,
     /// Maximum encoded bytes of any complete provider request, including its schema.
     pub max_input_bytes: usize,
     /// Maximum bytes in any returned model content.
@@ -61,6 +70,8 @@ impl Default for RunConfig {
         Self {
             mode: Mode::Hybrid,
             max_calls: 6,
+            max_argument_depth: None,
+            max_repairs: 0,
             max_input_bytes: 1_048_576,
             max_response_bytes: 131_072,
         }
@@ -108,6 +119,9 @@ pub struct RunReport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_config: Option<ProviderRunConfig>,
     pub mode: Mode,
+    /// Missing in reports produced before generation-depth and repair controls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_config: Option<RunConfig>,
     pub request: Request,
     pub argument: ArgumentCase,
     pub transcript: Vec<CallRecord>,
@@ -120,13 +134,6 @@ struct Assessment {
     findings: Vec<String>,
     objections: Vec<String>,
     evidence_gaps: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct RetainedObjection {
-    id: String,
-    challenge: String,
-    source_role: Role,
 }
 
 fn assessment_schema() -> Value {
@@ -169,29 +176,21 @@ fn argument(record: &CallRecord) -> Result<ArgumentCase, Error> {
     })
 }
 
-/// Generation must construct reasoning rather than return an assessment alone.
-/// Call after graph validation: its acyclicity, attachment and premise checks
-/// then guarantee that a root warrant reaches an explicitly represented ground.
-fn validate_construction(case: &ArgumentCase) -> Result<(), Error> {
-    if case.grounds.is_empty()
-        || !case.warrants.iter().any(|warrant| {
-            matches!(
-                warrant.conclusion_id.as_str(),
-                "current_claim" | "stronger_target"
-            )
-        })
-    {
-        return Err(Error::InvalidOutput(
-            "generation must construct at least one argument from represented grounds through a warrant to current_claim or stronger_target; an assessment and evidence plan alone are insufficient".into(),
+fn prompt(
+    role: Role,
+    data: Value,
+    schema: Value,
+    config: &RunConfig,
+) -> Result<CompletionRequest, Error> {
+    let mut system = prompts::system(role);
+    if let Some(depth) = config.max_argument_depth {
+        system.push_str(&format!(
+            "\n\nCONSTRUCTION LIMIT: Use at most {depth} warrant layers on every support path from current_claim or stronger_target to a ground, including unselected candidate routes. A direct claim-to-warrant-to-ground argument has depth 1; an intermediate subclaim adds one layer. Use assumed or missing grounds with concrete evidence obligations at the boundary. Keep every consequential condition and challenge explicit. This limit bounds decomposition, not evidential strength. Do not invent support, weaken validation, or conceal a necessary inference to meet it. Specialists must focus on the decisive arguments at this depth rather than recursively expanding remote possibilities."
         ));
     }
-    Ok(())
-}
-
-fn prompt(role: Role, data: Value, schema: Value) -> Result<CompletionRequest, Error> {
     Ok(CompletionRequest {
         role,
-        system: prompts::system(role),
+        system,
         user: serde_json::to_string(&data)?,
         schema,
     })
@@ -273,8 +272,8 @@ fn limitations(mode: Mode) -> Vec<String> {
 
 /// Run the fixed workflow. Insufficient call budgets fail before any provider call.
 ///
-/// There are no automatic content repairs, retries or extra debate rounds. Failure
-/// is explicit rather than silently consuming another paid model call.
+/// Repairs are disabled by default. Explicit repair allowances reserve calls
+/// inside max_calls, and every returned candidate receives the same validation.
 pub async fn run<M: LanguageModel>(
     model: &M,
     request: &Request,
@@ -298,13 +297,22 @@ where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
     validate_request(request).map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
+    if config
+        .max_argument_depth
+        .is_some_and(|depth| !(1..=16).contains(&depth))
+        || config.max_repairs > 3
+    {
+        return Err(Error::InvalidInput(
+            "argument-depth must be 1–16 and max-repairs must be 0–3".into(),
+        ));
+    }
     let required_calls = match config.mode {
         Mode::Hybrid => 6,
         Mode::Single => 1,
-    };
+    } + u32::from(config.max_repairs);
     if config.max_calls < required_calls {
         return Err(Error::Budget(format!(
-            "{} mode requires {required_calls} calls but max_calls is {}",
+            "{} mode including the repair allowance requires {required_calls} calls but max_calls is {}",
             config.mode, config.max_calls
         )));
     }
@@ -312,28 +320,40 @@ where
         return Err(Error::Budget("byte budgets must be positive".to_owned()));
     }
 
-    let (final_case, transcript) = match config.mode {
+    let (mut transcript, mut retained_objections) = match config.mode {
         Mode::Single => {
             let call = execute(
                 model,
-                prompt(Role::Single, json!({"request": request}), case_schema())?,
+                prompt(
+                    Role::Single,
+                    json!({"request": request}),
+                    case_schema(),
+                    config,
+                )?,
                 config,
                 observer,
             )
             .await?;
-            (argument(&call)?, vec![call])
+            (vec![call], Vec::new())
         }
         Mode::Hybrid => hybrid(model, request, config, observer).await?,
     };
-    validate_case(request, &final_case)
-        .map_err(|errors| Error::InvalidOutput(errors.join("; ")))?;
-    validate_construction(&final_case)?;
+    let final_case = repair::validate_or_repair(
+        model,
+        request,
+        config,
+        observer,
+        &mut transcript,
+        &mut retained_objections,
+    )
+    .await?;
     Ok(RunReport {
         schema_version: "engarg.run.v2".to_owned(),
         execution_mode: "provider_calls".to_owned(),
         input_sha256: sha256_hex(serde_json::to_vec(request)?),
         provider_config: None,
         mode: config.mode,
+        run_config: Some(config.clone()),
         request: request.clone(),
         argument: final_case,
         transcript,
@@ -346,7 +366,7 @@ async fn hybrid<M: LanguageModel, O>(
     request: &Request,
     config: &RunConfig,
     observer: &O,
-) -> Result<(ArgumentCase, Vec<CallRecord>), Error>
+) -> Result<(Vec<CallRecord>, Vec<RetainedObjection>), Error>
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
@@ -354,9 +374,9 @@ where
     let schema = assessment_schema();
     // Construct every first-pass request before starting any call. No specialist
     // can observe another specialist's response through this data flow.
-    let constructor = prompt(Role::Constructor, data.clone(), schema.clone())?;
-    let sceptic = prompt(Role::Sceptic, data.clone(), schema.clone())?;
-    let auditor = prompt(Role::EvidenceAuditor, data, schema.clone())?;
+    let constructor = prompt(Role::Constructor, data.clone(), schema.clone(), config)?;
+    let sceptic = prompt(Role::Sceptic, data.clone(), schema.clone(), config)?;
+    let auditor = prompt(Role::EvidenceAuditor, data, schema.clone(), config)?;
     for first_pass in [&constructor, &sceptic, &auditor] {
         check_prompt(first_pass, config)?;
     }
@@ -374,6 +394,7 @@ where
                 id: format!("{prefix}-{}", index + 1),
                 challenge,
                 source_role: record.role,
+                must_remain_material: false,
             });
         }
     }
@@ -392,18 +413,26 @@ where
             Role::Synthesiser,
             json!({"request": request, "independent_assessments": assessments, "retained_objections": retained_objections}),
             case_schema(),
+            config,
         )?,
         config,
         observer,
     )
     .await?;
     let draft = argument(&synthesis)?;
+    let draft_validation_errors = output_validation::errors(
+        request,
+        &draft,
+        &retained_objections,
+        config.max_argument_depth,
+    );
     let critique = execute(
         model,
         prompt(
             Role::FinalCritic,
-            json!({"request": request, "independent_assessments": assessments, "draft": draft, "retained_objections": retained_objections}),
+            json!({"request": request, "independent_assessments": assessments, "draft": draft, "retained_objections": retained_objections, "draft_validation_errors": draft_validation_errors}),
             schema,
+            config,
         )?,
         config,
         observer,
@@ -415,6 +444,7 @@ where
             id: format!("critic-{}", index + 1),
             challenge,
             source_role: Role::FinalCritic,
+            must_remain_material: false,
         });
     }
     let adjudication = execute(
@@ -425,36 +455,25 @@ where
                 "request": request,
                 "independent_assessments": assessments,
                 "draft": draft,
+                "draft_validation_errors": draft_validation_errors,
                 "retained_objections": retained_objections,
                 "final_critique": serde_json::from_str::<Value>(&critique.response.content)?
             }),
             case_schema(),
+            config,
         )?,
         config,
         observer,
     )
     .await?;
-    let final_case = argument(&adjudication)?;
-    for objection in retained_objections {
-        let id = objection.id;
-        let challenge = objection.challenge;
-        if !final_case
-            .defeaters
-            .iter()
-            .any(|defeater| defeater.id == id && defeater.challenge == challenge)
-        {
-            return Err(Error::InvalidOutput(format!(
-                "adjudicator omitted or altered retained objection {id}"
-            )));
-        }
-    }
     let mut transcript = initial;
     transcript.extend([synthesis, critique, adjudication]);
-    Ok((final_case, transcript))
+    Ok((transcript, retained_objections))
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::domain::validate_case;
     use std::sync::{
         Mutex,
         atomic::{AtomicUsize, Ordering},
@@ -623,6 +642,85 @@ mod tests {
             assert!(!report.argument.warrants.is_empty());
             assert!(!report.argument.evidence_plan.is_empty());
         }
+    }
+
+    #[tokio::test]
+    async fn a_deeper_rerun_changes_the_generation_limit_without_changing_evidence_status() {
+        let (request, case) = claim_only_candidate();
+        let model = ConstructedCaseModel {
+            case,
+            inner: MockModel::new(false),
+        };
+        let shallow = RunConfig {
+            mode: Mode::Single,
+            max_calls: 1,
+            max_argument_depth: Some(1),
+            ..RunConfig::default()
+        };
+        assert!(matches!(run(&model, &request, &shallow).await,
+            Err(Error::InvalidOutput(message)) if message.contains("argument depth is 2")
+        ));
+        let deeper = RunConfig {
+            max_argument_depth: Some(2),
+            ..shallow
+        };
+        let report = run(&model, &request, &deeper).await.unwrap();
+        assert_eq!(
+            report.argument.status,
+            crate::domain::CaseStatus::Conditional
+        );
+        assert!(report.request.evidence.is_empty());
+        assert_eq!(report.run_config.unwrap().max_argument_depth, Some(2));
+    }
+
+    #[tokio::test]
+    async fn invalid_depth_and_repair_limits_fail_before_model_calls() {
+        let model = MockModel::new(false);
+        for config in [
+            RunConfig {
+                max_argument_depth: Some(0),
+                ..RunConfig::default()
+            },
+            RunConfig {
+                max_argument_depth: Some(17),
+                ..RunConfig::default()
+            },
+            RunConfig {
+                max_repairs: 4,
+                ..RunConfig::default()
+            },
+        ] {
+            assert!(matches!(
+                run(&model, &request(), &config).await,
+                Err(Error::InvalidInput(_))
+            ));
+        }
+        assert!(model.calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn unused_repair_allowance_makes_no_extra_calls_and_old_configs_keep_defaults() {
+        let config: RunConfig = serde_json::from_value(json!({
+            "mode": "hybrid", "max_calls": 6,
+            "max_input_bytes": 1_048_576, "max_response_bytes": 131_072,
+        }))
+        .unwrap();
+        assert_eq!(config.max_argument_depth, None);
+        assert_eq!(config.max_repairs, 0);
+        let model = MockModel::new(false);
+        let report = run(
+            &model,
+            &request(),
+            &RunConfig {
+                max_repairs: 3,
+                max_calls: 9,
+                ..config
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(report.transcript.len(), 6);
+        assert_eq!(model.calls.lock().unwrap().len(), 6);
     }
 
     #[tokio::test]

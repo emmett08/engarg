@@ -3,6 +3,7 @@
 //! These views preserve recorded assessments. Formatting does not establish the
 //! truth of a claim or the semantic fidelity of a model-authored paragraph.
 
+use crate::argument_depth::ClaimDepths;
 use crate::domain::{
     ArgumentCase, DefeaterStatus, Request, SupportComposition, SupportRelationship, Warrant,
     relied_dependency_closure,
@@ -175,6 +176,8 @@ struct Outline<'a> {
     case: &'a ArgumentCase,
     text: String,
     max_depth: usize,
+    display_depth: Option<u8>,
+    depths: ClaimDepths<'a>,
     printed_claims: HashSet<String>,
     expanded_claims: HashSet<String>,
     printed_grounds: HashSet<String>,
@@ -187,7 +190,10 @@ impl Outline<'_> {
     }
 
     fn defer(&mut self, id: &str) {
-        if !self.expanded_claims.contains(id) && !self.deferred.iter().any(|queued| queued == id) {
+        if self.depths.visible(id, self.display_depth)
+            && !self.expanded_claims.contains(id)
+            && !self.deferred.iter().any(|queued| queued == id)
+        {
             self.deferred.push_back(id.to_owned());
         }
     }
@@ -217,6 +223,16 @@ impl Outline<'_> {
             ),
         );
         let notes = conditions(self.case, id);
+        if !self.depths.visible(id, self.display_depth) {
+            for note in notes {
+                self.line(level, &inline(&note));
+            }
+            self.line(
+                level,
+                "Supporting detail collapsed by display-depth; retained in the canonical JSON.",
+            );
+            return;
+        }
         if level + 1 >= self.max_depth {
             // Keep consequential conditions adjacent even when the display depth
             // places the underlying argument in a separate shallow record.
@@ -290,7 +306,9 @@ impl Outline<'_> {
             }
             for premise in &warrant.premise_ids {
                 if claim(self.case, premise).is_some() {
-                    if detached || level + 1 >= self.max_depth {
+                    if !self.depths.visible(premise, self.display_depth) {
+                        self.claim(premise, note_level);
+                    } else if detached || level + 1 >= self.max_depth {
                         self.line(
                             note_level,
                             &format!("Shared or deeper premise: see {}.", md_reference(premise)),
@@ -345,16 +363,33 @@ impl Outline<'_> {
 /// Deeper support is retained in separate shallow records rather than discarded.
 #[must_use]
 pub fn outline(request: &Request, case: &ArgumentCase, max_depth: usize) -> String {
+    outline_with_depth(request, case, max_depth, None)
+}
+
+/// Limit detailed claim levels without altering the graph or its assessments.
+/// Boundary claims keep their qualification and consequential conditions.
+#[must_use]
+pub fn outline_with_depth(
+    request: &Request,
+    case: &ArgumentCase,
+    max_depth: usize,
+    display_depth: Option<u8>,
+) -> String {
     let mut output = Outline {
         case,
         text: String::new(),
         max_depth: max_depth.clamp(1, 6),
+        display_depth,
+        depths: ClaimDepths::new(case),
         printed_claims: HashSet::new(),
         expanded_claims: HashSet::new(),
         printed_grounds: HashSet::new(),
         deferred: VecDeque::new(),
     };
     writeln!(output.text, "# Working argument outline\n\nRequested claim: {}\n\nCurrent assessment: **{}**. {}\n\nScope: {} Configuration: {} Operating conditions: {} Time horizon: {}\n", inline(&request.claim), label(&case.status), inline(&case.adjudication), inline(&case.scope.system_boundary), inline(&case.scope.configuration), inline(&case.scope.operating_conditions), inline(&case.scope.time_horizon)).unwrap();
+    if let Some(depth) = display_depth {
+        writeln!(output.text, "Detailed claim levels: {depth}. Deeper supporting records are collapsed in this view. The canonical JSON retains the complete graph.\n").unwrap();
+    }
     output.claim("current_claim", 0);
     output.text.push_str("\nStronger conditional target:\n\n");
     output.claim("stronger_target", 0);
@@ -407,16 +442,37 @@ pub fn outline(request: &Request, case: &ArgumentCase, max_depth: usize) -> Stri
 /// appears once; the renderer adds no measurements or inferred support status.
 #[must_use]
 pub fn prose(request: &Request, case: &ArgumentCase) -> String {
+    prose_with_depth(request, case, None)
+}
+
+/// A reading view with a bounded set of detailed claim sections. Parent prose
+/// is never rewritten, and outstanding relied-upon conditions remain explicit.
+#[must_use]
+pub fn prose_with_depth(
+    request: &Request,
+    case: &ArgumentCase,
+    display_depth: Option<u8>,
+) -> String {
+    let depths = ClaimDepths::new(case);
     let mut output = format!(
         "# Engineering assessment\n\n> Canonical current claim: {}\n>\n> Qualification: {}\n>\n> Current assessment: **{}**.\n",
         inline(&case.current_claim.text),
         inline(&case.current_claim.qualifier),
         label(&case.status)
     );
+    if let Some(depth) = display_depth {
+        writeln!(output, "\nDetailed claim levels: {depth}. Deeper supporting sections are omitted from this view and retained in the canonical JSON.\n").unwrap();
+        for condition in conditions(case, "current_claim") {
+            writeln!(output, "{}\n", inline(&condition)).unwrap();
+        }
+    }
     let mut sections: Vec<_> = case.reading.iter().collect();
     sections.sort_by_key(|section| usize::from(section.claim_id != "current_claim"));
     let mut seen = HashSet::new();
     for section in sections {
+        if !depths.visible(&section.claim_id, display_depth) {
+            continue;
+        }
         if !seen.insert(section.claim_id.as_str()) {
             continue;
         }
@@ -435,6 +491,11 @@ pub fn prose(request: &Request, case: &ArgumentCase) -> String {
                 inline(&case.stronger_target.qualifier)
             )
             .unwrap();
+            if display_depth.is_some() {
+                for condition in conditions(case, "stronger_target") {
+                    writeln!(output, "{}\n", inline(&condition)).unwrap();
+                }
+            }
         } else if section.claim_id != "current_claim"
             && let Some((_, qualifier)) = claim(case, &section.claim_id)
         {
@@ -463,6 +524,11 @@ pub fn prose(request: &Request, case: &ArgumentCase) -> String {
             inline(&case.stronger_target.qualifier)
         )
         .unwrap();
+        if display_depth.is_some() {
+            for condition in conditions(case, "stronger_target") {
+                writeln!(output, "{}\n", inline(&condition)).unwrap();
+            }
+        }
     }
     writeln!(output, "## Limits on reliance\n").unwrap();
     for limit in case.decision_limits.iter().chain(&case.residual_risks) {
@@ -499,10 +565,25 @@ fn html_notes(output: &mut String, case: &ArgumentCase, id: &str) {
 /// scripts, style, source URLs or attribute values supplied by an agent.
 #[must_use]
 pub fn html(request: &Request, case: &ArgumentCase) -> String {
+    html_with_depth(request, case, None)
+}
+
+/// Omit deeper claim bodies and reading sections while keeping their summaries,
+/// canonical anchors, qualifications and consequential unresolved conditions.
+#[must_use]
+pub fn html_with_depth(
+    request: &Request,
+    case: &ArgumentCase,
+    display_depth: Option<u8>,
+) -> String {
+    let depths = ClaimDepths::new(case);
     let mut output = String::from(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'\"><title>Engineering argument</title><style>body{font:17px/1.6 system-ui,sans-serif;max-width:72rem;margin:auto;padding:2rem;color:#17212e;background:#f7f9fc}h1,h2,h3{line-height:1.2}details{background:white;border:1px solid #bac8d8;border-radius:.5rem;padding:1rem;margin:1rem 0}summary{cursor:pointer;font-weight:600}summary span{display:block}.qualifier,.condition{font-weight:400;color:#3c4c60}.condition{border-left:3px solid #a56b18;padding-left:.75rem}.relation{background:#edf3fb;padding:.6rem}a{color:#174a87}article{border-top:1px solid #ccd5e0;padding:1rem 0}.references{font-size:.9rem;color:#46596c}section{margin:2rem 0}li{margin:.5rem 0}</style></head><body><main><h1>Engineering argument</h1>",
     );
     write!(output, "<p><strong>Current assessment: {}.</strong> {}</p><p>Requested claim: {}</p><p>Scope: {} Configuration: {} Operating conditions: {} Time horizon: {}</p><nav><a href=\"#argument-view\">Expandable argument view</a> · <a href=\"#reading-view\">Connected reading</a> · <a href=\"#sources\">Sources</a></nav><section id=\"argument-view\"><h2>Expandable argument view</h2>", escape_html(&label(&case.status)), escape_html(&case.adjudication), escape_html(&request.claim), escape_html(&case.scope.system_boundary), escape_html(&case.scope.configuration), escape_html(&case.scope.operating_conditions), escape_html(&case.scope.time_horizon)).unwrap();
+    if let Some(depth) = display_depth {
+        write!(output, "<p>Detailed claim levels: {depth}. Deeper claim bodies and reading sections are omitted from this view. Summaries, conditions and investigation registers remain visible. The canonical JSON retains the complete graph.</p>").unwrap();
+    }
     for id in claim_ids(case) {
         let Some((text, qualifier)) = claim(case, id) else {
             continue;
@@ -530,6 +611,10 @@ pub fn html(request: &Request, case: &ArgumentCase) -> String {
             .unwrap();
         }
         output.push_str("</summary>");
+        if !depths.visible(id, display_depth) {
+            output.push_str("<p>Supporting detail collapsed by display-depth; retained in the canonical JSON.</p></details>");
+            continue;
+        }
         if let Some(item) = composition(case, id) {
             write!(
                 output,
@@ -626,6 +711,9 @@ pub fn html(request: &Request, case: &ArgumentCase) -> String {
     sections.sort_by_key(|section| usize::from(section.claim_id != "current_claim"));
     let mut seen = HashSet::new();
     for section in sections {
+        if !depths.visible(&section.claim_id, display_depth) {
+            continue;
+        }
         if !seen.insert(section.claim_id.as_str()) {
             continue;
         }

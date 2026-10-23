@@ -74,6 +74,28 @@ Use `--role-model sceptic=MODEL_ID` or `--role-model adjudicator=MODEL_ID` to us
 
 The default hybrid workflow performs six calls. `--mode single --max-calls 1` supplies an inexpensive evaluation baseline. Choose model identifiers explicitly rather than relying on a model alias embedded in the executable.
 
+## Generation depth and invalid-output recovery
+
+Use `--argument-depth N` to limit the generated support graph to N warrant layers on every path from `current_claim` or `stronger_target` to a ground. A direct claim → warrant → ground argument has depth 1. Introducing an intermediate subclaim adds one layer. The limit applies to all candidate routes, including unselected alternatives. It is sent to every agent and checked deterministically against the final graph. Allowed values are 1–16. Omit the option to retain the previous unbounded decomposition behaviour, subject to the other resource limits.
+
+At the depth boundary, the argument must state the remaining premises as assumed or missing grounds with concrete evidence obligations. Depth bounds decomposition, not breadth, verbosity, truth or argument quality. It does not permit invented evidence, concealed conditions or unresolved objections without plans. For example, start with:
+
+```sh
+engarg analyse --claim 'YOUR CLAIM' --model gpt-6.1-sol \
+  --service-tier ultrafast --reasoning-effort high \
+  --api-key-env OPENAI_API_KEY \
+  --argument-depth 2 --max-repairs 1 --max-calls 7 \
+  --format json --audit depth2.audit.jsonl --output depth2.json
+```
+
+The error `unresolved material defeater auditor-5 needs an evidence plan` means that the model returned an open or sustained material objection without an evidence-plan item whose `target_id` is exactly `auditor-5`. A plan targeting the attacked claim or warrant does not cover the objection itself. The validator deliberately keeps this requirement. Adjudication now receives the draft's validation errors, and fixed instructions explicitly require a plan for every unresolved material defeater.
+
+`--max-repairs N` permits up to N additional calls to correct invalid final model content, with the original request, complete candidate, retained objections and exact validation diagnostics. It defaults to 0 and accepts 0–3. The call budget must reserve the allowance before any call: hybrid with one repair requires `--max-calls 7`; single mode with one repair requires at least 2. Unused repair allowances make no calls. More `--max-calls` alone does not activate repairs or more debate rounds.
+
+Repairs use the same model role, reasoning settings, byte, output-token and deadline limits. Every correction is fully validated, and every completed call is audited. Repairs must retain objection identifiers and wording, and cannot downgrade an existing material objection to nonmaterial. A specific justified revision can still make a challenge inapplicable. The model must supply the investigation: EngArg does not fabricate a generic evidence plan or silently waive a failed check. Exhausting the repair allowance still fails explicitly. Provider errors, refusals, truncation and resource failures do not trigger repairs. This facility corrects structural output defects; it cannot establish evidential adequacy or guarantee useful reasoning.
+
+To explore further decomposition later, rerun the same claim with `--argument-depth 4` and new output/audit filenames. This is a fresh assessment, not a continuation or automatic merge of the previous graph. Greater permitted depth does not guarantee greater actual depth or a stronger argument. Compare the reasoning and obligations, and supply acquired evidence when available. Display depth can instead change freely without inference, as shown below. Saved reports and audit start records retain the generation and repair settings. Old saved reports remain readable.
+
 ## Input and output
 
 Only `claim` is required. The simplest JSON input is:
@@ -148,6 +170,16 @@ engarg render --input run.json --format prose --output reading.md
 engarg render --input run.json --format html --output argument.html
 engarg render --input run.json --format markdown --output assessment.md
 ```
+
+Use `--display-depth N` (1–16) with outline, prose or HTML to limit detailed claim levels from the same two roots. A shared claim remains detailed if any root reaches it within the limit. At the boundary, the outline and HTML keep a claim summary, qualifier and consequential conditions while omitting its supporting detail. Prose retains the parent paragraphs and explicitly shows outstanding relied-upon conditions. The HTML investigation registers remain complete. JSON and the full 14-component template always retain the complete case; this option does not prune, reassess or change EAL export. Omit it to show every detailed record.
+
+```sh
+engarg render --input depth2.json --format outline --display-depth 1 --outline-depth 3
+engarg render --input depth2.json --format prose --display-depth 1
+engarg render --input depth2.json --format html --display-depth 1 --output summary.html
+```
+
+`--argument-depth` controls new model construction. `--display-depth` controls detailed claim sections in an existing view. `--outline-depth` only bounds indentation, defaulting to three, and puts deeper visible arguments in separate shallow records. Reducing display depth saves reading effort without new model calls. Retain canonical JSON when you want to reveal more detail later.
 
 Saved JSON rendering accepts files up to 16 MiB and validates the case before presenting it. The examples directory includes a synthetic canonical report and each of its presentations.
 
@@ -241,7 +273,7 @@ Run checks reject unknown or duplicated identifiers, broken references, cyclic i
 
 The model still judges relevance, materiality, adequacy of a warrant, whether a revision answers an objection, and whether proposed acceptance criteria are suitable. An internally consistent output can contain a mistaken argument. Source verification, experiment execution and proof checking require separately identified tools or review. There is no calibrated confidence score and no vote-to-truth rule.
 
-Defaults are six calls, 1 MiB per encoded agent request, 128 KiB per returned model content, 10,000 output tokens per call, 120 seconds per HTTP request and 480 seconds per run. HTTP envelopes have their own byte cap. These are call, byte, time and output-token limits, not a guaranteed monetary cost cap. Input token costs depend on the chosen model. No retries, unbounded debate rounds or automatic repair calls are hidden behind those limits. Cancellation stops local work; a provider can still complete and bill an already submitted request.
+Defaults are six calls, no repair calls, no generation-depth limit, 1 MiB per encoded agent request, 128 KiB per returned model content, 10,000 output tokens per call, 120 seconds per HTTP request and 480 seconds per run. HTTP envelopes have their own byte cap. These are call, byte, time and output-token limits, not a guaranteed monetary cost cap. Input token costs depend on the chosen model. Repairs require an explicit allowance and sufficient total call budget. There are no transport retries or unbounded debate rounds. Cancellation stops local work; a provider can still complete and bill an already submitted request.
 
 Use `--audit PATH` to retain completed calls even when a later response is invalid or the deadline expires. Oversized model content is replaced by size and digest metadata in that audit. Failed HTTP attempts have no fabricated completion or usage count. Output files use exclusive creation and permissions `0600` on Unix. Reports contain your evidence and model assessments, so apply your normal data-handling policy to them. They contain no API credential from the adapter. Evidence prompts cannot invoke tools or change endpoint configuration, although prompt instructions alone do not guarantee resistance to semantic injection.
 
@@ -257,9 +289,13 @@ The code uses composition, enums, owned records, typed errors, static generic di
 | Substitutability | Adapters return a completion or an explicit error; refusals and truncation do not masquerade as successful arguments |
 | Ports and adapters | Domain and engine depend on the model port rather than the HTTP client |
 | Fixed workflow and observer | Bounded stages determine context disclosure; a concurrency-safe observer records completions incrementally |
+| Generation checks and repair | `output_validation` owns construction checks and retained dissent; `engine/repair` owns the explicit bounded correction loop |
+| Depth indexing | `argument_depth` computes longest generation routes and shortest display routes without pruning the canonical graph |
 | Composition root | `main.rs` builds configuration and the provider, then delegates to the engine |
 
 The default model adapter supports Responses and strict Chat Completions wire formats. EAL export and MCP invocation have separate modules and use the installed official host rather than introducing another reasoning runtime. A richer model router, retrieval adapter or formal verifier should remain a separate port with explicit provenance. No additional distributed runtime is required for the process-local LLM workflow. It does not claim Nehemiah wire-protocol or A2A conformance.
+
+Version 0.5.0 adds `max_argument_depth` and `max_repairs` to the public Rust `RunConfig`, and optional `run_config` to `RunReport`. Library callers using struct literals must supply the fields or use `..RunConfig::default()` for the configuration. Deserialisation gives older configurations no depth limit and no repairs. Existing saved reports without `run_config` retain an unknown configuration rather than fabricated historical settings. The canonical argument schema and EAL semantics are unchanged.
 
 ## Build and verify
 

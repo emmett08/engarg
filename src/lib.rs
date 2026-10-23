@@ -12,6 +12,9 @@ pub mod prompts;
 pub mod provider;
 pub mod render;
 
+mod argument_depth;
+mod output_validation;
+
 /// Errors distinguish invalid arguments from transport and resource failures.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
