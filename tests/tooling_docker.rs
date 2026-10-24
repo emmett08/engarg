@@ -1,4 +1,4 @@
-//! Real isolated-runner coverage. CI preloads the two official toolchain images.
+//! Real isolated-runner coverage. CI preloads the official toolchain images.
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -184,6 +184,79 @@ try {
   process.stdout.write(result + "\n");
 } catch {
   process.exitCode = 2;
+}
+"###;
+
+const RUST_COLLECTOR: &str = r###"use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
+use std::io::{Read, Write};
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Request {
+    evidence_id: String,
+    environment: String,
+    tool: String,
+    tool_version: String,
+    input: Input,
+    context: Map<String, Value>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Input {
+    mode: Mode,
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum Mode {
+    Positive,
+    Negative,
+    Error,
+}
+
+fn collect() -> Result<(), Box<dyn std::error::Error>> {
+    let mut raw = Vec::new();
+    std::io::stdin().lock().take(1_048_577).read_to_end(&mut raw)?;
+    if raw.len() > 1_048_576 {
+        return Err("request limit".into());
+    }
+    let request: Request = serde_json::from_slice(&raw)?;
+    if [
+        &request.evidence_id,
+        &request.environment,
+        &request.tool,
+        &request.tool_version,
+    ].iter().any(|identity| identity.is_empty()) {
+        return Err("request identity".into());
+    }
+    let present = match request.input.mode {
+        Mode::Positive => true,
+        Mode::Negative => false,
+        Mode::Error => return Err("synthetic acquisition error".into()),
+    };
+    // The toolchain's arbitrary_precision feature retains every JSON number.
+    let envelope = json!({
+        "value": {"collected": true, "present": present},
+        "context": request.context,
+        "request": {
+            "tool": request.tool,
+            "tool_version": request.tool_version,
+            "input": request.input,
+            "context": request.context,
+        },
+    });
+    let mut output = std::io::stdout().lock();
+    serde_json::to_writer(&mut output, &envelope)?;
+    output.write_all(b"\n")?;
+    Ok(())
+}
+
+fn main() {
+    if collect().is_err() {
+        std::process::exit(2);
+    }
 }
 "###;
 
@@ -428,6 +501,15 @@ fn saved_report(path: &Path) {
 }
 
 fn profile(path: &Path, language: &str, image: &str, entry: &str) {
+    if language == "rust" {
+        let mut value: Value =
+            serde_json::from_str(include_str!("../examples/toolchains/rust.json")).unwrap();
+        assert_eq!(value["image"], image);
+        value["docker"] =
+            json!(std::env::var("ENGARG_TOOL_DOCKER").unwrap_or_else(|_| "docker".into()));
+        fs::write(path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+        return;
+    }
     let build = if language == "python" {
         json!([
             "python3",
@@ -507,6 +589,86 @@ fn successful(output: &Output) {
     );
 }
 
+fn replay_synthetic_fixture(attempt: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    use engarg::tooling::{
+        ToolchainProfile,
+        contracts::{CodeCandidate, NeedContract},
+        runner::{DockerRunner, ExecutionMode, FixtureRunner},
+    };
+
+    let contract: NeedContract = serde_json::from_slice(&fs::read(attempt.join("contract.json"))?)?;
+    let candidate: CodeCandidate =
+        serde_json::from_slice(&fs::read(attempt.join("candidate.json"))?)?;
+    let profile = ToolchainProfile::load(&attempt.join("profile.json"))?;
+    let supervisor =
+        Path::new(env!("CARGO_BIN_EXE_engarg")).with_file_name("engarg-process-supervisor");
+    let runner = DockerRunner::new(profile, supervisor)?;
+    let fixture = contract
+        .draft
+        .fixtures
+        .first()
+        .ok_or("synthetic contract has no fixture")?;
+    let precision: Value = serde_json::from_str(
+        r#"{"integer":90071992547409931234567890,"decimal":1.234567890123456789,"escaped":"quote \" slash \\ CRLF\r\n\u2028"}"#,
+    )?;
+    let request = json!({
+        "evidence_id": contract.need.id,
+        "environment": "engarg_tool_fixture",
+        "tool": "engarg_generated_fixture",
+        "tool_version": "1",
+        "input": fixture.input,
+        "context": {"precision": precision, "fixture": fixture.name},
+    });
+    let outcome = runner.execute(
+        attempt,
+        &candidate.files,
+        &fixture.files,
+        &serde_json::to_vec(&request)?,
+        ExecutionMode::Fixture,
+        &eal_process::CancellationToken::default(),
+    )?;
+    // This test supplies only frozen synthetic data and forwards no credentials.
+    // Production receipts intentionally retain stream digests rather than content.
+    let limit = 65_536;
+    Ok(format!(
+        "synthetic replay: returncode={} execution_error={:?} elapsed_ms={}\nstdout (first {limit} bytes):\n{}\nstderr (first {limit} bytes):\n{}",
+        outcome.returncode,
+        outcome.execution_error,
+        outcome.elapsed_ms,
+        String::from_utf8_lossy(&outcome.stdout[..outcome.stdout.len().min(limit)]),
+        String::from_utf8_lossy(&outcome.stderr[..outcome.stderr.len().min(limit)]),
+    ))
+}
+
+fn successful_implementation(output: &Output, store: &Path) {
+    if output.status.success() {
+        return;
+    }
+    let mut diagnostics = String::new();
+    if let Ok(attempts) = fs::read_dir(store.join("attempts")) {
+        for attempt in attempts.take(8).flatten() {
+            let attempt = attempt.path();
+            if let Ok(bytes) = fs::read(attempt.join("test-results.json")) {
+                diagnostics.push_str(&format!(
+                    "\n{}:\n{}\n",
+                    attempt.join("test-results.json").display(),
+                    String::from_utf8_lossy(&bytes[..bytes.len().min(65_536)]),
+                ));
+            }
+            match replay_synthetic_fixture(&attempt) {
+                Ok(replay) => diagnostics.push_str(&replay),
+                Err(error) => diagnostics.push_str(&format!("synthetic replay failed: {error}")),
+            }
+        }
+    }
+    panic!(
+        "stdout:\n{}\nstderr:\n{}\nretained fixture diagnostics:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+        diagnostics,
+    );
+}
+
 fn export_manifest(report: &Path, directory: &Path) -> (String, PathBuf) {
     let source = directory.join("argument.eal");
     let tools = directory.join("argument.tools.toml");
@@ -577,7 +739,7 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
         &server.endpoint,
         language,
     );
-    successful(&output);
+    successful_implementation(&output, &store);
     assert_eq!(server.requests().len(), 2);
     let report_path = first.join("analysis.with-tools.json");
     let report: Value = serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
@@ -619,7 +781,7 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
         "http://127.0.0.1:1/v1/responses",
         language,
     );
-    successful(&output);
+    successful_implementation(&output, &store);
     let repeated: Value =
         serde_json::from_slice(&fs::read(second.join("analysis.with-tools.json")).unwrap())
             .unwrap();
@@ -647,7 +809,7 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
         "https://api.openai.com/v1/responses",
         language,
     );
-    successful(&output);
+    successful_implementation(&output, &store);
     let unkeyed: Value =
         serde_json::from_slice(&fs::read(third.join("analysis.with-tools.json")).unwrap()).unwrap();
     assert_eq!(unkeyed["tooling"]["model_calls"], 0);
@@ -741,6 +903,17 @@ fn javascript_collector_preserves_exact_protocol_identity_and_reuses_verified_co
         "node:24-slim",
         "collector.mjs",
         JAVASCRIPT_COLLECTOR,
+    );
+}
+
+#[test]
+#[ignore = "requires Docker and the preloaded engarg-rust-tools:1.99.1 image"]
+fn rust_collector_is_compiled_registered_and_reused_with_exact_protocol_identity() {
+    exercise(
+        "rust",
+        "engarg-rust-tools:1.99.1",
+        "main.rs",
+        RUST_COLLECTOR,
     );
 }
 

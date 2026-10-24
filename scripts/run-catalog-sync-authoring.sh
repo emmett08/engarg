@@ -3,8 +3,8 @@
 # Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOGUE.json]
 # Defaults include retained/HTTP JSON, scoped Grafana, Kubernetes and GitHub tools.
 # Preflight accepts tracked changes and needs no Rust tools, host or API key.
-# Full runs need a clean checkout, Rustup and the complete compatible EAL runtime.
-# Optional tool implementation uses isolated fixtures; live collection is separate.
+# Full runs need a clean checkout and Rustup; the pinned EAL runtime is cached locally.
+# Authoring, rendering, export and planning do not collect or assess evidence.
 set -euo pipefail
 umask 077
 
@@ -13,9 +13,9 @@ usage() {
   cat <<'HELP'
 Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOGUE.json]
   --check-only                 Check inputs without build, Docker, host or inference.
-  --implement-tools            Generate and fixture-test missing collectors (PR #9).
-  --tool-language LANGUAGE      Explicit implementation language, matching the profile.
-  --toolchain JSON              Operator-owned toolchain profile; image must be installed.
+  --implement-tools            Generate and fixture-test missing collectors (default: Rust).
+  --tool-language LANGUAGE      Implementation language (default: rust), matching the profile.
+  --toolchain JSON              Operator profile override; image must already be installed.
   --tool-store DIR              Reusable package store (default: .engarg-local/tool-store).
   --tool-max-calls N            Separate implementation budget (1-256; default: 16).
   --tool-timeout-secs N         Separate implementation deadline (1-86400; default: 3600).
@@ -24,11 +24,11 @@ HELP
 check_only=0
 implement_tools=0
 tool_options=0
-tool_language=''
-toolchain=''
-tool_store=''
-tool_max_calls=16
-tool_timeout=3600
+tool_language='rust'
+toolchain=${ENGARG_TOOLCHAIN:-}
+tool_store=${ENGARG_TOOL_STORE:-}
+tool_max_calls=${ENGARG_TOOL_MAX_CALLS:-16}
+tool_timeout=${ENGARG_TOOL_TIMEOUT_SECS:-3600}
 while [[ $# -gt 0 ]]; do
   case $1 in
     --check-only) check_only=1; shift ;;
@@ -52,9 +52,6 @@ while [[ $# -gt 0 ]]; do
 done
 [[ $# -ge 1 && $# -le 2 ]] || { usage >&2; exit 2; }
 [[ $implement_tools -eq 1 || $tool_options -eq 0 ]] || fail 'Tool implementation options require --implement-tools.'
-if [[ $implement_tools -eq 1 ]]; then
-  [[ -n $tool_language && -n $toolchain ]] || fail '--implement-tools requires --tool-language and --toolchain.'
-fi
 for required in git python3; do command -v "$required" >/dev/null || fail "Required command: $required"; done
 repo=$(git rev-parse --show-toplevel) || fail 'Run from an EngArg checkout.'
 # Keep operator paths relative to the invocation directory, including leaf-file
@@ -67,7 +64,13 @@ if [[ $# -eq 2 ]]; then
   catalogue=$(absolute_path "$2")
   [[ -e $catalogue ]] || fail "Collector catalogue does not exist: $catalogue. Omit CATALOGUE.json to use the built-in planning tools."
 fi
+prepare_rust_image=0
 if [[ $implement_tools -eq 1 ]]; then
+  if [[ -z $toolchain ]]; then
+    [[ $tool_language == rust ]] || fail 'A non-Rust language requires --toolchain with a matching operator profile.'
+    toolchain="$repo/examples/toolchains/rust.json"
+    prepare_rust_image=1
+  fi
   toolchain=$(absolute_path "$toolchain")
   [[ -e $toolchain ]] || fail "Toolchain profile does not exist: $toolchain"
   if [[ -n $tool_store ]]; then
@@ -79,8 +82,10 @@ fi
 # Resolve an explicitly selected host before changing directory; only full runs
 # require it. Do not probe tools or credentials during input-only preflight.
 eal_host=''
+eal_host_selection='managed'
 if [[ $check_only -eq 0 && -n ${ENGARG_EAL_HOST:-} ]]; then
   eal_host=$(absolute_path "$ENGARG_EAL_HOST")
+  eal_host_selection='operator'
 fi
 cd "$repo"
 
@@ -242,9 +247,20 @@ eal_timeout=${ENGARG_EAL_TIMEOUT_SECS:-30}
 # Three retries permit up to four HTTP attempts per logical call, at most 28 with defaults.
 
 for required in cargo rustc; do command -v "$required" >/dev/null || fail "Required command for a full run: $required"; done
-if [[ -z $eal_host ]]; then eal_host=$(command -v eal-host || true); fi
-[[ -n $eal_host ]] || fail 'Set ENGARG_EAL_HOST to the compatible eal-host executable or put eal-host on PATH. See README.md.'
+: "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
+if [[ $prepare_rust_image -eq 1 ]]; then
+  stage='Rust tooling prerequisites'
+  command -v docker >/dev/null || fail 'Docker is required with --implement-tools. Install and start Docker before generating Rust collectors.'
+  docker info >/dev/null || fail 'Docker must be running before generating Rust collectors.'
+fi
+if [[ -z $eal_host ]]; then
+  stage='EAL runtime installation'
+  eal_host=$(bash "$repo/scripts/install-eal-runtime.sh")
+fi
+stage='full-run prerequisites'
+[[ -n $eal_host ]] || fail 'The EAL runtime installation did not return a host executable.'
 eal_host=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve())' "$eal_host")
+printf 'Selected EAL host (%s): %s\n' "$eal_host_selection" "$eal_host" >&2
 [[ -f $eal_host && -x $eal_host && -f $(dirname "$eal_host")/eal-mcp && -x $(dirname "$eal_host")/eal-mcp ]] ||
   fail 'eal-host and its sibling eal-mcp must both be regular executable files.'
 # The server resolves its worker and supervisor beside its own physical binary.
@@ -257,7 +273,6 @@ eal_supervisor="$eal_runtime_dir/eal-process-supervisor"
 if [[ -f $eal_runtime_dir/eal-command-supervisor ]]; then eal_supervisor="$eal_runtime_dir/eal-command-supervisor"; fi
 [[ -f $eal_supervisor && -x $eal_supervisor ]] ||
   fail "Missing executable EAL companion: $eal_supervisor. Install the pinned EAL runtime/process packages; see README.md."
-: "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
 
 stage='release build'
 cargo build --locked --release --bin engarg --bin engarg-process-supervisor
@@ -265,15 +280,17 @@ target_dir=$(cargo metadata --locked --no-deps --format-version 1 | python3 -c '
 engarg_bin="$target_dir/release/engarg"
 [[ -x $engarg_bin && -x $target_dir/release/engarg-process-supervisor ]] || fail 'Release companion binaries are missing.'
 
-python3 - "$run_dir" "$engarg_bin" "$eal_host" "$model" "$service_tier" "$reasoning_effort" \
+python3 - "$run_dir" "$engarg_bin" "$eal_host" "$eal_host_selection" "$model" "$service_tier" "$reasoning_effort" \
   "$max_calls" "$repairs" "$request_timeout" "$run_timeout" "$input_bytes" "$response_bytes" "$output_tokens" "$concurrent" "$eal_timeout" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 directory, executable, host = map(pathlib.Path, sys.argv[1:4])
 def output(*args): return subprocess.check_output(args, text=True).strip()
 record = dict(zip(['model','service_tier','reasoning_effort','max_calls','max_repairs',
     'request_timeout_seconds','run_timeout_seconds','max_input_bytes','max_response_bytes',
-    'max_output_tokens','max_concurrent_requests','eal_timeout_seconds'], sys.argv[4:]))
+    'max_output_tokens','max_concurrent_requests','eal_timeout_seconds'], sys.argv[5:]))
 record.update(git_commit=output('git','rev-parse','HEAD'), rustc=output('rustc','-vV'),
+    eal_host_selection=sys.argv[4], eal_host_path=str(host),
+    eal_mcp_path=str(host.with_name('eal-mcp').resolve()),
     engarg_binary_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
     eal_host_binary_sha256=hashlib.sha256(host.read_bytes()).hexdigest(),
     eal_mcp_binary_sha256=hashlib.sha256(host.with_name('eal-mcp').read_bytes()).hexdigest(),
@@ -304,6 +321,11 @@ if (envelope.get('is_error') is not False or not isinstance(result, dict)
     raise SystemExit('EAL host preflight requires EAL/3 syntax and the structured/1 method. Install the pinned compatible runtime.')
 PY
 host_report=''
+
+if [[ $prepare_rust_image -eq 1 ]]; then
+  stage='Rust tooling image preparation'
+  docker build --tag engarg-rust-tools:1.99.1 "$repo/examples/toolchains/rust"
+fi
 
 # Append the optional catalogue only when selected. Omitting it preserves the
 # executable's built-in contracts rather than manufacturing an approved file.

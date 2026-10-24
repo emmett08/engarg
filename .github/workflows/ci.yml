@@ -24,6 +24,7 @@ jobs:
       - name: Check authoring script preflight
         run: |
           bash -n scripts/run-catalog-sync-authoring.sh
+          bash -n scripts/install-eal-runtime.sh
           python3 -m unittest discover -s tests -p 'test_*.py'
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --all-targets -- -D warnings
@@ -33,8 +34,20 @@ jobs:
         run: |
           docker pull python:3.13-slim
           docker pull node:24-slim
+          docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
           cargo test --locked --test tooling_docker -- --include-ignored
       - run: cargo build --locked --release
+      - name: Verify the installed pinned runtime and cached startup
+        run: |
+          engarg_runtime_root=$(python3 -c 'import os; from pathlib import Path; print((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-runtime").resolve())')
+          engarg_runtime_host=$(bash scripts/install-eal-runtime.sh --root "$engarg_runtime_root")
+          test "$engarg_runtime_host" = "$engarg_runtime_root/bin/eal-host"
+          test "$(bash scripts/install-eal-runtime.sh --root "$engarg_runtime_root")" = "$engarg_runtime_host"
+          mkdir -p "$RUNNER_TEMP/engarg-eal-probe"
+          target/release/engarg eal describe --eal-host "$engarg_runtime_host" \
+            --workspace "$RUNNER_TEMP/engarg-eal-probe" \
+            --output "$RUNNER_TEMP/engarg-eal-probe/describe.json"
+          python3 -c 'import json, os; from pathlib import Path; response=json.loads((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-probe/describe.json").read_text()); assert response["is_error"] is False; assert response["result"]["source_syntax"] == "EAL/3"; assert "structured/1" in response["result"]["methods"]'
 
   eal-compatibility:
     name: EAL producer and consumer contracts

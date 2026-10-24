@@ -1,0 +1,24 @@
+{
+  "schema": "engarg.toolchain/1",
+  "language": "rust",
+  "docker": "docker",
+  "image": "engarg-rust-tools:1.99.1",
+  "build_argv": [
+    "/usr/local/bin/build-collector",
+    "--extern",
+    "serde",
+    "--extern",
+    "serde_json",
+    "--extern",
+    "reqwest",
+    "/src/main.rs",
+    "-o",
+    "/build/collector"
+  ],
+  "run_argv": ["/build/collector"],
+  "inherit_env": [],
+  "runtime_network": "none",
+  "timeout_seconds": 60,
+  "memory_mb": 1024,
+  "output_bytes": 1048576
+}
