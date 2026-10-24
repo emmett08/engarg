@@ -43,6 +43,16 @@ struct ToolSpec {
 
 const TOOLS: &[ToolSpec] = &[
     ToolSpec {
+        id: "artifact_json",
+        purpose: "Read explicitly supplied, digest-checked retained JSON artifacts for the exact evidence need. Missing artifacts fail collection; existence does not establish acceptance.",
+        arguments: &["inputs"],
+    },
+    ToolSpec {
+        id: "scoped_json",
+        purpose: "Read Kubernetes Application JSON or exact Grafana Tempo search/full traces using an operator-owned inputs file. Unresolved selectors fail before I/O; scope and interpretation require independent review.",
+        arguments: &["inputs"],
+    },
+    ToolSpec {
         id: "kubectl_get",
         purpose: "Read Kubernetes resource JSON",
         arguments: &["context", "namespace", "resource", "name"],

@@ -9,11 +9,15 @@ pub mod eal_acquisition;
 pub mod eal_export;
 pub mod eal_host;
 pub mod eal_observe;
+pub mod eal_prepare;
 pub mod engine;
 pub mod presentations;
 pub mod prompts;
 pub mod provider;
 pub mod render;
+pub mod retained_collectors;
+pub mod scoped_collectors;
+pub mod trace_inspection;
 
 mod argument_depth;
 mod collector_registry;

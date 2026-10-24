@@ -12,6 +12,11 @@ use tokio::{io::AsyncReadExt, process::Command};
 const MAX_BYTES: usize = 1_048_576;
 const TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Parse a collector request without silently collapsing duplicate JSON keys.
+pub fn parse_request(bytes: &[u8]) -> Result<Value, Error> {
+    crate::retained_collectors::parse_json(bytes)
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CollectionRequest {
@@ -230,6 +235,16 @@ fn validate_token_origin(url: &reqwest::Url, allowed: &str) -> Result<(), Error>
 /// Acquire JSON and bind its observation to the exact EAL acquisition identity.
 /// `collected` records successful acquisition, while acceptance needs its review gate.
 pub async fn observe(tool: &str, value: Value) -> Result<Value, Error> {
+    if matches!(tool, "artifact_json" | "scoped_json") {
+        let args = arguments(&value["input"])?;
+        exact_keys(&args, &["inputs"])?;
+        let path = std::path::Path::new(required(&args, "inputs")?);
+        return if tool == "artifact_json" {
+            crate::retained_collectors::observe(tool, value, path)
+        } else {
+            crate::scoped_collectors::observe(value, path).await
+        };
+    }
     let request: CollectionRequest =
         serde_json::from_value(value).map_err(|_| invalid("invalid EAL collection request"))?;
     if [

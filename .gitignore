@@ -32,3 +32,10 @@ __pycache__/
 *.env
 
 .env
+
+# Local evidence, generated runs and operator configuration can contain internal
+# endpoints, identities and credentials. Commit sanitized examples separately.
+/engarg-runs/
+/.engarg-local/
+*.local.json
+*.local.toml

@@ -26,6 +26,8 @@ const MAX_INPUT_BYTES: usize = 16 * 1_048_576;
 
 #[derive(Subcommand)]
 pub enum EalCommand {
+    /// Prepare private collector inputs and executable bindings without collecting evidence.
+    Prepare(PrepareArgs),
     /// Export a saved canonical report as EAL/3 source or a loss-preserving bundle.
     Export(ExportArgs),
     /// Check EAL source using the official host; no evidence is collected.
@@ -45,6 +47,22 @@ pub enum EalCommand {
     /// Internal bounded adapter for an explicitly configured EAL collector.
     #[command(hide = true)]
     Observe(ObserveArgs),
+}
+
+#[derive(Args)]
+pub struct PrepareArgs {
+    /// Saved canonical report containing request, argument and acquisition proposals.
+    #[arg(long)]
+    input: PathBuf,
+    /// New private directory, normally under .engarg-local/ or engarg-runs/.
+    #[arg(long)]
+    output_dir: PathBuf,
+    /// Explicitly authorised kubectl context. Does not establish production membership.
+    #[arg(long)]
+    kube_context: Option<String>,
+    /// Operator-approved Grafana HTTPS origin; retained only in private inputs.
+    #[arg(long)]
+    grafana_origin: Option<String>,
 }
 
 #[derive(Args)]
@@ -198,6 +216,9 @@ pub struct CollectArgs {
 pub struct ObserveArgs {
     #[arg(long)]
     tool: String,
+    /// Operator-owned retained review inputs, required for review_json.
+    #[arg(long)]
+    inputs: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -531,6 +552,46 @@ async fn host_operation(destination: HostOutput, request: Value) -> Result<(), E
 
 pub async fn execute(command: EalCommand) -> Result<(), Error> {
     match command {
+        EalCommand::Prepare(args) => {
+            let report: CanonicalReport = super::read_json(&args.input, MAX_INPUT_BYTES)?;
+            let plan = retained_plan(&report)?;
+            if args.output_dir.exists() {
+                return Err(Error::InvalidInput(
+                    "prepare output directory already exists".into(),
+                ));
+            }
+            if let Some(parent) = args.output_dir.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::create_dir(&args.output_dir)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&args.output_dir, std::fs::Permissions::from_mode(0o700))?;
+            }
+            let result = (|| {
+                let directory = args.output_dir.canonicalize()?;
+                let files = engarg::eal_prepare::prepare(
+                    &report.request,
+                    &report.argument,
+                    &plan,
+                    &directory,
+                    &std::env::current_exe()?,
+                    args.kube_context.as_deref(),
+                    args.grafana_origin.as_deref(),
+                )?;
+                for (name, bytes) in files {
+                    let mut file = PendingFile::create(directory.join(name))?;
+                    file.write(&bytes)?;
+                    file.keep = true;
+                }
+                Ok::<_, Error>(())
+            })();
+            if result.is_err() {
+                let _ = std::fs::remove_dir_all(&args.output_dir);
+            }
+            result
+        }
         EalCommand::Export(args) => execute_export(args),
         EalCommand::Validate(args) => {
             let document = source_document(&args.source)?;
@@ -634,8 +695,18 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             if bytes.len() > 1_048_576 {
                 return Err(Error::Budget("collector input exceeds 1 MiB".into()));
             }
-            let request = serde_json::from_slice(&bytes)?;
-            let response = engarg::eal_observe::observe(&args.tool, request).await?;
+            let request = engarg::eal_observe::parse_request(&bytes)?;
+            let response = if args.tool == "review_json" {
+                let inputs = args
+                    .inputs
+                    .ok_or_else(|| Error::InvalidInput("review_json requires --inputs".into()))?;
+                engarg::retained_collectors::observe(&args.tool, request, &inputs)?
+            } else {
+                if args.inputs.is_some() {
+                    return Err(Error::InvalidInput("--inputs is only supported with review_json; acquisition inputs are bound in the EAL request".into()));
+                }
+                engarg::eal_observe::observe(&args.tool, request).await?
+            };
             stdout(&json_bytes(&response)?)
         }
     }
