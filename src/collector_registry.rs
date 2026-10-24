@@ -18,6 +18,8 @@ fn custom(need_id: &str) -> String {
 }
 fn generic(plan: &AcquisitionPlan) -> String {
     let inherited = match plan.tool_id.as_str() {
+        "artifact_json" => "[]",
+        "scoped_json" => "[\"PATH\", \"HOME\", \"KUBECONFIG\", \"TEMPO_TOKEN\", \"TEMPO_TENANT\"]",
         "kubectl_get" => "[\"PATH\", \"HOME\", \"KUBECONFIG\"]",
         "gh_api_get" => "[\"PATH\", \"HOME\", \"GH_TOKEN\", \"GH_HOST\"]",
         "http_json_get" => "[\"PATH\", \"ENGARG_COLLECTOR_TOKEN\", \"ENGARG_COLLECTOR_ORIGIN\"]",
