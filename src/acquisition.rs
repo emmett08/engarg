@@ -153,6 +153,17 @@ pub fn validate_with_catalogue(
             ));
             continue;
         };
+        let mandatory = if let Some(descriptor) = descriptor {
+            match descriptor.required_parameters() {
+                Ok(parameters) => parameters,
+                Err(error) => {
+                    errors.push(format!("invalid collector requirements {error}"));
+                    continue;
+                }
+            }
+        } else {
+            required.iter().map(|name| (*name).to_owned()).collect()
+        };
         if let Some(tool) = descriptor
             && let Err(error) = tool.input(plan)
         {
@@ -193,8 +204,8 @@ pub fn validate_with_catalogue(
                 errors.push(format!("acquisition plan {} repeats or both supplies and leaves unresolved argument {name}", plan.need_id));
             }
         }
-        for name in required {
-            if !inputs.contains(name) {
+        for name in mandatory {
+            if !inputs.contains(name.as_str()) {
                 errors.push(format!(
                     "acquisition plan {} must supply or leave unresolved argument {name}",
                     plan.need_id
@@ -296,7 +307,7 @@ pub fn validate_selected(
     errors
 }
 
-pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools is the complete selected collector catalogue. Select by the measurement needed for this argument. Prefer an implemented collector whose actual operation supplies the required observation. Missing observations, credentials or input values do not require a custom implementation. Keep missing named inputs in unresolved_arguments while retaining the fitting implemented collector. Each collector describes its admitted inputs. For a string property supply the literal string. For another JSON type encode the value as JSON in the named string value. Use custom only when no selected collector performs the required operation. Derive values only from supplied claim, context or evidence. Reuse a compatible acquisition for shared investigations while retaining a separate plan for every targeted evidence need. An existing independently authored review can be acquired as a retained artifact, but a generated judgement or successful acquisition cannot supply independent acceptance. Keep unavailable review records and their inputs unresolved. A proposed collector is an unperformed plan. Successful acquisition establishes the recorded measurement, and independent review establishes applicability and sufficiency.";
+pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools is the complete selected collector catalogue. Select by the measurement needed for this argument. Prefer an implemented collector whose actual operation supplies the required observation. Missing observations, credentials or input values do not require a custom implementation. Keep missing named inputs in unresolved_arguments while retaining the fitting implemented collector. Each collector describes its admitted inputs and measurement results. required_arguments names unconditional input and command requirements. Optional input properties may be omitted. Preserve supplied null separately from an omitted property. Respect declared time-window constraints. Keep empty search results and incomplete coverage separate from demonstrated absence. For a string property supply the literal string. For another JSON type encode the value as JSON in the named string value. Use custom only when no selected collector performs the required operation. Derive values only from supplied claim, context or evidence. Reuse a compatible acquisition for shared investigations while retaining a separate plan for every targeted evidence need. An existing independently authored review can be acquired as a retained artifact, but a generated judgement or successful acquisition cannot supply independent acceptance. Keep unavailable review records and their inputs unresolved. A proposed collector is an unperformed plan. Successful acquisition establishes the recorded measurement, and independent review establishes applicability and sufficiency.";
 
 pub(crate) const ENVELOPE_INSTRUCTIONS: &str = "PLANNED RESPONSE: Return the supplied envelope with argument holding the complete unchanged ArgumentCase and acquisition_plan holding exactly one record for every argument.evidence_plan ID. Each record names need_id and one acquisition_tools ID. Put each required named input either in arguments as {name,value} string entries or in unresolved_arguments, never both. Use only the catalogue's input names. For custom, arguments is empty and unresolved_arguments is [\"adapter\"]. Revise the argument and its acquisition bindings together. The plan is separate from the canonical case and must preserve its target, enabled claim, question, measurement, comparator and acceptance criterion.";
 
