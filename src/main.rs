@@ -4,7 +4,7 @@ use engarg::{
     domain::{ArgumentCase, Request, case_schema, validate_case, validate_request},
     engine::{Mode, ProviderRunConfig, RunConfig},
     presentations,
-    provider::{ApiStyle, HttpConfig, HttpModel, Role},
+    provider::{ApiStyle, HttpConfig, HttpModel, Role, TransportConfig},
     render,
 };
 use serde::Serialize;
@@ -14,7 +14,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -124,6 +124,16 @@ struct Analyse {
     max_response_bytes: usize,
     #[arg(long, default_value_t = 10_000)]
     max_output_tokens: u32,
+    /// Extra HTTP attempts after retryable 429 responses. Logical model calls stay fixed.
+    #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(u8).range(0..=10))]
+    http_retries: u8,
+    /// Maximum retry wait. A longer valid Retry-After stops the call instead of retrying early.
+    #[arg(long, default_value_t = 120, value_parser = clap::value_parser!(u64).range(1..=3600))]
+    retry_max_delay_secs: u64,
+    /// Concurrent HTTP sequences. Use 1 to pace the independent hybrid specialists.
+    #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(u16).range(1..=64))]
+    max_concurrent_requests: u16,
+    /// Deadline per logical call including HTTP admission, retry waits and response reads.
     #[arg(long, default_value_t = 120)]
     request_timeout_secs: u64,
     #[arg(long, default_value_t = 480)]
@@ -272,15 +282,16 @@ struct StartAudit<'a> {
     version: &'static str,
     request: &'a Request,
     config: &'a RunConfig,
+    transport_config: &'a TransportConfig,
     #[serde(flatten)]
     provider_config: &'a ProviderRunConfig,
 }
 
-fn audit_event(file: &Option<Mutex<File>>, event: &impl Serialize) -> Result<(), Error> {
-    if let Some(file) = file {
-        let mut f = file
-            .lock()
-            .map_err(|_| Error::Provider("audit lock poisoned".into()))?;
+fn audit_event(file: &Mutex<Option<File>>, event: &impl Serialize) -> Result<(), Error> {
+    let mut file = file
+        .lock()
+        .map_err(|_| Error::Provider("audit lock poisoned".into()))?;
+    if let Some(f) = file.as_mut() {
         serde_json::to_writer(&mut *f, event)?;
         f.write_all(b"\n")?;
         f.flush()?;
@@ -357,26 +368,47 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         request_timeout_secs: args.request_timeout_secs,
         timeout_secs: args.timeout_secs,
     };
-    let model = HttpModel::new(HttpConfig {
-        endpoint: args.endpoint,
-        api_key: key,
-        model: args.model,
-        service_tier: args.service_tier,
-        reasoning_effort: args.reasoning_effort,
-        role_models,
-        style: args.api,
-        timeout: Duration::from_secs(args.request_timeout_secs),
-        max_output_tokens: args.max_output_tokens,
-        // Provider envelopes also contain metadata. The content itself has a separate limit.
-        max_body_bytes: args
-            .max_response_bytes
-            .saturating_mul(2)
-            .saturating_add(65536),
-    })?;
-    let audit = args
+    let transport_config = TransportConfig {
+        max_http_retries: args.http_retries,
+        retry_max_delay_secs: args.retry_max_delay_secs,
+        max_concurrent_requests: usize::from(args.max_concurrent_requests),
+    };
+    let audit = Arc::new(Mutex::new(None::<File>));
+    let transport_audit = Arc::clone(&audit);
+    let http_observer = Arc::new(move |record: &engarg::provider::HttpEvent| {
+        let event = json!({"event":"http_attempt","record":record});
+        audit_event(&transport_audit, &event)?;
+        if record.kind != "response" {
+            eprintln!("{event}");
+        }
+        Ok(())
+    });
+    let model = HttpModel::new_with_transport(
+        HttpConfig {
+            endpoint: args.endpoint,
+            api_key: key,
+            model: args.model,
+            service_tier: args.service_tier,
+            reasoning_effort: args.reasoning_effort,
+            role_models,
+            style: args.api,
+            timeout: Duration::from_secs(args.request_timeout_secs),
+            max_output_tokens: args.max_output_tokens,
+            // Provider envelopes also contain metadata. The content itself has a separate limit.
+            max_body_bytes: args
+                .max_response_bytes
+                .saturating_mul(2)
+                .saturating_add(65536),
+        },
+        transport_config.clone(),
+        http_observer,
+    )?;
+    *audit
+        .lock()
+        .map_err(|_| Error::Provider("audit lock poisoned".into()))? = args
         .audit
         .as_ref()
-        .map(|path| private_file(path).map(Mutex::new))
+        .map(|path| private_file(path))
         .transpose()?;
     audit_event(
         &audit,
@@ -385,6 +417,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
             version: env!("CARGO_PKG_VERSION"),
             request: &request,
             config: &config,
+            transport_config: &transport_config,
             provider_config: &provider_config,
         },
     )?;
@@ -405,6 +438,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
     match result {
         Ok(mut report) => {
             report.provider_config = Some(provider_config);
+            report.limitations.push(format!("HTTP transport allows {} retries per logical call with a maximum retry delay of {} seconds and {} concurrent request sequences. HTTP attempts have a separate bound from the logical model-call budget.", transport_config.max_http_retries,transport_config.retry_max_delay_secs,transport_config.max_concurrent_requests));
             let content = report_content(&args.output, &request, &report.argument, &report)?;
             match emit(&args.output, content) {
                 Ok(()) => audit_event(
