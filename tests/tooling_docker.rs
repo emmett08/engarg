@@ -1,4 +1,4 @@
-//! Real isolated-runner coverage. CI preloads the two official toolchain images.
+//! Real isolated-runner coverage. CI preloads the official toolchain images.
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -184,6 +184,79 @@ try {
   process.stdout.write(result + "\n");
 } catch {
   process.exitCode = 2;
+}
+"###;
+
+const RUST_COLLECTOR: &str = r###"use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
+use std::io::{Read, Write};
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Request {
+    evidence_id: String,
+    environment: String,
+    tool: String,
+    tool_version: String,
+    input: Input,
+    context: Map<String, Value>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Input {
+    mode: Mode,
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum Mode {
+    Positive,
+    Negative,
+    Error,
+}
+
+fn collect() -> Result<(), Box<dyn std::error::Error>> {
+    let mut raw = Vec::new();
+    std::io::stdin().lock().take(1_048_577).read_to_end(&mut raw)?;
+    if raw.len() > 1_048_576 {
+        return Err("request limit".into());
+    }
+    let request: Request = serde_json::from_slice(&raw)?;
+    if [
+        &request.evidence_id,
+        &request.environment,
+        &request.tool,
+        &request.tool_version,
+    ].iter().any(|identity| identity.is_empty()) {
+        return Err("request identity".into());
+    }
+    let present = match request.input.mode {
+        Mode::Positive => true,
+        Mode::Negative => false,
+        Mode::Error => return Err("synthetic acquisition error".into()),
+    };
+    // The toolchain's arbitrary_precision feature retains every JSON number.
+    let envelope = json!({
+        "value": {"collected": true, "present": present},
+        "context": request.context,
+        "request": {
+            "tool": request.tool,
+            "tool_version": request.tool_version,
+            "input": request.input,
+            "context": request.context,
+        },
+    });
+    let mut output = std::io::stdout().lock();
+    serde_json::to_writer(&mut output, &envelope)?;
+    output.write_all(b"\n")?;
+    Ok(())
+}
+
+fn main() {
+    if collect().is_err() {
+        std::process::exit(2);
+    }
 }
 "###;
 
@@ -428,6 +501,15 @@ fn saved_report(path: &Path) {
 }
 
 fn profile(path: &Path, language: &str, image: &str, entry: &str) {
+    if language == "rust" {
+        let mut value: Value =
+            serde_json::from_str(include_str!("../examples/toolchains/rust.json")).unwrap();
+        assert_eq!(value["image"], image);
+        value["docker"] =
+            json!(std::env::var("ENGARG_TOOL_DOCKER").unwrap_or_else(|_| "docker".into()));
+        fs::write(path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+        return;
+    }
     let build = if language == "python" {
         json!([
             "python3",
@@ -741,6 +823,17 @@ fn javascript_collector_preserves_exact_protocol_identity_and_reuses_verified_co
         "node:24-slim",
         "collector.mjs",
         JAVASCRIPT_COLLECTOR,
+    );
+}
+
+#[test]
+#[ignore = "requires Docker and the preloaded engarg-rust-tools:1.99.1 image"]
+fn rust_collector_is_compiled_registered_and_reused_with_exact_protocol_identity() {
+    exercise(
+        "rust",
+        "engarg-rust-tools:1.99.1",
+        "main.rs",
+        RUST_COLLECTOR,
     );
 }
 

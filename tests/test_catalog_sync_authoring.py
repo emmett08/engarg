@@ -42,6 +42,10 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.script = self.repo / "scripts/run-catalog-sync-authoring.sh"
         self.script.parent.mkdir()
         shutil.copyfile(SOURCE_SCRIPT, self.script)
+        toolchains = self.repo / "examples/toolchains"
+        toolchains.mkdir(parents=True)
+        shutil.copyfile(SOURCE_SCRIPT.parents[1] / "examples/toolchains/rust.json",
+                        toolchains / "rust.json")
         (self.repo / ".gitignore").write_text("/engarg-runs/\n/.engarg-local/\n")
         for number in range(4):
             (self.repo / ("tracked-%s.txt" % number)).write_text("original\n")
@@ -226,6 +230,20 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertFalse((directory / "analysis.json").exists())
         self.assertFalse((directory / "run-settings.json").exists())
 
+    def test_tool_generation_check_only_keeps_input_only_dependencies(self):
+        self.make_dirty()
+        before = self.tracked_state()
+        result = self.run_script("--implement-tools", "--check-only", self.inputs)
+        directory = self.successful_run_directory(result)
+        self.assertEqual(self.tracked_state(), before)
+        profile = self.repo / "examples/toolchains/rust.json"
+        self.assertEqual((directory / "toolchain.snapshot.json").read_bytes(), profile.read_bytes())
+        implementation = json.loads((directory / "input-identity.json").read_text())["tool_implementation"]
+        self.assertTrue(implementation["enabled"])
+        self.assertEqual(implementation["language"], "rust")
+        self.assertFalse((directory / "run-settings.json").exists())
+        self.assertFalse((directory / "tooling").exists())
+
     def test_omitted_catalogue_preserves_literal_query_and_private_snapshots(self):
         original = self.inputs.read_bytes()
         directory = self.successful_run_directory(self.run_script("--check-only", self.inputs))
@@ -324,17 +342,49 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertFalse((self.repo / '.engarg-local/tool-store').exists())
         self.assertFalse((directory / 'tooling').exists())
 
-    def test_inactive_or_incomplete_implementation_options_are_rejected(self):
+    def test_inactive_implementation_options_are_rejected(self):
         for options in [
             ['--tool-language', 'rust'],
-            ['--implement-tools'],
-            ['--implement-tools', '--tool-language', 'rust'],
+            ['--toolchain', 'unused.json'],
+            ['--tool-store', 'unused-store'],
+            ['--tool-max-calls', '4'],
+            ['--tool-timeout-secs', '60'],
         ]:
             with self.subTest(options=options):
                 result = self.run_script('--check-only', *options, self.inputs)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('require', result.stderr)
                 self.assertFalse((self.repo / 'engarg-runs').exists())
+
+    def test_explicit_tool_settings_override_environment_defaults(self):
+        profile = self.write_toolchain()
+        store = self.root / 'explicit store'
+        env = dict(self.env, ENGARG_TOOLCHAIN='missing-profile.json',
+                   ENGARG_TOOL_STORE='unused-store', ENGARG_TOOL_MAX_CALLS='invalid',
+                   ENGARG_TOOL_TIMEOUT_SECS='invalid')
+        directory = self.successful_run_directory(self.run_script(
+            '--check-only', '--implement-tools', '--toolchain', profile,
+            '--tool-store', store, '--tool-max-calls', '4', '--tool-timeout-secs', '60',
+            self.inputs, env=env,
+        ))
+        implementation = json.loads((directory / 'input-identity.json').read_text())['tool_implementation']
+        self.assertTrue(profile.samefile(implementation['operator_toolchain']))
+        self.assertEqual(Path(implementation['store']).resolve(), store.resolve())
+        self.assertEqual(implementation['max_calls'], 4)
+        self.assertEqual(implementation['timeout_seconds'], 60)
+
+    def test_check_only_rejects_invalid_tooling_environment_without_runtime_tools(self):
+        for overrides in [
+            {'ENGARG_TOOLCHAIN': 'missing-profile.json'},
+            {'ENGARG_TOOL_MAX_CALLS': 'invalid'},
+            {'ENGARG_TOOL_TIMEOUT_SECS': '0'},
+        ]:
+            with self.subTest(overrides=overrides):
+                result = self.run_script('--check-only', '--implement-tools', self.inputs,
+                                         env=dict(self.env, **overrides))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('Traceback', result.stderr)
+        self.assertFalse(list((self.repo / 'engarg-runs').glob('*/request.json')))
 
     def test_invalid_implementation_settings_fail_input_preflight(self):
         profile = self.write_toolchain()

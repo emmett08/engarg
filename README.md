@@ -250,6 +250,8 @@ For the development-cluster/Grafana claim, [the catalog sync authoring script](s
 
 Collector implementation is an optional stage. Use `--implement-tools --tool-language LANGUAGE` during analysis, or `engarg eal implement` for a saved analysis. An operator-owned toolchain profile supplies isolated build/run commands. Frozen contract fixtures and observed test results gate registration, and verified packages can be reused without new coding calls. See [collector implementation](docs/TOOL_IMPLEMENTATION.md) for the switches, language profiles and verification boundary.
 
+The catalog sync authoring script exposes `--implement-tools` for Rust collectors. It prepares the pinned Rust dependency image, verifies generated source before registration and exports the resulting bindings. Calls without that switch retain the existing authoring flow. See [the script guide](docs/CATALOG_SYNC_AUTHORING.md) for the separate tooling budget and profile overrides.
+
 Use `--format argument` for one authored statement per indented line and `--format prose` for connected reading paragraphs. New generation instructions request positive plain-English sentences without prose colons, semicolons or comma inventories. Renderers preserve existing authored text and technical syntax, including TraceQL expressions. They preserve the conditions beside each qualified claim rather than rewriting old wording mechanically.
 
 See [the EAL mapping contract](docs/EAL_MAPPING.md) for the semantic projection, review policy and architecture rationale. The EAL service applies its own source, declaration, depth and execution budgets, which can reject a large or deep export even when the original EngArg case passes its checks.
@@ -403,6 +405,31 @@ Rust 1.99.1 and the latest non-yanked stable direct dependencies were checked ag
 GPL-3.0-only licensed. No model service, API access or paid inference is bundled.
 
 ### Optional infrastructure collector configuration
+
+EAL's extended catalogue supplies Datadog, Prometheus-compatible metrics, Loki,
+exact-attempt GitHub CI observations and pinned report imports.
+Select version 3 for these measurements.
+
+```sh
+eal-collector describe --catalogue-version 3 > engineering.collectors.json
+engarg analyse --input examples/request.json --model "$ENGARG_MODEL" \
+  --collector-catalogue engineering.collectors.json \
+  --output analysis.json
+```
+
+For a reviewed API operation, use EAL's `describe-api` command with its pinned
+operator configuration. OpenAPI 3.0/3.1 JSON descriptions produce typed `path`,
+`query` and `body` input properties. Optional properties can be omitted.
+Explicit null remains a supplied value and must satisfy its schema.
+The planning view includes required arguments, result schemas and window
+constraints. Executable paths and credential names stay outside that view.
+See [EAL API and delivery evidence](https://github.com/emmett08/eal-mcp/blob/main/docs/api-collectors.md)
+for configuration and supported measurement limits.
+
+Native providers selected from the catalogue keep their existing implementation.
+Custom-tool generation remains relevant when the selected catalogues lack the
+required measurement. Collection success records acquisition. Claim acceptance
+requires the declared applicability and sufficiency checks.
 
 Select the infrastructure catalogue explicitly for generation, overrides and every new export.
 Obtain the versioned descriptors from their EAL owner:

@@ -93,9 +93,25 @@ and time correspondence require independent review.
 
 ## Implement missing collectors
 
-Enable PR #9's implementation stage with `--implement-tools`. The language and
-operator-owned toolchain profile are explicit and must match. For example, with
-the included Python profile and its Docker image already installed:
+Add `--implement-tools` to generate missing collectors in Rust during analysis:
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh --implement-tools \
+  .engarg-local/collector-inputs.json
+```
+
+The default is `--tool-language rust` with
+`examples/toolchains/rust.json`. Docker must be installed and running. The script
+prepares the trusted SDK image from `examples/toolchains/rust`; its pinned,
+precompiled Serde, Serde JSON and Reqwest libraries let generated Rust source
+compile offline. Contract fixtures run without network access. Frozen contracts,
+fixtures and observed passing test results gate registration. See
+[collector implementation](TOOL_IMPLEMENTATION.md) for the profile contract and
+fixture isolation.
+
+An explicit `--toolchain` selects an operator-owned profile and skips automatic
+image preparation. The operator must prepare that profile's image. Other
+implementation languages require an explicit matching language and profile:
 
 ```sh
 bash scripts/run-catalog-sync-authoring.sh \
@@ -106,32 +122,44 @@ bash scripts/run-catalog-sync-authoring.sh \
   .engarg-local/collector-inputs.json
 ```
 
-Use `--tool-language rust` with an operator-owned Rust profile, or select another
-language and matching profile. The script does not select execution commands or
-pull images. See [collector implementation](TOOL_IMPLEMENTATION.md) for the
-profile contract and fixture isolation. Options must precede the input paths.
+Options precede the input paths. Profile and explicit store paths resolve from
+the invocation directory. Command-line options take precedence over their
+environment fallbacks:
 
-The default persistent package store is `.engarg-local/tool-store` in the selected
-checkout. An explicit `--tool-store` resolves from the invocation directory, as
-does `--toolchain`. Use the same store across worktrees to reuse verified packages
-when their identities match. The script retains an exact private profile snapshot
-and its digest. `--check-only` can check the profile envelope, language match and
-budgets without Docker, Rust or inference; a full run admits the complete profile
+| Option | Environment fallback | Default |
+| --- | --- | --- |
+| `--toolchain` | `ENGARG_TOOLCHAIN` | `examples/toolchains/rust.json` in this checkout |
+| `--tool-store` | `ENGARG_TOOL_STORE` | `.engarg-local/tool-store` in this checkout |
+| `--tool-max-calls` | `ENGARG_TOOL_MAX_CALLS` | 16, range 1–256 |
+| `--tool-timeout-secs` | `ENGARG_TOOL_TIMEOUT_SECS` | 3600 seconds, range 1–86400 |
+
+Selecting a profile through `ENGARG_TOOLCHAIN` also skips automatic image
+preparation. Live network access and credential forwarding follow the selected
+profile's settings. `--check-only --implement-tools` validates and snapshots the
+profile, language match and budgets with input-only dependencies; it needs no
+Docker, Rust compiler or model credentials. A full run admits the complete profile
 and its installed immutable image before any model call.
 
-Implementation has its own call budget (default 16, range 1–256) and deadline
-(default 3600 seconds, range 1–86400). Argument budgets remain unchanged. Known
-collectors bypass generation; verified packages can be reused without coding
-calls. A unique `tooling/` directory within each run retains the original analysis,
-implementation audit and combined `collectors.json`. Source and verification
-receipts remain in the package store and are referenced by the tooling report.
+Implementation has a separate call budget and deadline; argument budgets remain
+unchanged. A fresh collector normally needs two model calls. A failed coding
+attempt can reuse its frozen contract with one call, while a verified package
+needs none. EngArg checks the required budget before starting those calls. Use a
+larger explicit budget for cases with many gaps, or continue from a saved analysis
+with `engarg eal implement`.
 
-The successful `analysis.json` carries the tooling metadata. The normal export
-then verifies registrations and writes matching EAL, TOML and bundle bindings.
-`run-summary.json` reports implementation calls and verified/reused package
-counts. If coding or verification fails, the script stops before export and
-preserves the canonical analysis and available tooling artifacts. Fixture tests
-do not collect live evidence or discharge independent review obligations.
+The package store retains Rust source and verification receipts for review and
+verified reuse. Use the same store across worktrees to reuse packages whose
+identities match. A unique `tooling/` directory within each run retains the
+original analysis, implementation audit and combined `collectors.json`. The
+script also retains an exact private profile snapshot and its digest.
+
+The successful `analysis.json` carries the verified tooling metadata. The normal
+export verifies registrations and writes matching EAL, TOML and bundle bindings.
+`run-settings.json` and `run-summary.json` record `tool_implementation`; the
+summary includes model calls and verified/reused package counts. A coding or
+verification failure stops the run before export and preserves the canonical
+analysis and available tooling artifacts. Fixture tests do not collect live
+evidence or discharge independent review obligations.
 Omitting `--implement-tools` retains the argument-only flow; implementation
 options without that switch are rejected.
 
@@ -191,6 +219,9 @@ analysis audit, all renders, the EAL bundle, validation result, evidence plan an
 `run-summary.json` in a unique private directory. Failures preserve existing run
 artifacts. A passing run means authoring and deterministic planning succeeded;
 `evidence_collected` remains `false`.
+When tooling is enabled, the summary also records its model calls and verified
+and reused package counts. Synthetic fixture results remain separate from live
+engineering observations.
 
 ## Inspect and retry a host failure
 

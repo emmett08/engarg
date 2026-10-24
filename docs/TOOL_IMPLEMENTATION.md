@@ -15,13 +15,22 @@ The examples use Docker images which must already be installed:
 ```sh
 docker pull python:3.13-slim
 docker pull node:24-slim
+docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
 ```
 
 [Python](../examples/toolchains/python.json) and
-[JavaScript](../examples/toolchains/javascript.json) profiles are included.
+[JavaScript](../examples/toolchains/javascript.json) and
+[Rust](../examples/toolchains/rust.json) profiles are included.
+The Rust image supplies pinned Serde, arbitrary-precision JSON and blocking
+Reqwest libraries. Its fixed compiler wrapper builds `/src/main.rs` offline
+against those libraries and writes `/build/collector`.
 Other languages use the same profile contract with an appropriate preloaded image and compiler commands.
 Compiled outputs and compiler caches belong under `/build`.
 Dependencies needed by an offline build must already be available in the image.
+
+The [catalog sync authoring script](CATALOG_SYNC_AUTHORING.md) enables this Rust
+profile with `--implement-tools` and prepares its image automatically. The switch
+also selects a persistent verified tool store for reuse across runs.
 
 The stage resolves and records the immutable image ID before generation.
 It also records the Docker executable, EngArg runner and supervisor digests.

@@ -1,0 +1,1475 @@
+{
+  "schema": "eal.collector-catalogue/1",
+  "acquisition_contract": "eal.acquisition/1",
+  "collectors": [
+    {
+      "id": "kubernetes",
+      "version": "2",
+      "purpose": "Read a named Kubernetes resource in every operator-declared inventory context. Resource presence remains separate from health and inventory completeness. Observations retain acquisition intervals and conservative oldest-sample age. Fleet readings are sequential. Generation is optional and absence is preserved.",
+      "parameters": [
+        "inventory",
+        "resource",
+        "kind",
+        "namespace",
+        "name",
+        "scope"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource",
+          "namespace",
+          "name",
+          "scope"
+        ],
+        "properties": {
+          "resource": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*$"
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*$"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "namespaced"
+            ]
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "cluster_count",
+          "all_present",
+          "clusters",
+          "resource_scope"
+        ],
+        "properties": {
+          "cluster_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          },
+          "all_present": {
+            "type": "boolean"
+          },
+          "clusters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "cluster",
+                "context",
+                "present",
+                "acquisition_interval"
+              ],
+              "properties": {
+                "cluster": {
+                  "type": "string"
+                },
+                "context": {
+                  "type": "string"
+                },
+                "present": {
+                  "type": "boolean"
+                },
+                "acquisition_interval": {
+                  "type": "object",
+                  "required": [
+                    "started_at",
+                    "completed_at",
+                    "observed_at",
+                    "wall_clock_regressed"
+                  ],
+                  "properties": {
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "completed_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "observed_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "wall_clock_regressed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "resource": {
+                  "type": "object",
+                  "required": [
+                    "apiVersion",
+                    "kind",
+                    "metadata"
+                  ],
+                  "properties": {
+                    "apiVersion": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "uid",
+                        "resourceVersion",
+                        "namespace"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "uid": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "resourceVersion": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "generation": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9223372036854775807
+                        },
+                        "namespace": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "status": {}
+                  }
+                }
+              },
+              "if": {
+                "properties": {
+                  "present": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "resource"
+                ]
+              }
+            }
+          },
+          "resource_scope": {
+            "type": "string",
+            "enum": [
+              "namespaced"
+            ]
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "eal-collector",
+          "kubernetes",
+          "--contract-version",
+          "2",
+          "--executable",
+          "{operator.executable}",
+          "--supervisor",
+          "{operator.supervisor}",
+          "--inventory",
+          "{inventory}",
+          "--resource",
+          "{resource}",
+          "--kind",
+          "{kind}",
+          "--namespace",
+          "{namespace}",
+          "--name",
+          "{name}",
+          "--inherit-env",
+          "PATH",
+          "--inherit-env",
+          "HOME",
+          "--inherit-env",
+          "KUBECONFIG",
+          "--timeout-seconds",
+          "60",
+          "--max-bytes",
+          "1048576",
+          "--scope",
+          "namespaced"
+        ],
+        "inherit_env": [
+          "PATH",
+          "HOME",
+          "KUBECONFIG"
+        ],
+        "timeout_seconds": 65,
+        "max_output_bytes": 4194304,
+        "parallel_safe": false
+      },
+      "acquisition_predicate": "cluster_count >= 1",
+      "constraints": []
+    },
+    {
+      "id": "kubernetes_cluster",
+      "version": "2",
+      "purpose": "Read an explicitly cluster-scoped named Kubernetes resource in every inventory context. Generation is optional. Fleet readings are sequential and retain per-item acquisition intervals.",
+      "parameters": [
+        "inventory",
+        "resource",
+        "kind",
+        "name",
+        "scope"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource",
+          "name",
+          "scope"
+        ],
+        "properties": {
+          "resource": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*$"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "cluster"
+            ]
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "cluster_count",
+          "all_present",
+          "clusters",
+          "resource_scope"
+        ],
+        "properties": {
+          "cluster_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          },
+          "all_present": {
+            "type": "boolean"
+          },
+          "clusters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "cluster",
+                "context",
+                "present",
+                "acquisition_interval"
+              ],
+              "properties": {
+                "cluster": {
+                  "type": "string"
+                },
+                "context": {
+                  "type": "string"
+                },
+                "present": {
+                  "type": "boolean"
+                },
+                "acquisition_interval": {
+                  "type": "object",
+                  "required": [
+                    "started_at",
+                    "completed_at",
+                    "observed_at",
+                    "wall_clock_regressed"
+                  ],
+                  "properties": {
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "completed_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "observed_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "wall_clock_regressed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "resource": {
+                  "type": "object",
+                  "required": [
+                    "apiVersion",
+                    "kind",
+                    "metadata"
+                  ],
+                  "properties": {
+                    "apiVersion": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "uid",
+                        "resourceVersion"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "uid": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "resourceVersion": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "generation": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9223372036854775807
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "status": {}
+                  }
+                }
+              },
+              "if": {
+                "properties": {
+                  "present": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "resource"
+                ]
+              }
+            }
+          },
+          "resource_scope": {
+            "type": "string",
+            "enum": [
+              "cluster"
+            ]
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "eal-collector",
+          "kubernetes",
+          "--contract-version",
+          "2",
+          "--executable",
+          "{operator.executable}",
+          "--supervisor",
+          "{operator.supervisor}",
+          "--inventory",
+          "{inventory}",
+          "--resource",
+          "{resource}",
+          "--kind",
+          "{kind}",
+          "--name",
+          "{name}",
+          "--inherit-env",
+          "PATH",
+          "--inherit-env",
+          "HOME",
+          "--inherit-env",
+          "KUBECONFIG",
+          "--timeout-seconds",
+          "60",
+          "--max-bytes",
+          "1048576",
+          "--scope",
+          "cluster"
+        ],
+        "inherit_env": [
+          "PATH",
+          "HOME",
+          "KUBECONFIG"
+        ],
+        "timeout_seconds": 65,
+        "max_output_bytes": 4194304,
+        "parallel_safe": false
+      },
+      "acquisition_predicate": "cluster_count >= 1",
+      "constraints": []
+    },
+    {
+      "id": "github",
+      "version": "2",
+      "purpose": "Read an exact GitHub commit and tree through the operator-selected gh executable. Deployment correspondence requires separate evidence. Observations retain acquisition intervals and conservative oldest-sample age. Fleet readings are sequential.",
+      "parameters": [
+        "repository",
+        "commit"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repository",
+          "commit"
+        ],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 507,
+            "pattern": "^(?!\\.{1,2}/)(?![^/]+/\\.{1,2}$)[A-Za-z0-9_.][A-Za-z0-9_.-]{0,252}/[A-Za-z0-9_.][A-Za-z0-9_.-]{0,252}$"
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{40}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "found",
+          "commit",
+          "tree"
+        ],
+        "properties": {
+          "found": {
+            "type": "boolean"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "tree": {
+            "type": "string"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "eal-collector",
+          "github",
+          "--contract-version",
+          "2",
+          "--executable",
+          "{operator.executable}",
+          "--supervisor",
+          "{operator.supervisor}",
+          "--repository",
+          "{repository}",
+          "--commit",
+          "{commit}",
+          "--inherit-env",
+          "PATH",
+          "--inherit-env",
+          "HOME",
+          "--inherit-env",
+          "GH_TOKEN",
+          "--inherit-env",
+          "GH_HOST",
+          "--timeout-seconds",
+          "60",
+          "--max-bytes",
+          "1048576"
+        ],
+        "inherit_env": [
+          "PATH",
+          "HOME",
+          "GH_TOKEN",
+          "GH_HOST"
+        ],
+        "timeout_seconds": 65,
+        "max_output_bytes": 4194304,
+        "parallel_safe": false
+      },
+      "acquisition_predicate": "found == true",
+      "constraints": []
+    },
+    {
+      "id": "tempo",
+      "version": "2",
+      "purpose": "Search Tempo per inventory cluster for a bounded rollout kind and name. Empty searches retain unavailable negative inference. Authentication requires explicit operator options. Observations retain acquisition intervals and conservative oldest-sample age. Fleet readings are sequential.",
+      "parameters": [
+        "inventory",
+        "url",
+        "kind",
+        "name",
+        "cluster_attribute",
+        "start_unix",
+        "end_unix"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start_unix",
+          "end_unix"
+        ],
+        "properties": {
+          "start_unix": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "end_unix": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "cluster_count",
+          "all_matched",
+          "clusters"
+        ],
+        "properties": {
+          "cluster_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          },
+          "all_matched": {
+            "type": "boolean"
+          },
+          "clusters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "cluster",
+                "matched",
+                "acquisition_interval"
+              ],
+              "properties": {
+                "cluster": {
+                  "type": "string"
+                },
+                "matched": {
+                  "type": "boolean"
+                },
+                "acquisition_interval": {
+                  "type": "object",
+                  "required": [
+                    "started_at",
+                    "completed_at",
+                    "observed_at",
+                    "wall_clock_regressed"
+                  ],
+                  "properties": {
+                    "started_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "completed_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "observed_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "wall_clock_regressed": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "eal-collector",
+          "tempo",
+          "--contract-version",
+          "2",
+          "--inventory",
+          "{inventory}",
+          "--url",
+          "{url}",
+          "--kind",
+          "{kind}",
+          "--name",
+          "{name}",
+          "--cluster-attribute",
+          "{cluster_attribute}",
+          "--timeout-seconds",
+          "60",
+          "--max-bytes",
+          "1048576"
+        ],
+        "inherit_env": [
+          "PATH",
+          "TEMPO_TOKEN",
+          "TEMPO_TENANT"
+        ],
+        "timeout_seconds": 65,
+        "max_output_bytes": 4194304,
+        "parallel_safe": false
+      },
+      "acquisition_predicate": "cluster_count >= 1",
+      "constraints": [
+        {
+          "kind": "ordered_window",
+          "start": "start_unix",
+          "end": "end_unix",
+          "max_seconds": 86400
+        }
+      ]
+    },
+    {
+      "id": "prometheus_range",
+      "version": "2",
+      "purpose": "Acquire prometheus_range measurements under pinned operator scope. Retain query windows and source data. Search completeness and negative inference require separate evidence.",
+      "parameters": [
+        "end_unix",
+        "query",
+        "start_unix"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "end_unix",
+          "query",
+          "start_unix"
+        ],
+        "properties": {
+          "end_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "start_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only",
+          "observation",
+          "config_sha256"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          },
+          "observation": {},
+          "config_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "prometheus",
+          "--contract-version",
+          "2",
+          "--measurement",
+          "prometheus_range",
+          "--config",
+          "{operator.prometheus_range_config}",
+          "--config-sha256",
+          "{operator.prometheus_range_sha256}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": [
+        {
+          "kind": "ordered_window",
+          "start": "start_unix",
+          "end": "end_unix",
+          "max_seconds": 86400
+        }
+      ]
+    },
+    {
+      "id": "loki_search",
+      "version": "2",
+      "purpose": "Acquire loki_search measurements under pinned operator scope. Retain query windows and source data. Search completeness and negative inference require separate evidence.",
+      "parameters": [
+        "end_unix",
+        "query",
+        "start_unix"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "end_unix",
+          "query",
+          "start_unix"
+        ],
+        "properties": {
+          "end_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "start_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only",
+          "observation",
+          "config_sha256"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          },
+          "observation": {},
+          "config_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "loki",
+          "--contract-version",
+          "2",
+          "--measurement",
+          "loki_search",
+          "--config",
+          "{operator.loki_search_config}",
+          "--config-sha256",
+          "{operator.loki_search_sha256}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": [
+        {
+          "kind": "ordered_window",
+          "start": "start_unix",
+          "end": "end_unix",
+          "max_seconds": 86400
+        }
+      ]
+    },
+    {
+      "id": "datadog_metrics",
+      "version": "2",
+      "purpose": "Acquire datadog_metrics measurements under pinned operator scope. Retain query windows and source data. Search completeness and negative inference require separate evidence.",
+      "parameters": [
+        "end_unix",
+        "query",
+        "start_unix"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "end_unix",
+          "query",
+          "start_unix"
+        ],
+        "properties": {
+          "end_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "start_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only",
+          "observation",
+          "config_sha256"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          },
+          "observation": {},
+          "config_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "datadog",
+          "--contract-version",
+          "2",
+          "--measurement",
+          "datadog_metrics",
+          "--config",
+          "{operator.datadog_metrics_config}",
+          "--config-sha256",
+          "{operator.datadog_metrics_sha256}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": [
+        {
+          "kind": "ordered_window",
+          "start": "start_unix",
+          "end": "end_unix",
+          "max_seconds": 86400
+        }
+      ]
+    },
+    {
+      "id": "datadog_logs",
+      "version": "2",
+      "purpose": "Acquire datadog_logs measurements under pinned operator scope. Retain query windows and source data. Search completeness and negative inference require separate evidence.",
+      "parameters": [
+        "end_unix",
+        "query",
+        "start_unix"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "end_unix",
+          "query",
+          "start_unix"
+        ],
+        "properties": {
+          "end_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "start_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only",
+          "observation",
+          "config_sha256"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          },
+          "observation": {},
+          "config_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "datadog",
+          "--contract-version",
+          "2",
+          "--measurement",
+          "datadog_logs",
+          "--config",
+          "{operator.datadog_logs_config}",
+          "--config-sha256",
+          "{operator.datadog_logs_sha256}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": [
+        {
+          "kind": "ordered_window",
+          "start": "start_unix",
+          "end": "end_unix",
+          "max_seconds": 86400
+        }
+      ]
+    },
+    {
+      "id": "datadog_spans",
+      "version": "2",
+      "purpose": "Acquire datadog_spans measurements under pinned operator scope. Retain query windows and source data. Search completeness and negative inference require separate evidence.",
+      "parameters": [
+        "end_unix",
+        "query",
+        "start_unix"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "end_unix",
+          "query",
+          "start_unix"
+        ],
+        "properties": {
+          "end_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "start_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only",
+          "observation",
+          "config_sha256"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          },
+          "observation": {},
+          "config_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "datadog",
+          "--contract-version",
+          "2",
+          "--measurement",
+          "datadog_spans",
+          "--config",
+          "{operator.datadog_spans_config}",
+          "--config-sha256",
+          "{operator.datadog_spans_sha256}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": [
+        {
+          "kind": "ordered_window",
+          "start": "start_unix",
+          "end": "end_unix",
+          "max_seconds": 86400
+        }
+      ]
+    },
+    {
+      "id": "datadog_monitor",
+      "version": "2",
+      "purpose": "Acquire datadog_monitor measurements under pinned operator scope. Retain query windows and source data. Search completeness and negative inference require separate evidence.",
+      "parameters": [
+        "id"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only",
+          "observation",
+          "config_sha256"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          },
+          "observation": {},
+          "config_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "datadog",
+          "--contract-version",
+          "2",
+          "--measurement",
+          "datadog_monitor",
+          "--config",
+          "{operator.datadog_monitor_config}",
+          "--config-sha256",
+          "{operator.datadog_monitor_sha256}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": []
+    },
+    {
+      "id": "datadog_slo",
+      "version": "2",
+      "purpose": "Acquire datadog_slo measurements under pinned operator scope. Retain query windows and source data. Search completeness and negative inference require separate evidence.",
+      "parameters": [
+        "end_unix",
+        "id",
+        "start_unix"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "end_unix",
+          "id",
+          "start_unix"
+        ],
+        "properties": {
+          "end_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9-]+$"
+          },
+          "start_unix": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 253402300799
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only",
+          "observation",
+          "config_sha256"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          },
+          "observation": {},
+          "config_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "datadog",
+          "--contract-version",
+          "2",
+          "--measurement",
+          "datadog_slo",
+          "--config",
+          "{operator.datadog_slo_config}",
+          "--config-sha256",
+          "{operator.datadog_slo_sha256}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": [
+        {
+          "kind": "ordered_window",
+          "start": "start_unix",
+          "end": "end_unix",
+          "max_seconds": 86400
+        }
+      ]
+    },
+    {
+      "id": "github_checks",
+      "version": "2",
+      "purpose": "Acquire exact-revision GitHub CI results. Preserve run status, conclusion and attempt identity. Bounded check pagination retains unresolved coverage and missing required checks.",
+      "parameters": [
+        "repository",
+        "commit"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repository",
+          "commit"
+        ],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*/[A-Za-z0-9_.][A-Za-z0-9_.-]*$",
+            "maxLength": 507
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{40}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "github_checks",
+          "--contract-version",
+          "2",
+          "--executable",
+          "{operator.gh}",
+          "--supervisor",
+          "{operator.supervisor}",
+          "--repository",
+          "{repository}",
+          "--commit",
+          "{commit}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": []
+    },
+    {
+      "id": "github_workflow",
+      "version": "2",
+      "purpose": "Acquire exact-revision GitHub CI results. Preserve run status, conclusion and attempt identity. Bounded check pagination retains unresolved coverage and missing required checks.",
+      "parameters": [
+        "repository",
+        "commit",
+        "run_id",
+        "attempt"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repository",
+          "commit",
+          "run_id",
+          "attempt"
+        ],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*/[A-Za-z0-9_.][A-Za-z0-9_.-]*$",
+            "maxLength": 507
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{40}$"
+          },
+          "run_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18446744073709551615
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 18446744073709551615
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "github_workflow",
+          "--contract-version",
+          "2",
+          "--executable",
+          "{operator.gh}",
+          "--supervisor",
+          "{operator.supervisor}",
+          "--repository",
+          "{repository}",
+          "--commit",
+          "{commit}",
+          "--run-id",
+          "{run_id}",
+          "--attempt",
+          "{attempt}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": []
+    },
+    {
+      "id": "report",
+      "version": "2",
+      "purpose": "Import a pinned JUnit, SARIF or JSON report at its original measurement time. Revision correspondence is asserted by the operator manifest. Test outcomes and security findings remain separate from claim acceptance.",
+      "parameters": [
+        "revision",
+        "report_sha256"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "report_sha256"
+        ],
+        "properties": {
+          "revision": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{40}$"
+          },
+          "report_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "collected",
+          "measurement_only"
+        ],
+        "properties": {
+          "collected": {
+            "type": "boolean",
+            "const": true
+          },
+          "measurement_only": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "{operator.executable}",
+          "report",
+          "--contract-version",
+          "2",
+          "--manifest",
+          "{operator.report_manifest}",
+          "--manifest-sha256",
+          "{operator.report_manifest_sha256}"
+        ],
+        "inherit_env": [],
+        "timeout_seconds": 30,
+        "max_output_bytes": 1048576,
+        "parallel_safe": true
+      },
+      "acquisition_predicate": "collected == true",
+      "constraints": []
+    }
+  ]
+}

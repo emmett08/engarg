@@ -34,6 +34,7 @@ jobs:
         run: |
           docker pull python:3.13-slim
           docker pull node:24-slim
+          docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
           cargo test --locked --test tooling_docker -- --include-ignored
       - run: cargo build --locked --release
       - name: Verify the installed pinned runtime and cached startup
@@ -54,7 +55,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: d13e13e5edcb0a269e605076ea143804cbe47721
+      EAL_REVISION: 9179dafbe234d802e5ccac9dea9add524e66bb09
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -79,10 +80,13 @@ jobs:
         run: |
           test "$(git -C .eal-producer rev-parse HEAD)" = "$EAL_REVISION"
           .eal-producer/target/debug/eal-collector describe > "$RUNNER_TEMP/eal-collector-catalogue.json"
+          .eal-producer/target/debug/eal-collector describe --catalogue-version 3 > "$RUNNER_TEMP/eal-collector-catalogue-v3.json"
           python3 -c 'import json, os; from pathlib import Path; expected=json.loads(Path("contracts/collectors/native.json").read_text()); actual=json.loads((Path(os.environ["RUNNER_TEMP"])/"eal-collector-catalogue.json").read_text()); assert actual == expected, "published collector catalogue differs from the pinned consumer contract"'
+          python3 -c 'import json, os; from pathlib import Path; expected=json.loads(Path("contracts/collectors/native-v3.json").read_text()); actual=json.loads((Path(os.environ["RUNNER_TEMP"])/"eal-collector-catalogue-v3.json").read_text()); assert actual == expected, "extended collector catalogue differs from the pinned consumer contract"'
       - name: Exercise generated EAL, registries and independent collector domains
         run: |
           export ENGARG_EAL_HOST="$PWD/.eal-producer/target/debug/eal-host"
+          export EAL_COLLECTOR="$PWD/.eal-producer/target/debug/eal-collector"
           export EAL_CORE="$PWD/.eal-producer/target/debug/eal-core"
           test -x "$ENGARG_EAL_HOST"
           test -x "$EAL_CORE"

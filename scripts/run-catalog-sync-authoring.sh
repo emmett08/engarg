@@ -13,9 +13,9 @@ usage() {
   cat <<'HELP'
 Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOGUE.json]
   --check-only                 Check inputs without build, Docker, host or inference.
-  --implement-tools            Generate and fixture-test missing collectors (PR #9).
-  --tool-language LANGUAGE      Explicit implementation language, matching the profile.
-  --toolchain JSON              Operator-owned toolchain profile; image must be installed.
+  --implement-tools            Generate and fixture-test missing collectors (default: Rust).
+  --tool-language LANGUAGE      Implementation language (default: rust), matching the profile.
+  --toolchain JSON              Operator profile override; image must already be installed.
   --tool-store DIR              Reusable package store (default: .engarg-local/tool-store).
   --tool-max-calls N            Separate implementation budget (1-256; default: 16).
   --tool-timeout-secs N         Separate implementation deadline (1-86400; default: 3600).
@@ -24,11 +24,11 @@ HELP
 check_only=0
 implement_tools=0
 tool_options=0
-tool_language=''
-toolchain=''
-tool_store=''
-tool_max_calls=16
-tool_timeout=3600
+tool_language='rust'
+toolchain=${ENGARG_TOOLCHAIN:-}
+tool_store=${ENGARG_TOOL_STORE:-}
+tool_max_calls=${ENGARG_TOOL_MAX_CALLS:-16}
+tool_timeout=${ENGARG_TOOL_TIMEOUT_SECS:-3600}
 while [[ $# -gt 0 ]]; do
   case $1 in
     --check-only) check_only=1; shift ;;
@@ -52,9 +52,6 @@ while [[ $# -gt 0 ]]; do
 done
 [[ $# -ge 1 && $# -le 2 ]] || { usage >&2; exit 2; }
 [[ $implement_tools -eq 1 || $tool_options -eq 0 ]] || fail 'Tool implementation options require --implement-tools.'
-if [[ $implement_tools -eq 1 ]]; then
-  [[ -n $tool_language && -n $toolchain ]] || fail '--implement-tools requires --tool-language and --toolchain.'
-fi
 for required in git python3; do command -v "$required" >/dev/null || fail "Required command: $required"; done
 repo=$(git rev-parse --show-toplevel) || fail 'Run from an EngArg checkout.'
 # Keep operator paths relative to the invocation directory, including leaf-file
@@ -67,7 +64,13 @@ if [[ $# -eq 2 ]]; then
   catalogue=$(absolute_path "$2")
   [[ -e $catalogue ]] || fail "Collector catalogue does not exist: $catalogue. Omit CATALOGUE.json to use the built-in planning tools."
 fi
+prepare_rust_image=0
 if [[ $implement_tools -eq 1 ]]; then
+  if [[ -z $toolchain ]]; then
+    [[ $tool_language == rust ]] || fail 'A non-Rust language requires --toolchain with a matching operator profile.'
+    toolchain="$repo/examples/toolchains/rust.json"
+    prepare_rust_image=1
+  fi
   toolchain=$(absolute_path "$toolchain")
   [[ -e $toolchain ]] || fail "Toolchain profile does not exist: $toolchain"
   if [[ -n $tool_store ]]; then
@@ -245,6 +248,11 @@ eal_timeout=${ENGARG_EAL_TIMEOUT_SECS:-30}
 
 for required in cargo rustc; do command -v "$required" >/dev/null || fail "Required command for a full run: $required"; done
 : "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
+if [[ $prepare_rust_image -eq 1 ]]; then
+  stage='Rust tooling prerequisites'
+  command -v docker >/dev/null || fail 'Docker is required with --implement-tools. Install and start Docker before generating Rust collectors.'
+  docker info >/dev/null || fail 'Docker must be running before generating Rust collectors.'
+fi
 if [[ -z $eal_host ]]; then
   stage='EAL runtime installation'
   eal_host=$(bash "$repo/scripts/install-eal-runtime.sh")
@@ -313,6 +321,11 @@ if (envelope.get('is_error') is not False or not isinstance(result, dict)
     raise SystemExit('EAL host preflight requires EAL/3 syntax and the structured/1 method. Install the pinned compatible runtime.')
 PY
 host_report=''
+
+if [[ $prepare_rust_image -eq 1 ]]; then
+  stage='Rust tooling image preparation'
+  docker build --tag engarg-rust-tools:1.99.1 "$repo/examples/toolchains/rust"
+fi
 
 # Append the optional catalogue only when selected. Omitting it preserves the
 # executable's built-in contracts rather than manufacturing an approved file.
