@@ -403,6 +403,31 @@ GPL-3.0-only licensed. No model service, API access or paid inference is bundled
 
 ### Optional infrastructure collector configuration
 
+EAL's extended catalogue supplies Datadog, Prometheus-compatible metrics, Loki,
+exact-attempt GitHub CI observations and pinned report imports.
+Select version 3 for these measurements.
+
+```sh
+eal-collector describe --catalogue-version 3 > engineering.collectors.json
+engarg analyse --input examples/request.json --model "$ENGARG_MODEL" \
+  --collector-catalogue engineering.collectors.json \
+  --output analysis.json
+```
+
+For a reviewed API operation, use EAL's `describe-api` command with its pinned
+operator configuration. OpenAPI 3.0/3.1 JSON descriptions produce typed `path`,
+`query` and `body` input properties. Optional properties can be omitted.
+Explicit null remains a supplied value and must satisfy its schema.
+The planning view includes required arguments, result schemas and window
+constraints. Executable paths and credential names stay outside that view.
+See [EAL API and delivery evidence](https://github.com/emmett08/eal-mcp/blob/main/docs/api-collectors.md)
+for configuration and supported measurement limits.
+
+Native providers selected from the catalogue keep their existing implementation.
+Custom-tool generation remains relevant when the selected catalogues lack the
+required measurement. Collection success records acquisition. Claim acceptance
+requires the declared applicability and sufficiency checks.
+
 Select the infrastructure catalogue explicitly for generation, overrides and every new export.
 Obtain the versioned descriptors from their EAL owner:
 

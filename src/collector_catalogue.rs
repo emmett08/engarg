@@ -64,7 +64,8 @@ impl CollectorCatalogue {
     /// Executable selections and credential names stay outside model prompts.
     pub fn planning_view(&self) -> Value {
         json!(self.collectors.iter().map(|collector| json!({"id":collector.id,"version":collector.version,
-            "purpose":collector.purpose,"arguments":collector.parameters,"input_schema":collector.input_schema})).collect::<Vec<_>>())
+            "purpose":collector.purpose,"arguments":collector.parameters,"required_arguments":collector.required_parameters().expect("admitted descriptor"),
+            "input_schema":collector.input_schema,"result_schema":collector.result_schema,"constraints":collector.constraints})).collect::<Vec<_>>())
     }
 }
 
@@ -112,6 +113,8 @@ impl CollectorDescriptor<'_> {
                 None => {
                     if plan.unresolved_arguments.contains(field) {
                         unresolved.push(field.clone());
+                    } else {
+                        continue;
                     }
                     Value::Null
                 }
