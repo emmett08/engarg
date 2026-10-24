@@ -152,6 +152,7 @@ fn host(binary: &std::path::Path, dir: &std::path::Path, request: Value) -> Valu
         .arg(dir.join("tools.toml"))
         .args(["--timeout", "15"])
         .env_clear()
+        .env("PATH", binary.parent().unwrap())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -250,10 +251,6 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
         let exported = export_with_plan(&request, &case, &plan).unwrap();
         let registry = exported
             .tools_toml
-            .replace(
-                "\"eal-collector\"",
-                &serde_json::to_string(&collector).unwrap(),
-            )
             .replace("/REPLACE_WITH_ABSOLUTE_KUBECTL", fake.to_str().unwrap())
             .replace("/REPLACE_WITH_ABSOLUTE_GH", fake.to_str().unwrap())
             .replace(

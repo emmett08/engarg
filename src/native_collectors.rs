@@ -50,7 +50,7 @@ pub(crate) const TOOLS: &[NativeTool] = &[
         source_fields: &["start_unix", "end_unix"],
         selectors: &["inventory", "url", "kind", "name", "cluster_attribute"],
         predicate: "cluster_count >= 1",
-        environment: &["TEMPO_TOKEN", "TEMPO_TENANT"],
+        environment: &["PATH", "TEMPO_TOKEN", "TEMPO_TENANT"],
         executable: None,
     },
 ];
