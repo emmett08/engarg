@@ -131,6 +131,8 @@ pub struct RunReport {
     pub request: Request,
     pub argument: ArgumentCase,
     pub transcript: Vec<CallRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tooling: Option<crate::tooling::ToolingReport>,
     pub limitations: Vec<String>,
 }
 
@@ -443,6 +445,7 @@ where
         request: request.clone(),
         argument: final_case,
         transcript,
+        tooling: None,
         limitations: limitations(config.mode),
     })
 }

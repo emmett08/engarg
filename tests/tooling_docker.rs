@@ -1,5 +1,6 @@
 //! Real isolated-runner coverage. CI preloads the two official toolchain images.
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     fs,
     io::{self, Read, Write},
@@ -345,6 +346,13 @@ fn draft_response() -> Value {
     })
 }
 
+fn digest(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 fn saved_report(path: &Path) {
     let request: Value = serde_json::from_str(include_str!("../examples/request.json")).unwrap();
     let mut argument: Value = serde_json::from_str(include_str!("../examples/case.json")).unwrap();
@@ -378,19 +386,32 @@ fn saved_report(path: &Path) {
         })
         .collect();
     let content = json!({"argument": argument, "acquisition_plan": plans}).to_string();
+    let typed_request: engarg::domain::Request = serde_json::from_value(request.clone()).unwrap();
+    let run_config = engarg::engine::RunConfig {
+        mode: engarg::engine::Mode::Single,
+        max_calls: 1,
+        ..engarg::engine::RunConfig::default()
+    };
     let report = json!({
+        "schema_version": "engarg.run.v2",
+        "execution_mode": "offline_synthetic_fixture",
+        "input_sha256": digest(&serde_json::to_vec(&typed_request).unwrap()),
+        "mode": "single",
+        "run_config": run_config,
+        "provider_config": null,
+        "limitations": ["Synthetic argument used to exercise isolated tooling implementation."],
         "request": request,
         "argument": argument,
         "transcript": [{
-            "role": "adjudicator",
-            "prompt": {"role": "adjudicator", "system": "fixture", "user": "{}", "schema": {}},
+            "role": "single",
+            "prompt": {"role": "single", "system": "fixture", "user": "{}", "schema": {}},
             "response": {
                 "content": content, "model": "fixture", "input_tokens": null,
                 "output_tokens": null, "request_id": null, "service_tier": null,
                 "reasoning_effort": null
             },
             "response_content_bytes": content.len(),
-            "response_content_sha256": "fixture",
+            "response_content_sha256": digest(content.as_bytes()),
             "response_content_omitted": false,
             "elapsed_ms": 0
         }]
@@ -543,6 +564,8 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     let report_path = first.join("analysis.with-tools.json");
     let report: Value = serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
     assert_eq!(report["tooling"]["language"], language);
+    assert_eq!(report["tooling"]["model_calls"], 2);
+    assert_eq!(report["transcript"].as_array().unwrap().len(), 1);
     let (tool_name, manifest) = export_manifest(&report_path, &first);
     let receipt: Value = serde_json::from_slice(
         &fs::read(manifest.parent().unwrap().join("test-results.json")).unwrap(),
@@ -574,10 +597,47 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
         language,
     );
     successful(&output);
+    let repeated: Value =
+        serde_json::from_slice(&fs::read(second.join("analysis.with-tools.json")).unwrap()).unwrap();
+    assert_eq!(repeated["tooling"]["model_calls"], 0);
+    assert!(
+        repeated["tooling"]["packages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|package| package["reused"] == true)
+    );
     let (reused_tool, reused_manifest) =
         export_manifest(&second.join("analysis.with-tools.json"), &second);
     assert_eq!(reused_tool, tool_name);
     assert_eq!(reused_manifest, manifest);
+    assert_eq!(server.requests().len(), 2);
+
+    // Verified cache reuse also works with the default provider and no key.
+    let third = directory.path().join("without-credentials");
+    let output = implement(
+        &input,
+        &toolchain,
+        &store,
+        &third,
+        "https://api.openai.com/v1/responses",
+        language,
+    );
+    successful(&output);
+    let unkeyed: Value =
+        serde_json::from_slice(&fs::read(third.join("analysis.with-tools.json")).unwrap()).unwrap();
+    assert_eq!(unkeyed["tooling"]["model_calls"], 0);
+    assert!(
+        unkeyed["tooling"]["packages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|package| package["reused"] == true)
+    );
+    let (unkeyed_tool, unkeyed_manifest) =
+        export_manifest(&third.join("analysis.with-tools.json"), &third);
+    assert_eq!(unkeyed_tool, tool_name);
+    assert_eq!(unkeyed_manifest, manifest);
     assert_eq!(server.requests().len(), 2);
 
     let context: Value = serde_json::from_str(
@@ -618,9 +678,18 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
 
     // A changed retained source cannot inherit the old test receipt.
     let candidate_path = manifest.parent().unwrap().join("candidate.json");
-    let mut candidate: Value = serde_json::from_slice(&fs::read(&candidate_path).unwrap()).unwrap();
+    let original_candidate = fs::read(&candidate_path).unwrap();
+    let mut candidate: Value = serde_json::from_slice(&original_candidate).unwrap();
     candidate["files"][0]["content"] = json!("unverified changed source");
     fs::write(&candidate_path, serde_json::to_vec(&candidate).unwrap()).unwrap();
+    let changed = invoke(&manifest, &request);
+    assert!(!changed.status.success());
+    assert!(changed.stdout.is_empty());
+
+    fs::write(&candidate_path, original_candidate).unwrap();
+    let source_path = manifest.parent().unwrap().join("source").join(entry);
+    fs::remove_file(&source_path).unwrap();
+    fs::write(&source_path, "unverified replaced implementation").unwrap();
     let changed = invoke(&manifest, &request);
     assert!(!changed.status.success());
     assert!(changed.stdout.is_empty());
@@ -641,4 +710,98 @@ fn javascript_collector_preserves_exact_protocol_identity_and_reuses_verified_co
         "collector.mjs",
         JAVASCRIPT_COLLECTOR,
     );
+}
+
+#[test]
+#[ignore = "requires Docker and the preloaded python:3.13-slim image"]
+fn coding_failure_preserves_the_original_analysis_output() {
+    let directory = tempfile::tempdir().unwrap();
+    let fixture_path = directory.path().join("fixture.json");
+    saved_report(&fixture_path);
+    let fixture: Value =
+        serde_json::from_slice(&fs::read(&fixture_path).unwrap()).unwrap();
+    let planned: Value =
+        serde_json::from_str(fixture["transcript"][0]["response"]["content"].as_str().unwrap())
+            .unwrap();
+    let request_path = directory.path().join("request.json");
+    fs::write(
+        &request_path,
+        serde_json::to_vec_pretty(&fixture["request"]).unwrap(),
+    )
+    .unwrap();
+    let toolchain = directory.path().join("toolchain.json");
+    profile(&toolchain, "python", "python:3.13-slim", "collector.py");
+    let tool_store = directory.path().join("store");
+    let tool_output = directory.path().join("tools");
+    let normal_output = directory.path().join("analysis.json");
+    let server = MockServer::new(vec![
+        planned,
+        draft_response(),
+        json!({
+            "language": "python",
+            "files": [{"path": "collector.py", "content": "def invalid_python(:\n"}]
+        }),
+    ]);
+    let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["analyse", "--input"])
+        .arg(&request_path)
+        .args([
+            "--model",
+            "fixture",
+            "--endpoint",
+            &server.endpoint,
+            "--api-key-env",
+            "UNSET_TOOL_TEST_KEY",
+            "--mode",
+            "single",
+            "--max-calls",
+            "1",
+            "--implement-tools",
+            "--tool-language",
+            "python",
+            "--toolchain",
+        ])
+        .arg(&toolchain)
+        .arg("--tool-store")
+        .arg(&tool_store)
+        .arg("--tool-output-dir")
+        .arg(&tool_output)
+        .args([
+            "--tool-max-calls",
+            "2",
+            "--tool-timeout-secs",
+            "120",
+            "--http-retries",
+            "0",
+            "--format",
+            "json",
+            "--output",
+        ])
+        .arg(&normal_output)
+        .env_remove("UNSET_TOOL_TEST_KEY")
+        .output()
+        .unwrap();
+    assert!(
+        !output.status.success(),
+        "invalid Python unexpectedly passed collector admission"
+    );
+    assert_eq!(
+        server.requests().len(),
+        3,
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let original: Value =
+        serde_json::from_slice(&fs::read(&normal_output).unwrap()).unwrap();
+    assert_eq!(original["request"], fixture["request"]);
+    assert_eq!(original["argument"], fixture["argument"]);
+    assert_eq!(original["transcript"].as_array().unwrap().len(), 1);
+    assert!(original.get("tooling").is_none());
+    let checkpoint: Value =
+        serde_json::from_slice(&fs::read(tool_output.join("argument.analysis.json")).unwrap())
+            .unwrap();
+    assert_eq!(checkpoint["argument"], original["argument"]);
+    assert!(checkpoint.get("tooling").is_none());
+    assert!(!tool_output.join("analysis.with-tools.json").exists());
 }

@@ -44,7 +44,7 @@ Omitting `--implement-tools` preserves the argument-only flow.
 Implementation options require that switch during `analyse`.
 The toolchain, persistent store and a new output directory are explicit.
 The complete argument is retained before the first coding call.
-A coding failure preserves the argument, stage audit, candidate and test results.
+A coding or verification failure preserves the argument, stage audit and any candidate or test results already produced.
 
 The tooling budget is separate from the argument's `--max-calls`.
 A new collector normally uses one contract/fixture call followed by one coding call.
@@ -94,6 +94,10 @@ Test receipts bind the observed exits and output digests to the contract, source
 Registration is constructed only after every required check passes.
 The registration path rechecks retained files and receipts.
 An edited implementation requires fresh verification.
+
+Each retained package exposes its `contract.json`, including the frozen fixtures,
+the implementation files under `source/`, and the observed `test-results.json`.
+Failed attempts retain the available review artefacts without adding a catalogue entry.
 
 Passing these tests establishes conformance to the frozen fixtures.
 Applicability, measurement truth and inferential sufficiency retain their separate review obligations.
