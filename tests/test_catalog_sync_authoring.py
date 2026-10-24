@@ -203,11 +203,16 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertFalse((directory / "run-settings.json").exists())
 
     def test_relative_input_path_is_relative_to_invocation_directory(self):
+        # macOS /var aliases /private/var. Exercise an aliased parent on every
+        # platform: subprocess cwd uses its physical path, while operator paths
+        # can retain a different spelling of the same admitted regular file.
+        alias = self.root / "checkout-alias"
+        alias.symlink_to(self.repo, target_is_directory=True)
         directory = self.successful_run_directory(
-            self.run_script("--check-only", "../.engarg-local/collector-inputs.json", cwd=self.script.parent)
+            self.run_script("--check-only", "../.engarg-local/collector-inputs.json", cwd=alias / "scripts")
         )
         identity = json.loads((directory / "input-identity.json").read_text())
-        self.assertEqual(identity["operator_inputs"], str(self.inputs))
+        self.assertTrue((alias / ".engarg-local/collector-inputs.json").samefile(identity["operator_inputs"]))
 
     def test_invalid_scope_fails_without_request_or_traceback(self):
         for field, value in [("context", "production"), ("namespace", "")]:
