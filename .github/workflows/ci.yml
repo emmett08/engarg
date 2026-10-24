@@ -36,6 +36,17 @@ jobs:
           docker pull node:24-slim
           cargo test --locked --test tooling_docker -- --include-ignored
       - run: cargo build --locked --release
+      - name: Verify the installed pinned runtime and cached startup
+        run: |
+          engarg_runtime_root=$(python3 -c 'import os; from pathlib import Path; print((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-runtime").resolve())')
+          engarg_runtime_host=$(bash scripts/install-eal-runtime.sh --root "$engarg_runtime_root")
+          test "$engarg_runtime_host" = "$engarg_runtime_root/bin/eal-host"
+          test "$(bash scripts/install-eal-runtime.sh --root "$engarg_runtime_root")" = "$engarg_runtime_host"
+          mkdir -p "$RUNNER_TEMP/engarg-eal-probe"
+          target/release/engarg eal describe --eal-host "$engarg_runtime_host" \
+            --workspace "$RUNNER_TEMP/engarg-eal-probe" \
+            --output "$RUNNER_TEMP/engarg-eal-probe/describe.json"
+          python3 -c 'import json, os; from pathlib import Path; response=json.loads((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-probe/describe.json").read_text()); assert response["is_error"] is False; assert response["result"]["source_syntax"] == "EAL/3"; assert "structured/1" in response["result"]["methods"]'
 
   eal-compatibility:
     name: EAL producer and consumer contracts
@@ -76,15 +87,3 @@ jobs:
           test -x "$ENGARG_EAL_HOST"
           test -x "$EAL_CORE"
           cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test export_v3 -- --include-ignored
-      - name: Verify the installed pinned runtime and cached startup
-        run: |
-          engarg_runtime_root="$RUNNER_TEMP/engarg-eal-runtime"
-          engarg_runtime_host=$(bash scripts/install-eal-runtime.sh --root "$engarg_runtime_root")
-          test "$engarg_runtime_host" = "$engarg_runtime_root/bin/eal-host"
-          test "$(bash scripts/install-eal-runtime.sh --root "$engarg_runtime_root")" = "$engarg_runtime_host"
-          cargo +1.99.1 build --locked --bin engarg --bin engarg-process-supervisor
-          mkdir -p "$RUNNER_TEMP/engarg-eal-probe"
-          target/debug/engarg eal describe --eal-host "$engarg_runtime_host" \
-            --workspace "$RUNNER_TEMP/engarg-eal-probe" \
-            --output "$RUNNER_TEMP/engarg-eal-probe/describe.json"
-          python3 -c 'import json, os; from pathlib import Path; response=json.loads((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-probe/describe.json").read_text()); assert response["is_error"] is False; assert response["result"]["source_syntax"] == "EAL/3"; assert "structured/1" in response["result"]["methods"]'
