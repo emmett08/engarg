@@ -849,8 +849,7 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
     let output_dir = directory.path().join("tools");
     saved_report(&input);
     profile(&toolchain, "python", "python:3.13-slim", "collector.py");
-    let mut settings: Value =
-        serde_json::from_slice(&fs::read(&toolchain).unwrap()).unwrap();
+    let mut settings: Value = serde_json::from_slice(&fs::read(&toolchain).unwrap()).unwrap();
     settings["timeout_seconds"] = json!(120);
     fs::write(&toolchain, serde_json::to_vec_pretty(&settings).unwrap()).unwrap();
     let server = MockServer::new(vec![
@@ -945,7 +944,7 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
         .unwrap();
     successful(&remaining);
     let names = String::from_utf8_lossy(&remaining.stdout);
-    if !exited_in_time {
+    if !names.trim().is_empty() {
         // A failing regression must still clean up its own daemon resources.
         for name in names.lines().filter(|name| name.starts_with(&prefix)) {
             let _ = Command::new(&docker)
@@ -977,7 +976,16 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
         "cancelled launcher left containers:\n{names}"
     );
     assert!(output_dir.join("argument.analysis.json").is_file());
-    for file in ["analysis.with-tools.json", "collectors.json", "tooling.json"] {
+    let audit = fs::read_to_string(output_dir.join("tooling.audit.jsonl")).unwrap();
+    assert!(audit.lines().any(|line| {
+        let event: Value = serde_json::from_str(line).unwrap();
+        event["event"] == "cancelled" && event["passed"] == false
+    }));
+    for file in [
+        "analysis.with-tools.json",
+        "collectors.json",
+        "tooling.json",
+    ] {
         assert!(!output_dir.join(file).exists());
     }
     assert_eq!(fs::read_dir(store.join("index")).unwrap().count(), 0);

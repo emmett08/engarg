@@ -876,7 +876,10 @@ mod tests {
         let actual = serde_json::to_value(&merged).unwrap();
         let expected = serde_json::to_value(&original).unwrap();
         assert_eq!(actual["schema"], expected["schema"]);
-        assert_eq!(actual["acquisition_contract"], expected["acquisition_contract"]);
+        assert_eq!(
+            actual["acquisition_contract"],
+            expected["acquisition_contract"]
+        );
         assert_eq!(merged.collectors.len(), original.collectors.len());
         merged.validate().unwrap();
     }

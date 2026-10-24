@@ -76,11 +76,42 @@ pub struct ToolingSession {
     runner: Arc<DockerRunner>,
     store: PackageStore,
 }
-struct CancelOnDrop(CancellationToken);
+struct CancelOnDrop {
+    cancellation: CancellationToken,
+    audit_path: PathBuf,
+    finished: bool,
+}
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {
-        self.0.cancel();
+        self.cancellation.cancel();
+        if !self.finished {
+            // Drop runs when a deadline or signal cancels the awaiting future.
+            // It cannot report IO failures, but must leave a terminal record when possible.
+            let _ = append_audit(
+                &self.audit_path,
+                &json!({
+                    "event": "cancelled",
+                    "passed": false,
+                    "reason": "implementation_dropped_before_completion_record"
+                }),
+            );
+        }
     }
+}
+fn append_audit(path: &Path, record: &Value) -> Result<(), Error> {
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    let mut bytes = serde_json::to_vec(record)?;
+    bytes.push(b'\n');
+    file.write_all(&bytes)?;
+    file.sync_data()?;
+    Ok(())
 }
 fn invalid(message: &str) -> Error {
     Error::InvalidInput(message.into())
@@ -223,18 +254,7 @@ impl ToolingSession {
         })
     }
     fn audit(&self, record: &Value) -> Result<(), Error> {
-        let mut options = OpenOptions::new();
-        options.create(true).append(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let mut file = options.open(self.config.output_dir.join("tooling.audit.jsonl"))?;
-        serde_json::to_writer(&mut file, record)?;
-        file.write_all(b"\n")?;
-        file.sync_data()?;
-        Ok(())
+        append_audit(&self.config.output_dir.join("tooling.audit.jsonl"), record)
     }
     async fn complete<M: LanguageModel>(
         &self,
@@ -277,9 +297,14 @@ impl ToolingSession {
         report: &Value,
     ) -> Result<ToolingReport, Error> {
         let cancellation = CancellationToken::default();
-        let _guard = CancelOnDrop(cancellation.clone());
+        let mut guard = CancelOnDrop {
+            cancellation: cancellation.clone(),
+            audit_path: self.config.output_dir.join("tooling.audit.jsonl"),
+            finished: false,
+        };
         let result = self.implement_inner(model, report, &cancellation).await;
         self.audit(&json!({"event":"finished","passed":result.is_ok()}))?;
+        guard.finished = true;
         result
     }
 
@@ -588,4 +613,57 @@ pub fn registration(report: &Value) -> Result<Option<Registration>, Error> {
         overrides,
         original_plans: input.plans,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dropped_implementation_records_cancellation_and_cancels_the_worker() {
+        let directory = tempfile::tempdir().unwrap();
+        let audit_path = directory.path().join("tooling.audit.jsonl");
+        let cancellation = CancellationToken::default();
+        let guard = CancelOnDrop {
+            cancellation: cancellation.clone(),
+            audit_path: audit_path.clone(),
+            finished: false,
+        };
+        drop(guard);
+        assert!(cancellation.is_cancelled());
+        let records: Vec<Value> = fs::read_to_string(audit_path)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0]["event"], "cancelled");
+        assert_eq!(records[0]["passed"], false);
+        assert_eq!(
+            records[0]["reason"],
+            "implementation_dropped_before_completion_record"
+        );
+    }
+
+    #[test]
+    fn completed_implementation_keeps_only_its_finished_record() {
+        let directory = tempfile::tempdir().unwrap();
+        let audit_path = directory.path().join("tooling.audit.jsonl");
+        let cancellation = CancellationToken::default();
+        let mut guard = CancelOnDrop {
+            cancellation: cancellation.clone(),
+            audit_path: audit_path.clone(),
+            finished: false,
+        };
+        append_audit(&audit_path, &json!({"event":"finished","passed":true})).unwrap();
+        guard.finished = true;
+        drop(guard);
+        assert!(cancellation.is_cancelled());
+        let records: Vec<Value> = fs::read_to_string(audit_path)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(records, vec![json!({"event":"finished","passed":true})]);
+    }
 }
