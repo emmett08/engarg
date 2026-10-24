@@ -75,9 +75,12 @@ fn invalid(message: impl Into<String>) -> Error {
 }
 
 pub fn validate_language(language: &str) -> Result<(), Error> {
-    if language.is_empty() || language.len() > 64
+    if language.is_empty()
+        || language.len() > 64
         || !language.as_bytes()[0].is_ascii_alphanumeric()
-        || !language.bytes().all(|b| b.is_ascii_alphanumeric() || b"_+.-".contains(&b))
+        || !language
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_+.-".contains(&b))
     {
         return Err(invalid("tool language must be a bounded ASCII identifier"));
     }
@@ -88,8 +91,12 @@ pub fn validate_language(language: &str) -> Result<(), Error> {
 fn validate_path(path: &str) -> Result<(), Error> {
     if path.is_empty()
         || path.len() > 200
-        || !path.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-./".contains(&b))
-        || path.split('/').any(|part| part.is_empty() || part == "." || part == "..")
+        || !path
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_-./".contains(&b))
+        || path
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
     {
         return Err(invalid(format!("unsafe generated file path {path:?}")));
     }
@@ -110,7 +117,9 @@ fn validate_files(files: &[SourceFile], required: bool) -> Result<(), Error> {
         if file.content.len() > MAX_FILE_BYTES || file.content.contains('\0') {
             return Err(invalid("generated file is too large or contains NUL"));
         }
-        total = total.checked_add(file.content.len()).ok_or_else(|| invalid("generated source size overflow"))?;
+        total = total
+            .checked_add(file.content.len())
+            .ok_or_else(|| invalid("generated source size overflow"))?;
     }
     if total > MAX_SOURCE_BYTES {
         return Err(invalid("generated source exceeds 512 KiB"));
@@ -134,26 +143,36 @@ fn validate_schema(schema: &Value) -> Result<(), Error> {
         match value {
             Value::Object(object) => {
                 for (key, child) in object {
-                    if matches!(key.as_str(), "$ref" | "$dynamicRef" | "$recursiveRef" | "$id")
-                        && !child.as_str().is_some_and(|reference| reference.starts_with('#'))
+                    if matches!(
+                        key.as_str(),
+                        "$ref" | "$dynamicRef" | "$recursiveRef" | "$id"
+                    ) && !child
+                        .as_str()
+                        .is_some_and(|reference| reference.starts_with('#'))
                     {
                         return Err(invalid("contract schemas may use local references only"));
                     }
                     local(child, depth + 1)?;
                 }
             }
-            Value::Array(array) => for child in array { local(child, depth + 1)?; },
+            Value::Array(array) => {
+                for child in array {
+                    local(child, depth + 1)?;
+                }
+            }
             _ => {}
         }
         Ok(())
     }
     local(schema, 0)?;
-    jsonschema::validator_for(schema).map_err(|e| invalid(format!("invalid contract schema: {e}")))?;
+    jsonschema::validator_for(schema)
+        .map_err(|e| invalid(format!("invalid contract schema: {e}")))?;
     Ok(())
 }
 
 fn parameter(name: &str) -> bool {
-    !name.is_empty() && name.len() <= 64
+    !name.is_empty()
+        && name.len() <= 64
         && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
         && name.as_bytes()[0].is_ascii_alphabetic()
 }
@@ -170,7 +189,9 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
         || contract.toolchain_description.trim().is_empty()
         || contract.toolchain_description.len() > 16_384
     {
-        return Err(invalid("tool contract requires bounded need, purpose, context and toolchain"));
+        return Err(invalid(
+            "tool contract requires bounded need, purpose, context and toolchain",
+        ));
     }
     let draft = &contract.draft;
     if draft.parameters.len() > 64 {
@@ -184,20 +205,34 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
     }
     validate_schema(&draft.input_schema)?;
     validate_schema(&draft.result_schema)?;
-    if draft.input_schema["type"] != "object" || draft.input_schema["additionalProperties"] != false {
-        return Err(invalid("collector input schema must describe a closed object"));
+    if draft.input_schema["type"] != "object" || draft.input_schema["additionalProperties"] != false
+    {
+        return Err(invalid(
+            "collector input schema must describe a closed object",
+        ));
     }
     if draft.result_schema["type"] != "object"
         || draft.result_schema["properties"]["collected"]["type"] != "boolean"
-        || !draft.result_schema["required"].as_array()
+        || !draft.result_schema["required"]
+            .as_array()
             .is_some_and(|required| required.iter().any(|name| name == "collected"))
     {
-        return Err(invalid("result schema requires a boolean collected property"));
+        return Err(invalid(
+            "result schema requires a boolean collected property",
+        ));
     }
-    let properties = draft.input_schema["properties"].as_object()
+    let properties = draft.input_schema["properties"]
+        .as_object()
         .ok_or_else(|| invalid("collector input schema requires properties"))?;
-    if properties.keys().map(String::as_str).collect::<BTreeSet<_>>() != parameters {
-        return Err(invalid("input schema properties must exactly match parameters"));
+    if properties
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>()
+        != parameters
+    {
+        return Err(invalid(
+            "input schema properties must exactly match parameters",
+        ));
     }
     let mut supplied = BTreeSet::new();
     for argument in &draft.arguments {
@@ -211,34 +246,46 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
     }
     for name in &draft.unresolved_arguments {
         if !parameters.contains(name.as_str()) || !supplied.insert(name.as_str()) {
-            return Err(invalid("unknown, duplicate or supplied-and-unresolved parameter"));
+            return Err(invalid(
+                "unknown, duplicate or supplied-and-unresolved parameter",
+            ));
         }
     }
     if supplied != parameters {
-        return Err(invalid("every parameter must be supplied or explicitly unresolved"));
+        return Err(invalid(
+            "every parameter must be supplied or explicitly unresolved",
+        ));
     }
     // Admit the same consumer contract that will later be exported, before any
     // implementation call or execution can spend its budget.
     let descriptor = eal_collector_contracts::CollectorDescriptor {
-        id:"generated_contract_validation".into(),
-        version:"1".into(),
-        purpose:draft.purpose.clone(),
-        parameters:draft.parameters.clone(),
-        input_schema:draft.input_schema.clone(),
-        result_schema:draft.result_schema.clone(),
-        command:eal_collector_contracts::CommandTemplate {
-            argv:vec!["/engarg-contract-validation".into()], inherit_env:vec![],
-            timeout_seconds:30, max_output_bytes:1_048_576, parallel_safe:false,
+        id: "generated_contract_validation".into(),
+        version: "1".into(),
+        purpose: draft.purpose.clone(),
+        parameters: draft.parameters.clone(),
+        input_schema: draft.input_schema.clone(),
+        result_schema: draft.result_schema.clone(),
+        command: eal_collector_contracts::CommandTemplate {
+            argv: vec!["/engarg-contract-validation".into()],
+            inherit_env: vec![],
+            timeout_seconds: 30,
+            max_output_bytes: 1_048_576,
+            parallel_safe: false,
         },
-        acquisition_predicate:"collected == true".into(),
-        constraints:vec![],
+        acquisition_predicate: "collected == true".into(),
+        constraints: vec![],
     };
-    descriptor.validate_for(eal_collector_contracts::AuthoringProfile::RuntimeExportable)
+    descriptor
+        .validate_for(eal_collector_contracts::AuthoringProfile::RuntimeExportable)
         .map_err(invalid)?;
-    crate::collector_catalogue::CollectorDescriptor(&descriptor).input(&crate::acquisition::AcquisitionPlan {
-        need_id:contract.need.id.clone(), tool_id:descriptor.id.clone(),
-        arguments:draft.arguments.clone(), unresolved_arguments:draft.unresolved_arguments.clone(),
-    })?;
+    crate::collector_catalogue::CollectorDescriptor(&descriptor).input(
+        &crate::acquisition::AcquisitionPlan {
+            need_id: contract.need.id.clone(),
+            tool_id: descriptor.id.clone(),
+            arguments: draft.arguments.clone(),
+            unresolved_arguments: draft.unresolved_arguments.clone(),
+        },
+    )?;
     if draft.fixtures.len() < 3 || draft.fixtures.len() > MAX_FIXTURES {
         return Err(invalid("tool contract requires 3 to 64 fixtures"));
     }
@@ -252,23 +299,34 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
     let mut error = false;
     let mut fixture_bytes = 0usize;
     for fixture in &draft.fixtures {
-        if fixture.name.trim().is_empty() || fixture.name.len() > 128 || !names.insert(&fixture.name) {
+        if fixture.name.trim().is_empty()
+            || fixture.name.len() > 128
+            || !names.insert(&fixture.name)
+        {
             return Err(invalid("fixture names must be unique and bounded"));
         }
         validate_files(&fixture.files, false)?;
         bounded_json(&fixture.input)?;
         if !input.is_valid(&fixture.input) {
-            return Err(invalid(format!("fixture {} violates input schema", fixture.name)));
+            return Err(invalid(format!(
+                "fixture {} violates input schema",
+                fixture.name
+            )));
         }
-        fixture_bytes = fixture_bytes.checked_add(serde_json::to_vec(fixture)?.len())
+        fixture_bytes = fixture_bytes
+            .checked_add(serde_json::to_vec(fixture)?.len())
             .ok_or_else(|| invalid("fixture size overflow"))?;
         match fixture.kind {
             FixtureKind::Positive | FixtureKind::Negative => {
-                let expected = fixture.expected_value.as_ref()
+                let expected = fixture
+                    .expected_value
+                    .as_ref()
                     .ok_or_else(|| invalid("collected fixtures require expected_value"))?;
                 bounded_json(expected)?;
                 if expected["collected"] != true || !result.is_valid(expected) {
-                    return Err(invalid("positive and negative fixtures require valid collected=true results"));
+                    return Err(invalid(
+                        "positive and negative fixtures require valid collected=true results",
+                    ));
                 }
                 match fixture.kind {
                     FixtureKind::Positive => positive.push(expected),
@@ -279,7 +337,9 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
             FixtureKind::AcquisitionError => {
                 error = true;
                 if fixture.expected_value.is_some() {
-                    return Err(invalid("acquisition-error fixtures must not have an expected collected value"));
+                    return Err(invalid(
+                        "acquisition-error fixtures must not have an expected collected value",
+                    ));
                 }
             }
         }
@@ -287,10 +347,14 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
     if fixture_bytes > 1_048_576 {
         return Err(invalid("contract fixtures exceed 1 MiB"));
     }
-    if positive.is_empty() || negative.is_empty() || !error
+    if positive.is_empty()
+        || negative.is_empty()
+        || !error
         || positive.iter().any(|p| negative.contains(p))
     {
-        return Err(invalid("contract requires distinct positive, negative and acquisition-error fixtures"));
+        return Err(invalid(
+            "contract requires distinct positive, negative and acquisition-error fixtures",
+        ));
     }
     Ok(())
 }
@@ -303,7 +367,12 @@ pub fn validate_candidate(contract: &NeedContract, candidate: &CodeCandidate) ->
     }
     validate_files(&candidate.files, true)?;
     for fixture in &contract.draft.fixtures {
-        if fixture.files.iter().any(|fixture_file| candidate.files.iter().any(|source| source.path == fixture_file.path)) {
+        if fixture.files.iter().any(|fixture_file| {
+            candidate
+                .files
+                .iter()
+                .any(|source| source.path == fixture_file.path)
+        }) {
             return Err(invalid("fixture files must not overwrite generated source"));
         }
     }
@@ -315,8 +384,10 @@ pub fn digest_json<T: Serialize>(value: &T) -> Result<String, Error> {
     fn canonical(value: Value) -> Value {
         match value {
             Value::Object(map) => {
-                let sorted: std::collections::BTreeMap<_, _> = map.into_iter()
-                    .map(|(key, value)| (key, canonical(value))).collect();
+                let sorted: std::collections::BTreeMap<_, _> = map
+                    .into_iter()
+                    .map(|(key, value)| (key, canonical(value)))
+                    .collect();
                 Value::Object(sorted.into_iter().collect())
             }
             Value::Array(values) => Value::Array(values.into_iter().map(canonical).collect()),
@@ -324,7 +395,10 @@ pub fn digest_json<T: Serialize>(value: &T) -> Result<String, Error> {
         }
     }
     let bytes = serde_json::to_vec(&canonical(serde_json::to_value(value)?))?;
-    Ok(Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect())
+    Ok(Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 pub fn contract_digest(contract: &NeedContract) -> Result<String, Error> {
@@ -352,29 +426,48 @@ mod tests {
     }
 
     fn contract() -> NeedContract {
-        let case: crate::domain::ArgumentCase = serde_json::from_str(
-            include_str!("../../examples/case.json")
-        ).unwrap();
+        let case: crate::domain::ArgumentCase =
+            serde_json::from_str(include_str!("../../examples/case.json")).unwrap();
         NeedContract {
-            schema:CONTRACT_SCHEMA.into(), language:"python".into(),
-            need:case.evidence_plan[0].clone(), request_context:"{}".into(),
-            toolchain_description:"operator-selected interpreter".into(),
-            draft:ContractDraft {
-                purpose:"Measure a synthetic local instrument".into(),
-                parameters:vec!["mode".into()],
-                input_schema:json!({"type":"object","additionalProperties":false,
+            schema: CONTRACT_SCHEMA.into(),
+            language: "python".into(),
+            need: case.evidence_plan[0].clone(),
+            request_context: "{}".into(),
+            toolchain_description: "operator-selected interpreter".into(),
+            draft: ContractDraft {
+                purpose: "Measure a synthetic local instrument".into(),
+                parameters: vec!["mode".into()],
+                input_schema: json!({"type":"object","additionalProperties":false,
                     "properties":{"mode":{"type":"string"}},"required":["mode"]}),
-                result_schema:json!({"type":"object","properties":{"collected":{"type":"boolean"},"present":{"type":"boolean"}},
+                result_schema: json!({"type":"object","properties":{"collected":{"type":"boolean"},"present":{"type":"boolean"}},
                     "required":["collected","present"]}),
-                arguments:vec![ToolArgument{name:"mode".into(),value:"positive".into()}],
-                unresolved_arguments:vec![],
-                fixtures:vec![
-                    ContractFixture{name:"positive".into(),kind:FixtureKind::Positive,
-                        input:json!({"mode":"positive"}),expected_value:Some(json!({"collected":true,"present":true})),files:vec![]},
-                    ContractFixture{name:"negative".into(),kind:FixtureKind::Negative,
-                        input:json!({"mode":"negative"}),expected_value:Some(json!({"collected":true,"present":false})),files:vec![]},
-                    ContractFixture{name:"error".into(),kind:FixtureKind::AcquisitionError,
-                        input:json!({"mode":"error"}),expected_value:None,files:vec![]},
+                arguments: vec![ToolArgument {
+                    name: "mode".into(),
+                    value: "positive".into(),
+                }],
+                unresolved_arguments: vec![],
+                fixtures: vec![
+                    ContractFixture {
+                        name: "positive".into(),
+                        kind: FixtureKind::Positive,
+                        input: json!({"mode":"positive"}),
+                        expected_value: Some(json!({"collected":true,"present":true})),
+                        files: vec![],
+                    },
+                    ContractFixture {
+                        name: "negative".into(),
+                        kind: FixtureKind::Negative,
+                        input: json!({"mode":"negative"}),
+                        expected_value: Some(json!({"collected":true,"present":false})),
+                        files: vec![],
+                    },
+                    ContractFixture {
+                        name: "error".into(),
+                        kind: FixtureKind::AcquisitionError,
+                        input: json!({"mode":"error"}),
+                        expected_value: None,
+                        files: vec![],
+                    },
                 ],
             },
         }
@@ -408,8 +501,14 @@ mod tests {
     #[test]
     fn rejects_case_aliases_and_supplied_unresolved_overlap() {
         let files = vec![
-            SourceFile{path:"Data/record.json".into(),content:"{}".into()},
-            SourceFile{path:"data/record.json".into(),content:"{}".into()},
+            SourceFile {
+                path: "Data/record.json".into(),
+                content: "{}".into(),
+            },
+            SourceFile {
+                path: "data/record.json".into(),
+                content: "{}".into(),
+            },
         ];
         assert!(validate_files(&files, true).is_err());
         let mut value = contract();

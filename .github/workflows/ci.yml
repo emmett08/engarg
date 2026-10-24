@@ -25,19 +25,7 @@ jobs:
         run: |
           bash -n scripts/run-catalog-sync-authoring.sh
           python3 -m unittest discover -s tests -p 'test_*.py'
-      - name: Format recovered source for integration
-        run: |
-          cargo fmt --all
-          python3 - <<'PY'
-          import json
-          import pathlib
-          import subprocess
-          paths = subprocess.check_output(["git", "diff", "--name-only", "--", "*.rs"], text=True).splitlines()
-          for path in paths:
-              source = pathlib.Path(path).read_text()
-              for offset in range(0, len(source), 6000):
-                  print("ENGARG_FMT_JSON=" + json.dumps({"path": path, "offset": offset, "length": len(source), "content": source[offset:offset+6000]}))
-          PY
+      - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked --all-targets
       - name: Exercise generated collectors in isolated language toolchains

@@ -45,7 +45,9 @@ pub(super) fn parse(source: &Value) -> Result<SavedInput, Error> {
         return Err(Error::Budget("saved analysis exceeds 16 MiB".into()));
     }
     let mut canonical = source.clone();
-    let object = canonical.as_object_mut().ok_or_else(|| invalid("saved analysis must be an object"))?;
+    let object = canonical
+        .as_object_mut()
+        .ok_or_else(|| invalid("saved analysis must be an object"))?;
     object.remove("tooling");
     let saved = if object.contains_key("original_request") || object.contains_key("original_case") {
         let bundle: EalExport = serde_json::from_value(canonical)?;
@@ -60,43 +62,76 @@ pub(super) fn parse(source: &Value) -> Result<SavedInput, Error> {
         }
     } else {
         let report: RunReport = serde_json::from_value(canonical)?;
-        if !matches!(report.schema_version.as_str(), "engarg.run.v1" | "engarg.run.v2") {
+        if !matches!(
+            report.schema_version.as_str(),
+            "engarg.run.v1" | "engarg.run.v2"
+        ) {
             return Err(invalid("unsupported saved run schema"));
         }
         let mut plans = Vec::new();
-        if let Some(record) = report.transcript.iter().rev()
+        if let Some(record) = report
+            .transcript
+            .iter()
+            .rev()
             .find(|record| matches!(record.role, Role::Single | Role::Adjudicator))
         {
             if record.response_content_omitted {
                 return Err(invalid("authoritative final response content was omitted"));
             }
             let response = eal_collector_contracts::strict_json_exact(
-                record.response.content.as_bytes(), Default::default()
-            ).map_err(invalid)?;
+                record.response.content.as_bytes(),
+                Default::default(),
+            )
+            .map_err(invalid)?;
             if response.get("acquisition_plan").is_some() || response.get("argument").is_some() {
                 let planned: acquisition::PlannedArgument = serde_json::from_value(response)?;
-                if serde_json::to_value(&planned.argument)? != serde_json::to_value(&report.argument)? {
-                    return Err(invalid("retained acquisition plan belongs to a different canonical argument"));
+                if serde_json::to_value(&planned.argument)?
+                    != serde_json::to_value(&report.argument)?
+                {
+                    return Err(invalid(
+                        "retained acquisition plan belongs to a different canonical argument",
+                    ));
                 }
                 plans = planned.acquisition_plan;
             } else {
                 let direct: ArgumentCase = serde_json::from_value(response)?;
                 if serde_json::to_value(direct)? != serde_json::to_value(&report.argument)? {
-                    return Err(invalid("retained final case differs from the canonical argument"));
+                    return Err(invalid(
+                        "retained final case differs from the canonical argument",
+                    ));
                 }
             }
         }
-        let selected = report.run_config.as_ref()
+        let selected = report
+            .run_config
+            .as_ref()
             .and_then(|config| config.collector_catalogue.as_ref())
-            .cloned().unwrap_or_else(empty_catalogue);
-        SavedInput { request: report.request, argument: report.argument, plans, catalogue: selected }
+            .cloned()
+            .unwrap_or_else(empty_catalogue);
+        SavedInput {
+            request: report.request,
+            argument: report.argument,
+            plans,
+            catalogue: selected,
+        }
     };
     validate_request(&saved.request).map_err(|errors| invalid(errors.join("; ")))?;
-    validate_argument(&saved.request, &saved.argument)
-        .map_err(|errors| invalid(errors.iter().map(ToString::to_string).collect::<Vec<_>>().join("; ")))?;
+    validate_argument(&saved.request, &saved.argument).map_err(|errors| {
+        invalid(
+            errors
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("; "),
+        )
+    })?;
     saved.catalogue.validate()?;
     if !saved.plans.is_empty() {
-        let errors = acquisition::validate_with_catalogue(&saved.argument, &saved.plans, Some(&saved.catalogue));
+        let errors = acquisition::validate_with_catalogue(
+            &saved.argument,
+            &saved.plans,
+            Some(&saved.catalogue),
+        );
         if !errors.is_empty() {
             return Err(invalid(errors.join("; ")));
         }
@@ -110,8 +145,10 @@ mod tests {
     use serde_json::json;
 
     fn report() -> Value {
-        let request: Request = serde_json::from_str(include_str!("../../examples/request.json")).unwrap();
-        let argument: ArgumentCase = serde_json::from_str(include_str!("../../examples/case.json")).unwrap();
+        let request: Request =
+            serde_json::from_str(include_str!("../../examples/request.json")).unwrap();
+        let argument: ArgumentCase =
+            serde_json::from_str(include_str!("../../examples/case.json")).unwrap();
         json!({
             "schema_version":"engarg.run.v2","execution_mode":"saved_fixture","input_sha256":"fixture",
             "mode":"single","request":request,"argument":argument,"transcript":[],"limitations":[]
@@ -131,9 +168,16 @@ mod tests {
     fn exact_retained_plans_take_precedence_over_tooling_metadata() {
         let mut source = report();
         let argument: ArgumentCase = serde_json::from_value(source["argument"].clone()).unwrap();
-        let plans = argument.evidence_plan.iter().map(|need| AcquisitionPlan {
-            need_id:need.id.clone(),tool_id:"custom".into(),arguments:vec![],unresolved_arguments:vec!["adapter".into()],
-        }).collect::<Vec<_>>();
+        let plans = argument
+            .evidence_plan
+            .iter()
+            .map(|need| AcquisitionPlan {
+                need_id: need.id.clone(),
+                tool_id: "custom".into(),
+                arguments: vec![],
+                unresolved_arguments: vec!["adapter".into()],
+            })
+            .collect::<Vec<_>>();
         let content = json!({"argument":argument,"acquisition_plan":plans}).to_string();
         source["transcript"] = json!([{
             "role":"single",
@@ -144,7 +188,10 @@ mod tests {
         }]);
         source["tooling"] = json!({"original_plans":[],"original_catalogue":null});
         let saved = parse(&source).unwrap();
-        assert_eq!(serde_json::to_value(saved.plans).unwrap(), serde_json::to_value(plans).unwrap());
+        assert_eq!(
+            serde_json::to_value(saved.plans).unwrap(),
+            serde_json::to_value(plans).unwrap()
+        );
         assert_eq!(source["transcript"].as_array().unwrap().len(), 1);
     }
 
@@ -162,7 +209,11 @@ mod tests {
         let mut source = report();
         source["transcript"] = json!([
             record("single", source["argument"].to_string()),
-            record("evidence_auditor", json!({"argument":source["argument"],"acquisition_plan":[{"invented":true}]}).to_string())
+            record(
+                "evidence_auditor",
+                json!({"argument":source["argument"],"acquisition_plan":[{"invented":true}]})
+                    .to_string()
+            )
         ]);
         assert!(parse(&source).unwrap().plans.is_empty());
     }
@@ -187,7 +238,10 @@ mod tests {
         changed["adjudication"] = json!("A different final case");
         source["transcript"] = json!([
             record("single", source["argument"].to_string()),
-            record("adjudicator", json!({"argument":changed,"acquisition_plan":[]}).to_string())
+            record(
+                "adjudicator",
+                json!({"argument":changed,"acquisition_plan":[]}).to_string()
+            )
         ]);
         assert!(parse(&source).is_err());
     }

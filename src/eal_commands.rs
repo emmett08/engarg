@@ -479,6 +479,7 @@ fn merge_catalogues(
     }
     engarg::collector_catalogue::CollectorCatalogue::from_json(&serde_json::to_vec(&json!({
         "schema": engarg::collector_catalogue::SCHEMA,
+        "acquisition_contract": "eal.acquisition/1",
         "collectors": descriptors.into_values().collect::<Vec<_>>(),
     }))?)
 }
@@ -860,5 +861,23 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             };
             stdout(&json_bytes(&response)?)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merged_catalogue_preserves_runtime_contract_and_identical_descriptors() {
+        let bytes = include_bytes!("../contracts/collectors/native.json");
+        let original = engarg::collector_catalogue::CollectorCatalogue::from_json(bytes).unwrap();
+        let merged = merge_catalogues(Some(original.clone()), original.clone()).unwrap();
+        let actual = serde_json::to_value(&merged).unwrap();
+        let expected = serde_json::to_value(&original).unwrap();
+        assert_eq!(actual["schema"], expected["schema"]);
+        assert_eq!(actual["acquisition_contract"], expected["acquisition_contract"]);
+        assert_eq!(merged.collectors.len(), original.collectors.len());
+        merged.validate().unwrap();
     }
 }

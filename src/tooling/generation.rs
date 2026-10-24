@@ -3,16 +3,23 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::contracts::{
+    CodeCandidate, ContractDraft, ContractFixture, FixtureKind, NeedContract, SourceFile,
+};
 use crate::{
     Error,
     acquisition::ToolArgument,
     domain::{EvidenceNeed, Request},
     provider::{CompletionRequest, Role},
 };
-use super::contracts::{CodeCandidate, ContractDraft, ContractFixture, FixtureKind, NeedContract, SourceFile};
 
 fn object(properties: Value) -> Value {
-    let required = properties.as_object().expect("static object").keys().cloned().collect::<Vec<_>>();
+    let required = properties
+        .as_object()
+        .expect("static object")
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
     json!({"type":"object","properties":properties,"required":required,"additionalProperties":false})
 }
 
@@ -134,24 +141,36 @@ struct FixtureWire {
 }
 
 fn strict_json(bytes: &[u8]) -> Result<Value, Error> {
-    eal_collector_contracts::strict_json_exact(bytes, eal_collector_contracts::JsonLimits {
-        max_bytes: 8 * 1_048_576,
-        ..Default::default()
-    }).map_err(|error| Error::InvalidOutput(format!("invalid tool generation JSON: {error}")))
+    eal_collector_contracts::strict_json_exact(
+        bytes,
+        eal_collector_contracts::JsonLimits {
+            max_bytes: 8 * 1_048_576,
+            ..Default::default()
+        },
+    )
+    .map_err(|error| Error::InvalidOutput(format!("invalid tool generation JSON: {error}")))
 }
 
 pub fn parse_draft(bytes: &[u8]) -> Result<ContractDraft, Error> {
-    let wire: DraftWire = serde_json::from_value(strict_json(bytes)?)
-        .map_err(|error| Error::InvalidOutput(format!("invalid tool contract response: {error}")))?;
-    let fixtures = wire.fixtures.into_iter().map(|fixture| {
-        Ok(ContractFixture {
-            name: fixture.name,
-            kind: fixture.kind,
-            input: strict_json(fixture.input_json.as_bytes())?,
-            expected_value: fixture.expected_value_json.map(|text| strict_json(text.as_bytes())).transpose()?,
-            files: fixture.files,
+    let wire: DraftWire = serde_json::from_value(strict_json(bytes)?).map_err(|error| {
+        Error::InvalidOutput(format!("invalid tool contract response: {error}"))
+    })?;
+    let fixtures = wire
+        .fixtures
+        .into_iter()
+        .map(|fixture| {
+            Ok(ContractFixture {
+                name: fixture.name,
+                kind: fixture.kind,
+                input: strict_json(fixture.input_json.as_bytes())?,
+                expected_value: fixture
+                    .expected_value_json
+                    .map(|text| strict_json(text.as_bytes()))
+                    .transpose()?,
+                files: fixture.files,
+            })
         })
-    }).collect::<Result<Vec<_>, Error>>()?;
+        .collect::<Result<Vec<_>, Error>>()?;
     Ok(ContractDraft {
         purpose: wire.purpose,
         parameters: wire.parameters,
@@ -164,8 +183,9 @@ pub fn parse_draft(bytes: &[u8]) -> Result<ContractDraft, Error> {
 }
 
 pub fn parse_candidate(bytes: &[u8]) -> Result<CodeCandidate, Error> {
-    serde_json::from_value(strict_json(bytes)?)
-        .map_err(|error| Error::InvalidOutput(format!("invalid tool implementation response: {error}")))
+    serde_json::from_value(strict_json(bytes)?).map_err(|error| {
+        Error::InvalidOutput(format!("invalid tool implementation response: {error}"))
+    })
 }
 
 #[cfg(test)]
@@ -183,6 +203,9 @@ mod tests {
         let schema = draft_schema();
         assert_eq!(schema["properties"]["input_schema_json"]["type"], "string");
         assert_eq!(schema["additionalProperties"], false);
-        assert_eq!(schema["properties"]["fixtures"]["items"]["additionalProperties"], false);
+        assert_eq!(
+            schema["properties"]["fixtures"]["items"]["additionalProperties"],
+            false
+        );
     }
 }

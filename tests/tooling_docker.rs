@@ -838,3 +838,154 @@ fn coding_failure_preserves_the_original_analysis_output() {
     assert!(checkpoint.get("tooling").is_none());
     assert!(!tool_output.join("analysis.with-tools.json").exists());
 }
+
+#[test]
+#[ignore = "requires Docker and the preloaded python:3.13-slim image"]
+fn coding_cancellation_removes_the_running_container_without_registering() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("analysis.json");
+    let toolchain = directory.path().join("toolchain.json");
+    let store = directory.path().join("store");
+    let output_dir = directory.path().join("tools");
+    saved_report(&input);
+    profile(&toolchain, "python", "python:3.13-slim", "collector.py");
+    let mut settings: Value =
+        serde_json::from_slice(&fs::read(&toolchain).unwrap()).unwrap();
+    settings["timeout_seconds"] = json!(120);
+    fs::write(&toolchain, serde_json::to_vec_pretty(&settings).unwrap()).unwrap();
+    let server = MockServer::new(vec![
+        draft_response(),
+        json!({
+            "language": "python",
+            "files": [{"path": "collector.py", "content": "import time\ntime.sleep(120)\n"}]
+        }),
+    ]);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["eal", "implement", "--input"])
+        .arg(&input)
+        .args([
+            "--model",
+            "fixture",
+            "--endpoint",
+            &server.endpoint,
+            "--api-key-env",
+            "UNSET_TOOL_TEST_KEY",
+            "--tool-language",
+            "python",
+            "--toolchain",
+        ])
+        .arg(&toolchain)
+        .arg("--tool-store")
+        .arg(&store)
+        .arg("--tool-output-dir")
+        .arg(&output_dir)
+        .args([
+            "--tool-max-calls",
+            "2",
+            "--tool-timeout-secs",
+            "120",
+            "--http-retries",
+            "0",
+        ])
+        .env_remove("UNSET_TOOL_TEST_KEY")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let launcher_pid = child.id();
+    let prefix = format!("engarg-{launcher_pid}-");
+    let docker = std::env::var("ENGARG_TOOL_DOCKER").unwrap_or_else(|_| "docker".into());
+    let startup_deadline = Instant::now() + Duration::from_secs(45);
+    let observed_running = loop {
+        let running = Command::new(&docker)
+            .args(["container", "ls", "--filter"])
+            .arg(format!("name={prefix}"))
+            .args(["--format", "{{.Names}}"])
+            .output()
+            .unwrap();
+        successful(&running);
+        if String::from_utf8_lossy(&running.stdout)
+            .lines()
+            .any(|name| name.starts_with(&prefix))
+        {
+            break true;
+        }
+        if child.try_wait().unwrap().is_some() || Instant::now() >= startup_deadline {
+            break false;
+        }
+        thread::sleep(Duration::from_millis(200));
+    };
+
+    let cancellation_started = Instant::now();
+    if child.try_wait().unwrap().is_none() {
+        let signal = Command::new("/bin/kill")
+            .args(["-TERM", &launcher_pid.to_string()])
+            .output()
+            .unwrap();
+        successful(&signal);
+    }
+    let exited_in_time = loop {
+        if child.try_wait().unwrap().is_some() {
+            break true;
+        }
+        if cancellation_started.elapsed() >= Duration::from_secs(20) {
+            break false;
+        }
+        thread::sleep(Duration::from_millis(50));
+    };
+    if !exited_in_time {
+        let _ = child.kill();
+    }
+    let output = child.wait_with_output().unwrap();
+    let remaining = Command::new(&docker)
+        .args(["container", "ls", "--all", "--filter"])
+        .arg(format!("name={prefix}"))
+        .args(["--format", "{{.Names}}"])
+        .output()
+        .unwrap();
+    successful(&remaining);
+    let names = String::from_utf8_lossy(&remaining.stdout);
+    if !exited_in_time {
+        // A failing regression must still clean up its own daemon resources.
+        for name in names.lines().filter(|name| name.starts_with(&prefix)) {
+            let _ = Command::new(&docker)
+                .args(["container", "rm", "--force", name])
+                .output();
+        }
+    }
+    assert!(
+        exited_in_time,
+        "launcher did not finish within 20 seconds of SIGTERM"
+    );
+    assert!(
+        observed_running,
+        "no running collector container was observed for {prefix}; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !output.status.success(),
+        "cancelled candidate unexpectedly passed collector admission"
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("tool implementation terminated"),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(server.requests().len(), 2);
+    assert!(
+        names.trim().is_empty(),
+        "cancelled launcher left containers:\n{names}"
+    );
+    assert!(output_dir.join("argument.analysis.json").is_file());
+    for file in ["analysis.with-tools.json", "collectors.json", "tooling.json"] {
+        assert!(!output_dir.join(file).exists());
+    }
+    assert_eq!(fs::read_dir(store.join("index")).unwrap().count(), 0);
+    let attempts: Vec<_> = fs::read_dir(store.join("attempts"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(attempts.len(), 1);
+    assert!(attempts[0].join("candidate.json").is_file());
+    assert!(!attempts[0].join("manifest.json").exists());
+}
