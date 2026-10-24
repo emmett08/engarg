@@ -23,7 +23,8 @@ class InstallEalRuntimeTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="engarg runtime installation ")
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        # The installer reports physical paths, including macOS's /private/var.
+        self.root = Path(self.temporary.name).resolve()
         self.repo = self.root / "checkout"
         (self.repo / "scripts").mkdir(parents=True)
         self.script = self.repo / "scripts/install-eal-runtime.sh"
