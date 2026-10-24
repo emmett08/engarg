@@ -29,6 +29,9 @@ fn accept_call(listener: &TcpListener, index: usize) -> std::net::TcpStream {
 }
 
 fn receive(stream: &mut std::net::TcpStream) -> Value {
+    // Accepted sockets can inherit a nonblocking listener's mode on macOS.
+    // Read timeouts bound blocking reads, so establish that mode explicitly.
+    stream.set_nonblocking(false).unwrap();
     stream
         .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
@@ -52,6 +55,50 @@ fn receive(stream: &mut std::net::TcpStream) -> Value {
             }
         }
     }
+}
+
+#[test]
+fn receive_reads_delayed_fragments_from_an_initially_nonblocking_socket() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut client = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    client
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut stream = accept_call(&listener, 0);
+    // Force the inherited mode on every platform rather than depending on the OS.
+    stream.set_nonblocking(true).unwrap();
+    assert_eq!(
+        stream.peek(&mut [0_u8; 1]).unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    let expected = json!({"claim":"Retain the complete fragmented request.","fragmented":true});
+    let body = expected.to_string();
+    let header = format!(
+        "POST /v1/responses HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        body.len()
+    );
+    let (ready, start) = std::sync::mpsc::sync_channel(0);
+    let writer = thread::spawn(move || {
+        start.recv_timeout(Duration::from_secs(5)).unwrap();
+        thread::sleep(Duration::from_millis(50));
+        for fragment in [
+            &header.as_bytes()[..header.len() - 2],
+            &header.as_bytes()[header.len() - 2..],
+            &body.as_bytes()[..body.len() / 2],
+            &body.as_bytes()[body.len() / 2..],
+        ] {
+            client.write_all(fragment).unwrap();
+            thread::sleep(Duration::from_millis(20));
+        }
+    });
+    ready.send(()).unwrap();
+    assert_eq!(receive(&mut stream), expected);
+    assert_eq!(
+        stream.read_timeout().unwrap(),
+        Some(Duration::from_secs(10))
+    );
+    writer.join().unwrap();
 }
 
 #[derive(Clone, Copy)]

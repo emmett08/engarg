@@ -168,6 +168,8 @@ fn clause(system: &str) -> Result<&str> {
 }
 
 fn read_request(stream: &mut TcpStream) -> Result<(Value, usize)> {
+    // Accepted sockets can retain the listener's nonblocking mode on some hosts.
+    stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(Duration::from_secs(30)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
     let mut bytes = Vec::new();
@@ -214,6 +216,51 @@ fn read_request(stream: &mut TcpStream) -> Result<(Value, usize)> {
         serde_json::from_slice(&bytes[header_end..header_end + length])?,
         length,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_reader_handles_a_nonblocking_socket_and_fragmented_body() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (mut server, _) = listener.accept().unwrap();
+        server.set_nonblocking(true).unwrap();
+        assert_eq!(
+            server.peek(&mut [0_u8; 1]).unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        let expected = json!({"input":"A complete request."});
+        let body = serde_json::to_vec(&expected).unwrap();
+        let length = body.len();
+        let sender = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(10));
+            write!(
+                client,
+                "POST /v1/responses HTTP/1.1\r\nContent-Length: {length}\r\n"
+            )
+            .unwrap();
+            thread::sleep(Duration::from_millis(10));
+            client.write_all(b"\r\n").unwrap();
+            client.write_all(&body[..1]).unwrap();
+            thread::sleep(Duration::from_millis(10));
+            client.write_all(&body[1..]).unwrap();
+        });
+        let (actual, bytes) = read_request(&mut server).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(bytes, length);
+        assert_eq!(
+            server.read_timeout().unwrap(),
+            Some(Duration::from_secs(30))
+        );
+        assert_eq!(
+            server.write_timeout().unwrap(),
+            Some(Duration::from_secs(30))
+        );
+        sender.join().unwrap();
+    }
 }
 
 fn answer(message: &Value, fixture: &Fixture, state: &mut State) -> Result<Value> {

@@ -6,7 +6,7 @@ Version 0.6.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` | 174 passed, 0 failed, 4 external integration tests passed separately |
+| `cargo test --locked --all-targets` | 176 passed, 0 failed, 4 external integration tests passed separately |
 | `cargo build --locked --release` | Passed |
 | Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
 | Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
@@ -109,3 +109,5 @@ A full-suite run exposed the old HTTP fixture's direct-case-only schema detectio
 The plain view preserves authored values and technical syntax. Its punctuation and sentence-style requirements are generation instructions rather than a semantic rewriting or certification pass over historical reports. Custom investigation stubs and independent review contracts require an operator-provided adapter or admissible matching observations. One collector is selected per evidence need. A custom adapter can combine operations for a more complex investigation.
 
 The first 0.6.0 macOS CI run caught a registry-path test expectation using the `/var` spelling while the host correctly passed its canonical `/private/var` path. The assertion now compares the canonical path and the fixture explicitly supplies a symlink, exercising the same distinction on Linux. Production path resolution is unchanged.
+
+The push run at `40086848025` exposed a separate macOS socket-mode defect in the local HTTP double. Accepted connections could retain the nonblocking listener mode and return `WouldBlock` before the request arrived. Both the end-to-end fixture and the benchmark reader now explicitly select blocking mode before their existing read deadlines. Two regression tests force a nonblocking accepted socket and send fragmented requests after a delay. CI runs all targets so the benchmark regression executes on both operating systems. The provider, argument workflow, schemas and token-counting policy remain unchanged.
