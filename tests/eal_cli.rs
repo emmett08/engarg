@@ -678,3 +678,44 @@ mod unix_host {
         );
     }
 }
+
+#[test]
+fn operator_native_override_reuses_saved_argument_without_a_model_call() {
+    let directory = tempfile::tempdir().unwrap();
+    let report_path = directory.path().join("report.json");
+    planned_report(&report_path, false);
+    let before = std::fs::read(&report_path).unwrap();
+    let report: Value = serde_json::from_slice(&before).unwrap();
+    let need = report["argument"]["evidence_plan"][0]["id"].clone();
+    let plan = directory.path().join("bindings.json");
+    std::fs::write(&plan, json!([{"need_id":need,"tool_id":"kubernetes","arguments":[{"name":"kind","value":"Application"},{"name":"name","value":"pilot-sync"}],"unresolved_arguments":["inventory","resource","namespace"]}]).to_string()).unwrap();
+    let source = directory.path().join("case.eal");
+    let manifest = directory.path().join("case.json");
+    let result = cli()
+        .args(["eal", "export", "--input"])
+        .arg(&report_path)
+        .arg("--acquisition-plan")
+        .arg(&plan)
+        .arg("--output")
+        .arg(&source)
+        .arg("--manifest")
+        .arg(&manifest)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let bundle: Value = serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
+    assert_eq!(bundle["original_case"], report["argument"]);
+    assert_eq!(std::fs::read(report_path).unwrap(), before);
+    let tools = std::fs::read_to_string(directory.path().join("case.tools.toml")).unwrap();
+    assert!(tools.contains("[\"eal-collector\", \"kubernetes\""));
+    assert!(!tools.contains("kind = \"json_file\""));
+    assert!(
+        std::fs::read_to_string(source)
+            .unwrap()
+            .contains("\"namespace\":null")
+    );
+}

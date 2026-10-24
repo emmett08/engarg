@@ -77,10 +77,15 @@ fn every_need_has_a_fail_closed_stub_without_changing_bundle_fields() {
     assert_eq!(keys, legacy_keys);
     assert_eq!(bundle.obligations.len(), legacy.obligations.len());
     assert_eq!(
-        artifacts.tools_toml.matches("kind = \"json_file\"").count(),
+        artifacts.tools_toml.matches("kind = \"command\"").count(),
         case.evidence_plan.len() + 1
     );
-    assert!(!artifacts.tools_toml.contains("kind = \"command\""));
+    assert!(!artifacts.tools_toml.contains("kind = \"json_file\""));
+    assert!(
+        artifacts
+            .tools_toml
+            .contains("/REPLACE_WITH_CUSTOM_COLLECTOR")
+    );
     assert!(!bundle.source.contains("\"collected\":true"));
     assert!(!bundle.source.contains("\"accepted\":true"));
     assert_eq!(
@@ -147,7 +152,12 @@ fn resolved_known_inputs_use_fixed_adapters_and_unknown_inputs_remain_stubs() {
         .retain(|argument| argument.name != "context");
     plans[0].unresolved_arguments.push("context".into());
     let unresolved = export_with_plan(&request, &case, &plans).unwrap();
-    assert!(!unresolved.tools_toml.contains("kind = \"command\""));
+    assert!(
+        unresolved
+            .tools_toml
+            .contains("\"observe\", \"--tool\", \"kubectl_get\"")
+    );
+    assert!(!unresolved.tools_toml.contains("kind = \"json_file\""));
     assert!(
         unresolved
             .tools_toml
@@ -313,7 +323,7 @@ fn upstream_accepts_the_paired_registry_and_missing_stubs_supply_no_evidence() {
     let (request, case) = fixtures();
     let artifacts = export_with_plan(&request, &case, &[]).unwrap();
     let workspace = tempfile::tempdir().unwrap();
-    std::fs::write(workspace.path().join("tools.toml"), artifacts.tools_toml).unwrap();
+    std::fs::write(workspace.path().join("tools.toml"), &artifacts.tools_toml).unwrap();
     let bundle = artifacts.bundle;
     let (output, validation) = host_call(
         &binary,
@@ -390,6 +400,14 @@ fn upstream_accepts_the_paired_registry_and_missing_stubs_supply_no_evidence() {
         serde_json::to_vec(&imported).unwrap(),
     )
     .unwrap();
+    // Explicit operator substitution with a file collector is supported by EAL.
+    let mut registry = artifacts.tools_toml;
+    let start = registry.find(&format!("[tools.{tool}]\n")).unwrap();
+    let end = registry[start + 1..]
+        .find("[tools.")
+        .map_or(registry.len(), |offset| start + 1 + offset);
+    registry.replace_range(start..end, &format!("[tools.{tool}]\nkind = \"json_file\"\nversion = \"1\"\npath = \"observations/{evidence}.json\"\n\n"));
+    std::fs::write(workspace.path().join("tools.toml"), registry).unwrap();
     let (output, collected) = host_call(
         &binary,
         workspace.path(),

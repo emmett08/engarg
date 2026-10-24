@@ -168,6 +168,8 @@ fn collector_environment(
                     | "GH_HOST"
                     | "ENGARG_COLLECTOR_TOKEN"
                     | "ENGARG_COLLECTOR_ORIGIN"
+                    | "TEMPO_TOKEN"
+                    | "TEMPO_TENANT"
             )
         {
             return Err(invalid("unsupported collector-env name"));

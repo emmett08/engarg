@@ -58,6 +58,9 @@ pub struct ExportArgs {
     /// Optional new JSON bundle containing source, mapping, context and obligations.
     #[arg(long)]
     manifest: Option<PathBuf>,
+    /// JSON acquisition-plan entries overriding retained bindings by evidence need ID.
+    #[arg(long)]
+    acquisition_plan: Option<PathBuf>,
     /// Companion tools registry. Defaults beside output, or beside input for stdout.
     #[arg(long)]
     tools_output: Option<PathBuf>,
@@ -87,7 +90,7 @@ pub struct HostOptions {
     #[arg(long, conflicts_with = "url")]
     tools: Option<PathBuf>,
     /// Explicit local collector credential/configuration variable NAME. Repeat as needed.
-    /// Supports KUBECONFIG, GH_TOKEN, GH_HOST, ENGARG_COLLECTOR_TOKEN and ENGARG_COLLECTOR_ORIGIN.
+    /// Supports KUBECONFIG, GH_TOKEN, GH_HOST, ENGARG_COLLECTOR_TOKEN, ENGARG_COLLECTOR_ORIGIN, TEMPO_TOKEN and TEMPO_TENANT.
     #[arg(long, requires = "tools")]
     collector_env: Vec<String>,
     /// Existing Streamable HTTP endpoint; omit to use the host's stdio transport.
@@ -447,7 +450,11 @@ fn export_destinations(args: &ExportArgs) -> Result<Vec<(PathBuf, ExportArtifact
 fn execute_export(args: ExportArgs) -> Result<(), Error> {
     let destinations = export_destinations(&args)?;
     let report: CanonicalReport = super::read_json(&args.input, MAX_INPUT_BYTES)?;
-    let plan = retained_plan(&report)?;
+    let mut plan = retained_plan(&report)?;
+    if let Some(path) = args.acquisition_plan {
+        let overrides: Vec<AcquisitionPlan> = super::read_json(&path, MAX_INPUT_BYTES)?;
+        plan = acquisition::override_plans(&report.argument, &plan, overrides)?;
+    }
     let artifacts = export_with_plan(&report.request, &report.argument, &plan)?;
     let bundle = artifacts.bundle;
     let manifest_bytes = json_bytes(&bundle)?;

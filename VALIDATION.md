@@ -1,12 +1,12 @@
 # Verification record
 
-Version 0.6.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
+Version 0.7.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked --all-targets` | 176 passed, 0 failed, 4 external integration tests passed separately |
+| `cargo test --locked --all-targets` | 180 passed, 0 failed, 4 external integration tests passed separately |
 | `cargo build --locked --release` | Passed |
 | Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
 | Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
@@ -20,7 +20,7 @@ Version 0.6.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Shared nodes, explicit compositions and depth limits | Passed |
 | HTML escaping and visible collapsed qualifications | Passed by structural tests |
 | Browser visual inspection | Not executed: headless-browser download returned an invalid archive |
-| EAL/3 compiler and evaluator compatibility | Passed against actual eal-mcp `d311d5a4f9e294ba3228127bc5210b48c5de3a12`, including every generated registry variant |
+| EAL/3 compiler and evaluator compatibility | Passed against actual eal-mcp `48fe2186974f2281a45914c3b41e1cdcb16a5147`, including every generated registry variant |
 | Real EAL host and MCP server | All 4 external tests passed separately with the actual host and companion binaries |
 | EAL assumption-to-objection propagation | Passed against the actual evaluator using isolated synthetic observation fixtures |
 | Release CLI with real host/server | Retained 0.5.0 verification: export, source/bundle validation, plan, assess, explain, packet, describe and invalid-source exit checks passed |
@@ -111,3 +111,13 @@ The plain view preserves authored values and technical syntax. Its punctuation a
 The first 0.6.0 macOS CI run caught a registry-path test expectation using the `/var` spelling while the host correctly passed its canonical `/private/var` path. The assertion now compares the canonical path and the fixture explicitly supplies a symlink, exercising the same distinction on Linux. Production path resolution is unchanged.
 
 The push run at `40086848025` exposed a separate macOS socket-mode defect in the local HTTP double. Accepted connections could retain the nonblocking listener mode and return `WouldBlock` before the request arrived. Both the end-to-end fixture and the benchmark reader now explicitly select blocking mode before their existing read deadlines. Two regression tests force a nonblocking accepted socket and send fragmented requests after a delay. CI runs all targets so the benchmark regression executes on both operating systems. The provider, argument workflow, schemas and token-counting policy remain unchanged.
+
+Version 0.7.0 starts from EngArg `34b360823845b88e03b2a2b83f60bb6b4627e9c3` and verifies native collection against eal-mcp `48fe2186974f2281a45914c3b41e1cdcb16a5147`. The supplied example contained 33 custom acquisition choices and one unresolved Kubernetes choice. The previous exporter rendered every choice as a missing-file import. Export now preserves known commands and emits explicit custom command implementation stubs. The caller must still configure executable paths and unresolved scope before collection.
+
+`EXTRACTED` `native_collectors` owns the declarative native contract table, strict source input projection and native command templates. `collector_registry` owns binding selection and separates native, generic and custom renderers. `RETAINED` acquisition validation enforces exact evidence-need binding and now checks native time arguments. The EAL builder retains ownership of graph projection and obligation order. The CLI boundary reads bounded operator overrides and delegates merge/validation to acquisition policy. No new production crate, model call, arbitrary shell execution or canonical case field was introduced. Rust 2024 and Rust 1.99.1 remain the EngArg profile. The current EAL tools were built with their own pinned Rust 1.90.0 profile.
+
+The native integration test invokes the real host, server, collector and command supervisor. Local CLI doubles simulate a successful empty Kubernetes response and an exact GitHub commit response. A loopback HTTP server simulates an empty Tempo search. Native records are collected successfully and their acquisition evidence is available. Kubernetes retains `all_present = false`. Tempo retains `all_matched = false`, `search_exhaustive = false` and unavailable negative inference. Each engineering claim remains unsupported while its independent review obligations are open. No production cluster, GitHub API or Tempo service was contacted.
+
+Operator overrides are checked for exact target identity and duplicate entries. The CLI test verifies that re-exporting a saved report retains its canonical argument and source report bytes. Request and case schema outputs remain byte-identical to 0.6.0. The internal planning catalogue expands to native Kubernetes, GitHub and Tempo contracts. These additions increase planning context, with no token-cost reduction claimed for this feature.
+
+Native Tempo credentials stay opt-in at the operator registry boundary. The generated native command contains no token or tenant flags until an operator approves its exact endpoint. Generic HTTP collection retains its explicit HTTPS credential-origin check. Scope and configuration placeholders remain visible and fail acquisition before any missing observation can become accepted evidence.
