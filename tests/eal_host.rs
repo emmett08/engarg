@@ -70,8 +70,10 @@ async fn preserves_exact_json_and_passes_explicit_server_configuration() {
     let mut config = mock(&directory, &script);
     let database = directory.path().join("assessment.sqlite");
     config.database = Some(database.clone());
-    let registry = directory.path().join("tools.toml");
-    fs::write(&registry, "").unwrap();
+    let registry_file = directory.path().join("tools.toml");
+    fs::write(&registry_file, "").unwrap();
+    let registry = directory.path().join("tools-link.toml");
+    std::os::unix::fs::symlink(&registry_file, &registry).unwrap();
     config.registry = Some(registry.clone());
     let request =
         json!({"operation":"validate", "source":"argument Test {}", "test_number": number});
@@ -82,6 +84,7 @@ async fn preserves_exact_json_and_passes_explicit_server_configuration() {
     let actual_args = fs::read_to_string(args).unwrap();
     let actual_args: Vec<_> = actual_args.lines().collect();
     let canonical_workspace = config.workspace.canonicalize().unwrap();
+    let canonical_registry = registry.canonicalize().unwrap();
     assert_eq!(
         actual_args,
         vec![
@@ -96,7 +99,7 @@ async fn preserves_exact_json_and_passes_explicit_server_configuration() {
             "--database",
             database.to_str().unwrap(),
             "--registry",
-            registry.to_str().unwrap(),
+            canonical_registry.to_str().unwrap(),
         ]
     );
 }
