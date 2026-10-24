@@ -1,0 +1,24 @@
+{
+  "schema": "engarg.toolchain/1",
+  "language": "python",
+  "docker": "docker",
+  "image": "python:3.13-slim",
+  "build_argv": [
+    "python3",
+    "-I",
+    "-B",
+    "-c",
+    "import ast, pathlib; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+  ],
+  "run_argv": [
+    "python3",
+    "-I",
+    "-B",
+    "/src/collector.py"
+  ],
+  "inherit_env": [],
+  "runtime_network": "none",
+  "timeout_seconds": 30,
+  "memory_mb": 128,
+  "output_bytes": 1048576
+}

@@ -19,6 +19,7 @@ pub mod provider;
 pub mod render;
 pub mod retained_collectors;
 pub mod scoped_collectors;
+pub mod tooling;
 pub mod trace_inspection;
 
 mod argument_depth;

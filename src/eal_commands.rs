@@ -26,6 +26,11 @@ const MAX_INPUT_BYTES: usize = 16 * 1_048_576;
 
 #[derive(Subcommand)]
 pub enum EalCommand {
+    /// Implement missing collectors from a saved analysis using frozen fixtures.
+    Implement(super::tooling_commands::ImplementArgs),
+    /// Internal launcher for a verified generated collector package.
+    #[command(hide = true)]
+    ToolRun(super::tooling_commands::ToolRunArgs),
     /// Prepare private collector inputs and executable bindings without collecting evidence.
     Prepare(PrepareArgs),
     /// Export a saved canonical report as EAL/3 source or a loss-preserving bundle.
@@ -454,6 +459,82 @@ fn retained_plan(report: &CanonicalReport) -> Result<Vec<AcquisitionPlan>, Error
     Ok(planned.acquisition_plan)
 }
 
+fn merge_catalogues(
+    left: Option<engarg::collector_catalogue::CollectorCatalogue>,
+    right: engarg::collector_catalogue::CollectorCatalogue,
+) -> Result<engarg::collector_catalogue::CollectorCatalogue, Error> {
+    let mut descriptors = std::collections::BTreeMap::<String, Value>::new();
+    for catalogue in left.into_iter().chain(std::iter::once(right)) {
+        for descriptor in catalogue.collectors.iter() {
+            let value = serde_json::to_value(descriptor)?;
+            if let Some(previous) = descriptors.insert(descriptor.id.clone(), value.clone())
+                && previous != value
+            {
+                return Err(Error::InvalidInput(format!(
+                    "conflicting collector descriptor {}",
+                    descriptor.id,
+                )));
+            }
+        }
+    }
+    engarg::collector_catalogue::CollectorCatalogue::from_json(&serde_json::to_vec(&json!({
+        "schema": engarg::collector_catalogue::SCHEMA,
+        "acquisition_contract": "eal.acquisition/1",
+        "collectors": descriptors.into_values().collect::<Vec<_>>(),
+    }))?)
+}
+
+/// Apply only registrations whose retained source and observed test receipt
+/// still verify. Source, context and TOML are then projected in one normal pass.
+fn export_inputs(
+    input: &Path,
+    selected: Option<&Path>,
+) -> Result<
+    (
+        CanonicalReport,
+        Vec<AcquisitionPlan>,
+        Option<engarg::collector_catalogue::CollectorCatalogue>,
+    ),
+    Error,
+> {
+    let raw: Value = super::read_json(input, MAX_INPUT_BYTES)?;
+    let registration = engarg::tooling::registration(&raw)?;
+    let canonical = if raw.get("request").is_some() {
+        raw.clone()
+    } else if registration.is_some()
+        && raw.get("original_request").is_some()
+        && raw.get("original_case").is_some()
+    {
+        // A saved EAL bundle has no argument-call transcript to fabricate.
+        json!({
+            "request": raw["original_request"],
+            "argument": raw["original_case"],
+            "transcript": [],
+            "run_config": null,
+        })
+    } else {
+        raw.clone()
+    };
+    let report: CanonicalReport = serde_json::from_value(canonical)?;
+    let catalogue = selected_catalogue(selected, &report)?;
+    match registration {
+        None => {
+            let plan = retained_plan(&report)?;
+            Ok((report, plan, catalogue))
+        }
+        Some(registration) => {
+            let catalogue = merge_catalogues(catalogue, registration.catalogue)?;
+            let plan = acquisition::override_plans_with_catalogue(
+                &report.argument,
+                &registration.original_plans,
+                registration.overrides,
+                Some(&catalogue),
+            )?;
+            Ok((report, plan, Some(catalogue)))
+        }
+    }
+}
+
 enum ExportArtifact {
     Primary,
     Manifest,
@@ -505,9 +586,8 @@ fn export_destinations(args: &ExportArgs) -> Result<Vec<(PathBuf, ExportArtifact
 
 fn execute_export(args: ExportArgs) -> Result<(), Error> {
     let destinations = export_destinations(&args)?;
-    let report: CanonicalReport = super::read_json(&args.input, MAX_INPUT_BYTES)?;
-    let mut plan = retained_plan(&report)?;
-    let catalogue = selected_catalogue(args.collector_catalogue.as_deref(), &report)?;
+    let (report, mut plan, catalogue) =
+        export_inputs(&args.input, args.collector_catalogue.as_deref())?;
     if let Some(path) = args.acquisition_plan {
         let overrides: Vec<AcquisitionPlan> = super::read_json(&path, MAX_INPUT_BYTES)?;
         plan = acquisition::override_plans_with_catalogue(
@@ -618,10 +698,11 @@ async fn host_operation(destination: HostOutput, request: Value) -> Result<(), E
 
 pub async fn execute(command: EalCommand) -> Result<(), Error> {
     match command {
+        EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
+        EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
         EalCommand::Prepare(args) => {
-            let report: CanonicalReport = super::read_json(&args.input, MAX_INPUT_BYTES)?;
-            let plan = retained_plan(&report)?;
-            let catalogue = selected_catalogue(args.collector_catalogue.as_deref(), &report)?;
+            let (report, plan, catalogue) =
+                export_inputs(&args.input, args.collector_catalogue.as_deref())?;
             if args.output_dir.exists() {
                 return Err(Error::InvalidInput(
                     "prepare output directory already exists".into(),
@@ -780,5 +861,26 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             };
             stdout(&json_bytes(&response)?)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merged_catalogue_preserves_runtime_contract_and_identical_descriptors() {
+        let bytes = include_bytes!("../contracts/collectors/native.json");
+        let original = engarg::collector_catalogue::CollectorCatalogue::from_json(bytes).unwrap();
+        let merged = merge_catalogues(Some(original.clone()), original.clone()).unwrap();
+        let actual = serde_json::to_value(&merged).unwrap();
+        let expected = serde_json::to_value(&original).unwrap();
+        assert_eq!(actual["schema"], expected["schema"]);
+        assert_eq!(
+            actual["acquisition_contract"],
+            expected["acquisition_contract"]
+        );
+        assert_eq!(merged.collectors.len(), original.collectors.len());
+        merged.validate().unwrap();
     }
 }

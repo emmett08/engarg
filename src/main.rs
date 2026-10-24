@@ -19,6 +19,7 @@ use std::{
 };
 
 mod eal_commands;
+mod tooling_commands;
 
 #[derive(Parser)]
 #[command(
@@ -147,6 +148,11 @@ struct Analyse {
     /// Operator-selected versioned collector catalogue, for example eal-collector describe output.
     #[arg(long, conflicts_with = "no_tool_planning")]
     collector_catalogue: Option<PathBuf>,
+    /// Generate and verify missing collector implementations after argument planning.
+    #[arg(long, conflicts_with = "no_tool_planning")]
+    implement_tools: bool,
+    #[command(flatten)]
+    tooling: tooling_commands::ToolOptions,
     #[command(flatten)]
     output: Output,
 }
@@ -336,6 +342,13 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
             "output and audit require different paths".into(),
         ));
     }
+    if args.implement_tools
+        && (!matches!(args.output.format, Format::Json) || args.output.output.is_none())
+    {
+        return Err(Error::InvalidInput(
+            "--implement-tools requires --format json and --output".into(),
+        ));
+    }
     let request: Request = match (args.source.claim, args.source.input) {
         (Some(claim), None) => Request {
             claim,
@@ -350,6 +363,13 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         }
     };
     validate_request(&request).map_err(|v| Error::InvalidInput(v.join("; ")))?;
+    // Reject inactive implementation flags and admit the isolated runner before
+    // reading credentials or making paid argument calls.
+    let tooling_session = args.tooling.admit(
+        args.implement_tools,
+        args.max_input_bytes,
+        args.max_response_bytes,
+    )?;
     let mut role_models = HashMap::new();
     for text in args.role_model {
         let (role, model) = text
@@ -413,26 +433,29 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         }
         Ok(())
     });
-    let model = HttpModel::new_with_transport(
-        HttpConfig {
-            endpoint: args.endpoint,
-            api_key: key,
-            model: args.model,
-            service_tier: args.service_tier,
-            reasoning_effort: args.reasoning_effort,
-            role_models,
-            style: args.api,
-            timeout: Duration::from_secs(args.request_timeout_secs),
-            max_output_tokens: args.max_output_tokens,
-            // Provider envelopes also contain metadata. The content itself has a separate limit.
-            max_body_bytes: args
-                .max_response_bytes
-                .saturating_mul(2)
-                .saturating_add(65536),
-        },
-        transport_config.clone(),
-        http_observer,
-    )?;
+    let http_config = || HttpConfig {
+        endpoint: args.endpoint.clone(),
+        api_key: key.clone(),
+        model: args.model.clone(),
+        service_tier: args.service_tier.clone(),
+        reasoning_effort: args.reasoning_effort.clone(),
+        role_models: role_models.clone(),
+        style: args.api,
+        timeout: Duration::from_secs(args.request_timeout_secs),
+        max_output_tokens: args.max_output_tokens,
+        max_body_bytes: args
+            .max_response_bytes
+            .saturating_mul(2)
+            .saturating_add(65536),
+    };
+    let tooling_model = tooling_session
+        .as_ref()
+        .map(|_| {
+            tooling_commands::provider::independent_model(http_config(), transport_config.clone())
+        })
+        .transpose()?;
+    let model =
+        HttpModel::new_with_transport(http_config(), transport_config.clone(), http_observer)?;
     *audit
         .lock()
         .map_err(|_| Error::Provider("audit lock poisoned".into()))? = args
@@ -469,7 +492,43 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         Ok(mut report) => {
             report.provider_config = Some(provider_config);
             report.limitations.push(format!("HTTP transport allows {} retries per logical call with a maximum retry delay of {} seconds and {} concurrent request sequences. HTTP attempts have a separate bound from the logical model-call budget.", transport_config.max_http_retries,transport_config.retry_max_delay_secs,transport_config.max_concurrent_requests));
-            let content = report_content(&args.output, &request, &report.argument, &report)?;
+            let original = serde_json::to_value(&report)?;
+            let final_report = match (&tooling_session, &tooling_model) {
+                (Some(session), Some(model)) => {
+                    match tooling_commands::run_stage(
+                        session,
+                        model,
+                        &original,
+                        args.tooling.deadline(),
+                    )
+                    .await
+                    {
+                        Ok(value) => value,
+                        Err(error) => {
+                            // A coding failure still leaves the completed canonical
+                            // argument at the caller's requested normal output path.
+                            let content = report_content(
+                                &args.output,
+                                &request,
+                                &report.argument,
+                                &original,
+                            )?;
+                            emit(&args.output, content)?;
+                            audit_event(
+                                &audit,
+                                &json!({
+                                    "event": "failure",
+                                    "stage": "tool_implementation",
+                                    "error": error.to_string()
+                                }),
+                            )?;
+                            return Err(error);
+                        }
+                    }
+                }
+                _ => original,
+            };
+            let content = report_content(&args.output, &request, &report.argument, &final_report)?;
             match emit(&args.output, content) {
                 Ok(()) => audit_event(
                     &audit,
