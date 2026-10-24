@@ -302,6 +302,31 @@ The argument itself is a directed acyclic graph. Warrants connect jointly requir
 
 A full mesh is an alternative to investigate if evaluation demonstrates a benefit. Additional discussion can spread shared errors and increase cost. The fixed workflow bounds that exposure and preserves initial dissent. The choice is an engineering hypothesis to test, not a proven optimum.
 
+## Provider rate limits and recovery
+
+The CLI retries HTTP 429 responses within a finite transport allowance. The default is three extra attempts with a maximum delay of 120 seconds and three concurrent HTTP sequences. A valid Retry-After delay is a minimum. If that minimum exceeds the configured delay limit or remaining call deadline, the request stops. Missing or invalid hints use exponential backoff with jitter. Recognised quota, credit and spend-limit codes stop immediately with an actionable diagnostic. See [OpenAI rate limits](https://developers.openai.com/api/docs/guides/rate-limits) and [error codes](https://developers.openai.com/api/docs/guides/error-codes).
+
+For a large hybrid argument, pace the independent specialists with one concurrent request:
+
+```sh
+engarg analyse --claim 'YOUR CLAIM' \
+  --model gpt-6.1-sol --service-tier ultrafast --reasoning-effort high \
+  --api responses --api-key-env OPENAI_API_KEY \
+  --mode hybrid --argument-depth 2 --max-calls 7 --max-repairs 1 \
+  --http-retries 6 --retry-max-delay-secs 120 --max-concurrent-requests 1 \
+  --request-timeout-secs 1800 --timeout-secs 10800 \
+  --max-output-tokens 65536 --max-response-bytes 1048576 \
+  --format json --audit run.audit.jsonl --output run.json
+```
+
+Each call's deadline includes time waiting for admission, all HTTP attempts, response reads and retry waits. The run deadline and cancellation still bound the whole analysis. A permit remains held during backoff, so one admitted sequence occupies one concurrency slot until it completes or stops. Serial execution preserves the specialists' separate inputs. Select a sufficiently long call deadline when serialising slow calls.
+
+`--max-calls` bounds logical calls, including case repairs. Physical HTTP attempts have a separate ceiling of `max-calls × (1 + http-retries)`. For seven logical calls and six retries that ceiling is 49 attempts. Actual attempts stop earlier on success, permanent errors, exhausted time or cancellation. Failed requests can still count towards provider rate limits. These controls preserve the requested model, service tier, reasoning effort and output allowance.
+
+Only explicit 429 responses are retried. Network failures and other HTTP statuses stop. Response truncation, refusals and malformed content also stop. `--http-retries 0` selects single-attempt transport. Existing library callers using `HttpModel::new` retain that behaviour. Library callers can opt into the new policy with `HttpModel::new_with_transport`.
+
+The audit starts with a typed `transport_config`. Each received HTTP status has a credential-free `http_attempt` receipt and 429 decisions record their reason and any retry delay. Retry decisions also appear on stderr. Audit failures stop transport before another request. Remote error messages and arbitrary codes stay private. The saved report retains its existing schema and describes the transport settings in its limitations.
+
 ## Checks and resource bounds
 
 New model runs must return represented grounds and an attached warrant concluding the current claim or stronger target. A bare assessment and investigation list fails construction checks. Saved assessment-only cases remain available through `validate` and `render`. These structural checks establish the presence of reasoning, while its substantive adequacy remains a review question.
@@ -310,7 +335,7 @@ Run checks reject unknown or duplicated identifiers, broken references, cyclic i
 
 The model still judges relevance, materiality, adequacy of a warrant, whether a revision answers an objection, and whether proposed acceptance criteria are suitable. An internally consistent output can contain a mistaken argument. Source verification, experiment execution and proof checking require separately identified tools or review. There is no calibrated confidence score and no vote-to-truth rule.
 
-Defaults are six calls, no repair calls, no generation-depth limit, 1 MiB per encoded agent request, 128 KiB per returned model content, 10,000 output tokens per call, 120 seconds per HTTP request and 480 seconds per run. HTTP envelopes have their own byte cap. These are call, byte, time and output-token limits, not a guaranteed monetary cost cap. Input token costs depend on the chosen model. Repairs require an explicit allowance and sufficient total call budget. There are no transport retries or unbounded debate rounds. Cancellation stops local work; a provider can still complete and bill an already submitted request.
+Defaults are six calls, no repair calls, no generation-depth limit, 1 MiB per encoded agent request, 128 KiB per returned model content, 10,000 output tokens per call, 120 seconds per logical provider call and 480 seconds per run. HTTP envelopes have their own byte cap. These are call, byte, time and output-token limits, not a guaranteed monetary cost cap. Input token costs depend on the chosen model. Repairs require an explicit allowance and sufficient total call budget. The CLI permits three additional HTTP attempts for retryable 429 responses by default. Case repairs and HTTP retries have separate allowances. Cancellation stops local work; a provider can still complete and bill an already submitted request.
 
 Use `--audit PATH` to retain completed calls even when a later response is invalid or the deadline expires. Oversized model content is replaced by size and digest metadata in that audit. Failed HTTP attempts have no fabricated completion or usage count. Output files use exclusive creation and permissions `0600` on Unix. Reports contain your evidence and model assessments, so apply your normal data-handling policy to them. They contain no API credential from the adapter. Evidence prompts cannot invoke tools or change endpoint configuration, although prompt instructions alone do not guarantee resistance to semantic injection.
 

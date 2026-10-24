@@ -1,12 +1,12 @@
 # Verification record
 
-Version 0.7.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
+Version 0.8.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked --all-targets` | 180 passed, 0 failed, 4 external integration tests passed separately |
+| `cargo test --locked --all-targets` | 195 passed, 0 failed, 4 external integration tests passed separately |
 | `cargo build --locked --release` | Passed |
 | Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
 | Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
@@ -29,7 +29,7 @@ Version 0.7.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Reasoning configuration and receipts | CLI overrides environment, environment-only configuration works, requested/reported values remain separate, and old reports deserialize with unknown effort |
 | Release reasoning-effort workflow | Single-call release CLI passed against a local HTTP double, retaining requested high and provider-reported medium in its audit and report |
 | Reported missing `auditor-5` plan | Reproduced in hybrid and single fixtures; exact diagnostic reaches adjudication and explicit bounded repair; corrected plan must target the objection directly |
-| Repair integrity and bounds | Disabled by default; allowance reserved before calls; success uses no unused allowance; exhaustion, deletion and materiality downgrade fail; provider failures never retry |
+| Repair integrity and bounds | Disabled by default; allowance reserved before calls; success uses no unused allowance; exhaustion, deletion and materiality downgrade fail; the repair loop does not retry provider failures |
 | Generation depth | Depth 1 rejects a two-layer fixture; depth 2 accepts it with unchanged conditional status; every role receives the limit; longest and shared shortest routes checked |
 | Display depth | Outline, prose and HTML limit detailed claim levels without changing canonical JSON; qualifiers and consequential conditions remain visible; existing indentation-only behaviour passes |
 | Depth/repair release workflow | Real release executable completed a seven-call hybrid run against a local HTTP double, repaired the targeted gap, retained depth/settings/receipts and rendered three limited views without modifying the report |
@@ -121,3 +121,11 @@ The native integration test invokes the real host, server, collector and command
 Operator overrides are checked for exact target identity and duplicate entries. The CLI test verifies that re-exporting a saved report retains its canonical argument and source report bytes. Request and case schema outputs remain byte-identical to 0.6.0. The internal planning catalogue expands to native Kubernetes, GitHub and Tempo contracts. These additions increase planning context, with no token-cost reduction claimed for this feature.
 
 Native Tempo credentials stay opt-in at the operator registry boundary. The generated native command contains no token or tenant flags until an operator approves its exact endpoint. Generic HTTP collection retains its explicit HTTPS credential-origin check. Scope and configuration placeholders remain visible and fail acquisition before any missing observation can become accepted evidence.
+
+Version 0.8.0 starts from `b72a958c8b11f29cdd5bc2dd4d02cd7838aea155`. Its transport policy follows the current official OpenAI rate-limit and error-code guidance. The previous CLI stopped every 429 response immediately and discarded the distinction between throttling and permanent credit or quota failures. CLI recovery now has explicit count, delay, concurrency and total-call bounds. The no-retry `HttpModel::new` constructor remains available for existing consumers.
+
+`EXTRACTED` `provider/http` owns bounded HTTP attempts, admission, receipts and response-body limits. `provider/rate_limit` owns safe error classification and retry timing. `RETAINED` the model adapter owns the wire format and completion decoder. The CLI composition root configures transport and audit writing while the engine retains its existing call and repair policies. No case/request/report record field or model request body changed. HTTP attempts are additional transport operations and their finite upper bound is documented separately from logical calls. New settings appear in audit start metadata and existing report limitations. Request timeouts now include admission and backoff intentionally.
+
+The new production dependency is `httpdate 1.0.3`, verified against the crates.io index, for standard HTTP-date Retry-After parsing. Jitter uses the standard library's independently seeded hasher and a sequence counter. No random-number crate or provider SDK was added. Reqwest's own retries and redirects remain disabled, avoiding nested attempt multiplication and credential forwarding.
+
+Two policy tests and thirteen HTTP/CLI integration tests exercise 429 recovery, minimum delay, delay overflow and date hints, cap/deadline refusal, quota/type/code precedence, exact repeated payloads, finite exhaustion, audit failure, cancellation while waiting or queued, and concurrency. The real CLI test recovers from one 429 with two physical attempts under `--max-calls 1`, produces exactly one canonical completion and retains the configured transport policy plus both HTTP receipts. Sensitive error text stays outside diagnostics and audit metadata. No live provider request was performed. Rust 2024, Rust 1.99.1, the unsafe prohibition, rustfmt and all-target Clippy remain governing.

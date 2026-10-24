@@ -1,7 +1,10 @@
-//! Transport adapter: no orchestration, evidence evaluation or implicit retries.
+//! Model wire formats with a separate bounded HTTP transport.
 
 use crate::Error;
-use reqwest::{Client, Url};
+use reqwest::Url;
+mod http;
+mod rate_limit;
+pub use http::{HttpEvent, HttpObserver, TransportConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::HashMap, fmt, future::Future, net::IpAddr, str::FromStr, time::Duration};
@@ -97,16 +100,13 @@ pub enum ApiStyle {
 
 /// Secrets are intentionally excluded from Debug and report serialisation.
 pub struct HttpModel {
-    client: Client,
-    endpoint: Url,
-    api_key: Option<String>,
+    http: http::HttpTransport,
     model: String,
     role_models: HashMap<Role, String>,
     service_tier: Option<String>,
     reasoning_effort: Option<String>,
     style: ApiStyle,
     max_output_tokens: u32,
-    max_body_bytes: usize,
 }
 
 pub struct HttpConfig {
@@ -163,6 +163,18 @@ fn validate_option_identifier(name: &str, value: Option<&str>) -> Result<(), Err
 
 impl HttpModel {
     pub fn new(config: HttpConfig) -> Result<Self, Error> {
+        Self::new_with_transport(
+            config,
+            TransportConfig::disabled(),
+            std::sync::Arc::new(|_| Ok(())),
+        )
+    }
+
+    pub fn new_with_transport(
+        config: HttpConfig,
+        transport: TransportConfig,
+        observer: HttpObserver,
+    ) -> Result<Self, Error> {
         let endpoint = validate_endpoint(&config.endpoint)?;
         validate_option_identifier("service tier", config.service_tier.as_deref())?;
         validate_option_identifier("reasoning effort", config.reasoning_effort.as_deref())?;
@@ -176,25 +188,22 @@ impl HttpModel {
                 "transport limits must be positive".into(),
             ));
         }
-        let client = Client::builder()
-            .retry(reqwest::retry::never())
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(config.timeout)
-            .connect_timeout(Duration::from_secs(15))
-            .user_agent(concat!("engarg/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|_| Error::Provider("could not construct TLS client".into()))?;
-        Ok(Self {
-            client,
+        let http = http::HttpTransport::new(
             endpoint,
-            api_key: config.api_key,
+            config.api_key,
+            config.timeout,
+            config.max_body_bytes,
+            transport,
+            observer,
+        )?;
+        Ok(Self {
+            http,
             model: config.model,
             role_models: config.role_models,
             service_tier: config.service_tier,
             reasoning_effort: config.reasoning_effort,
             style: config.style,
             max_output_tokens: config.max_output_tokens,
-            max_body_bytes: config.max_body_bytes,
         })
     }
 
@@ -304,46 +313,7 @@ fn decode(value: Value, style: ApiStyle, fallback_model: &str) -> Result<Complet
 impl LanguageModel for HttpModel {
     async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
         let body = self.body(&request);
-        let mut builder = self.client.post(self.endpoint.clone()).json(&body);
-        if let Some(key) = &self.api_key {
-            builder = builder.bearer_auth(key);
-        }
-        let mut response = builder.send().await.map_err(|e| {
-            Error::Provider(
-                if e.is_timeout() {
-                    "request timed out"
-                } else {
-                    "network request failed"
-                }
-                .into(),
-            )
-        })?;
-        if !response.status().is_success() {
-            // Deliberately omit remote error bodies: they may echo confidential inputs.
-            return Err(Error::Provider(format!(
-                "HTTP {}; no automatic retry",
-                response.status()
-            )));
-        }
-        if response
-            .content_length()
-            .is_some_and(|n| n > self.max_body_bytes as u64)
-        {
-            return Err(Error::Budget("HTTP response exceeds byte limit".into()));
-        }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|_| Error::Provider("response read failed".into()))?
-        {
-            if bytes.len().saturating_add(chunk.len()) > self.max_body_bytes {
-                return Err(Error::Budget("HTTP response exceeds byte limit".into()));
-            }
-            bytes.extend_from_slice(&chunk);
-        }
-        let value: Value = serde_json::from_slice(&bytes)
-            .map_err(|_| Error::Provider("response was not JSON".into()))?;
+        let value = self.http.post(body, request.role).await?;
         let model = self.role_models.get(&request.role).unwrap_or(&self.model);
         decode(value, self.style, model)
     }

@@ -285,7 +285,16 @@ fn run_configured(
         .lines()
         .map(|l| serde_json::from_str(l).unwrap())
         .collect();
-    assert_eq!(events.len(), calls + 2);
+    assert_eq!(events.len(), 2 * calls + 2);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event["event"] == "http_attempt"
+                && event["record"]["kind"] == "response"
+                && event["record"]["status"] == 200)
+            .count(),
+        calls
+    );
     assert_eq!(events[0]["event"], "start");
     assert_eq!(
         events.iter().filter(|e| e["event"] == "completion").count(),
