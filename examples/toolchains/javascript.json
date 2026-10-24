@@ -1,0 +1,20 @@
+{
+  "schema": "engarg.toolchain/1",
+  "language": "javascript",
+  "docker": "docker",
+  "image": "node:24-slim",
+  "build_argv": [
+    "node",
+    "--check",
+    "/src/collector.mjs"
+  ],
+  "run_argv": [
+    "node",
+    "/src/collector.mjs"
+  ],
+  "inherit_env": [],
+  "runtime_network": "none",
+  "timeout_seconds": 30,
+  "memory_mb": 128,
+  "output_bytes": 1048576
+}

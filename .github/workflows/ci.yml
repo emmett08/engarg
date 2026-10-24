@@ -28,6 +28,12 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked --all-targets
+      - name: Exercise generated collectors in isolated language toolchains
+        if: runner.os == 'Linux'
+        run: |
+          docker pull python:3.13-slim
+          docker pull node:24-slim
+          cargo test --locked --test tooling_docker -- --include-ignored
       - run: cargo build --locked --release
 
   eal-compatibility:
