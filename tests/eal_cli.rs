@@ -16,6 +16,66 @@ fn report(path: &Path) {
     std::fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
 }
 
+fn planned_report(path: &Path, mismatch: bool) {
+    report(path);
+    let mut report: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let mut argument = report["argument"].clone();
+    let plans: Vec<_> = argument["evidence_plan"].as_array().unwrap().iter().enumerate().map(|(index, need)| {
+        if index == 0 {
+            json!({"need_id":need["id"],"tool_id":"http_json_get","arguments":[{"name":"url","value":"https://example.test/observations"}],"unresolved_arguments":[]})
+        } else {
+            json!({"need_id":need["id"],"tool_id":"custom","arguments":[],"unresolved_arguments":["adapter"]})
+        }
+    }).collect();
+    if mismatch {
+        argument["adjudication"] = json!("A different retained argument.");
+    }
+    let content = json!({"argument":argument,"acquisition_plan":plans}).to_string();
+    report["transcript"] = json!([{
+        "role":"adjudicator", "prompt":{"role":"adjudicator","system":"fixture","user":"{}","schema":{}},
+        "response":{"content":content,"model":"fixture","input_tokens":null,"output_tokens":null,"request_id":null,"service_tier":null,"reasoning_effort":null},
+        "response_content_bytes":content.len(),"response_content_sha256":"fixture","response_content_omitted":false,"elapsed_ms":0
+    }]);
+    std::fs::write(path, serde_json::to_vec(&report).unwrap()).unwrap();
+}
+
+#[test]
+fn export_uses_the_final_retained_plan_and_rejects_a_different_argument() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("planned.json");
+    let output = directory.path().join("planned.eal");
+    planned_report(&input, true);
+    let result = cli()
+        .args(["eal", "export", "--input"])
+        .arg(&input)
+        .arg("--output")
+        .arg(&output)
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(!output.exists());
+    assert!(!directory.path().join("planned.tools.toml").exists());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("different canonical argument"));
+    planned_report(&input, false);
+    let result = cli()
+        .args(["eal", "export", "--input"])
+        .arg(&input)
+        .arg("--output")
+        .arg(&output)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let source = std::fs::read_to_string(&output).unwrap();
+    let tools = std::fs::read_to_string(directory.path().join("planned.tools.toml")).unwrap();
+    assert!(source.contains("https://example.test/observations"));
+    assert!(tools.contains("http_json_get"));
+    assert!(tools.contains("kind = \"command\""));
+}
+
 #[test]
 fn export_keeps_exact_source_and_loss_preserving_manifest() {
     let directory = tempfile::tempdir().unwrap();
@@ -38,6 +98,9 @@ fn export_keeps_exact_source_and_loss_preserving_manifest() {
         String::from_utf8_lossy(&result.stderr)
     );
     assert!(result.stdout.is_empty());
+    let tools = directory.path().join("case.tools.toml");
+    let registry = std::fs::read_to_string(&tools).unwrap();
+    assert!(registry.contains("engarg_review_contract"));
     let exported: Value = serde_json::from_slice(&std::fs::read(&bundle).unwrap()).unwrap();
     assert_eq!(
         std::fs::read_to_string(&source).unwrap(),
@@ -58,6 +121,10 @@ fn export_keeps_exact_source_and_loss_preserving_manifest() {
         );
         assert_eq!(
             std::fs::metadata(&bundle).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            std::fs::metadata(&tools).unwrap().permissions().mode() & 0o777,
             0o600
         );
     }
@@ -87,6 +154,80 @@ fn json_export_is_available_on_stdout_without_model_configuration() {
             .is_some_and(|a| !a.is_empty())
     );
     assert!(exported["context"].is_object());
+    assert_eq!(
+        std::fs::read_to_string(directory.path().join("report.eal")).unwrap(),
+        exported["source"]
+    );
+    assert!(directory.path().join("report.tools.toml").is_file());
+}
+
+#[test]
+fn eal_stdout_still_creates_the_tools_companion_beside_input() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("report.json");
+    report(&input);
+    let result = cli()
+        .args(["eal", "export", "--input"])
+        .arg(&input)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(result.stdout.starts_with(b"language \"EAL/3\""));
+    assert_eq!(
+        std::fs::read(directory.path().join("report.eal")).unwrap(),
+        result.stdout
+    );
+    assert!(directory.path().join("report.tools.toml").is_file());
+}
+
+#[test]
+fn companions_are_preflighted_together_and_allow_explicit_destinations() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("report.json");
+    let output = directory.path().join("bundle.json");
+    let source = directory.path().join("custom.eal");
+    let tools = directory.path().join("custom.toml");
+    report(&input);
+    std::fs::write(&tools, "keep").unwrap();
+    let result = cli()
+        .args(["eal", "export", "--input"])
+        .arg(&input)
+        .args(["--format", "json", "--output"])
+        .arg(&output)
+        .arg("--source-output")
+        .arg(&source)
+        .arg("--tools-output")
+        .arg(&tools)
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(!output.exists());
+    assert!(!source.exists());
+    assert_eq!(std::fs::read_to_string(&tools).unwrap(), "keep");
+    std::fs::remove_file(&tools).unwrap();
+    let result = cli()
+        .args(["eal", "export", "--input"])
+        .arg(&input)
+        .args(["--format", "json", "--output"])
+        .arg(&output)
+        .arg("--source-output")
+        .arg(&source)
+        .arg("--tools-output")
+        .arg(&tools)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(output.is_file());
+    assert!(source.is_file());
+    assert!(tools.is_file());
 }
 
 #[test]
@@ -274,6 +415,45 @@ mod unix_host {
     }
 
     #[test]
+    fn collection_requires_a_registry_and_preserves_the_exact_context() {
+        let directory = tempfile::tempdir().unwrap();
+        let (input, bundle) = bundle(directory.path());
+        let (executable, capture) = host(directory.path(), "collect", success("collect_claim"), 0);
+        let result = cli()
+            .args(["eal", "collect", "--input"])
+            .arg(&input)
+            .arg("--eal-host")
+            .arg(&executable)
+            .arg("--workspace")
+            .arg(directory.path())
+            .output()
+            .unwrap();
+        assert!(!result.status.success());
+        assert!(!capture.exists());
+        let result = cli()
+            .args(["eal", "collect", "--input"])
+            .arg(&input)
+            .arg("--tools")
+            .arg(directory.path().join("bundle.tools.toml"))
+            .arg("--eal-host")
+            .arg(&executable)
+            .arg("--workspace")
+            .arg(directory.path())
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let request: Value = serde_json::from_slice(&std::fs::read(capture).unwrap()).unwrap();
+        assert_eq!(
+            request,
+            json!({"operation":"collect_claim","claim":bundle["claim_names"]["current_claim"],"source":bundle["source"],"context":bundle["context"]})
+        );
+    }
+
+    #[test]
     fn edited_bundle_is_rejected_before_host_but_raw_text_can_be_selected() {
         let directory = tempfile::tempdir().unwrap();
         let (input, mut bundle) = bundle(directory.path());
@@ -360,6 +540,83 @@ mod unix_host {
         assert!(!result.status.success());
         assert!(!capture.exists());
         assert_eq!(std::fs::read(output).unwrap(), b"keep");
+    }
+
+    #[test]
+    fn collector_credentials_require_explicit_supported_environment_names() {
+        let directory = tempfile::tempdir().unwrap();
+        let tools = directory.path().join("tools.toml");
+        let marker = directory.path().join("credential-received");
+        std::fs::write(&tools, "").unwrap();
+        let (executable, _) = host(directory.path(), "credential", success("describe"), 0);
+        let script = format!(
+            "#!/bin/sh\nif [ \"$GH_TOKEN\" = 'synthetic-collector-credential' ]; then touch {}; fi\ncat >/dev/null\nprintf '%s\\n' {}\n",
+            quote(marker.to_str().unwrap()),
+            quote(&success("describe").to_string())
+        );
+        std::fs::write(&executable, script).unwrap();
+        let result = cli()
+            .args(["eal", "describe", "--tools"])
+            .arg(&tools)
+            .arg("--eal-host")
+            .arg(&executable)
+            .arg("--workspace")
+            .arg(directory.path())
+            .env("GH_TOKEN", "synthetic-collector-credential")
+            .output()
+            .unwrap();
+        assert!(result.status.success());
+        assert!(!marker.exists());
+        let result = cli()
+            .args(["eal", "describe", "--tools"])
+            .arg(&tools)
+            .args(["--collector-env", "GH_TOKEN"])
+            .env_remove("GH_TOKEN")
+            .arg("--eal-host")
+            .arg(&executable)
+            .arg("--workspace")
+            .arg(directory.path())
+            .output()
+            .unwrap();
+        assert!(!result.status.success());
+        assert!(!marker.exists());
+        for unsupported in ["EAL_MCP_REGISTRY", "LD_PRELOAD", "PATH", "ENGARG_API_KEY"] {
+            let result = cli()
+                .args(["eal", "describe", "--tools"])
+                .arg(&tools)
+                .args(["--collector-env", unsupported])
+                .arg("--eal-host")
+                .arg(&executable)
+                .arg("--workspace")
+                .arg(directory.path())
+                .output()
+                .unwrap();
+            assert!(!result.status.success());
+            assert!(!marker.exists());
+        }
+        let result = cli()
+            .args(["eal", "describe", "--tools"])
+            .arg(&tools)
+            .args(["--collector-env", "GH_TOKEN"])
+            .env("GH_TOKEN", "synthetic-collector-credential")
+            .arg("--eal-host")
+            .arg(&executable)
+            .arg("--workspace")
+            .arg(directory.path())
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(marker.exists());
+        assert!(
+            !String::from_utf8_lossy(&result.stdout).contains("synthetic-collector-credential")
+        );
+        assert!(
+            !String::from_utf8_lossy(&result.stderr).contains("synthetic-collector-credential")
+        );
     }
 
     #[test]

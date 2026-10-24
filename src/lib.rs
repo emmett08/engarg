@@ -3,9 +3,12 @@
 //! Validation checks references and explicit status rules. It cannot establish
 //! empirical truth, logical soundness or the completeness of explored alternatives.
 
+pub mod acquisition;
 pub mod domain;
+pub mod eal_acquisition;
 pub mod eal_export;
 pub mod eal_host;
+pub mod eal_observe;
 pub mod engine;
 pub mod presentations;
 pub mod prompts;

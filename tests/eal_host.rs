@@ -27,6 +27,8 @@ fn mock(directory: &TempDir, script: &str) -> HostConfig {
         executable,
         workspace: directory.path().to_owned(),
         database: None,
+        registry: None,
+        collector_env: Vec::new(),
         url: None,
         token_env: None,
         timeout: Duration::from_secs(2),
@@ -68,6 +70,9 @@ async fn preserves_exact_json_and_passes_explicit_server_configuration() {
     let mut config = mock(&directory, &script);
     let database = directory.path().join("assessment.sqlite");
     config.database = Some(database.clone());
+    let registry = directory.path().join("tools.toml");
+    fs::write(&registry, "").unwrap();
+    config.registry = Some(registry.clone());
     let request =
         json!({"operation":"validate", "source":"argument Test {}", "test_number": number});
     assert_eq!(invoke(&config, &request).await.unwrap(), expected);
@@ -90,8 +95,38 @@ async fn preserves_exact_json_and_passes_explicit_server_configuration() {
             "2",
             "--database",
             database.to_str().unwrap(),
+            "--registry",
+            registry.to_str().unwrap(),
         ]
     );
+}
+
+#[tokio::test]
+async fn a_local_registry_is_validated_before_starting_the_host() {
+    let directory = TempDir::new().unwrap();
+    let marker = directory.path().join("started");
+    let script = format!("touch {}", quoted_path(&marker));
+    let mut config = mock(&directory, &script);
+    config.registry = Some(directory.path().join("missing.toml"));
+    assert!(
+        invoke(&config, &json!({"operation":"describe"}))
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("registry")
+    );
+    let registry = directory.path().join("tools.toml");
+    fs::write(&registry, "").unwrap();
+    config.registry = Some(registry);
+    config.url = Some("https://example.test/mcp".into());
+    assert!(
+        invoke(&config, &json!({"operation":"describe"}))
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("remote")
+    );
+    assert!(!marker.exists());
 }
 
 #[tokio::test]

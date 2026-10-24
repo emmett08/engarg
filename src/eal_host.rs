@@ -55,6 +55,10 @@ pub struct HostConfig {
     pub executable: PathBuf,
     pub workspace: PathBuf,
     pub database: Option<PathBuf>,
+    /// Explicit local collector registry. Remote servers own their registry configuration.
+    pub registry: Option<PathBuf>,
+    /// Names of explicitly forwarded collector settings. Values never enter reports.
+    pub collector_env: Vec<String>,
     pub url: Option<String>,
     pub token_env: Option<String>,
     pub timeout: Duration,
@@ -63,6 +67,8 @@ pub struct HostConfig {
 struct Target {
     workspace: PathBuf,
     database: Option<PathBuf>,
+    registry: Option<PathBuf>,
+    collector_env: Vec<(String, OsString)>,
     token: Option<OsString>,
 }
 
@@ -86,6 +92,25 @@ impl HostConfig {
             return Err(invalid("eal-host workspace must be a UTF-8 directory"));
         }
         let database = self.database.as_deref().map(absolute_path).transpose()?;
+        let registry = self
+            .registry
+            .as_deref()
+            .map(|path| {
+                let resolved = path
+                    .canonicalize()
+                    .map_err(|_| invalid("eal-host registry must be an existing file"))?;
+                if !resolved.is_file() || resolved.to_str().is_none() {
+                    return Err(invalid("eal-host registry must be a UTF-8 file path"));
+                }
+                Ok(resolved)
+            })
+            .transpose()?;
+        if self.url.is_some() && registry.is_some() {
+            return Err(invalid(
+                "a local tools registry cannot configure a remote EAL server",
+            ));
+        }
+        let collector_env = collector_environment(&self.collector_env, registry.is_some())?;
         if let Some(url) = &self.url {
             validate_url(url, self.token_env.is_some())?;
         } else if self.token_env.is_some() {
@@ -117,9 +142,44 @@ impl HostConfig {
         Ok(Target {
             workspace,
             database,
+            registry,
+            collector_env,
             token,
         })
     }
+}
+
+fn collector_environment(
+    names: &[String],
+    local_registry: bool,
+) -> Result<Vec<(String, OsString)>, Error> {
+    if !names.is_empty() && !local_registry {
+        return Err(invalid(
+            "collector-env requires an explicit local tools registry",
+        ));
+    }
+    let mut values = Vec::new();
+    for name in names {
+        if !environment_name(name)
+            || !matches!(
+                name.as_str(),
+                "KUBECONFIG"
+                    | "GH_TOKEN"
+                    | "GH_HOST"
+                    | "ENGARG_COLLECTOR_TOKEN"
+                    | "ENGARG_COLLECTOR_ORIGIN"
+            )
+        {
+            return Err(invalid("unsupported collector-env name"));
+        }
+        let value = std::env::var_os(name)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                invalid("a configured collector environment variable is missing or empty")
+            })?;
+        values.push((name.clone(), value));
+    }
+    Ok(values)
 }
 
 fn invalid(message: &str) -> Error {
@@ -203,6 +263,9 @@ fn command(config: &HostConfig, target: &Target) -> Command {
             command.env(name, value);
         }
     }
+    for (name, value) in &target.collector_env {
+        command.env(name, value);
+    }
     command
         .arg("--workspace")
         .arg(&target.workspace)
@@ -216,6 +279,9 @@ fn command(config: &HostConfig, target: &Target) -> Command {
         .arg(config.timeout.as_secs_f64().to_string());
     if let Some(database) = &target.database {
         command.arg("--database").arg(database);
+    }
+    if let Some(registry) = &target.registry {
+        command.arg("--registry").arg(registry);
     }
     if let Some(url) = &config.url {
         command.arg("--url").arg(url);

@@ -1,13 +1,17 @@
 //! CLI boundary for deterministic EAL export and the official one-request host.
 //!
-//! These commands never call a language model or start evidence collectors.
+//! Export and inspection never collect evidence. Collection is an explicit command.
 
 use clap::{Args, Subcommand, ValueEnum};
 use engarg::{
     Error,
+    acquisition::{self, AcquisitionPlan},
     domain::{ArgumentCase, Request},
+    eal_acquisition::{export_with_plan, plan_from_bundle},
     eal_export::{EalExport, export},
     eal_host::{HostConfig, invoke},
+    engine::CallRecord,
+    provider::Role,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -28,6 +32,8 @@ pub enum EalCommand {
     Validate(SourceCommand),
     /// Plan evidence requirements for an EAL claim; no evidence is collected.
     Plan(PlanArgs),
+    /// Collect observations for a claim using the explicitly configured tools registry.
+    Collect(CollectArgs),
     /// Assess with existing observations through the host's reason operation.
     Assess(AssessArgs),
     /// Recover a stored assessment or one claim's explanation.
@@ -36,6 +42,9 @@ pub enum EalCommand {
     Packet(PacketArgs),
     /// Describe the language and methods exposed by the configured EAL server.
     Describe(HostOutput),
+    /// Internal bounded adapter for an explicitly configured EAL collector.
+    #[command(hide = true)]
+    Observe(ObserveArgs),
 }
 
 #[derive(Args)]
@@ -43,12 +52,18 @@ pub struct ExportArgs {
     /// Saved EngArg report containing request and argument.
     #[arg(long)]
     input: PathBuf,
-    /// New source or bundle file. Omit for stdout.
+    /// New source or bundle file. Omit for stdout and companion files beside input.
     #[arg(short, long)]
     output: Option<PathBuf>,
     /// Optional new JSON bundle containing source, mapping, context and obligations.
     #[arg(long)]
     manifest: Option<PathBuf>,
+    /// Companion tools registry. Defaults beside output, or beside input for stdout.
+    #[arg(long)]
+    tools_output: Option<PathBuf>,
+    /// Companion EAL source for JSON output. Defaults to the output or input stem with .eal.
+    #[arg(long)]
+    source_output: Option<PathBuf>,
     #[arg(long, value_enum, default_value = "eal")]
     format: ExportFormat,
 }
@@ -68,6 +83,13 @@ pub struct HostOptions {
     workspace: PathBuf,
     #[arg(long)]
     database: Option<PathBuf>,
+    /// Explicit local tools TOML registry, passed to eal-host as --registry.
+    #[arg(long, conflicts_with = "url")]
+    tools: Option<PathBuf>,
+    /// Explicit local collector credential/configuration variable NAME. Repeat as needed.
+    /// Supports KUBECONFIG, GH_TOKEN, GH_HOST, ENGARG_COLLECTOR_TOKEN and ENGARG_COLLECTOR_ORIGIN.
+    #[arg(long, requires = "tools")]
+    collector_env: Vec<String>,
     /// Existing Streamable HTTP endpoint; omit to use the host's stdio transport.
     #[arg(long)]
     url: Option<String>,
@@ -84,6 +106,8 @@ impl HostOptions {
             executable: self.eal_host,
             workspace: self.workspace,
             database: self.database,
+            registry: self.tools,
+            collector_env: self.collector_env,
             url: self.url,
             token_env: self.token_env,
             timeout: Duration::from_secs(self.timeout_secs),
@@ -154,6 +178,26 @@ pub struct AssessArgs {
 }
 
 #[derive(Args)]
+pub struct CollectArgs {
+    #[command(flatten)]
+    source: SourceInput,
+    /// Canonical claim ID for a bundle, or the exact EAL claim name for raw source.
+    #[arg(long, default_value = "current_claim")]
+    claim: String,
+    /// Context JSON object. Otherwise use bundle context, or {} for raw EAL.
+    #[arg(long)]
+    context: Option<PathBuf>,
+    #[command(flatten)]
+    destination: HostOutput,
+}
+
+#[derive(Args)]
+pub struct ObserveArgs {
+    #[arg(long)]
+    tool: String,
+}
+
+#[derive(Args)]
 pub struct StoredArgs {
     #[arg(long)]
     assessment_id: String,
@@ -182,6 +226,8 @@ pub struct PacketArgs {
 struct CanonicalReport {
     request: Request,
     argument: ArgumentCase,
+    #[serde(default)]
+    transcript: Vec<CallRecord>,
 }
 
 struct SourceDocument {
@@ -216,7 +262,11 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
         )
     })?;
     // This checks deterministic identity, not authenticity or empirical truth.
-    let expected = export(&bundle.original_request, &bundle.original_case)?;
+    let expected = if let Some(plan) = plan_from_bundle(&bundle)? {
+        export_with_plan(&bundle.original_request, &bundle.original_case, &plan)?.bundle
+    } else {
+        export(&bundle.original_request, &bundle.original_case)?
+    };
     if serde_json::to_value(&bundle)? != serde_json::to_value(&expected)? {
         return Err(Error::InvalidInput(
             "EAL bundle differs from the current deterministic export; re-export the canonical case, or assess edited text with --input-format eal".into(),
@@ -319,29 +369,105 @@ fn json_bytes(value: &impl serde::Serialize) -> Result<Vec<u8>, Error> {
     Ok(bytes)
 }
 
-fn execute_export(args: ExportArgs) -> Result<(), Error> {
-    let output = args.output.as_deref().map(new_path).transpose()?;
-    let manifest = args.manifest.as_deref().map(new_path).transpose()?;
-    if matches!((&output, &manifest), (Some(a), Some(b)) if a == b) {
+fn retained_plan(report: &CanonicalReport) -> Result<Vec<AcquisitionPlan>, Error> {
+    let Some(record) = report
+        .transcript
+        .iter()
+        .rev()
+        .find(|record| matches!(record.role, Role::Single | Role::Adjudicator))
+    else {
+        return Ok(Vec::new());
+    };
+    let response: Value = serde_json::from_str(&record.response.content)?;
+    if response.get("acquisition_plan").is_none() && response.get("argument").is_none() {
+        return Ok(Vec::new());
+    }
+    let planned = acquisition::parse_completion(&record.response.content)?;
+    if serde_json::to_value(&planned.argument)? != serde_json::to_value(&report.argument)? {
         return Err(Error::InvalidInput(
-            "output and manifest require different paths".into(),
+            "retained acquisition plan belongs to a different canonical argument".into(),
         ));
     }
+    let errors = acquisition::validate(&report.argument, &planned.acquisition_plan);
+    if !errors.is_empty() {
+        return Err(Error::InvalidInput(errors.join("; ")));
+    }
+    Ok(planned.acquisition_plan)
+}
+
+enum ExportArtifact {
+    Primary,
+    Manifest,
+    Tools,
+    Source,
+}
+
+fn export_destinations(args: &ExportArgs) -> Result<Vec<(PathBuf, ExportArtifact)>, Error> {
+    if matches!(args.format, ExportFormat::Eal) && args.source_output.is_some() {
+        return Err(Error::InvalidInput(
+            "source-output is only used with --format json".into(),
+        ));
+    }
+    let stem = args.output.as_ref().unwrap_or(&args.input);
+    let tools_path = args
+        .tools_output
+        .clone()
+        .unwrap_or_else(|| stem.with_extension("tools.toml"));
+    let source_path =
+        (matches!(args.format, ExportFormat::Json) || args.output.is_none()).then(|| {
+            args.source_output
+                .clone()
+                .unwrap_or_else(|| stem.with_extension("eal"))
+        });
+    let destinations = [
+        args.output
+            .as_deref()
+            .map(|path| (path, ExportArtifact::Primary)),
+        args.manifest
+            .as_deref()
+            .map(|path| (path, ExportArtifact::Manifest)),
+        Some((tools_path.as_path(), ExportArtifact::Tools)),
+        source_path
+            .as_deref()
+            .map(|path| (path, ExportArtifact::Source)),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|(path, artifact)| new_path(path).map(|path| (path, artifact)))
+    .collect::<Result<Vec<_>, _>>()?;
+    let mut unique = std::collections::BTreeSet::new();
+    if destinations.iter().any(|(path, _)| !unique.insert(path)) {
+        return Err(Error::InvalidInput(
+            "all export outputs require different paths".into(),
+        ));
+    }
+    Ok(destinations)
+}
+
+fn execute_export(args: ExportArgs) -> Result<(), Error> {
+    let destinations = export_destinations(&args)?;
     let report: CanonicalReport = super::read_json(&args.input, MAX_INPUT_BYTES)?;
-    let bundle = export(&report.request, &report.argument)?;
+    let plan = retained_plan(&report)?;
+    let artifacts = export_with_plan(&report.request, &report.argument, &plan)?;
+    let bundle = artifacts.bundle;
     let manifest_bytes = json_bytes(&bundle)?;
     let primary = match args.format {
         ExportFormat::Eal => bundle.source.as_bytes(),
         ExportFormat::Json => &manifest_bytes,
     };
     // Reserve every destination before writing, so a partial create is cleaned up.
-    let mut files = Vec::new();
-    if let Some(path) = output {
-        files.push((PendingFile::create(path)?, primary));
-    }
-    if let Some(path) = manifest {
-        files.push((PendingFile::create(path)?, manifest_bytes.as_slice()));
-    }
+    let mut files = destinations
+        .into_iter()
+        .map(|(path, artifact)| {
+            let bytes = match artifact {
+                ExportArtifact::Primary => primary,
+                ExportArtifact::Manifest => manifest_bytes.as_slice(),
+                ExportArtifact::Tools => artifacts.tools_toml.as_bytes(),
+                ExportArtifact::Source => bundle.source.as_bytes(),
+            };
+            PendingFile::create(path).map(|file| (file, bytes))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     for (file, bytes) in &mut files {
         file.write(bytes)?;
     }
@@ -416,6 +542,28 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             )
             .await
         }
+        EalCommand::Collect(args) => {
+            if args.destination.host.tools.is_none() && args.destination.host.url.is_none() {
+                return Err(Error::InvalidInput(
+                    "collection requires --tools or an explicitly configured remote --url".into(),
+                ));
+            }
+            let document = source_document(&args.source)?;
+            let claim = mapped_claim(&document, &args.claim)?;
+            let context = match args.context {
+                Some(path) => super::read_json::<Value>(&path, MAX_INPUT_BYTES)?,
+                None => document
+                    .bundle
+                    .as_ref()
+                    .map_or_else(|| json!({}), |bundle| bundle.context.clone()),
+            };
+            if !context.is_object() {
+                return Err(Error::InvalidInput(
+                    "collection context must be a JSON object".into(),
+                ));
+            }
+            host_operation(args.destination, json!({"operation":"collect_claim","source":document.source,"claim":claim,"context":context})).await
+        }
         EalCommand::Assess(args) => {
             require_text("now", &args.now)?;
             if let Some(id) = &args.collection_id {
@@ -473,5 +621,15 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             host_operation(args.destination, request).await
         }
         EalCommand::Describe(args) => host_operation(args, json!({"operation":"describe"})).await,
+        EalCommand::Observe(args) => {
+            let mut bytes = Vec::new();
+            std::io::stdin().take(1_048_577).read_to_end(&mut bytes)?;
+            if bytes.len() > 1_048_576 {
+                return Err(Error::Budget("collector input exceeds 1 MiB".into()));
+            }
+            let request = serde_json::from_slice(&bytes)?;
+            let response = engarg::eal_observe::observe(&args.tool, request).await?;
+            stdout(&json_bytes(&response)?)
+        }
     }
 }

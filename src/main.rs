@@ -38,7 +38,7 @@ enum Command {
     /// Convert to EAL/3 and invoke eal-mcp through its official host.
     Eal {
         #[command(subcommand)]
-        command: eal_commands::EalCommand,
+        command: Box<eal_commands::EalCommand>,
     },
     /// Display a labelled synthetic case without model calls or credentials.
     Demo {
@@ -131,6 +131,9 @@ struct Analyse {
     /// Private JSONL audit, including completed calls even if a later stage fails.
     #[arg(long)]
     audit: Option<PathBuf>,
+    /// Omit acquisition tool planning when only the canonical argument is needed.
+    #[arg(long)]
+    no_tool_planning: bool,
     #[command(flatten)]
     output: Output,
 }
@@ -142,6 +145,9 @@ enum Format {
     Markdown,
     Outline,
     Prose,
+    /// One authored statement per indented line for inspecting the argument.
+    #[value(alias = "plain")]
+    Argument,
     #[value(alias = "expandable")]
     Html,
 }
@@ -240,6 +246,12 @@ fn report_content(
             output.display_depth,
         ),
         Format::Prose => presentations::prose_with_depth(request, argument, output.display_depth),
+        Format::Argument => presentations::plain_lines_with_depth(
+            request,
+            argument,
+            usize::from(output.outline_depth),
+            output.display_depth,
+        ),
         Format::Html => presentations::html_with_depth(request, argument, output.display_depth),
     };
     if synthetic {
@@ -379,7 +391,13 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
     let observer = |record: &engarg::engine::CallRecord| {
         audit_event(&audit, &json!({"event":"completion","record":record}))
     };
-    let run = engarg::engine::run_with_observer(&model, &request, &config, &observer);
+    let run = async {
+        if args.no_tool_planning {
+            engarg::engine::run_with_observer(&model, &request, &config, &observer).await
+        } else {
+            engarg::engine::run_with_tools(&model, &request, &config, &observer).await
+        }
+    };
     let result = tokio::select! {
         result=tokio::time::timeout(Duration::from_secs(args.timeout_secs),run)=> match result {Ok(result)=>result,Err(_)=>Err(Error::Budget("run deadline exceeded; provider cancellation does not guarantee billing cancellation".into()))},
         result=tokio::signal::ctrl_c()=>{result?; Err(Error::Budget("interrupted; provider cancellation does not guarantee billing cancellation".into()))},
@@ -415,7 +433,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
 async fn execute(cli: Cli) -> Result<(), Error> {
     match cli.command {
         Command::Analyse(args) => analyse(*args).await,
-        Command::Eal { command } => eal_commands::execute(command).await,
+        Command::Eal { command } => eal_commands::execute(*command).await,
         Command::Demo { claim_only, output } => {
             let (request_text, argument_text) = if claim_only {
                 (

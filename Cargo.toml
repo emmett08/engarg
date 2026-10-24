@@ -1,6 +1,6 @@
 [package]
 name = "engarg"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.99"
 description = "Claim-first engineering arguments and evidence plans using extended Toulmin models"
@@ -19,6 +19,7 @@ tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "time", "
 
 [dev-dependencies]
 tempfile = "3.27.0"
+tiktoken-rs = "0.12.1"
 
 [lints.rust]
 unsafe_code = "forbid"

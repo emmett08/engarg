@@ -1,8 +1,8 @@
 //! Bounded validation-guided repair of the workflow’s final candidate.
 
-use super::{CallRecord, RunConfig, argument, context, execute, prompt};
+use super::{CallRecord, RunConfig, argument, context, execute, planned_argument, tool_prompt};
 use crate::{
-    Error,
+    Error, acquisition,
     domain::{ArgumentCase, Request, case_schema},
     output_validation::{self, RetainedObjection},
     provider::LanguageModel,
@@ -18,20 +18,29 @@ pub(super) async fn validate_or_repair<M: LanguageModel, O>(
     observer: &O,
     transcript: &mut Vec<CallRecord>,
     retained_objections: &mut Vec<RetainedObjection>,
+    tool_planning: bool,
 ) -> Result<ArgumentCase, Error>
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
     for attempt in 0..=config.max_repairs {
         let candidate = transcript.last().expect("workflow has a final call");
-        let (errors, candidate_json) = match argument(candidate) {
-            Ok(case) => {
-                let errors = output_validation::errors(
+        let parsed = if tool_planning {
+            planned_argument(candidate).map(|planned| (planned.argument, planned.acquisition_plan))
+        } else {
+            argument(candidate).map(|case| (case, Vec::new()))
+        };
+        let (errors, candidate_json, candidate_acquisition_plan) = match parsed {
+            Ok((case, plans)) => {
+                let mut errors = output_validation::errors(
                     request,
                     &case,
                     retained_objections,
                     config.max_argument_depth,
                 );
+                if tool_planning {
+                    errors.extend(acquisition::validate(&case, &plans));
+                }
                 if errors.is_empty() {
                     return Ok(case);
                 }
@@ -55,11 +64,16 @@ where
                 (
                     errors,
                     context::argument(request, &case, retained_objections)?,
+                    serde_json::to_value(plans)?,
                 )
             }
             // Preserve malformed input verbatim: parsing arbitrary JSON into a
             // generic value could hide duplicate keys or the offending syntax.
-            Err(error) => (vec![error.to_string()], json!(candidate.response.content)),
+            Err(error) => (
+                vec![error.to_string()],
+                json!(candidate.response.content),
+                json!(null),
+            ),
         };
         if attempt == config.max_repairs {
             return Err(Error::InvalidOutput(format!(
@@ -68,18 +82,17 @@ where
                 config.max_repairs,
             )));
         }
-        let repair = prompt(
-            candidate.role,
-            json!({
-                "request": request,
-                "candidate_json": candidate_json,
-                "validation_errors": errors,
-                "retained_objections": retained_objections,
-                "repair_attempt": attempt + 1,
-            }),
-            case_schema(),
-            config,
-        )?;
+        let mut data = json!({
+            "request": request,
+            "candidate_json": candidate_json,
+            "validation_errors": errors,
+            "retained_objections": retained_objections,
+            "repair_attempt": attempt + 1,
+        });
+        if tool_planning {
+            data["candidate_acquisition_plan"] = candidate_acquisition_plan;
+        }
+        let repair = tool_prompt(candidate.role, data, case_schema(), config, tool_planning)?;
         transcript.push(execute(model, repair, config, observer).await?);
     }
     unreachable!("validation returns or exhausts the bounded repair allowance")

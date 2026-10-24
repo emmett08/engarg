@@ -43,26 +43,33 @@ A separate presentation experiment uses the same retained JSON source. Full Mark
 Reproduce the public comparison with new output paths:
 
 ```sh
-python3 -m pip install tiktoken==0.14.0
-
 git worktree add --detach ../engarg-token-baseline db92e30
 cargo build --locked --release --manifest-path ../engarg-token-baseline/Cargo.toml
 cargo build --locked --release
 
-python3 scripts/benchmark_tokens.py capture \
+cargo run --locked --release --example benchmark_tokens -- capture \
   --binary ../engarg-token-baseline/target/release/engarg \
   --repo ../engarg-token-baseline --label db92e30 --build-profile release \
+  --legacy-binary \
   --output /tmp/engarg-tokens-before.json
 
-python3 scripts/benchmark_tokens.py capture \
-  --binary target/release/engarg --repo . --label 0.5.1 --build-profile release \
+cargo run --locked --release --example benchmark_tokens -- capture \
+  --binary target/release/engarg --repo . --label candidate --build-profile release \
   --output /tmp/engarg-tokens-after.json
 
-python3 scripts/benchmark_tokens.py compare \
+cargo run --locked --release --example benchmark_tokens -- compare \
   /tmp/engarg-tokens-before.json /tmp/engarg-tokens-after.json \
   --output /tmp/engarg-tokens-comparison.json
 ```
 
-Add `--replay-report /absolute/path/to/run.json` to both captures for an additional retained-report workload. The replay uses original completions and never calls the configured live endpoint. Recorded historical usage metadata remains separate from newly measured text volume. Outputs use exclusive creation. The document comparison is available through `document --binary target/release/engarg --input run.json --output /tmp/engarg-document-volume.json`.
+The benchmark is a Rust development example using `tiktoken-rs 0.12.1` with the same named `o200k_base` reference encoding. Its five-workload baseline reproduced the historical Python harness counts exactly before that harness was removed. The tokenizer is a development dependency and the shipped CLI has no tokenisation dependency.
+
+Add `--replay-report /absolute/path/to/run.json` to both captures for an additional retained-report workload. The replay uses original completions and never calls the configured live endpoint. Recorded historical usage metadata remains separate from newly measured text volume. Outputs use exclusive creation. The document comparison is available through `document --binary target/release/engarg --input run.json --output /tmp/engarg-document-volume.json`. Captures default to the legacy case contract so exact completions remain comparable. Add `--tool-planning` in a separate public-fixture capture to measure the complete acquisition-planning envelope and its repair path. Retained legacy completions cannot provide new acquisition-plan responses and are excluded from that separate capture.
 
 This experiment establishes smaller prompt context and preserved replay acceptance. It cannot establish unchanged live argument quality, recovery rate, hidden reasoning, cache behaviour or billed cost per accepted result. A paired live-model study using the expert-reviewed criteria above remains necessary for those conclusions. Further reductions that change source detail, independent review or reasoning budgets require their own acceptance evidence.
+
+The 0.6.0 acquisition update repeats this protocol against immutable 0.5.1 with three process runs per workload. Case-only input totals fell from 205,993 to 205,145 reference tokens, saving 848 tokens or 0.41%. The five workload totals are 21,338 for claim-only construction, 19,703 with supplied evidence, 29,181 with retained objections, 39,583 with a repair and 95,340 for the retained report. Every final argument, request, completion sequence and call count remained identical. The additional reduction comes from removing role instructions already expressed in the common construction contract.
+
+Acquisition planning is measured separately because it returns additional information. Across the four public fixtures, consolidating those instructions reduced the planned path from 120,935 to 119,776 input reference tokens, saving 1,159 tokens or 0.96%. Planning requires 9,971 additional input reference tokens compared with the final case-only path, a 9.08% increase. It adds no model calls. Each fixture still completes in six calls, or seven when its deliberately invalid final candidate requires a repair. These measurements include proposed tools, arguments, unresolved inputs and their review context. The planned fixtures use explicit custom-adapter stubs so their acceptance makes no claim about real tool execution.
+
+An exploratory dictionary for repeated long strings was rejected. Its estimated aggregate saving was 1.75%, below the preselected 5% threshold for adding another model reference protocol. The existing claim and objection references already remove the decisive repeated text in the retained report. The prototype was removed before engine integration. Both the negative result and the complete accepted captures are retained under `eal_acquisition_update` in the existing benchmark record. No live inference was available, so semantic quality and billed cost remain unmeasured.
