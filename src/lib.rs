@@ -4,6 +4,7 @@
 //! empirical truth, logical soundness or the completeness of explored alternatives.
 
 pub mod acquisition;
+pub mod collector_catalogue;
 pub mod domain;
 pub mod eal_acquisition;
 pub mod eal_export;
@@ -20,8 +21,9 @@ pub mod scoped_collectors;
 pub mod trace_inspection;
 
 mod argument_depth;
+mod bounded_file;
 mod collector_registry;
-mod native_collectors;
+mod legacy_native_collectors;
 mod output_validation;
 
 /// Errors distinguish invalid arguments from transport and resource failures.

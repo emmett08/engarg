@@ -61,6 +61,9 @@ pub struct RunConfig {
     /// Extra validation-guided calls, reserved within max_calls before execution.
     #[serde(default)]
     pub max_repairs: u8,
+    /// Optional operator-selected collector descriptions, retained for reproducible planning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collector_catalogue: Option<crate::collector_catalogue::CollectorCatalogue>,
     /// Maximum encoded bytes of any complete provider request, including its schema.
     pub max_input_bytes: usize,
     /// Maximum bytes in any returned model content.
@@ -74,6 +77,7 @@ impl Default for RunConfig {
             max_calls: 6,
             max_argument_depth: None,
             max_repairs: 0,
+            collector_catalogue: None,
             max_input_bytes: 1_048_576,
             max_response_bytes: 131_072,
         }
@@ -198,10 +202,11 @@ fn tool_prompt(
     let plans_tools = tool_planning
         && (produces_case || matches!(role, Role::EvidenceAuditor | Role::FinalCritic));
     if plans_tools {
-        data["acquisition_tools"] = acquisition::catalogue();
+        data["acquisition_tools"] =
+            acquisition::catalogue_with(config.collector_catalogue.as_ref());
     }
     let schema = if tool_planning && produces_case {
-        acquisition::planned_case_schema()
+        acquisition::planned_case_schema_with(config.collector_catalogue.as_ref())
     } else {
         schema
     };
@@ -369,6 +374,9 @@ where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
     validate_request(request).map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
+    if let Some(catalogue) = &config.collector_catalogue {
+        catalogue.validate()?;
+    }
     if config
         .max_argument_depth
         .is_some_and(|depth| !(1..=16).contains(&depth))
@@ -503,7 +511,11 @@ where
         config.max_argument_depth,
     );
     if tool_planning {
-        draft_validation_errors.extend(acquisition::validate(&draft, &draft_acquisition_plan));
+        draft_validation_errors.extend(acquisition::validate_selected(
+            &draft,
+            &draft_acquisition_plan,
+            config.collector_catalogue.as_ref(),
+        ));
     }
     output_validation::retain_objections(&draft, synthesis.role, &mut retained_objections);
     let draft_view = context::argument(request, &draft, &retained_objections)?;

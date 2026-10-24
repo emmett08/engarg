@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{Error, domain::ArgumentCase};
+use crate::{Error, collector_catalogue::CollectorCatalogue, domain::ArgumentCase};
 
 /// A proposed named input for a trusted collector, never an executable or shell command.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -79,7 +79,7 @@ const TOOLS: &[ToolSpec] = &[
 /// The executable and transport remain operator configuration. A catalogue ID
 /// describes a prospective adapter rather than granting execution authority.
 pub fn required_arguments(tool_id: &str) -> Option<&'static [&'static str]> {
-    if let Some(tool) = crate::native_collectors::spec(tool_id) {
+    if let Some(tool) = crate::legacy_native_collectors::spec(tool_id) {
         return Some(tool.parameters);
     }
     TOOLS
@@ -90,21 +90,38 @@ pub fn required_arguments(tool_id: &str) -> Option<&'static [&'static str]> {
 
 /// Compact planning catalogue. It deliberately contains no executable paths or credentials.
 pub fn catalogue() -> Value {
-    let mut tools = serde_json::to_value(TOOLS).expect("tool catalogue serialises");
-    tools.as_array_mut().expect("catalogue array").extend(
-        crate::native_collectors::TOOLS
-            .iter()
-            .map(|tool| json!({"id":tool.id,"purpose":tool.purpose,"arguments":tool.parameters})),
-    );
-    tools
+    catalogue_with(None)
+}
+
+pub fn catalogue_with(selected: Option<&CollectorCatalogue>) -> Value {
+    let mut tools: Vec<Value> = TOOLS
+        .iter()
+        .filter(|tool| matches!(tool.id, "artifact_json" | "http_json_get" | "custom"))
+        .map(|tool| serde_json::to_value(tool).expect("catalogue serialises"))
+        .collect();
+    if let Some(selected) = selected {
+        tools.extend(
+            selected
+                .planning_view()
+                .as_array()
+                .expect("catalogue array")
+                .iter()
+                .cloned(),
+        );
+    }
+    json!(tools)
 }
 
 pub fn planned_case_schema() -> Value {
+    planned_case_schema_with(None)
+}
+
+pub fn planned_case_schema_with(selected: Option<&CollectorCatalogue>) -> Value {
     let mut schema =
         serde_json::to_value(schemars::schema_for!(PlannedArgument)).expect("schema serialises");
     schema.as_object_mut().expect("object").remove("$schema");
     schema["$defs"]["AcquisitionPlan"]["properties"]["tool_id"]["enum"] = json!(
-        catalogue()
+        catalogue_with(selected)
             .as_array()
             .expect("catalogue array")
             .iter()
@@ -131,6 +148,15 @@ pub fn parse_completion(content: &str) -> Result<PlannedArgument, Error> {
 
 /// Validate selection and exact need binding, without asserting that proposed inputs are true.
 pub fn validate(case: &ArgumentCase, plans: &[AcquisitionPlan]) -> Vec<String> {
+    validate_with_catalogue(case, plans, None)
+}
+
+/// Validate a recorded plan. Legacy built-in IDs remain readable for existing reports.
+pub fn validate_with_catalogue(
+    case: &ArgumentCase,
+    plans: &[AcquisitionPlan],
+    selected: Option<&CollectorCatalogue>,
+) -> Vec<String> {
     let expected: BTreeSet<_> = case
         .evidence_plan
         .iter()
@@ -148,14 +174,32 @@ pub fn validate(case: &ArgumentCase, plans: &[AcquisitionPlan]) -> Vec<String> {
                 plan.need_id
             ));
         }
-        let Some(required) = required_arguments(&plan.tool_id) else {
+        let descriptor = selected.and_then(|catalogue| catalogue.get(&plan.tool_id));
+        let required = descriptor
+            .map(|tool| {
+                tool.parameters
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+            })
+            .or_else(|| required_arguments(&plan.tool_id).map(|fields| fields.to_vec()));
+        let Some(required) = required else {
             errors.push(format!(
                 "acquisition plan {} selects unknown tool {}",
                 plan.need_id, plan.tool_id
             ));
             continue;
         };
-        if let Some(tool) = crate::native_collectors::spec(&plan.tool_id)
+        if let Some(tool) = descriptor
+            && let Err(error) = tool.input(plan)
+        {
+            errors.push(format!(
+                "acquisition plan {} has invalid input {error}",
+                plan.need_id
+            ));
+        }
+        if descriptor.is_none()
+            && let Some(tool) = crate::legacy_native_collectors::spec(&plan.tool_id)
             && let Err(error) = tool.input(plan)
         {
             errors.push(format!(
@@ -224,8 +268,17 @@ pub fn override_plans(
     retained: &[AcquisitionPlan],
     overrides: Vec<AcquisitionPlan>,
 ) -> Result<Vec<AcquisitionPlan>, Error> {
+    override_plans_with_catalogue(case, retained, overrides, None)
+}
+
+pub fn override_plans_with_catalogue(
+    case: &ArgumentCase,
+    retained: &[AcquisitionPlan],
+    overrides: Vec<AcquisitionPlan>,
+    catalogue: Option<&CollectorCatalogue>,
+) -> Result<Vec<AcquisitionPlan>, Error> {
     if !retained.is_empty() {
-        let errors = validate(case, retained);
+        let errors = validate_with_catalogue(case, retained, catalogue);
         if !errors.is_empty() {
             return Err(Error::InvalidInput(errors.join("; ")));
         }
@@ -258,14 +311,38 @@ pub fn override_plans(
         merged.insert(plan.need_id.clone(), plan);
     }
     let plans: Vec<_> = merged.into_values().collect();
-    let errors = validate(case, &plans);
+    let errors = validate_with_catalogue(case, &plans, catalogue);
     if !errors.is_empty() {
         return Err(Error::InvalidInput(errors.join("; ")));
     }
     Ok(plans)
 }
 
-pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools lists proposed trusted collector IDs and named string inputs. Use native kubernetes for fleet resource reads, github for exact commit identity and tempo for bounded cluster-scoped rollout searches when those measurements fit. Prefer known collectors even when their configuration is unknown and retain unresolved arguments. Split executable acquisitions from independent interpretation and controlled experiment design. Use gh_api_get for other GitHub GET endpoints and http_json_get for exact literal queries or trace-by-ID reads. Use custom only for an investigation the listed collectors cannot perform. Identify the required tools and inputs while constructing or auditing the evidence methods. Values must come from supplied claim, context or evidence. Leave unknown hosts, cluster contexts, resource identities, dates and other inputs unresolved rather than guessing. kubectl_get allows * for namespace or name only when that all-resources scope is established. A proposed collector or input is an unperformed plan and supplies no evidence. Collecting raw output does not establish an acceptance criterion or answer an inferential review.";
+/// Current generation admits only the operator-selected catalogue and neutral defaults.
+pub fn validate_selected(
+    case: &ArgumentCase,
+    plans: &[AcquisitionPlan],
+    selected: Option<&CollectorCatalogue>,
+) -> Vec<String> {
+    let mut errors = validate_with_catalogue(case, plans, selected);
+    let available = catalogue_with(selected);
+    for plan in plans {
+        if !available
+            .as_array()
+            .expect("catalogue array")
+            .iter()
+            .any(|tool| tool["id"] == plan.tool_id)
+        {
+            errors.push(format!(
+                "collector {} is absent from the selected catalogue",
+                plan.tool_id
+            ));
+        }
+    }
+    errors
+}
+
+pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools is the complete selected collector catalogue. Select by the measurement needed for this argument. Each collector describes its admitted inputs. For a string property supply the literal string. For another JSON type encode the value as JSON in the named string value. Keep unknown parameters unresolved. Use custom when no selected collector can perform the investigation. Derive values only from supplied claim, context or evidence. A proposed collector is an unperformed plan. Successful acquisition establishes the recorded measurement, and independent review establishes applicability and sufficiency.";
 
 pub(crate) const ENVELOPE_INSTRUCTIONS: &str = "PLANNED RESPONSE: Return the supplied envelope with argument holding the complete unchanged ArgumentCase and acquisition_plan holding exactly one record for every argument.evidence_plan ID. Each record names need_id and one acquisition_tools ID. Put each required named input either in arguments as {name,value} string entries or in unresolved_arguments, never both. Use only the catalogue's input names. For custom, arguments is empty and unresolved_arguments is [\"adapter\"]. Revise the argument and its acquisition bindings together. The plan is separate from the canonical case and must preserve its target, enabled claim, question, measurement, comparator and acceptance criterion.";
 

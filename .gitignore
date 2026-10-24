@@ -39,3 +39,6 @@ __pycache__/
 /.engarg-local/
 *.local.json
 *.local.toml
+
+# Pinned producer checkout used only by compatibility CI.
+.eal-producer/

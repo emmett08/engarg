@@ -9,7 +9,6 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
-    io::Read,
     net::IpAddr,
     path::Path,
     process::Stdio,
@@ -116,12 +115,7 @@ fn timestamp() -> Result<Value, Error> {
 }
 
 fn read_inputs(path: &Path) -> Result<(Inputs, String), Error> {
-    let file = std::fs::File::open(path)?;
-    let mut bytes = Vec::new();
-    file.take((MAX_BYTES + 1) as u64).read_to_end(&mut bytes)?;
-    if bytes.len() > MAX_BYTES {
-        return Err(Error::Budget("scoped inputs exceed 1 MiB".into()));
-    }
+    let bytes = crate::bounded_file::read(path, MAX_BYTES, "scoped inputs")?;
     let inputs: Inputs = serde_json::from_value(crate::retained_collectors::parse_json(&bytes)?)
         .map_err(|_| invalid("invalid engarg.scoped-inputs/1 input file"))?;
     if inputs.schema != "engarg.scoped-inputs/1" || !nonempty(&inputs.case_digest) {

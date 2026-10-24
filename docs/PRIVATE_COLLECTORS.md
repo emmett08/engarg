@@ -1,51 +1,82 @@
 # Private collector inputs
 
-`eal prepare` turns a saved EngArg analysis into a private EAL case with working
-Rust collector commands and separate operator input files. It preserves the
-argument graph and every independent review obligation. Preparation makes no
-model calls, runs no login commands and collects no evidence.
+`eal prepare` turns a saved EngArg analysis into seven private EAL files. Each
+evidence need keeps its chosen collector and inputs. Preparation retains every
+independent review obligation. Collection runs through a separate explicit command.
 
 Run from the repository root with a new output directory:
 
 ```sh
 cargo run --locked --release -- eal prepare \
   --input path/to/analysis.json \
-  --output-dir .engarg-local/example \
-  --kube-context dev \
-  --grafana-origin https://grafana.example.invalid
+  --output-dir .engarg-local/example
 ```
 
-Use the actual approved origin only in your private invocation. The generated
-registry contains the absolute path of the executable running `prepare`.
-Rebuild at that path or prepare a new directory when changing the executable's
-location. Preparation proposes scoped Kubernetes or Grafana reads where the saved
-acquisition plan identifies those operations; remaining needs use retained JSON
-artifacts. Review the proposed operation for every need before collecting.
+The generated registry records the absolute path of the EngArg executable running
+`prepare`. Rebuild at that path or prepare a new directory when moving the
+executable. Collector-specific executable paths remain explicit operator settings.
+Missing input values stay unresolved. An evidence need with no saved binding
+receives a custom adapter stub.
 
 | Generated file | Purpose |
 | --- | --- |
-| `argument.eal` | EAL/3 source with acquisition bindings and original review gates |
-| `argument.bundle.json` | Matching source, canonical argument, identifier maps and export context |
-| `argument.tools.toml` | Executable `scoped_json`, `artifact_json` and `review_json` command bindings |
-| `acquisition-inputs.json` | Acquisition-plan records, each bound to its exact evidence need |
-| `collector-inputs.json` | Operator-selected Kubernetes and Grafana operations and selectors |
-| `artifact-inputs.json` | Pinned retained artifacts for the remaining evidence needs |
+| `argument.eal` | EAL/3 source with per-need acquisition bindings and review gates |
+| `argument.bundle.json` | Matching source and canonical argument with identity and selected contracts |
+| `argument.tools.toml` | Typed collector bindings and the retained-review importer |
+| `acquisition-inputs.json` | Saved acquisition-plan records with original inputs and unresolved parameters |
 | `review-inputs.json` | Initially empty independently authored review decisions |
 | `review-requests.json` | Exact pending six-field EAL review requests |
 | `context.json` | Matching `engarg_export_digest` environment context |
 
-Keep these files together. Preparation creates a new export digest because it
-changes acquisition bindings. Inputs from an older export do not become valid by
-copying their digest into the new files. Recheck each acquisition and review
-against the new exact request.
+The default planning catalogue supports retained JSON artifacts and HTTP JSON
+reads. Its custom stub represents investigations needing an additional collector.
+Select other capabilities with `--collector-catalogue PATH`. For the optional
+infrastructure package:
+
+```sh
+mkdir -p .engarg-local
+eal-collector describe > .engarg-local/infrastructure.collectors.json
+engarg eal prepare \
+  --input path/to/analysis.json \
+  --collector-catalogue .engarg-local/infrastructure.collectors.json \
+  --output-dir .engarg-local/example
+```
+
+Use the same option during `engarg analyse` to make selected collectors available
+while the argument is being constructed. The run retains that catalogue for
+export and preparation. A custom scientific collector can supply its own
+versioned descriptors. Input schemas support JSON arrays and numbers as well as
+strings. Named argument values encode non-string inputs as JSON, for example
+`{"name":"channels","value":"[0,2]"}`. Templates keep the executable under
+operator control and permit parameters only in declared argument positions.
+
+Each need keeps its exact adapter. A method mentioning a full query remains an
+HTTP read when its plan selects `http_json_get`. Separate needs retain separate
+URLs and selectors. Existing operator-owned artifact files stay at their chosen
+paths. Kubernetes and Grafana settings belong to explicitly selected bindings.
+
+V2 export identity binds the projection semantics to the canonical case and
+acquisition plan with its selected descriptors. Producer package updates preserve
+that identity when semantics remain compatible. V1 bundles use their recorded
+producer identity during verification. A changed request or source requires its
+own matching observation. Copying an old digest into a new input file cannot
+establish that correspondence.
 
 `.gitignore` excludes `engarg-runs/`, `.engarg-local/`, `*.local.json` and
-`*.local.toml`. Keep actual internal endpoints, inventories, observations and
-operator inputs there. Tracked documentation and test fixtures use sanitized
-examples. Ignore rules do not remove files already tracked by Git.
+`*.local.toml`. Keep internal endpoints and retained observations in those
+private directories. Tracked documentation and test fixtures use sanitised
+examples. Ignore rules apply to future additions.
 
-The scoped input file has this shape. The example deliberately leaves unknown
-selectors unset:
+## Existing scoped adapter profile
+
+The existing `scoped_json` adapter remains available for explicitly retained
+infrastructure bindings. Choose it per evidence need and supply its operator-owned
+`inputs` path. Preparation preserves that path. Each scoped file contains one
+Kubernetes configuration and one Grafana configuration, so needs with different
+scopes require different input files. The default preparation path preserves
+other adapters directly.
+
+An operator-authored scoped file has this shape. Unknown selectors stay unset:
 
 ```json
 {
@@ -79,7 +110,7 @@ selectors unset:
 }
 ```
 
-Use the generated case digest and real need IDs. Confirm the API resource and
+Use the export's case digest and real need IDs. Confirm the API resource and
 namespace, Grafana datasource UID, positive ordered Unix-second search interval
 and explicit trace IDs. The scoped Kubernetes adapter uses the operator's explicit
 context, kind and resource name; use `"namespace": "*"` only when an
@@ -109,8 +140,8 @@ shape establishes all-production completeness from a single `dev` context.
 Set `token_env` to `"TEMPO_TOKEN"` only when a bearer token is required, and
 `tenant_env` to `"TEMPO_TENANT"` only when a tenant header is required. A configured
 name requires a nonempty environment variable. JSON `null` disables that header;
-an unset variable does not silently disable a configured header. The generated
-file leaves both credential selectors `null` until operator configuration.
+an unset variable does not silently disable a configured header. The example
+leaves both credential selectors `null` until operator configuration.
 Credential values stay in the environment. Redirects are disabled.
 
 After connecting to the VPN, authenticate separately when authorized for the
@@ -124,8 +155,11 @@ The collector does not invoke this command. Use the actual kubeconfig for
 `KUBECONFIG` when required; the Osprey configuration output path alone does not
 establish that it is a kubeconfig. The selected context is always explicit.
 
-For investigations requiring inventories, controller configuration, lifecycle
-history or other retained records, populate `artifact-inputs.json`:
+## Explicit retained artifact inputs
+
+For an evidence need selecting `artifact_json`, provide the operator-owned file
+named by that plan's `inputs` argument. Preparation preserves the selected path
+and existing bytes. An illustrative `artifact-inputs.json` is:
 
 ```json
 {
@@ -154,6 +188,8 @@ fail acquisition. `observed_at` must retain the original UTC RFC3339 instant,
 with `Z` and optional fractional seconds. The aggregate envelope keeps the oldest
 artifact time; importing a file never refreshes its measurement age.
 
+## Independently retained reviews
+
 Independent review is a separate recorded decision. `review-inputs.json` starts
 with `{"schema":"engarg.review-inputs/1","reviews":[]}`. An empty file cannot
 discharge a review gate. Each authored record has these fields:
@@ -173,7 +209,9 @@ matches. The program never derives `accepted` from successful acquisition or an
 argument generator's verdict. EAL applies each evidence declaration's age limit
 to the retained observation time.
 
-Once the needed selectors, artifacts and independent decisions are available,
+## Explicit collection
+
+Once the selected collector inputs and independent decisions are available,
 collect explicitly. This example assumes all three named environment variables
 are already set and required:
 
@@ -195,8 +233,9 @@ as described in the repository README before using collection. The saved bundle
 supplies matching context by default; raw EAL requires the generated
 `--context .engarg-local/example/context.json` explicitly. Output files must be new.
 
-The scoped adapters bound each Kubernetes or Grafana operation to 60 seconds and
-1 MiB of response bytes; the registry allows 65 seconds per collector. The outer
+The existing scoped adapters bound each Kubernetes or Grafana operation to 60 seconds
+and 1 MiB of response bytes. Their registry bindings allow 65 seconds per collector.
+Other collectors retain the bounds declared by their selected descriptors. The outer
 timeout bounds the complete host request. Acquisition errors, measured negative
 results and unavailable conclusions remain distinct. Retain the returned
 collection ID and use the same source, context and database when assessing it.

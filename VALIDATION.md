@@ -1,12 +1,12 @@
 # Verification record
 
-Version 0.8.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
+Version 0.9.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked --all-targets` | 233 passed, 0 failed, 4 external integration tests ignored by this command |
+| `cargo test --locked --all-targets` | 252 passed, 0 failed, 9 explicitly external integration tests ignored by this command |
 | `cargo build --locked --release` | Passed |
 | Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
 | Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
@@ -20,8 +20,8 @@ Version 0.8.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Shared nodes, explicit compositions and depth limits | Passed |
 | HTML escaping and visible collapsed qualifications | Passed by structural tests |
 | Browser visual inspection | Not executed: headless-browser download returned an invalid archive |
-| EAL/3 compiler and evaluator compatibility | Passed against actual eal-mcp `48fe2186974f2281a45914c3b41e1cdcb16a5147`, including every generated registry variant |
-| Real EAL host and MCP server | All 4 external tests passed separately with the actual host and companion binaries |
+| EAL/3 compiler and evaluator compatibility | Passed against actual eal-mcp `32366396b72baa01301eba058f4c65ea735441c1`, including every generated registry variant |
+| Real EAL host and MCP server | All installed host, core, native and scientific collector checks passed with the actual host and companion binaries |
 | EAL assumption-to-objection propagation | Passed against the actual evaluator using isolated synthetic observation fixtures |
 | Release CLI with real host/server | Retained 0.5.0 verification: export, source/bundle validation, plan, assess, explain, packet, describe and invalid-source exit checks passed |
 | Requested and returned service tiers | Exact `gpt-6.1-sol` / `ultrafast` request and differing returned tier retained in HTTP and six-stage CLI tests |
@@ -44,8 +44,13 @@ Version 0.8.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Paired EAL export | Source and native tools TOML always written, explicit companion paths and stdout covered, aliases and failed output transactions preserve existing files |
 | Observation and acceptance | Native EAL collection made synthetic JSON available while the claim stayed unsupported without independent reviews |
 | Collector boundaries | Fixed read operations and literal argv, safe all-namespace name selectors, relative GitHub paths, bounded strict JSON, duplicate response-key rejection, exact integer preservation, exact HTTPS credential origin and explicit environment forwarding passed |
+| Collector catalogue | Neutral default adapters and operator-selected scientific schemas checked. Typed arrays/integers, local schema references, nulls, unresolved inputs, reserved IDs and bounded windows covered |
+| Preparation | Each need retains its adapter and scope. Seven private files and exact structured reviews replace source reparsing, comment substitutions and global infrastructure configuration |
+| Versioned identity | Actual v1 custom/native/HTTP bundles admitted through the real host. V2 identity remains stable across producer-only version changes and changes when selected contracts change |
+| Credential and file boundaries | Registry-declared custom environment names work only when requested. Responses redact their values. Registry and scoped-input FIFOs and leaf symlinks fail before reading |
+| Producer–consumer CI | Pinned EAL producer catalogue compared as JSON. Every external test fails on missing prerequisites when selected by the mandatory compatibility job |
 | Plain argument view | Sentence-line records preserve claim qualifiers, composition, nested conditions, inference types, investigations, shared arguments and bounded indentation |
-| Schema preservation | Exported request and case schemas byte-identical to 0.5.1, report and EAL bundle field sets unchanged |
+| Schema preservation | Canonical request/case schemas preserved. RunConfig adds an optional selected catalogue. EAL export v2 separates producer and projection identity, while v1 source-bound bundles remain readable |
 | Remote MCP deployment | Configuration and credential handling tested locally, no real remote service contacted |
 | Live model execution | Not performed: no provider API key was available |
 | Comparative argument-quality evaluation | Not performed; see EVALUATION.md |
@@ -53,7 +58,7 @@ Version 0.8.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 
 The tests cover optional input defaults, required-claim schema, no-source conditional arguments, preserved empirical status rules, generation completeness, claim-only rendering and export, argument-reference integrity, unsupported versus refuted status, current-claim dependency closure, hypothetical material challenges, cycles, unattached support, independent first-pass context, retained dissent, call/byte limits, oversized-output audit receipts, refusal, truncation, rate limits, response size limits, credential-safe redirects, CLI inputs and private file creation. They also cover EAL source and bundle identity, conjunction and selected-alternative mapping, review obligations, exact JSON integers, stdin EOF, private export rollback, process input/output/deadline limits, host error envelopes, credential redaction, requested/returned service tiers, alternative-route selection, joint and cumulative support, narrative section organisation and references, template records, shared-node presentation, HTML escaping and depth-bounded outlines. Simulated HTTP success establishes protocol integration rather than vendor/model compatibility or useful reasoning quality.
 
-Latest non-yanked stable direct crate releases were checked against the crates.io sparse index before resolving Cargo.lock:
+The following direct crate versions are fixed by Cargo.lock for this verification. Earlier release-selection checks are retained below:
 
 | Crate | Selected version |
 | --- | --- |
@@ -66,6 +71,9 @@ Latest non-yanked stable direct crate releases were checked against the crates.i
 | sha2 | 0.11.1 |
 | thiserror | 2.0.21 |
 | tempfile (tests) | 3.27.0 |
+| jsonschema | 0.46.10 |
+| toml | 0.9.12+spec-1.1.0 |
+| rustix | 1.1.5 |
 
 Rust 1.99.1 was checked against the official stable channel manifest. The supplied CI workflow pins actions/checkout v7.0.1 to its resolved commit and runs the pinned toolchain on Ubuntu and macOS. Hosted results belong to the commit checks. macOS was not executed locally.
 
@@ -130,3 +138,16 @@ Version 0.8.0 starts from `b72a958c8b11f29cdd5bc2dd4d02cd7838aea155`. Its transp
 The new production dependency is `httpdate 1.0.3`, verified against the crates.io index, for standard HTTP-date Retry-After parsing. Jitter uses the standard library's independently seeded hasher and a sequence counter. No random-number crate or provider SDK was added. Reqwest's own retries and redirects remain disabled, avoiding nested attempt multiplication and credential forwarding.
 
 Two policy tests and thirteen HTTP/CLI integration tests exercise 429 recovery, minimum delay, delay overflow and date hints, cap/deadline refusal, quota/type/code precedence, exact repeated payloads, finite exhaustion, audit failure, cancellation while waiting or queued, and concurrency. The real CLI test recovers from one 429 with two physical attempts under `--max-calls 1`, produces exactly one canonical completion and retains the configured transport policy plus both HTTP receipts. Sensitive error text stays outside diagnostics and audit metadata. No live provider request was performed. Rust 2024, Rust 1.99.1, the unsafe prohibition, rustfmt and all-target Clippy remain governing.
+
+The 0.9 boundary change extracts collector contract admission into
+`collector_catalogue`, typed generic bindings into `collector_registry`, and
+bounded POSIX file reading into `bounded_file`. Export owns structured review
+requests before rendering. `eal_prepare` retains per-need plans and only
+configures the resulting registry. `legacy_native_collectors` retains the frozen
+v1 source projection rules so earlier evidence-bound source can be reconstructed.
+New native descriptions come from the pinned producer JSON contract checked in CI.
+
+The domain graph, provider and argument-presentation responsibilities remain in
+EngArg. Generic EAL request/observation contracts and optional collector discovery
+are owned by the EAL workspace. These changes preserve measured negatives,
+failed collection and unavailable conclusions as distinct results.

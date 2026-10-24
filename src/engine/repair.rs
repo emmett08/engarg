@@ -39,7 +39,11 @@ where
                     config.max_argument_depth,
                 );
                 if tool_planning {
-                    errors.extend(acquisition::validate(&case, &plans));
+                    errors.extend(acquisition::validate_selected(
+                        &case,
+                        &plans,
+                        config.collector_catalogue.as_ref(),
+                    ));
                 }
                 if errors.is_empty() {
                     return Ok(case);

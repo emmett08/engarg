@@ -6,7 +6,7 @@ use std::{
 
 use engarg::{
     domain::{ArgumentCase, Request, SupportRelationship},
-    eal_export::{EalExport, export},
+    eal_export::{EalExport, export, export_projection},
 };
 
 fn fixtures() -> (Request, ArgumentCase) {
@@ -59,6 +59,43 @@ fn export_is_deterministic_and_preserves_complete_canonical_source() {
     assert_eq!(first.target_language, "EAL/3");
     assert!(first.source.contains("method \"structured/1\""));
     assert!(!first.source.contains("method \"deductive/1\""));
+}
+
+#[test]
+fn structured_review_requests_retain_exact_inputs_without_reparsing_source() {
+    let (request, mut case) = fixtures();
+    let authored_text = "Retain this text\nevidence unrelated {\n  input {\"obligation\":{}}";
+    case.grounds[0].statement = authored_text.into();
+    let projection = export_projection(&request, &case).unwrap();
+    let bundle = &projection.bundle;
+    assert_eq!(projection.review_requests.len(), bundle.obligations.len());
+    for (review, obligation) in projection.review_requests.iter().zip(&bundle.obligations) {
+        assert_eq!(review.evidence_id, obligation.eal_evidence_name);
+        assert_eq!(review.environment, "engarg_case");
+        assert_eq!(review.tool, "engarg_review_contract");
+        assert_eq!(review.tool_version, "1");
+        assert_eq!(review.context, bundle.context);
+        assert_eq!(review.input["case_digest"], bundle.revision);
+        assert_eq!(
+            review.input["obligation"],
+            serde_json::to_value(obligation).unwrap()
+        );
+        assert!(serde_json::to_value(review).unwrap().get("value").is_none());
+        let encoded_input = format!("  input {}", serde_json::to_string(&review.input).unwrap());
+        assert!(bundle.source.lines().any(|line| line == encoded_input));
+    }
+    let ground_review = projection
+        .review_requests
+        .iter()
+        .find(|review| {
+            review.input["obligation"]["kind"] == "ground_interpretation"
+                && review.input["obligation"]["target_id"] == case.grounds[0].id
+        })
+        .unwrap();
+    assert_eq!(
+        ground_review.input["authored_detail"]["statement"],
+        authored_text
+    );
 }
 
 #[test]
@@ -287,10 +324,9 @@ fn invalid_source_is_rejected_instead_of_silently_repaired() {
 
 /// Set EAL_CORE to the upstream binary to exercise its real compiler and checker.
 #[test]
+#[ignore = "requires the pinned EAL producer; mandatory compatibility CI supplies it"]
 fn upstream_core_validates_export_when_available() {
-    let Some(binary) = std::env::var_os("EAL_CORE") else {
-        return;
-    };
+    let binary = std::env::var_os("EAL_CORE").expect("compatibility test requires EAL_CORE");
     let (mut request, case) = fixtures();
     request.evidence[0].excerpt = "工程 🧪 \"}\nclaim injected { // \\".into();
     let mut cases = vec![case.clone()];
@@ -449,10 +485,9 @@ fn synthetic_accepted_records(
 /// Exercise the real EAL evaluator, including its grounded support/attack solver.
 /// Set EAL_CORE to enable this regression in an environment with upstream built.
 #[test]
+#[ignore = "requires the pinned EAL producer; mandatory compatibility CI supplies it"]
 fn upstream_assumption_attack_invalidates_dependent_objection_when_available() {
-    let Some(binary) = std::env::var_os("EAL_CORE") else {
-        return;
-    };
+    let binary = std::env::var_os("EAL_CORE").expect("compatibility test requires EAL_CORE");
     let (request, case) = assumption_dependent_challenge();
     let bundle = export(&request, &case).unwrap();
     let workspace = tempfile::tempdir().unwrap();

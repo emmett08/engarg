@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use crate::{
     Error,
     acquisition::{self, AcquisitionPlan},
+    collector_catalogue::{CollectorCatalogue, RegistryCommand, ToolsRegistry},
     domain::{ArgumentCase, EvidenceNeed, Request},
     eal_export::{self, EalExport, name, quoted},
 };
@@ -19,6 +20,8 @@ const PLAN_MARKER: &str = "// engarg_acquisition_plan";
 pub struct ExportArtifacts {
     pub bundle: EalExport,
     pub tools_toml: String,
+    pub registry: ToolsRegistry,
+    pub review_requests: Vec<eal_export::ReviewRequest>,
 }
 
 /// Export every evidence need, with file stubs when an adapter or input is unresolved.
@@ -31,12 +34,42 @@ pub fn export_with_plan(
     case: &ArgumentCase,
     plans: &[AcquisitionPlan],
 ) -> Result<ExportArtifacts, Error> {
-    let projection = AcquisitionProjection::new(case, plans)?;
-    let bundle = eal_export::export_with_acquisitions(request, case, &projection)?;
+    export_with_catalogue(request, case, plans, None)
+}
+
+pub fn export_with_catalogue(
+    request: &Request,
+    case: &ArgumentCase,
+    plans: &[AcquisitionPlan],
+    catalogue: Option<&CollectorCatalogue>,
+) -> Result<ExportArtifacts, Error> {
+    let projection = AcquisitionProjection::new(case, plans, catalogue, false)?;
+    let projected = eal_export::export_projection_with_acquisitions(request, case, &projection)?;
+    let registry = projection.registry()?;
     Ok(ExportArtifacts {
-        bundle,
-        tools_toml: projection.registry(),
+        bundle: projected.bundle,
+        tools_toml: registry.to_toml()?,
+        registry,
+        review_requests: projected.review_requests,
     })
+}
+
+/// Verify persisted source under its declared projection semantics and original producer metadata.
+pub fn reconstruct_bundle(bundle: &EalExport) -> Result<EalExport, Error> {
+    let legacy = eal_export::ExportIdentity::for_bundle(bundle)?.is_legacy();
+    let catalogue = bundle
+        .collector_catalogue
+        .as_ref()
+        .map(|value| CollectorCatalogue::from_json(&serde_json::to_vec(value)?))
+        .transpose()?;
+    let plans = plan_from_bundle(bundle)?;
+    let projection = plans
+        .as_deref()
+        .map(|plans| {
+            AcquisitionProjection::new(&bundle.original_case, plans, catalogue.as_ref(), legacy)
+        })
+        .transpose()?;
+    Ok(eal_export::reconstruct_projection(bundle, projection.as_ref())?.bundle)
 }
 
 /// Recover the exact exporter-owned plan without enlarging EAL observation context.
@@ -62,7 +95,13 @@ pub fn plan_from_bundle(bundle: &EalExport) -> Result<Option<Vec<AcquisitionPlan
         .ok_or_else(|| Error::InvalidInput("malformed EAL acquisition plan marker".into()))?;
     let plans: Vec<AcquisitionPlan> = serde_json::from_str(content)
         .map_err(|_| Error::InvalidInput("malformed EAL acquisition plan".into()))?;
-    let errors = acquisition::validate(&bundle.original_case, &plans);
+    let catalogue = bundle
+        .collector_catalogue
+        .as_ref()
+        .map(|value| CollectorCatalogue::from_json(&serde_json::to_vec(value)?))
+        .transpose()?;
+    let errors =
+        acquisition::validate_with_catalogue(&bundle.original_case, &plans, catalogue.as_ref());
     if !errors.is_empty() {
         return Err(Error::InvalidInput(errors.join("; ")));
     }
@@ -79,6 +118,8 @@ struct Entry {
 pub(crate) struct AcquisitionProjection {
     pub(crate) plans: Vec<AcquisitionPlan>,
     entries: Vec<Entry>,
+    catalogue: Option<CollectorCatalogue>,
+    legacy: bool,
 }
 
 impl AcquisitionProjection {
@@ -89,7 +130,28 @@ impl AcquisitionProjection {
         )
     }
 
-    fn new(case: &ArgumentCase, plans: &[AcquisitionPlan]) -> Result<Self, Error> {
+    fn new(
+        case: &ArgumentCase,
+        plans: &[AcquisitionPlan],
+        selected: Option<&CollectorCatalogue>,
+        legacy: bool,
+    ) -> Result<Self, Error> {
+        // Historical reports explicitly naming bundled native collectors remain exportable.
+        // Current planning only sees a catalogue selected by the operator.
+        let catalogue = if let Some(selected) = selected {
+            selected.validate()?;
+            Some(selected.clone())
+        } else if !legacy
+            && plans
+                .iter()
+                .any(|plan| matches!(plan.tool_id.as_str(), "kubernetes" | "github" | "tempo"))
+        {
+            Some(CollectorCatalogue::from_json(include_bytes!(
+                "../contracts/collectors/native.json"
+            ))?)
+        } else {
+            None
+        };
         let plans = if plans.is_empty() {
             case.evidence_plan
                 .iter()
@@ -103,7 +165,7 @@ impl AcquisitionProjection {
         } else {
             plans.to_vec()
         };
-        let errors = acquisition::validate(case, &plans);
+        let errors = acquisition::validate_with_catalogue(case, &plans, catalogue.as_ref());
         if !errors.is_empty() {
             return Err(Error::InvalidInput(errors.join("; ")));
         }
@@ -129,7 +191,19 @@ impl AcquisitionProjection {
         Ok(Self {
             plans: entries.iter().map(|entry| entry.plan.clone()).collect(),
             entries,
+            catalogue,
+            legacy,
         })
+    }
+
+    pub(crate) fn catalogue_value(&self) -> Option<Value> {
+        self.catalogue
+            .as_ref()
+            .map(|catalogue| serde_json::to_value(catalogue).expect("catalogue serialises"))
+    }
+
+    pub(crate) fn identity(&self) -> Result<Vec<u8>, Error> {
+        Ok(serde_json::to_vec(&(&self.plans, self.catalogue_value()))?)
     }
 
     pub(crate) fn declarations(&self, revision: &str, environment: &str) -> Result<String, Error> {
@@ -149,7 +223,19 @@ impl AcquisitionProjection {
                 "arguments": arguments,
                 "unresolved_arguments": entry.plan.unresolved_arguments,
             });
-            let predicate = if let Some(tool) = crate::native_collectors::spec(&entry.plan.tool_id)
+            let descriptor = self
+                .catalogue
+                .as_ref()
+                .and_then(|catalogue| catalogue.get(&entry.plan.tool_id));
+            let predicate = if let Some(tool) = descriptor {
+                input = tool.input(&entry.plan)?;
+                source.push_str(&format!(
+                    "// engarg_evidence_need {}\n",
+                    serde_json::to_string(&entry.need)?
+                ));
+                tool.acquisition_predicate.as_str()
+            } else if self.legacy
+                && let Some(tool) = crate::legacy_native_collectors::spec(&entry.plan.tool_id)
             {
                 input = tool.input(&entry.plan)?;
                 source.push_str(&format!(
@@ -161,8 +247,8 @@ impl AcquisitionProjection {
                 "collected == true"
             };
             source.push_str(&format!(
-                "tool {} {{\n  version \"1\"\n}}\n\nevidence {} {{\n  tool {}\n  kind acquisition\n  environment {environment}\n  max_age {OBSERVATION_MAX_AGE_SECONDS}\n  input {input}\n  require {predicate}\n}}\n\n",
-                entry.tool_name, entry.evidence_name, entry.tool_name
+                "tool {} {{\n  version {}\n}}\n\nevidence {} {{\n  tool {}\n  kind acquisition\n  environment {environment}\n  max_age {OBSERVATION_MAX_AGE_SECONDS}\n  input {input}\n  require {predicate}\n}}\n\n",
+                entry.tool_name, quoted(descriptor.map_or("1", |tool| tool.version.as_str())), entry.evidence_name, entry.tool_name
             ));
         }
         Ok(source)
@@ -202,33 +288,32 @@ impl AcquisitionProjection {
             .collect()
     }
 
-    fn registry(&self) -> String {
-        let mut registry = String::from(
-            "# Native eal-mcp tool registry for this exact exported case.\n# Exporting this file performs no collection.\n# Commands are explicit operator configuration.\n# Replace review stubs with a trusted reviewer that handles each exact request.\n# Each command receives an EAL acquisition JSON request on stdin.\n# Successful collectors return the native EAL observation envelope.\n# REPLACE selectors and executable paths require operator configuration.\n# Acquisition results require independent interpretation against their acceptance criteria.\n\n[tools.engarg_review_contract]\nkind = \"command\"\nversion = \"1\"\nargv = [\"/REPLACE_WITH_INDEPENDENT_REVIEW_COLLECTOR\"]\ntimeout_seconds = 65\nmax_output_bytes = 4194304\n# Stub for independent review. Each review has a different acquisition request.\n# The reviewer must assess the exact request and return its own acceptance decision.\n\n",
+    fn registry(&self) -> Result<ToolsRegistry, Error> {
+        let mut registry = ToolsRegistry::default();
+        registry.tools.insert(
+            "engarg_review_contract".into(),
+            RegistryCommand {
+                kind: "command".into(),
+                version: "1".into(),
+                argv: vec!["/REPLACE_WITH_INDEPENDENT_REVIEW_COLLECTOR".into()],
+                timeout_seconds: 65,
+                max_output_bytes: 4_194_304,
+                inherit_env: Vec::new(),
+                parallel_safe: false,
+            },
         );
         for entry in &self.entries {
-            registry.push_str(&format!(
-                "# Evidence need {}\n# Target {}\n# Proposed collector {}\n",
-                quoted(&entry.need.id),
-                quoted(&entry.need.target_id),
-                quoted(&entry.plan.tool_id)
-            ));
-            for argument in &entry.plan.arguments {
-                registry.push_str(&format!(
-                    "# Argument {} = {}\n",
-                    quoted(&argument.name),
-                    quoted(&argument.value)
-                ));
-            }
-            for argument in &entry.plan.unresolved_arguments {
-                registry.push_str(&format!("# Unresolved input {}\n", quoted(argument)));
-            }
-            registry.push_str(&format!("[tools.{}]\n", entry.tool_name));
-            registry.push_str(&crate::collector_registry::binding(
-                &entry.plan,
-                &entry.need.id,
-            ));
+            let binding = if let Some(descriptor) = self
+                .catalogue
+                .as_ref()
+                .and_then(|catalogue| catalogue.get(&entry.plan.tool_id))
+            {
+                descriptor.binding(&entry.plan)?
+            } else {
+                crate::collector_registry::binding(&entry.plan, &entry.need.id)?
+            };
+            registry.tools.insert(entry.tool_name.clone(), binding);
         }
-        registry
+        Ok(registry)
     }
 }

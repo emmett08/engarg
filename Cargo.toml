@@ -1,6 +1,6 @@
 [package]
 name = "engarg"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2024"
 rust-version = "1.99"
 description = "Claim-first engineering arguments and evidence plans using extended Toulmin models"
@@ -10,13 +10,16 @@ repository = "https://github.com/emmett08/engarg"
 [dependencies]
 clap = { version = "4.6.7", features = ["derive", "env"] }
 httpdate = "1.0.3"
+jsonschema = { version = "0.46.0", default-features = false, features = ["arbitrary-precision"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+rustix = { version = "1.1.2", features = ["fs"] }
 schemars = "1.2.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["arbitrary_precision"] }
 sha2 = "0.11.1"
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "time", "signal", "sync", "process", "io-util"] }
+toml = "0.9.8"
 
 [dev-dependencies]
 tempfile = "3.27.0"

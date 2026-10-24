@@ -139,8 +139,10 @@ fn resolved_known_inputs_use_fixed_adapters_and_unknown_inputs_remain_stubs() {
     let ready = export_with_plan(&request, &case, &plans).unwrap();
     assert!(
         ready
-            .tools_toml
-            .contains("argv = [\"engarg\", \"eal\", \"observe\", \"--tool\", \"kubectl_get\"]")
+            .registry
+            .tools
+            .values()
+            .any(|binding| binding.argv == ["engarg", "eal", "observe", "--tool", "kubectl_get"])
     );
     assert!(ready.tools_toml.contains("timeout_seconds = 65"));
     assert!(ready.tools_toml.contains("max_output_bytes = 4194304"));
@@ -154,14 +156,17 @@ fn resolved_known_inputs_use_fixed_adapters_and_unknown_inputs_remain_stubs() {
     let unresolved = export_with_plan(&request, &case, &plans).unwrap();
     assert!(
         unresolved
-            .tools_toml
-            .contains("\"observe\", \"--tool\", \"kubectl_get\"")
+            .registry
+            .tools
+            .values()
+            .any(|binding| binding.argv == ["engarg", "eal", "observe", "--tool", "kubectl_get"])
     );
     assert!(!unresolved.tools_toml.contains("kind = \"json_file\""));
+    let restored = plan_from_bundle(&unresolved.bundle).unwrap().unwrap();
     assert!(
-        unresolved
-            .tools_toml
-            .contains("# Unresolved input \"context\"")
+        restored[0]
+            .unresolved_arguments
+            .contains(&"context".to_owned())
     );
 }
 
@@ -316,10 +321,10 @@ fn host_call(
 /// Exercise the authoritative native registry parser and source validator.
 /// Set ENGARG_EAL_HOST to the actual eal-host with its sibling server and companions.
 #[test]
+#[ignore = "requires the pinned EAL producer; mandatory compatibility CI supplies it"]
 fn upstream_accepts_the_paired_registry_and_missing_stubs_supply_no_evidence() {
-    let Some(binary) = std::env::var_os("ENGARG_EAL_HOST") else {
-        return;
-    };
+    let binary =
+        std::env::var_os("ENGARG_EAL_HOST").expect("compatibility test requires ENGARG_EAL_HOST");
     let (request, case) = fixtures();
     let artifacts = export_with_plan(&request, &case, &[]).unwrap();
     let workspace = tempfile::tempdir().unwrap();
