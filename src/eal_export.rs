@@ -15,6 +15,7 @@ use crate::{
     domain::{
         ArgumentCase, DefeaterStatus, Request, SupportRelationship, validate_case, validate_request,
     },
+    eal_acquisition::AcquisitionProjection,
 };
 
 const SCHEMA_VERSION: &str = "engarg.eal-export/1";
@@ -74,20 +75,36 @@ pub struct ReviewObligation {
 /// All generated identifiers use category prefixes and injective UTF-8 hex.
 /// Missing review observations leave the corresponding EAL support unavailable.
 pub fn export(request: &Request, case: &ArgumentCase) -> Result<EalExport, Error> {
+    export_projection(request, case, None)
+}
+
+pub(crate) fn export_with_acquisitions(
+    request: &Request,
+    case: &ArgumentCase,
+    acquisition: &AcquisitionProjection,
+) -> Result<EalExport, Error> {
+    export_projection(request, case, Some(acquisition))
+}
+
+fn export_projection(
+    request: &Request,
+    case: &ArgumentCase,
+    acquisition: Option<&AcquisitionProjection>,
+) -> Result<EalExport, Error> {
     validate_request(request).map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
     validate_case(request, case).map_err(|errors| Error::InvalidOutput(errors.join("; ")))?;
-    let revision: String = Sha256::digest(serde_json::to_vec(&(
-        SCHEMA_VERSION,
-        env!("CARGO_PKG_VERSION"),
-        request,
-        case,
-    ))?)
-    .iter()
-    .map(|byte| format!("{byte:02x}"))
-    .collect();
-    let mut builder = Exporter::new(&revision);
+    let mut identity =
+        serde_json::to_vec(&(SCHEMA_VERSION, env!("CARGO_PKG_VERSION"), request, case))?;
+    if let Some(acquisition) = acquisition {
+        identity.extend(serde_json::to_vec(&acquisition.plans)?);
+    }
+    let revision: String = Sha256::digest(identity)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let mut builder = Exporter::new(&revision, acquisition);
     builder.write(request, case)?;
-    Ok(EalExport {
+    let mut bundle = EalExport {
         schema_version: SCHEMA_VERSION.into(),
         exporter_version: env!("CARGO_PKG_VERSION").into(),
         revision: revision.clone(),
@@ -111,10 +128,16 @@ pub fn export(request: &Request, case: &ArgumentCase) -> Result<EalExport, Error
         ],
         original_request: request.clone(),
         original_case: case.clone(),
-    })
+    };
+    if acquisition.is_some() {
+        bundle.limitations.push(
+            "Acquisition evidence requires a collected marker that establishes successful JSON acquisition only. The existing independent review obligations still determine interpretation and sufficiency. Missing adapters or unresolved inputs remain file-import stubs. Acquisition observations use an explicit 86400-second export-policy age limit rather than an inferred engineering validity period.".into(),
+        );
+    }
+    Ok(bundle)
 }
 
-fn name(prefix: &str, id: &str) -> String {
+pub(crate) fn name(prefix: &str, id: &str) -> String {
     let mut result = format!("{prefix}_");
     for byte in id.as_bytes() {
         use std::fmt::Write as _;
@@ -123,7 +146,7 @@ fn name(prefix: &str, id: &str) -> String {
     result
 }
 
-fn quoted(text: &str) -> String {
+pub(crate) fn quoted(text: &str) -> String {
     serde_json::to_string(text).expect("strings are serialisable")
 }
 
@@ -163,16 +186,18 @@ struct Exporter<'a> {
     source_map: BTreeMap<String, EalSourceMapping>,
     claim_names: BTreeMap<String, String>,
     obligations: Vec<ReviewObligation>,
+    acquisition: Option<&'a AcquisitionProjection>,
 }
 
 impl<'a> Exporter<'a> {
-    fn new(revision: &'a str) -> Self {
+    fn new(revision: &'a str, acquisition: Option<&'a AcquisitionProjection>) -> Self {
         Self {
             revision,
             source: String::new(),
             source_map: BTreeMap::new(),
             claim_names: BTreeMap::new(),
             obligations: Vec::new(),
+            acquisition,
         }
     }
 
@@ -250,13 +275,16 @@ impl<'a> Exporter<'a> {
             requirement,
             source_evidence_ids: source_evidence_ids.to_vec(),
         };
-        let input = json!({
+        let mut input = json!({
             "schema": SCHEMA_VERSION,
             "case_digest": self.revision,
             "obligation": obligation,
             "authored_detail": detail,
             "acquisition": "Explicit independent review required; no observation is supplied by this export."
         });
+        if let Some(acquisition) = self.acquisition {
+            input["required_acquisitions"] = json!(acquisition.review_inputs(id));
+        }
         self.source.push_str(&format!(
             "evidence {declaration} {{\n  tool {REVIEW_TOOL}\n  kind review\n  environment {ENVIRONMENT}\n  max_age {REVIEW_MAX_AGE_SECONDS}\n  input {}\n  require accepted == true\n}}\n\n",
             serde_json::to_string(&input)?
@@ -267,10 +295,22 @@ impl<'a> Exporter<'a> {
     }
 
     fn write(&mut self, request: &Request, case: &ArgumentCase) -> Result<(), Error> {
+        let plan_comment = self
+            .acquisition
+            .map(AcquisitionProjection::plan_comment)
+            .unwrap_or_default();
         self.source.push_str(&format!(
-            "language \"EAL/3\"\n\n// Authored EngArg projection. Review contracts are not observations.\n// Keep the JSON export bundle for the complete canonical source and source map.\n\nenvironment {ENVIRONMENT} {{\n  require engarg_export_digest == {}\n}}\n\ntool {REVIEW_TOOL} {{\n  version \"1\"\n}}\n\n",
+            "language \"EAL/3\"\n\n// Authored EngArg projection. Review contracts are not observations.\n// Keep the JSON export bundle for the complete canonical source and source map.\n{plan_comment}\nenvironment {ENVIRONMENT} {{\n  require engarg_export_digest == {}\n}}\n\ntool {REVIEW_TOOL} {{\n  version \"1\"\n}}\n\n",
             quoted(self.revision)
         ));
+        if let Some(acquisition) = self.acquisition {
+            self.source
+                .push_str(&acquisition.declarations(self.revision, ENVIRONMENT));
+            for (id, tool, evidence) in acquisition.mappings() {
+                self.record(id, "tool", tool, "planned_acquisition_tool");
+                self.record(id, "evidence", evidence, "planned_acquisition");
+            }
+        }
         for evidence in &request.evidence {
             self.obligation(
                 "source_review", &evidence.id, "source_review",
@@ -377,7 +417,7 @@ impl<'a> Exporter<'a> {
                 .evidence
                 .extend(evidence_names(&ground.evidence_ids));
             support.evidence.insert(name("ground_review", &ground.id));
-            attach_conditions(case, &[&ground.id], &mut support);
+            attach_conditions(case, &[&ground.id], &mut support, self.acquisition);
             self.argument(
                 &ground.id,
                 &name("ground_argument", &ground.id),
@@ -418,7 +458,7 @@ impl<'a> Exporter<'a> {
             // An adequacy gate is also explicit source evidence: even a future
             // warrant without premises cannot become an empty EAL argument.
             support.evidence.insert(name("warrant_review", &warrant.id));
-            attach_conditions(case, &[&warrant.id], &mut support);
+            attach_conditions(case, &[&warrant.id], &mut support, self.acquisition);
             self.argument(
                 &warrant.id,
                 &name("route_argument", &warrant.id),
@@ -446,7 +486,12 @@ impl<'a> Exporter<'a> {
             support
                 .evidence
                 .insert(name("composition_review", &composition.conclusion_id));
-            attach_conditions(case, &[&composition.conclusion_id], &mut support);
+            attach_conditions(
+                case,
+                &[&composition.conclusion_id],
+                &mut support,
+                self.acquisition,
+            );
             let conclusion = self.claim_names[&composition.conclusion_id].clone();
             self.argument(
                 &composition.conclusion_id,
@@ -489,6 +534,12 @@ impl<'a> Exporter<'a> {
             support
                 .assumptions
                 .insert(name("assumption", &assumption.id));
+            if let Some(acquisition) = self.acquisition {
+                acquisition.attach(
+                    &BTreeSet::from([assumption.id.as_str()]),
+                    &mut support.evidence,
+                );
+            }
             self.argument(
                 &assumption.id,
                 &name("assumption_condition_argument", &assumption.id),
@@ -510,7 +561,7 @@ impl<'a> Exporter<'a> {
             // Preserve every attached condition. Native assumptions become
             // premise claims whose derivations retain the assumption attack
             // edges; evidence gates stay evidence gates on the objection.
-            attach_conditions(case, &[&defeater.id], &mut support);
+            attach_conditions(case, &[&defeater.id], &mut support, self.acquisition);
             support.premises.extend(
                 support
                     .assumptions
@@ -550,7 +601,12 @@ fn unresolved_material(defeater: &crate::domain::Defeater) -> bool {
 
 /// Attach conditions to the exact authored node, including conditions on other
 /// attached assumptions or challenges. Premise conditions travel with premises.
-fn attach_conditions(case: &ArgumentCase, ids: &[&str], support: &mut Support) {
+fn attach_conditions(
+    case: &ArgumentCase,
+    ids: &[&str],
+    support: &mut Support,
+    acquisition: Option<&AcquisitionProjection>,
+) {
     let mut closure: BTreeSet<&str> = ids.iter().copied().collect();
     loop {
         let before = closure.len();
@@ -579,6 +635,9 @@ fn attach_conditions(case: &ArgumentCase, ids: &[&str], support: &mut Support) {
             }
         }
         if before == closure.len() {
+            if let Some(acquisition) = acquisition {
+                acquisition.attach(&closure, &mut support.evidence);
+            }
             return;
         }
     }

@@ -7,10 +7,31 @@ use std::{
     net::TcpListener,
     process::Command,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
+fn accept_call(listener: &TcpListener, index: usize) -> std::net::TcpStream {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => return stream,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                assert!(
+                    Instant::now() < deadline,
+                    "API double timed out waiting for call {}",
+                    index + 1
+                );
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("API double could not accept call {}: {error}", index + 1),
+        }
+    }
+}
+
 fn receive(stream: &mut std::net::TcpStream) -> Value {
+    // Accepted sockets can inherit a nonblocking listener's mode on macOS.
+    // Read timeouts bound blocking reads, so establish that mode explicitly.
+    stream.set_nonblocking(false).unwrap();
     stream
         .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
@@ -36,6 +57,50 @@ fn receive(stream: &mut std::net::TcpStream) -> Value {
     }
 }
 
+#[test]
+fn receive_reads_delayed_fragments_from_an_initially_nonblocking_socket() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut client = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    client
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut stream = accept_call(&listener, 0);
+    // Force the inherited mode on every platform rather than depending on the OS.
+    stream.set_nonblocking(true).unwrap();
+    assert_eq!(
+        stream.peek(&mut [0_u8; 1]).unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    let expected = json!({"claim":"Retain the complete fragmented request.","fragmented":true});
+    let body = expected.to_string();
+    let header = format!(
+        "POST /v1/responses HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        body.len()
+    );
+    let (ready, start) = std::sync::mpsc::sync_channel(0);
+    let writer = thread::spawn(move || {
+        start.recv_timeout(Duration::from_secs(5)).unwrap();
+        thread::sleep(Duration::from_millis(50));
+        for fragment in [
+            &header.as_bytes()[..header.len() - 2],
+            &header.as_bytes()[header.len() - 2..],
+            &body.as_bytes()[..body.len() / 2],
+            &body.as_bytes()[body.len() / 2..],
+        ] {
+            client.write_all(fragment).unwrap();
+            thread::sleep(Duration::from_millis(20));
+        }
+    });
+    ready.send(()).unwrap();
+    assert_eq!(receive(&mut stream), expected);
+    assert_eq!(
+        stream.read_timeout().unwrap(),
+        Some(Duration::from_secs(10))
+    );
+    writer.join().unwrap();
+}
+
 #[derive(Clone, Copy)]
 enum Input {
     Evidence,
@@ -44,10 +109,16 @@ enum Input {
 }
 
 fn run_case(corrupt_final: bool, input: Input, mode: &str) {
-    run_configured(corrupt_final, input, mode, false);
+    run_configured(corrupt_final, input, mode, false, true);
 }
 
-fn run_configured(corrupt_final: bool, input: Input, mode: &str, repair_missing_plan: bool) {
+fn run_configured(
+    corrupt_final: bool,
+    input: Input,
+    mode: &str,
+    repair_missing_plan: bool,
+    tool_planning: bool,
+) {
     let claim_only = !matches!(input, Input::Evidence);
     let request_text = if claim_only {
         include_str!("../examples/claim-only-request.json")
@@ -59,10 +130,11 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, repair_missing_
     let base_calls = if mode == "single" { 1 } else { 6 };
     let calls = base_calls + usize::from(repair_missing_plan);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
     let address = listener.local_addr().unwrap();
     let server = thread::spawn(move || {
         for index in 0..calls {
-            let (mut stream, _) = listener.accept().unwrap();
+            let mut stream = accept_call(&listener, index);
             let body = receive(&mut stream);
             assert_eq!(body["model"], "gpt-6.1-sol");
             assert_eq!(body["service_tier"], "ultrafast");
@@ -88,10 +160,11 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, repair_missing_
                         .contains("Use at most 2 warrant layers")
                 );
             }
-            let is_case = body["text"]["format"]["schema"]["properties"]
-                .get("current_claim")
-                .is_some();
+            let properties = &body["text"]["format"]["schema"]["properties"];
+            let planned = properties.get("argument").is_some();
+            let is_case = planned || properties.get("current_claim").is_some();
             let content = if is_case {
+                assert_eq!(planned, tool_planning);
                 let case_text = if claim_only {
                     include_str!("../examples/claim-only-case.json")
                 } else {
@@ -120,7 +193,24 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, repair_missing_
                         case["evidence_plan"].as_array_mut().unwrap().push(plan);
                     }
                 }
-                case.to_string()
+                if planned {
+                    let plans = case["evidence_plan"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|need| {
+                            json!({
+                                "need_id":need["id"],
+                                "tool_id":"custom",
+                                "arguments":[],
+                                "unresolved_arguments":["adapter"],
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    json!({"argument":case,"acquisition_plan":plans}).to_string()
+                } else {
+                    case.to_string()
+                }
             } else {
                 json!({"findings":["Synthetic API test fixture."],"objections":[],"evidence_gaps":[]}).to_string()
             };
@@ -133,6 +223,9 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, repair_missing_
     let output = directory.path().join("report.json");
     let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
     command.args(["analyse", "--format", "json", "--mode", mode]);
+    if !tool_planning {
+        command.arg("--no-tool-planning");
+    }
     if repair_missing_plan {
         command.args([
             "--argument-depth",
@@ -212,6 +305,35 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, repair_missing_
         assert_eq!(events.last().unwrap()["event"], "success");
         let report: Value = serde_json::from_slice(&std::fs::read(&output).unwrap()).unwrap();
         assert_eq!(report["transcript"].as_array().unwrap().len(), calls);
+        let final_content = report["transcript"][calls - 1]["response"]["content"]
+            .as_str()
+            .unwrap();
+        if tool_planning {
+            let planned = engarg::acquisition::parse_completion(final_content).unwrap();
+            assert_eq!(
+                serde_json::to_value(&planned.argument).unwrap(),
+                report["argument"]
+            );
+            assert_eq!(
+                planned.acquisition_plan.len(),
+                planned.argument.evidence_plan.len()
+            );
+            assert!(
+                engarg::acquisition::validate(&planned.argument, &planned.acquisition_plan)
+                    .is_empty()
+            );
+            assert!(report.get("acquisition_plan").is_none());
+        } else {
+            assert_eq!(
+                serde_json::from_str::<Value>(final_content).unwrap(),
+                report["argument"]
+            );
+            assert!(
+                report["transcript"][calls - 1]["prompt"]["schema"]["properties"]
+                    .get("argument")
+                    .is_none()
+            );
+        }
         assert_eq!(report["input_sha256"].as_str().unwrap().len(), 64);
         assert_eq!(report["provider_config"]["default_model"], "gpt-6.1-sol");
         assert_eq!(
@@ -393,5 +515,10 @@ fn minimal_claim_json_constructs_a_single_call_argument_without_context_or_evide
 
 #[test]
 fn cli_repairs_a_missing_material_defeater_plan_within_the_recorded_call_budget() {
-    run_configured(false, Input::Claim, "hybrid", true);
+    run_configured(false, Input::Claim, "hybrid", true, true);
+}
+
+#[test]
+fn cli_can_retain_the_direct_case_provider_contract_without_tool_planning() {
+    run_configured(false, Input::MinimalJson, "single", false, false);
 }

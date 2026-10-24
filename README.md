@@ -178,6 +178,7 @@ Markdown is the default presentation and follows the supplied [Engineering Exten
 | --- | --- |
 | `markdown` or `template` | Inspect every component of the attached template and the complete audit appendix |
 | `outline` | Inspect one line per claim, indentation and explicit relationships between supporting arguments |
+| `argument` or `plain` | Inspect indented sentence lines with the qualified claims and their reasoning records |
 | `prose` | Read connected paragraphs, each performing a declared reasoning task |
 | `html` or `expandable` | Open a self-contained expandable argument view in a browser |
 | `json` | Save the canonical graph, reading paragraphs and run audit for further rendering |
@@ -187,11 +188,12 @@ Generate a canonical JSON report once, then render each presentation without fur
 ```sh
 engarg render --input run.json --format outline --outline-depth 3 --output outline.md
 engarg render --input run.json --format prose --output reading.md
+engarg render --input run.json --format argument --display-depth 2 --output argument.txt
 engarg render --input run.json --format html --output argument.html
 engarg render --input run.json --format markdown --output assessment.md
 ```
 
-Use `--display-depth N` (1–16) with outline, prose or HTML to limit detailed claim levels from the same two roots. A shared claim remains detailed if any root reaches it within the limit. At the boundary, the outline and HTML keep a claim summary, qualifier and consequential conditions while omitting its supporting detail. Prose retains the parent paragraphs and explicitly shows outstanding relied-upon conditions. The HTML investigation registers remain complete. JSON and the full 14-component template always retain the complete case; this option does not prune, reassess or change EAL export. Omit it to show every detailed record.
+Use `--display-depth N` (1–16) with argument, outline, prose or HTML to limit detailed claim levels from the same two roots. A shared claim remains detailed if any root reaches it within the limit. At the boundary, the outline and HTML keep a claim summary, qualifier and consequential conditions while omitting its supporting detail. Prose retains the parent paragraphs and explicitly shows outstanding relied-upon conditions. The HTML investigation registers remain complete. JSON and the full 14-component template always retain the complete case; this option does not prune, reassess or change EAL export. Omit it to show every detailed record.
 
 ```sh
 engarg render --input depth2.json --format outline --display-depth 1 --outline-depth 3
@@ -216,11 +218,19 @@ The `0.2.0` case schema requires `compositions` and `reading`. Earlier `0.1.0` c
 Version `0.3.0` adds a deterministic EAL/3 projection and an adapter to the official `eal-host` MCP client. Export the canonical JSON report rather than extracting information from a presentation:
 
 ```sh
-engarg eal export --input run.json --format json --output case.eal.json
+engarg eal export --input run.json --format json --output case.json
 engarg eal export --input run.json --output case.eal --manifest case-manifest.json
 ```
 
 The JSON bundle retains the generated source, original request and case, export revision, identifier source map, mapped claim names and outstanding review obligations. After upgrading the exporter, re-export saved canonical JSON reports to produce bundles with the current revision identity. Existing reports remain usable. The `.eal` file supplies an executable structural projection. Preserve its bundle or manifest when the original prose, evidence provenance and full canonical graph must be recoverable. Source alone provides a narrower representation.
+
+Version `0.6.0` exports both EAL source and a native tools TOML registry. The first example creates `case.json`, `case.eal` and `case.tools.toml`. The second creates `case.eal`, `case.tools.toml` and the requested manifest. `--tools-output` and the JSON format's `--source-output` select companion paths. With stdout output, companions use the input file's stem. All destinations must be new and distinct. A failed export removes files created by that export.
+
+New analyses identify acquisition tools and named arguments during the existing synthesis and adjudication calls. The fixed catalogue offers Kubernetes resource reads through `kubectl`, GitHub REST reads through `gh`, HTTP JSON reads such as a fully specified Tempo search URL, and custom adapters. Values come from the supplied input. Unknown cluster contexts, endpoints, resource identities and other inputs remain explicit unresolved arguments. Every canonical evidence need receives a separate binding, including investigations of assumptions and counter-evidence. The plan is retained in the existing transcript, while the canonical argument and saved report schemas stay unchanged. `--no-tool-planning` selects the earlier direct-case model protocol.
+
+Resolved known tools use EngArg's bounded EAL adapters. Unknown tools and unresolved inputs produce `json_file` stubs with comments identifying the need and missing configuration. Historical reports receive custom stubs. A custom adapter can combine several operations when an investigation needs them. Each adapter must satisfy EAL's stdin request and observation-envelope contract. A raw `kubectl` or `gh` JSON response needs that adaptation. Export creates proposed configuration and performs no collection.
+
+Use `--format argument` for one authored statement per indented line and `--format prose` for connected reading paragraphs. New generation instructions request positive plain-English sentences without prose colons, semicolons or comma inventories. Renderers preserve existing authored text and technical syntax, including TraceQL expressions. They preserve the conditions beside each qualified claim rather than rewriting old wording mechanically.
 
 See [the EAL mapping contract](docs/EAL_MAPPING.md) for the semantic projection, review policy and architecture rationale. The EAL service applies its own source, declaration, depth and execution budgets, which can reject a large or deep export even when the original EngArg case passes its checks.
 
@@ -238,13 +248,19 @@ This follows the companion repository's application-package installation sequenc
 Validate, plan and assess the exported case without making further LLM calls:
 
 ```sh
-engarg eal validate --input case.eal.json --workspace .
-engarg eal plan --input case.eal.json --claim current_claim --workspace .
-engarg eal assess --input case.eal.json --now 2026-10-23T12:00:00Z --workspace .
+engarg eal validate --input case.json --workspace .
+engarg eal plan --input case.json --claim current_claim --workspace .
+engarg eal collect --input case-manifest.json --claim current_claim \
+  --tools case.tools.toml --workspace . --timeout-secs 300
+engarg eal assess --input case.json --now 2026-10-23T12:00:00Z --workspace .
 engarg eal describe --workspace .
 ```
 
 Choose the explicit assessment instant appropriate to the retained observations. With a bundle, `current_claim` is translated through its claim-name map and the export-bound context is supplied by default. Raw EAL uses its declared identifiers directly. `--input-format eal` explicitly treats an input as source, while `--input-format json` requires an export bundle. The default `auto` detects a bundle from an opening JSON object. `assess` accepts an optional context-object file through `--context` and an existing observation collection through `--collection-id`. It performs assessment without collecting evidence. Missing review observations leave the corresponding support unavailable.
+
+`collect` explicitly runs the configured collectors through `eal-host`. Put the installed `engarg` executable on `PATH` and resolve registry file paths against the selected workspace. Retain the returned collection identifier for `assess --collection-id ID` using the same source, context and database. Each collected JSON observation remains subject to an independent acceptance review against its measurement, comparator and criterion. Review stubs must be replaced with a trusted reviewer or compatible independently retained observations before those gates can be discharged.
+
+Local credentials remain explicit. Pass `--collector-env KUBECONFIG`, `--collector-env GH_TOKEN` or `--collector-env GH_HOST` only when required. HTTP bearer collection requires both `--collector-env ENGARG_COLLECTOR_TOKEN` and `--collector-env ENGARG_COLLECTOR_ORIGIN`. Set the latter to the exact HTTPS origin such as `https://tempo.example:443`. The adapter sends the token only to that origin and follows no redirects. These settings apply to a local registry. Remote collection uses the remote service's configured collectors and credentials.
 
 | Command or option | Purpose |
 | --- | --- |
@@ -255,7 +271,7 @@ Choose the explicit assessment instant appropriate to the retained observations.
 | `--url HTTPS_URL`, `--token-env NAME` | Connect through the host to an existing authenticated MCP service. Pass the token's environment variable name |
 | `--timeout-secs N`, `--output FILE` | Bound a host operation, defaulting to 30 seconds, and optionally retain its JSON response in a new private file |
 
-Host options follow the leaf operation, as in `engarg eal plan --input case.eal.json --eal-host /path/to/eal-host`. Host responses retain their JSON envelope. Tool errors and failed validation return a nonzero exit status. Remote mode uses the existing service's state rather than starting a local reasoning service.
+Host options follow the leaf operation, as in `engarg eal plan --input case.json --eal-host /path/to/eal-host`. Host responses retain their JSON envelope. Tool errors and failed validation return a nonzero exit status. Remote mode uses the existing service's state rather than starting a local reasoning service.
 
 Each warrant becomes an intermediate route claim. Joint and cumulative compositions combine their required routes with conjunction. A selected alternative connects to its original conclusion while other candidate routes remain queryable. Reconsidering that selection requires a revised EngArg assessment. The EAL `structured/1` method retains authored reasoning and its review dependencies. Its result leaves the adequacy of a prose warrant and any cumulative weighting subject to the declared review obligations.
 

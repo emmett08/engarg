@@ -34,6 +34,8 @@ fn host() -> (TempDir, HostConfig) {
         executable,
         workspace: workspace.path().to_path_buf(),
         database: Some(workspace.path().join("assessments.sqlite")),
+        registry: None,
+        collector_env: Vec::new(),
         url: None,
         token_env: None,
         timeout: Duration::from_secs(15),

@@ -1,12 +1,12 @@
 # Verification record
 
-Version 0.5.1 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
+Version 0.6.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` | 142 passed, 0 failed, 4 external integration tests ignored |
+| `cargo test --locked --all-targets` | 176 passed, 0 failed, 4 external integration tests passed separately |
 | `cargo build --locked --release` | Passed |
 | Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
 | Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
@@ -20,9 +20,9 @@ Version 0.5.1 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Shared nodes, explicit compositions and depth limits | Passed |
 | HTML escaping and visible collapsed qualifications | Passed by structural tests |
 | Browser visual inspection | Not executed: headless-browser download returned an invalid archive |
-| EAL/3 compiler and evaluator compatibility | Retained 0.5.0 verification against eal-mcp `d311d5a4f9e294ba3228127bc5210b48c5de3a12`, using Rust 1.99.1 |
-| Real EAL host and MCP server | Retained 0.5.0 verification: 4 external tests passed. Not re-run for this context-only change |
-| EAL assumption-to-objection propagation | Retained 0.5.0 verification against the actual evaluator using isolated synthetic observation fixtures |
+| EAL/3 compiler and evaluator compatibility | Passed against actual eal-mcp `d311d5a4f9e294ba3228127bc5210b48c5de3a12`, including every generated registry variant |
+| Real EAL host and MCP server | All 4 external tests passed separately with the actual host and companion binaries |
+| EAL assumption-to-objection propagation | Passed against the actual evaluator using isolated synthetic observation fixtures |
 | Release CLI with real host/server | Retained 0.5.0 verification: export, source/bundle validation, plan, assess, explain, packet, describe and invalid-source exit checks passed |
 | Requested and returned service tiers | Exact `gpt-6.1-sol` / `ultrafast` request and differing returned tier retained in HTTP and six-stage CLI tests |
 | Optional reasoning effort | Correct nested Responses and root Chat fields, omission when unset, bounded identifiers and explicit HTTP400 failure without fallback passed |
@@ -38,7 +38,13 @@ Version 0.5.1 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Malformed repair input | Duplicate-key candidate text remains verbatim rather than being reparsed into a lossy object |
 | Frozen complete-path token comparison | Five workloads, three repetitions per arm, unchanged requests/arguments/completions/call counts, with 17.33% fewer input reference tokens |
 | Markdown without audit appendix | Full argument records/registers byte-identical, canonical source unchanged, and 78.69% less downstream reference-token context on the retained report |
-| Benchmark helper | Public fixture and retained-report captures, comparison, document measurement and Python compilation passed. Both measured binaries used release builds |
+| Benchmark helper | Rust development example reproduced all five historical reference-token counts exactly and passed capture/comparison checks. Both measured binaries used release builds |
+| Acquisition planning | Six calls retained, every need bound exactly once, missing binding uses the existing repair budget, legacy direct-case mode remains available |
+| Paired EAL export | Source and native tools TOML always written, explicit companion paths and stdout covered, aliases and failed output transactions preserve existing files |
+| Observation and acceptance | Native EAL collection made synthetic JSON available while the claim stayed unsupported without independent reviews |
+| Collector boundaries | Fixed read operations and literal argv, relative GitHub paths, bounded JSON, exact HTTPS credential origin and explicit environment forwarding passed |
+| Plain argument view | Sentence-line records preserve claim qualifiers, composition, nested conditions, inference types, investigations, shared arguments and bounded indentation |
+| Schema preservation | Exported request and case schemas byte-identical to 0.5.1, report and EAL bundle field sets unchanged |
 | Remote MCP deployment | Configuration and credential handling tested locally, no real remote service contacted |
 | Live model execution | Not performed: no provider API key was available |
 | Comparative argument-quality evaluation | Not performed; see EVALUATION.md |
@@ -89,3 +95,19 @@ Version 0.5.1 preserves the canonical schemas, public Rust record fields, provid
 The first untouched baseline test run encountered two transient EAL mock-host spawn failures before request exchange. Four independent focused reruns passed all nine host tests, and the final full suite passed all 142 tests. The underlying OS error was not retained by that adapter, so its cause remains unknown. No retry, timeout relaxation or weaker assertion was introduced. External EAL executables were unavailable in this fresh workspace, so the four ignored live integrations and optional external-compiler checks were not re-run. The EAL export and host source remain unchanged, and deterministic export/CLI regression tests passed.
 
 No live provider key was available for this task. Frozen-output replay establishes preserved context and deterministic acceptance, while comparative live argument quality and billed cost remain unmeasured. See EVALUATION.md and benchmarks/token_usage.json for the measured boundaries and raw evidence.
+
+Version 0.6.0 starts from `5d60f33fde151a809196e3a3239310a2bbdb39aa`. Its preservation contract covers the canonical schemas, supplied evidence identity and status rules, retained dissent, explicit composition, graph and prose correspondence, independent first passes, complete-call receipts and all resource and repair budgets. A separate internal provider envelope identifies tools during construction without another model call. The unchanged transcript retains that envelope for deterministic export. Known collector choices are proposals whose arguments still need review against the intended investigation.
+
+`EXTRACTED` the `acquisition` module owns catalogue policy and binding validation, `eal_acquisition` owns collector projection and source-archive identity, `eal_observe` owns bounded read adapters and `presentations/plain` owns sentence-line inspection. Export destinations and supported credential names have focused policies. `RETAINED` the engine owns its fixed dependency ordering, `tool_prompt` adapts role context, the repair loop corrects the case and bindings together, and the EAL builder keeps one declaration sequence and reference map. Rust 2024, the pinned toolchain, unsafe prohibition, rustfmt and the existing Clippy profile remain governing. No new production dependency or generic agent framework was introduced. The only new crate is the development tokenizer, `tiktoken-rs 0.12.1`, replacing the Python benchmark dependency.
+
+Request and case schema output was compared byte-for-byte with the immutable 0.5.1 binary. The case schema SHA-256 is `ffe4f82380fa2bf2f1a0f231a094d2bf072d0efe926dcca13d7ee0e963763b9c` in both arms. Existing direct-case Rust APIs and saved reports remain supported. Local `HostConfig` struct literals need the new registry and collector-environment fields. Tool planning changes the internal model response contract and raw transcript contents while keeping the public report schema unchanged.
+
+The performance pass reproduced the prior baseline, consolidated role instructions already supplied by the common contract and measured complete accepted paths with three repetitions. The same-case comparison saved a further 848 input reference tokens across five workloads, from 205,993 to 205,145. The four-workload planning path saved 1,159 input reference tokens against its pre-consolidation version. Planning adds measured context and output volume, while retaining six calls and the same bounded repair path. No new paid inference or billing measurement was performed. A generic long-string reference table was rejected after its 1.75% saving missed its predeclared 5% threshold. See EVALUATION.md and the existing benchmark record for counts and limits.
+
+A full-suite run exposed the old HTTP fixture's direct-case-only schema detection after the CLI default changed to planned envelopes. The fixture now handles both schemas, verifies retained plan identity and has a bounded accept deadline. A later run encountered the previously observed transient mock-host spawn failure. The immediate focused rerun passed. No production retry or weaker assertion was added. Concurrent incremental builds also produced a local invalid-session linker error during development, so final local checks used `CARGO_INCREMENTAL=0`.
+
+The plain view preserves authored values and technical syntax. Its punctuation and sentence-style requirements are generation instructions rather than a semantic rewriting or certification pass over historical reports. Custom investigation stubs and independent review contracts require an operator-provided adapter or admissible matching observations. One collector is selected per evidence need. A custom adapter can combine operations for a more complex investigation.
+
+The first 0.6.0 macOS CI run caught a registry-path test expectation using the `/var` spelling while the host correctly passed its canonical `/private/var` path. The assertion now compares the canonical path and the fixture explicitly supplies a symlink, exercising the same distinction on Linux. Production path resolution is unchanged.
+
+The push run at `40086848025` exposed a separate macOS socket-mode defect in the local HTTP double. Accepted connections could retain the nonblocking listener mode and return `WouldBlock` before the request arrived. Both the end-to-end fixture and the benchmark reader now explicitly select blocking mode before their existing read deadlines. Two regression tests force a nonblocking accepted socket and send fragmented requests after a delay. CI runs all targets so the benchmark regression executes on both operating systems. The provider, argument workflow, schemas and token-counting policy remain unchanged.

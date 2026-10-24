@@ -13,6 +13,9 @@ use std::{
     fmt::Write,
 };
 
+mod plain;
+pub use plain::{plain_lines, plain_lines_with_depth};
+
 fn label<T: serde::Serialize>(value: &T) -> String {
     serde_json::to_value(value)
         .ok()

@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     Error,
+    acquisition::{self, PlannedArgument},
     domain::{ArgumentCase, Request, case_schema, validate_request},
     output_validation::{self, RetainedObjection},
     prompts,
@@ -177,6 +178,45 @@ fn argument(record: &CallRecord) -> Result<ArgumentCase, Error> {
     })
 }
 
+fn planned_argument(record: &CallRecord) -> Result<PlannedArgument, Error> {
+    serde_json::from_str(&record.response.content).map_err(|error| {
+        Error::InvalidOutput(format!(
+            "{} planned case is invalid JSON: {error}",
+            record.role.as_str()
+        ))
+    })
+}
+
+fn tool_prompt(
+    role: Role,
+    mut data: Value,
+    schema: Value,
+    config: &RunConfig,
+    tool_planning: bool,
+) -> Result<CompletionRequest, Error> {
+    let produces_case = matches!(role, Role::Single | Role::Synthesiser | Role::Adjudicator);
+    let plans_tools = tool_planning
+        && (produces_case || matches!(role, Role::EvidenceAuditor | Role::FinalCritic));
+    if plans_tools {
+        data["acquisition_tools"] = acquisition::catalogue();
+    }
+    let schema = if tool_planning && produces_case {
+        acquisition::planned_case_schema()
+    } else {
+        schema
+    };
+    let mut request = prompt(role, data, schema, config)?;
+    if plans_tools {
+        request.system.push_str("\n\n");
+        request.system.push_str(acquisition::PLANNING_INSTRUCTIONS);
+    }
+    if tool_planning && produces_case {
+        request.system.push_str("\n\n");
+        request.system.push_str(acquisition::ENVELOPE_INSTRUCTIONS);
+    }
+    Ok(request)
+}
+
 fn prompt(
     role: Role,
     data: Value,
@@ -301,6 +341,33 @@ pub async fn run_with_observer<M: LanguageModel, O>(
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
+    run_internal(model, request, config, observer, false).await
+}
+
+/// Construct collector proposals with the argument, retaining the envelope in
+/// the existing transcript while preserving the public report and case formats.
+pub async fn run_with_tools<M: LanguageModel, O>(
+    model: &M,
+    request: &Request,
+    config: &RunConfig,
+    observer: &O,
+) -> Result<RunReport, Error>
+where
+    O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
+{
+    run_internal(model, request, config, observer, true).await
+}
+
+async fn run_internal<M: LanguageModel, O>(
+    model: &M,
+    request: &Request,
+    config: &RunConfig,
+    observer: &O,
+    tool_planning: bool,
+) -> Result<RunReport, Error>
+where
+    O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
+{
     validate_request(request).map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
     if config
         .max_argument_depth
@@ -329,11 +396,12 @@ where
         Mode::Single => {
             let call = execute(
                 model,
-                prompt(
+                tool_prompt(
                     Role::Single,
                     json!({"request": request}),
                     case_schema(),
                     config,
+                    tool_planning,
                 )?,
                 config,
                 observer,
@@ -341,7 +409,7 @@ where
             .await?;
             (vec![call], Vec::new())
         }
-        Mode::Hybrid => hybrid(model, request, config, observer).await?,
+        Mode::Hybrid => hybrid(model, request, config, observer, tool_planning).await?,
     };
     let final_case = repair::validate_or_repair(
         model,
@@ -350,6 +418,7 @@ where
         observer,
         &mut transcript,
         &mut retained_objections,
+        tool_planning,
     )
     .await?;
     Ok(RunReport {
@@ -371,6 +440,7 @@ async fn hybrid<M: LanguageModel, O>(
     request: &Request,
     config: &RunConfig,
     observer: &O,
+    tool_planning: bool,
 ) -> Result<(Vec<CallRecord>, Vec<RetainedObjection>), Error>
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
@@ -381,7 +451,13 @@ where
     // can observe another specialist's response through this data flow.
     let constructor = prompt(Role::Constructor, data.clone(), schema.clone(), config)?;
     let sceptic = prompt(Role::Sceptic, data.clone(), schema.clone(), config)?;
-    let auditor = prompt(Role::EvidenceAuditor, data, schema.clone(), config)?;
+    let auditor = tool_prompt(
+        Role::EvidenceAuditor,
+        data,
+        schema.clone(),
+        config,
+        tool_planning,
+    )?;
     for first_pass in [&constructor, &sceptic, &auditor] {
         check_prompt(first_pass, config)?;
     }
@@ -403,31 +479,45 @@ where
     }
     let synthesis = execute(
         model,
-        prompt(
+        tool_prompt(
             Role::Synthesiser,
             json!({"request": request, "independent_assessments": assessments, "retained_objections": retained_objections}),
             case_schema(),
             config,
+            tool_planning,
         )?,
         config,
         observer,
     )
     .await?;
-    let draft = argument(&synthesis)?;
-    let draft_validation_errors = output_validation::errors(
+    let (draft, draft_acquisition_plan) = if tool_planning {
+        let planned = planned_argument(&synthesis)?;
+        (planned.argument, planned.acquisition_plan)
+    } else {
+        (argument(&synthesis)?, Vec::new())
+    };
+    let mut draft_validation_errors = output_validation::errors(
         request,
         &draft,
         &retained_objections,
         config.max_argument_depth,
     );
+    if tool_planning {
+        draft_validation_errors.extend(acquisition::validate(&draft, &draft_acquisition_plan));
+    }
     let draft_view = context::argument(request, &draft, &retained_objections)?;
+    let mut critique_data = json!({"request": request, "independent_assessments": assessments, "draft": draft_view, "retained_objections": retained_objections, "draft_validation_errors": draft_validation_errors});
+    if tool_planning {
+        critique_data["draft_acquisition_plan"] = serde_json::to_value(&draft_acquisition_plan)?;
+    }
     let critique = execute(
         model,
-        prompt(
+        tool_prompt(
             Role::FinalCritic,
-            json!({"request": request, "independent_assessments": assessments, "draft": draft_view, "retained_objections": retained_objections, "draft_validation_errors": draft_validation_errors}),
+            critique_data,
             schema,
             config,
+            tool_planning,
         )?,
         config,
         observer,
@@ -439,20 +529,26 @@ where
         parse_assessment(&critique)?,
         &mut retained_objections,
     );
+    let mut adjudication_data = json!({
+        "request": request,
+        "independent_assessments": assessments,
+        "draft": draft_view,
+        "draft_validation_errors": draft_validation_errors,
+        "retained_objections": retained_objections,
+        "final_critique": final_critique["assessment"]
+    });
+    if tool_planning {
+        adjudication_data["draft_acquisition_plan"] =
+            serde_json::to_value(&draft_acquisition_plan)?;
+    }
     let adjudication = execute(
         model,
-        prompt(
+        tool_prompt(
             Role::Adjudicator,
-            json!({
-                "request": request,
-                "independent_assessments": assessments,
-                "draft": draft_view,
-                "draft_validation_errors": draft_validation_errors,
-                "retained_objections": retained_objections,
-                "final_critique": final_critique["assessment"]
-            }),
+            adjudication_data,
             case_schema(),
             config,
+            tool_planning,
         )?,
         config,
         observer,
