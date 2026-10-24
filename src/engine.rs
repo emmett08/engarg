@@ -14,6 +14,7 @@ use crate::{
     provider::{Completion, CompletionRequest, LanguageModel, Role},
 };
 
+mod context;
 mod repair;
 
 /// Architecture selected for a run.
@@ -183,6 +184,10 @@ fn prompt(
     config: &RunConfig,
 ) -> Result<CompletionRequest, Error> {
     let mut system = prompts::system(role);
+    if context::uses_references(&data) {
+        system.push_str("\n\n");
+        system.push_str(prompts::REFERENCE_CONTEXT);
+    }
     if let Some(depth) = config.max_argument_depth {
         system.push_str(&format!(
             "\n\nCONSTRUCTION LIMIT: Use at most {depth} warrant layers on every support path from current_claim or stronger_target to a ground, including unselected candidate routes. A direct claim-to-warrant-to-ground argument has depth 1; an intermediate subclaim adds one layer. Use assumed or missing grounds with concrete evidence obligations at the boundary. Keep every consequential condition and challenge explicit. This limit bounds decomposition, not evidential strength. Do not invent support, weaken validation, or conceal a necessary inference to meet it. Specialists must focus on the decisive arguments at this depth rather than recursively expanding remote possibilities."
@@ -387,26 +392,15 @@ where
     );
     let initial = vec![constructor?, sceptic?, auditor?];
     let mut retained_objections = Vec::<RetainedObjection>::new();
+    let mut assessments = Vec::new();
     for (record, prefix) in initial.iter().zip(["constructor", "sceptic", "auditor"]) {
-        let assessment = parse_assessment(record)?;
-        for (index, challenge) in assessment.objections.into_iter().enumerate() {
-            retained_objections.push(RetainedObjection {
-                id: format!("{prefix}-{}", index + 1),
-                challenge,
-                source_role: record.role,
-                must_remain_material: false,
-            });
-        }
+        assessments.push(context::assessment(
+            record.role,
+            prefix,
+            parse_assessment(record)?,
+            &mut retained_objections,
+        ));
     }
-    let assessments: Vec<Value> = initial
-        .iter()
-        .map(|record| {
-            Ok(json!({
-                "role": record.role,
-                "assessment": serde_json::from_str::<Value>(&record.response.content)?
-            }))
-        })
-        .collect::<Result<_, serde_json::Error>>()?;
     let synthesis = execute(
         model,
         prompt(
@@ -426,11 +420,12 @@ where
         &retained_objections,
         config.max_argument_depth,
     );
+    let draft_view = context::argument(request, &draft, &retained_objections)?;
     let critique = execute(
         model,
         prompt(
             Role::FinalCritic,
-            json!({"request": request, "independent_assessments": assessments, "draft": draft, "retained_objections": retained_objections, "draft_validation_errors": draft_validation_errors}),
+            json!({"request": request, "independent_assessments": assessments, "draft": draft_view, "retained_objections": retained_objections, "draft_validation_errors": draft_validation_errors}),
             schema,
             config,
         )?,
@@ -438,15 +433,12 @@ where
         observer,
     )
     .await?;
-    let final_critique = parse_assessment(&critique)?;
-    for (index, challenge) in final_critique.objections.into_iter().enumerate() {
-        retained_objections.push(RetainedObjection {
-            id: format!("critic-{}", index + 1),
-            challenge,
-            source_role: Role::FinalCritic,
-            must_remain_material: false,
-        });
-    }
+    let final_critique = context::assessment(
+        Role::FinalCritic,
+        "critic",
+        parse_assessment(&critique)?,
+        &mut retained_objections,
+    );
     let adjudication = execute(
         model,
         prompt(
@@ -454,10 +446,10 @@ where
             json!({
                 "request": request,
                 "independent_assessments": assessments,
-                "draft": draft,
+                "draft": draft_view,
                 "draft_validation_errors": draft_validation_errors,
                 "retained_objections": retained_objections,
-                "final_critique": serde_json::from_str::<Value>(&critique.response.content)?
+                "final_critique": final_critique["assessment"]
             }),
             case_schema(),
             config,

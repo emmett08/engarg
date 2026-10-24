@@ -1,12 +1,12 @@
 # Verification record
 
-Version 0.5.0 verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
+Version 0.5.1 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
 
 | Check | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked` with `EAL_CORE` set | 134 passed, 0 failed, 4 external integration tests ignored |
+| `cargo test --locked` | 142 passed, 0 failed, 4 external integration tests ignored |
 | `cargo build --locked --release` | Passed |
 | Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
 | Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
@@ -20,10 +20,10 @@ Version 0.5.0 verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Shared nodes, explicit compositions and depth limits | Passed |
 | HTML escaping and visible collapsed qualifications | Passed by structural tests |
 | Browser visual inspection | Not executed: headless-browser download returned an invalid archive |
-| EAL/3 compiler and evaluator compatibility | Passed against eal-mcp `d311d5a4f9e294ba3228127bc5210b48c5de3a12`, using Rust 1.99.1 |
-| Real EAL host and MCP server | 4 separately invoked external integration tests passed |
-| EAL assumption-to-objection propagation | Passed against the actual evaluator using isolated synthetic observation fixtures |
-| Release CLI with real host/server | Export, source/bundle validation, plan, assess, explain, packet, describe and invalid-source exit checks passed |
+| EAL/3 compiler and evaluator compatibility | Retained 0.5.0 verification against eal-mcp `d311d5a4f9e294ba3228127bc5210b48c5de3a12`, using Rust 1.99.1 |
+| Real EAL host and MCP server | Retained 0.5.0 verification: 4 external tests passed. Not re-run for this context-only change |
+| EAL assumption-to-objection propagation | Retained 0.5.0 verification against the actual evaluator using isolated synthetic observation fixtures |
+| Release CLI with real host/server | Retained 0.5.0 verification: export, source/bundle validation, plan, assess, explain, packet, describe and invalid-source exit checks passed |
 | Requested and returned service tiers | Exact `gpt-6.1-sol` / `ultrafast` request and differing returned tier retained in HTTP and six-stage CLI tests |
 | Optional reasoning effort | Correct nested Responses and root Chat fields, omission when unset, bounded identifiers and explicit HTTP400 failure without fallback passed |
 | Reasoning configuration and receipts | CLI overrides environment, environment-only configuration works, requested/reported values remain separate, and old reports deserialize with unknown effort |
@@ -34,6 +34,11 @@ Version 0.5.0 verified on 23 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Display depth | Outline, prose and HTML limit detailed claim levels without changing canonical JSON; qualifiers and consequential conditions remain visible; existing indentation-only behaviour passes |
 | Depth/repair release workflow | Real release executable completed a seven-call hybrid run against a local HTTP double, repaired the targeted gap, retained depth/settings/receipts and rendered three limited views without modifying the report |
 | Persistence compatibility | Old run/configuration records deserialize with unknown historical run configuration, unbounded generation depth and zero repairs as applicable |
+| Token-context preservation | Exact graph/reading/claim/objection reconstruction, source order and roles, mismatch visibility, short-literal fallback and rejection of reference-bearing final outputs passed |
+| Malformed repair input | Duplicate-key candidate text remains verbatim rather than being reparsed into a lossy object |
+| Frozen complete-path token comparison | Five workloads, three repetitions per arm, unchanged requests/arguments/completions/call counts, with 17.33% fewer input reference tokens |
+| Markdown without audit appendix | Full argument records/registers byte-identical, canonical source unchanged, and 78.69% less downstream reference-token context on the retained report |
+| Benchmark helper | Public fixture and retained-report captures, comparison, document measurement and Python compilation passed. Both measured binaries used release builds |
 | Remote MCP deployment | Configuration and credential handling tested locally, no real remote service contacted |
 | Live model execution | Not performed: no provider API key was available |
 | Comparative argument-quality evaluation | Not performed; see EVALUATION.md |
@@ -77,3 +82,10 @@ ENGARG_EAL_HOST=/absolute/path/to/eal-host cargo test --locked --test eal_live -
 ```
 
 No source retrieval, experiment execution, independent source authentication, statistical analysis or formal proof checking is performed by the argument workflow. A structural pass cannot certify truth, relevance, completeness or soundness. The next scientific validation step is the paired expert-reviewed evaluation described in EVALUATION.md.
+
+
+Version 0.5.1 preserves the canonical schemas, public Rust record fields, provider wire formats, evidence-status validation, fixed topology and repair/resource budgets. `EXTRACTED`: `engine/context` owns exact request-local references and their encoded-byte guard, so draft review and typed repair share one serialization policy. Assessment parsing now feeds both its compact context and retained objection register once, replacing the previous repeated parse and duplicated challenge text. `RETAINED`: `prompt` selects fixed role instructions and the reference primer, with the numeric depth rule at the existing construction boundary. `system` composes the shared core and the applicable output/review contracts. `validate_or_repair` retains ownership of the bounded correction loop and delegates candidate encoding. `report_content` selects the existing complete template with or without its audit appendix. No new production dependency or design pattern was added.
+
+The first untouched baseline test run encountered two transient EAL mock-host spawn failures before request exchange. Four independent focused reruns passed all nine host tests, and the final full suite passed all 142 tests. The underlying OS error was not retained by that adapter, so its cause remains unknown. No retry, timeout relaxation or weaker assertion was introduced. External EAL executables were unavailable in this fresh workspace, so the four ignored live integrations and optional external-compiler checks were not re-run. The EAL export and host source remain unchanged, and deterministic export/CLI regression tests passed.
+
+No live provider key was available for this task. Frozen-output replay establishes preserved context and deterministic acceptance, while comparative live argument quality and billed cost remain unmeasured. See EVALUATION.md and benchmarks/token_usage.json for the measured boundaries and raw evidence.

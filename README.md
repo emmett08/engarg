@@ -96,6 +96,26 @@ Repairs use the same model role, reasoning settings, byte, output-token and dead
 
 To explore further decomposition later, rerun the same claim with `--argument-depth 4` and new output/audit filenames. This is a fresh assessment, not a continuation or automatic merge of the previous graph. Greater permitted depth does not guarantee greater actual depth or a stronger argument. Compare the reasoning and obligations, and supply acquired evidence when available. Display depth can instead change freely without inference, as shown below. Saved reports and audit start records retain the generation and repair settings. Old saved reports remain readable.
 
+## Token use
+
+Version 0.5.1 reduces repeated model context automatically, with the same six-stage hybrid workflow, model settings and complete final argument. Existing analyse commands receive the optimisation without another option.
+
+Shared construction and evidence rules are stated once. The constructor, sceptic and evidence auditor receive the assessment output contract, while case writers and the final critic retain the complete graph/prose contract. Composition rules remain available to every role. Assessment entries ask for substantive plain-language reasoning rather than JSON records encoded inside strings, with no new cap on technical detail.
+
+Later prompts keep each objection's exact wording once in `retained_objections`. Assessment `objection_ids` and exact duplicate draft challenges refer to that same request-local register. A repeated original claim can refer to `request.claim`. Findings, evidence gaps, source evidence and the full draft graph and reading remain available. References are substituted only when their encoded JSON fields are smaller. Mismatched claims or objection wording stay literal for review. Complete model outputs still require the original literal fields and pass all existing checks. No model summary or extra retrieval call replaces source content.
+
+A typed repair candidate is sent as a structured object rather than an escaped JSON string. Invalid or duplicate-key candidate text remains verbatim for diagnosis. Original completion receipts are retained in the audit, and call, time, byte and output-token limits apply as before.
+
+A fixed-output comparison against `db92e30` measured **17.3% fewer input reference tokens** across five workloads. In the retained seven-call run, input fell from 115,178 to 95,536 reference tokens. The final arguments and completion sequences were identical. These measurements use `tiktoken 0.14.0` with `o200k_base`; they exclude proprietary framing, cached token accounting and hidden reasoning. They demonstrate context reduction and preserved replay acceptance, with live-model quality and billing effects still to be measured. See [EVALUATION.md](EVALUATION.md) and the [raw measurements](benchmarks/token_usage.json).
+
+Keep a complete JSON report for subsequent inspection. When passing Markdown to another model, `--no-audit-appendix` retains every argument record and shared register while omitting the full JSON transcript appendix:
+
+```sh
+engarg render --input run.json --format markdown --no-audit-appendix --output argument.md
+```
+
+The retained report measured 283,686 reference tokens with its audit appendix and 60,461 without it, a 78.7% reduction in downstream document context. The canonical source remained unchanged. This option affects Markdown presentation rather than the inference that constructed the argument. The full appendix remains the default. `--format prose` provides the existing connected reading view.
+
 ## Input and output
 
 Only `claim` is required. The simplest JSON input is:

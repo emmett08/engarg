@@ -177,6 +177,52 @@ fn one_saved_graph_can_render_every_presentation_without_a_provider_key() {
 }
 
 #[test]
+fn omitting_the_audit_appendix_preserves_every_argument_record_and_saved_json() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("report.json");
+    assert!(
+        cli()
+            .args(["demo", "--format", "json", "--output"])
+            .arg(&path)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    let before = std::fs::read(&path).unwrap();
+    let full = cli()
+        .args(["render", "--input"])
+        .arg(&path)
+        .output()
+        .unwrap();
+    let compact = cli()
+        .args(["render", "--input"])
+        .arg(&path)
+        .arg("--no-audit-appendix")
+        .output()
+        .unwrap();
+    assert!(full.status.success() && compact.status.success());
+    let full = String::from_utf8(full.stdout).unwrap();
+    let compact = String::from_utf8(compact.stdout).unwrap();
+    assert_eq!(
+        full.split_once("## Complete audit record")
+            .unwrap()
+            .0
+            .trim_end(),
+        compact.trim_end()
+    );
+    for marker in [
+        "14. Decision basis and revision triggers",
+        "Evidence register",
+        "Challenge register",
+        "Composition register",
+    ] {
+        assert!(compact.contains(marker));
+    }
+    assert_eq!(std::fs::read(path).unwrap(), before);
+}
+
+#[test]
 fn invalid_saved_graph_is_rejected_before_it_can_be_presented() {
     let directory = tempfile::tempdir().unwrap();
     let report = directory.path().join("bad.json");

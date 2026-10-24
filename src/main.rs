@@ -162,6 +162,9 @@ struct Output {
     /// Detailed claim levels in outline/prose/HTML. JSON and template stay complete.
     #[arg(long, value_name = "N", value_parser = clap::value_parser!(u8).range(1..=16))]
     display_depth: Option<u8>,
+    /// Markdown only: omit the full JSON audit appendix; keep all argument records.
+    #[arg(long)]
+    no_audit_appendix: bool,
     /// New output file. Existing files are preserved. Omit for stdout.
     #[arg(short, long)]
     output: Option<PathBuf>,
@@ -222,7 +225,14 @@ fn report_content(
     let synthetic = value["execution_mode"] == "offline_synthetic_fixture";
     let mut content = match output.format {
         Format::Json => return Ok(serde_json::to_string_pretty(&value)?),
-        Format::Markdown => render::with_audit(render::markdown(request, argument), &value)?,
+        Format::Markdown => {
+            let markdown = render::markdown(request, argument);
+            if output.no_audit_appendix {
+                markdown
+            } else {
+                render::with_audit(markdown, &value)?
+            }
+        }
         Format::Outline => presentations::outline_with_depth(
             request,
             argument,

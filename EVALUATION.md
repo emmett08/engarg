@@ -16,3 +16,53 @@ Before adding a mesh, additional debate rounds, retrieval or a formal verifier, 
 For the outline, prose and expandable views, use the same frozen graph for every comparison. Check whether readers can identify the qualified conclusion, the decisive finding, the governing warrant and the unresolved complication. Ask them to explain whether child arguments are jointly required, alternative routes or cumulative contributions. Record omitted conditions, mistaken dependency interpretations and time spent locating the decisive gap. Inspect prose against the graph for altered quantifiers, scope or epistemic force. Treat paragraph-reference validity separately from semantic fidelity and reader comprehension.
 
 Compare display depths independently from generation depths. A limited view should preserve the qualified judgement and consequential conditions, identify omitted supporting detail, and leave canonical JSON and export unchanged. Test whether readers understand the remaining evidence obligations. Track corrections that pass structural validation separately from substantive improvements: adding a syntactically complete plan does not establish that its investigation would resolve the objection.
+
+## Token-context experiment: 0.5.1
+
+The objective was at least a 10% reduction in aggregate input text tokens, with every source fact and qualification recoverable inside the receiving prompt, unchanged validation and identical frozen arguments, completions and call counts. The comparison used baseline `db92e30` and the 0.5.1 candidate, both built in release mode with Rust 1.99.1 on Linux x86-64. The reference counter was `tiktoken 0.14.0` with `o200k_base` under Python 3.12. The counter cannot identify a proprietary `gpt-6.1-sol` encoding, so these are explicitly reference text tokens rather than billed model tokens.
+
+The real CLI and HTTP adapter ran against a loopback Responses double. Four source-bound fixture workloads cover claim-only construction, supplied evidence, retained dissent and a missing-plan repair. A fifth workload replays a retained seven-call report, including the exact model completions, original configuration and both adjudicator responses. Each arm ran each workload three times in separate CLI processes. The token counts were identical across repetitions. Fixed text volume is deterministic, so this observation supplies no estimate of live-model variability. Raw local elapsed times are retained without making a provider-latency claim.
+
+| Workload | Calls | Baseline input reference tokens | 0.5.1 input reference tokens | Reduction |
+| --- | ---: | ---: | ---: | ---: |
+| Claim-only | 6 | 26,095 | 21,490 | 17.65% |
+| Supplied evidence | 6 | 24,476 | 19,855 | 18.88% |
+| Retained objections | 6 | 35,725 | 29,333 | 17.89% |
+| Missing-plan repair | 7 | 47,700 | 39,779 | 16.61% |
+| Retained report | 7 | 115,178 | 95,536 | 17.05% |
+| Sum of one run per workload | 32 | 249,174 | 205,993 | 17.33% |
+
+Counting the unchanged visible outputs as well gives 351,928 versus 308,747 reference tokens, a 12.27% reduction. Every final argument, source request and completion sequence was identical between arms, including the required repair. The full draft graph and reading still reach the final critic. Tests additionally reconstruct compact context exactly and retain mismatched or malformed values for diagnosis. Internal references cannot be returned as a completed canonical case.
+
+The mechanism combines a single construction/evidence contract with role-appropriate output instructions, exact request-local objection references and structured typed repair input. It retains all composition rules and the complete prose-fidelity contract for writers and the final critic. The initial context-only experiment saved 5.9% across the four fixture workloads, below the preselected threshold. Consolidating duplicated instructions supplied the additional reduction. No evidence, challenge, required schema field, review stage or validation rule was removed. Model selection, reasoning effort, generation depth and resource limits were held fixed within each pair.
+
+A separate presentation experiment uses the same retained JSON source. Full Markdown contained 1,402,367 UTF-8 bytes and 283,686 reference tokens. `--no-audit-appendix` produced 338,562 bytes and 60,461 reference tokens, reducing downstream document context by 78.69%. The entire argument portion was byte-identical after trimming final whitespace, and the canonical source was unchanged. This option affects subsequent reading or model context, rather than the inference needed to construct the argument.
+
+[benchmarks/token_usage.json](benchmarks/token_usage.json) retains the component measurements, per-call response digests, repetition ranges, source/binary/script identities and exploratory result. It contains no source claim or response text from the retained report. The retained input is identified by digest and is not distributed. The four fixture workloads are reproducible from the repository.
+
+Reproduce the public comparison with new output paths:
+
+```sh
+python3 -m pip install tiktoken==0.14.0
+
+git worktree add --detach ../engarg-token-baseline db92e30
+cargo build --locked --release --manifest-path ../engarg-token-baseline/Cargo.toml
+cargo build --locked --release
+
+python3 scripts/benchmark_tokens.py capture \
+  --binary ../engarg-token-baseline/target/release/engarg \
+  --repo ../engarg-token-baseline --label db92e30 --build-profile release \
+  --output /tmp/engarg-tokens-before.json
+
+python3 scripts/benchmark_tokens.py capture \
+  --binary target/release/engarg --repo . --label 0.5.1 --build-profile release \
+  --output /tmp/engarg-tokens-after.json
+
+python3 scripts/benchmark_tokens.py compare \
+  /tmp/engarg-tokens-before.json /tmp/engarg-tokens-after.json \
+  --output /tmp/engarg-tokens-comparison.json
+```
+
+Add `--replay-report /absolute/path/to/run.json` to both captures for an additional retained-report workload. The replay uses original completions and never calls the configured live endpoint. Recorded historical usage metadata remains separate from newly measured text volume. Outputs use exclusive creation. The document comparison is available through `document --binary target/release/engarg --input run.json --output /tmp/engarg-document-volume.json`.
+
+This experiment establishes smaller prompt context and preserved replay acceptance. It cannot establish unchanged live argument quality, recovery rate, hidden reasoning, cache behaviour or billed cost per accepted result. A paired live-model study using the expert-reviewed criteria above remains necessary for those conclusions. Further reductions that change source detail, independent review or reasoning budgets require their own acceptance evidence.

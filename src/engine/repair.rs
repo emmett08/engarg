@@ -1,6 +1,6 @@
 //! Bounded validation-guided repair of the workflow’s final candidate.
 
-use super::{CallRecord, RunConfig, argument, execute, prompt};
+use super::{CallRecord, RunConfig, argument, context, execute, prompt};
 use crate::{
     Error,
     domain::{ArgumentCase, Request, case_schema},
@@ -24,7 +24,7 @@ where
 {
     for attempt in 0..=config.max_repairs {
         let candidate = transcript.last().expect("workflow has a final call");
-        let errors = match argument(candidate) {
+        let (errors, candidate_json) = match argument(candidate) {
             Ok(case) => {
                 let errors = output_validation::errors(
                     request,
@@ -52,9 +52,14 @@ where
                         });
                     }
                 }
-                errors
+                (
+                    errors,
+                    context::argument(request, &case, retained_objections)?,
+                )
             }
-            Err(error) => vec![error.to_string()],
+            // Preserve malformed input verbatim: parsing arbitrary JSON into a
+            // generic value could hide duplicate keys or the offending syntax.
+            Err(error) => (vec![error.to_string()], json!(candidate.response.content)),
         };
         if attempt == config.max_repairs {
             return Err(Error::InvalidOutput(format!(
@@ -67,7 +72,7 @@ where
             candidate.role,
             json!({
                 "request": request,
-                "candidate_json": candidate.response.content,
+                "candidate_json": candidate_json,
                 "validation_errors": errors,
                 "retained_objections": retained_objections,
                 "repair_attempt": attempt + 1,
@@ -98,6 +103,7 @@ mod tests {
         DropObjection,
         DowngradeMateriality,
         ProviderFailure,
+        Malformed,
     }
 
     struct Model {
@@ -135,7 +141,9 @@ mod tests {
             if is_repair && matches!(self.outcome, RepairOutcome::ProviderFailure) {
                 return Err(Error::Provider("fixture refusal".into()));
             }
-            let content = if matches!(role, Role::Single | Role::Synthesiser | Role::Adjudicator) {
+            let content = if !is_repair && matches!(self.outcome, RepairOutcome::Malformed) {
+                "{\"original_claim\":\"first\",\"original_claim\":\"second\"}".into()
+            } else if matches!(role, Role::Single | Role::Synthesiser | Role::Adjudicator) {
                 let (_, mut case) = fixture();
                 if !is_repair || matches!(self.outcome, RepairOutcome::StillInvalid) {
                     case.evidence_plan
@@ -312,5 +320,29 @@ mod tests {
             matches!(run(&model, &fixture().0, &RunConfig {max_repairs: 1, ..RunConfig::default()}).await, Err(Error::Budget(message)) if message.contains("7 calls"))
         );
         assert!(model.calls.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn malformed_candidates_retain_the_complete_original_string_in_repair_context() {
+        let model = model(RepairOutcome::Malformed);
+        let report = run(
+            &model,
+            &fixture().0,
+            &RunConfig {
+                mode: Mode::Single,
+                max_calls: 2,
+                max_repairs: 1,
+                ..RunConfig::default()
+            },
+        )
+        .await
+        .unwrap();
+        let data: serde_json::Value =
+            serde_json::from_str(&report.transcript[1].prompt.user).unwrap();
+        assert_eq!(
+            data["candidate_json"],
+            report.transcript[0].response.content
+        );
+        assert!(data["candidate_json"].is_string());
     }
 }

@@ -27,6 +27,8 @@ rustc-ice-*.txt
 
 /runs/
 
+__pycache__/
+
 *.env
 
 .env
