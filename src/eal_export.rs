@@ -18,7 +18,9 @@ use crate::{
     eal_acquisition::AcquisitionProjection,
 };
 
-const SCHEMA_VERSION: &str = "engarg.eal-export/1";
+const LEGACY_SCHEMA_VERSION: &str = "engarg.eal-export/1";
+const SCHEMA_VERSION: &str = "engarg.eal-export/2";
+const SEMANTICS_VERSION: &str = "engarg.eal-projection/2";
 const REVIEW_MAX_AGE_SECONDS: u64 = 86_400;
 const ENVIRONMENT: &str = "engarg_case";
 const REVIEW_TOOL: &str = "engarg_review_contract";
@@ -29,6 +31,12 @@ const REVIEW_TOOL: &str = "engarg_review_contract";
 pub struct EalExport {
     pub schema_version: String,
     pub exporter_version: String,
+    /// Projection semantics are versioned independently of the producer package.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantics_version: Option<String>,
+    /// Selected, versioned collector contracts retained for deterministic reconstruction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collector_catalogue: Option<Value>,
     pub revision: String,
     pub target_language: String,
     pub review_max_age_seconds: u64,
@@ -69,44 +77,166 @@ pub struct ReviewObligation {
     pub source_evidence_ids: Vec<String>,
 }
 
+/// Select the identity rule declared by the persisted bundle schema.
+/// Producer versions remain provenance under the current semantics.
+#[derive(Clone, Copy)]
+pub(crate) enum ExportIdentity<'a> {
+    Current { exporter_version: &'a str },
+    Legacy { exporter_version: &'a str },
+}
+
+impl<'a> ExportIdentity<'a> {
+    fn current() -> Self {
+        Self::Current {
+            exporter_version: env!("CARGO_PKG_VERSION"),
+        }
+    }
+
+    pub(crate) fn for_bundle(bundle: &'a EalExport) -> Result<Self, Error> {
+        if bundle.exporter_version.is_empty()
+            || bundle.exporter_version.len() > 128
+            || bundle.exporter_version.chars().any(char::is_control)
+        {
+            return Err(Error::InvalidInput(
+                "invalid export producer version".into(),
+            ));
+        }
+        match bundle.schema_version.as_str() {
+            LEGACY_SCHEMA_VERSION
+                if bundle.semantics_version.is_none() && bundle.collector_catalogue.is_none() =>
+            {
+                Ok(Self::Legacy {
+                    exporter_version: &bundle.exporter_version,
+                })
+            }
+            SCHEMA_VERSION if bundle.semantics_version.as_deref() == Some(SEMANTICS_VERSION) => {
+                Ok(Self::Current {
+                    exporter_version: &bundle.exporter_version,
+                })
+            }
+            _ => Err(Error::InvalidInput(
+                "unsupported export schema or projection semantics".into(),
+            )),
+        }
+    }
+
+    pub(crate) fn is_legacy(self) -> bool {
+        matches!(self, Self::Legacy { .. })
+    }
+
+    fn schema_version(self) -> &'static str {
+        if self.is_legacy() {
+            LEGACY_SCHEMA_VERSION
+        } else {
+            SCHEMA_VERSION
+        }
+    }
+
+    fn exporter_version(self) -> &'a str {
+        match self {
+            Self::Current { exporter_version } | Self::Legacy { exporter_version } => {
+                exporter_version
+            }
+        }
+    }
+
+    fn digest_version(self) -> &'a str {
+        if self.is_legacy() {
+            self.exporter_version()
+        } else {
+            SEMANTICS_VERSION
+        }
+    }
+}
+
+/// Exact request for one independent review, retained before source rendering.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewRequest {
+    pub evidence_id: String,
+    pub environment: String,
+    pub tool: String,
+    pub tool_version: String,
+    pub input: Value,
+    pub context: Value,
+}
+
+/// Structured export products share one construction pass and one identity.
+pub struct ExportProjection {
+    pub bundle: EalExport,
+    pub review_requests: Vec<ReviewRequest>,
+}
+
 /// Validate the canonical graph, then project its explicit selected reliance.
 ///
 /// Invalid source graphs are rejected rather than repaired by the exporter.
 /// All generated identifiers use category prefixes and injective UTF-8 hex.
 /// Missing review observations leave the corresponding EAL support unavailable.
 pub fn export(request: &Request, case: &ArgumentCase) -> Result<EalExport, Error> {
-    export_projection(request, case, None)
+    Ok(export_projection(request, case)?.bundle)
 }
 
-pub(crate) fn export_with_acquisitions(
+/// Construct source and exact review requests from the same authored records.
+pub fn export_projection(
+    request: &Request,
+    case: &ArgumentCase,
+) -> Result<ExportProjection, Error> {
+    export_projection_for_identity(request, case, None, ExportIdentity::current())
+}
+
+pub(crate) fn export_projection_with_acquisitions(
     request: &Request,
     case: &ArgumentCase,
     acquisition: &AcquisitionProjection,
-) -> Result<EalExport, Error> {
-    export_projection(request, case, Some(acquisition))
+) -> Result<ExportProjection, Error> {
+    export_projection_for_identity(request, case, Some(acquisition), ExportIdentity::current())
 }
 
-fn export_projection(
+/// Regenerate a supported bundle under its original identity and producer metadata.
+pub(crate) fn reconstruct_projection(
+    bundle: &EalExport,
+    acquisition: Option<&AcquisitionProjection>,
+) -> Result<ExportProjection, Error> {
+    export_projection_for_identity(
+        &bundle.original_request,
+        &bundle.original_case,
+        acquisition,
+        ExportIdentity::for_bundle(bundle)?,
+    )
+}
+
+pub(crate) fn export_projection_for_identity(
     request: &Request,
     case: &ArgumentCase,
     acquisition: Option<&AcquisitionProjection>,
-) -> Result<EalExport, Error> {
+    identity: ExportIdentity<'_>,
+) -> Result<ExportProjection, Error> {
     validate_request(request).map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
     validate_case(request, case).map_err(|errors| Error::InvalidOutput(errors.join("; ")))?;
-    let mut identity =
-        serde_json::to_vec(&(SCHEMA_VERSION, env!("CARGO_PKG_VERSION"), request, case))?;
+    let mut identity_bytes = serde_json::to_vec(&(
+        identity.schema_version(),
+        identity.digest_version(),
+        request,
+        case,
+    ))?;
     if let Some(acquisition) = acquisition {
-        identity.extend(serde_json::to_vec(&acquisition.plans)?);
+        if identity.is_legacy() {
+            identity_bytes.extend(serde_json::to_vec(&acquisition.plans)?);
+        } else {
+            identity_bytes.extend(acquisition.identity()?);
+        }
     }
-    let revision: String = Sha256::digest(identity)
+    let revision: String = Sha256::digest(identity_bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();
-    let mut builder = Exporter::new(&revision, acquisition);
+    let mut builder = Exporter::new(&revision, identity.schema_version(), acquisition);
     builder.write(request, case)?;
     let mut bundle = EalExport {
-        schema_version: SCHEMA_VERSION.into(),
-        exporter_version: env!("CARGO_PKG_VERSION").into(),
+        schema_version: identity.schema_version().into(),
+        exporter_version: identity.exporter_version().into(),
+        semantics_version: (!identity.is_legacy()).then(|| SEMANTICS_VERSION.into()),
+        collector_catalogue: if identity.is_legacy() { None } else { acquisition.and_then(AcquisitionProjection::catalogue_value) },
         revision: revision.clone(),
         target_language: "EAL/3".into(),
         review_max_age_seconds: REVIEW_MAX_AGE_SECONDS,
@@ -134,7 +264,10 @@ fn export_projection(
             "Acquisition availability follows the selected adapter contract. EngArg adapters use collected while native fleet collectors use cluster_count and native GitHub uses found. The existing independent review obligations still determine interpretation and sufficiency. Custom collectors remain command implementation stubs and unresolved inputs retain explicit command configuration templates. Acquisition observations use an explicit 86400-second export-policy age limit rather than an inferred engineering validity period.".into(),
         );
     }
-    Ok(bundle)
+    Ok(ExportProjection {
+        bundle,
+        review_requests: builder.review_requests,
+    })
 }
 
 pub(crate) fn name(prefix: &str, id: &str) -> String {
@@ -182,21 +315,29 @@ impl Support {
 
 struct Exporter<'a> {
     revision: &'a str,
+    schema_version: &'static str,
     source: String,
     source_map: BTreeMap<String, EalSourceMapping>,
     claim_names: BTreeMap<String, String>,
     obligations: Vec<ReviewObligation>,
+    review_requests: Vec<ReviewRequest>,
     acquisition: Option<&'a AcquisitionProjection>,
 }
 
 impl<'a> Exporter<'a> {
-    fn new(revision: &'a str, acquisition: Option<&'a AcquisitionProjection>) -> Self {
+    fn new(
+        revision: &'a str,
+        schema_version: &'static str,
+        acquisition: Option<&'a AcquisitionProjection>,
+    ) -> Self {
         Self {
             revision,
+            schema_version,
             source: String::new(),
             source_map: BTreeMap::new(),
             claim_names: BTreeMap::new(),
             obligations: Vec::new(),
+            review_requests: Vec::new(),
             acquisition,
         }
     }
@@ -276,7 +417,7 @@ impl<'a> Exporter<'a> {
             source_evidence_ids: source_evidence_ids.to_vec(),
         };
         let mut input = json!({
-            "schema": SCHEMA_VERSION,
+            "schema": self.schema_version,
             "case_digest": self.revision,
             "obligation": obligation,
             "authored_detail": detail,
@@ -289,6 +430,14 @@ impl<'a> Exporter<'a> {
             "evidence {declaration} {{\n  tool {REVIEW_TOOL}\n  kind review\n  environment {ENVIRONMENT}\n  max_age {REVIEW_MAX_AGE_SECONDS}\n  input {}\n  require accepted == true\n}}\n\n",
             serde_json::to_string(&input)?
         ));
+        self.review_requests.push(ReviewRequest {
+            evidence_id: declaration.clone(),
+            environment: ENVIRONMENT.into(),
+            tool: REVIEW_TOOL.into(),
+            tool_version: "1".into(),
+            input,
+            context: json!({"engarg_export_digest": self.revision}),
+        });
         self.record(id, "evidence", &declaration, kind);
         self.obligations.push(obligation);
         Ok(declaration)
@@ -663,5 +812,111 @@ fn target(
     } else {
         // validate_case checked the complete node category and self-target rule.
         ("objection", name("objection", id))
+    }
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    fn fixtures() -> (Request, ArgumentCase) {
+        (
+            serde_json::from_str(include_str!("../examples/request.json")).unwrap(),
+            serde_json::from_str(include_str!("../examples/case.json")).unwrap(),
+        )
+    }
+
+    #[test]
+    fn current_identity_survives_unrelated_producer_version_changes() {
+        let (request, case) = fixtures();
+        let first = export_projection_for_identity(
+            &request,
+            &case,
+            None,
+            ExportIdentity::Current {
+                exporter_version: "0.8.0",
+            },
+        )
+        .unwrap();
+        let second = export_projection_for_identity(
+            &request,
+            &case,
+            None,
+            ExportIdentity::Current {
+                exporter_version: "9.9.9",
+            },
+        )
+        .unwrap();
+        assert_ne!(
+            first.bundle.exporter_version,
+            second.bundle.exporter_version
+        );
+        assert_eq!(first.bundle.revision, second.bundle.revision);
+        assert_eq!(first.bundle.source, second.bundle.source);
+        assert_eq!(first.bundle.context, second.bundle.context);
+        assert_eq!(
+            serde_json::to_value(&first.bundle).unwrap(),
+            serde_json::to_value(reconstruct_projection(&first.bundle, None).unwrap().bundle)
+                .unwrap()
+        );
+        assert_eq!(first.bundle.schema_version, SCHEMA_VERSION);
+        assert_eq!(
+            first.bundle.semantics_version.as_deref(),
+            Some(SEMANTICS_VERSION)
+        );
+        assert!(first.review_requests.iter().all(|request| {
+            request.input["schema"] == SCHEMA_VERSION
+                && request.input["case_digest"] == first.bundle.revision
+        }));
+    }
+
+    #[test]
+    fn legacy_reconstruction_preserves_original_package_bound_identity_and_bytes() {
+        let (request, case) = fixtures();
+        let projection = export_projection_for_identity(
+            &request,
+            &case,
+            None,
+            ExportIdentity::Legacy {
+                exporter_version: "0.7.1",
+            },
+        )
+        .unwrap();
+        // The legacy digest independently follows the original public encoding.
+        let identity =
+            serde_json::to_vec(&("engarg.eal-export/1", "0.7.1", &request, &case)).unwrap();
+        let expected_digest: String = Sha256::digest(identity)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        assert_eq!(projection.bundle.revision, expected_digest);
+        assert!(projection.bundle.semantics_version.is_none());
+        assert!(projection.bundle.collector_catalogue.is_none());
+        let value = serde_json::to_value(&projection.bundle).unwrap();
+        assert!(value.get("semantics_version").is_none());
+        assert!(value.get("collector_catalogue").is_none());
+        let reconstructed = reconstruct_projection(&projection.bundle, None).unwrap();
+        assert_eq!(value, serde_json::to_value(&reconstructed.bundle).unwrap());
+        assert_eq!(projection.bundle.source, reconstructed.bundle.source);
+        assert!(projection.review_requests.iter().all(|request| {
+            request.input["schema"] == LEGACY_SCHEMA_VERSION
+                && request.input["case_digest"] == expected_digest
+        }));
+    }
+
+    #[test]
+    fn unknown_or_mixed_identity_contracts_are_rejected() {
+        let (request, case) = fixtures();
+        let mut bundle = export(&request, &case).unwrap();
+        bundle.semantics_version = Some("engarg.eal-projection/999".into());
+        assert!(reconstruct_projection(&bundle, None).is_err());
+        bundle.schema_version = LEGACY_SCHEMA_VERSION.into();
+        assert!(reconstruct_projection(&bundle, None).is_err());
+        bundle.semantics_version = None;
+        bundle.collector_catalogue = Some(json!({"schema_version":"unknown"}));
+        assert!(reconstruct_projection(&bundle, None).is_err());
+        bundle.collector_catalogue = None;
+        bundle.schema_version = "engarg.eal-export/999".into();
+        assert!(reconstruct_projection(&bundle, None).is_err());
     }
 }

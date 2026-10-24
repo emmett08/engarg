@@ -25,3 +25,43 @@ jobs:
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked --all-targets
       - run: cargo build --locked --release
+
+  eal-compatibility:
+    name: EAL producer and consumer contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Source includes the runtime fixes and versioned collector contract producer.
+      EAL_REVISION: 32366396b72baa01301eba058f4c65ea735441c1
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: emmett08/eal-mcp
+          ref: ${{ env.EAL_REVISION }}
+          path: .eal-producer
+          persist-credentials: false
+      - name: Install both declared toolchains
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup toolchain install 1.90.0 --profile minimal
+      - name: Build the pinned EAL producer and native companions
+        working-directory: .eal-producer
+        run: cargo +1.90.0 build --workspace --bins --locked
+      - name: Check published collector descriptors
+        run: |
+          test "$(git -C .eal-producer rev-parse HEAD)" = "$EAL_REVISION"
+          .eal-producer/target/debug/eal-collector describe > "$RUNNER_TEMP/eal-collector-catalogue.json"
+          python3 -c 'import json, os; from pathlib import Path; expected=json.loads(Path("contracts/collectors/native.json").read_text()); actual=json.loads((Path(os.environ["RUNNER_TEMP"])/"eal-collector-catalogue.json").read_text()); assert actual == expected, "published collector catalogue differs from the pinned consumer contract"'
+      - name: Exercise generated EAL, registries and independent collector domains
+        run: |
+          export ENGARG_EAL_HOST="$PWD/.eal-producer/target/debug/eal-host"
+          export EAL_CORE="$PWD/.eal-producer/target/debug/eal-core"
+          test -x "$ENGARG_EAL_HOST"
+          test -x "$EAL_CORE"
+          cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live -- --include-ignored

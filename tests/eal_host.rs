@@ -296,3 +296,130 @@ async fn redacts_the_named_bearer_token_from_host_diagnostics() {
     assert_eq!(result["error"], "token was [REDACTED]");
     assert!(!result.to_string().contains(&token));
 }
+
+fn collector_cli(directory: &TempDir, host: &Path, registry: &Path) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
+    command
+        .args(["eal", "describe", "--workspace"])
+        .arg(directory.path())
+        .arg("--eal-host")
+        .arg(host)
+        .arg("--tools")
+        .arg(registry)
+        .args(["--collector-env", "LAB_API_TOKEN"]);
+    command
+}
+
+#[test]
+fn operator_registry_can_forward_and_redact_a_domain_specific_credential() {
+    let directory = TempDir::new().unwrap();
+    let secret = "synthetic-laboratory-api-credential";
+    let mut envelope = response(json!({"diagnostic":format!("collector received {secret}")}));
+    envelope["operation"] = json!("describe");
+    let script = format!(
+        "[ \"$LAB_API_TOKEN\" = {} ] || exit 42\n[ -z \"$ENGARG_UNREQUESTED_SECRET\" ] || exit 43\n{}",
+        shell_quote(secret),
+        emit(&envelope, 0)
+    );
+    let config = mock(&directory, &script);
+    let registry = directory.path().join("tools.toml");
+    fs::write(
+        &registry,
+        "[tools.lab]\nkind = 'command'\nversion = '1'\nargv = ['/operator/lab-collector']\ninherit_env = ['LAB_API_TOKEN']\n",
+    )
+    .unwrap();
+    let output = collector_cli(&directory, &config.executable, &registry)
+        .env("LAB_API_TOKEN", secret)
+        .env(
+            "ENGARG_UNREQUESTED_SECRET",
+            "unrequested-ambient-credential",
+        )
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        result["result"]["diagnostic"],
+        "collector received [REDACTED]"
+    );
+    assert!(!String::from_utf8_lossy(&output.stdout).contains(secret));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(secret));
+}
+
+#[test]
+fn a_credential_matching_the_redaction_marker_cannot_reappear_in_output() {
+    let directory = TempDir::new().unwrap();
+    let mut envelope = response(json!({"diagnostic":"REDACTED"}));
+    envelope["operation"] = json!("describe");
+    let config = mock(&directory, &emit(&envelope, 0));
+    let registry = directory.path().join("tools.toml");
+    fs::write(
+        &registry,
+        "[tools.lab]\nkind = 'command'\nversion = '1'\nargv = ['/operator/lab-collector']\ninherit_env = ['LAB_API_TOKEN']\n",
+    )
+    .unwrap();
+    let output = collector_cli(&directory, &config.executable, &registry)
+        .env("LAB_API_TOKEN", "REDACTED")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("REDACTED"));
+}
+
+#[test]
+fn undeclared_or_missing_collector_credentials_fail_before_host_execution() {
+    let directory = TempDir::new().unwrap();
+    let marker = directory.path().join("started");
+    let config = mock(&directory, &format!("touch {}", quoted_path(&marker)));
+    let registry = directory.path().join("tools.toml");
+    for (inherited, supplied) in [("[]", true), ("['LAB_API_TOKEN']", false)] {
+        fs::write(
+            &registry,
+            format!("[tools.lab]\nkind = 'command'\nversion = '1'\nargv = ['/operator/lab-collector']\ninherit_env = {inherited}\n"),
+        )
+        .unwrap();
+        let mut command = collector_cli(&directory, &config.executable, &registry);
+        if supplied {
+            command.env("LAB_API_TOKEN", "synthetic-laboratory-api-credential");
+        } else {
+            command.env_remove("LAB_API_TOKEN");
+        }
+        let output = command.output().unwrap();
+        assert!(!output.status.success());
+        assert!(!marker.exists());
+        assert!(output.stdout.is_empty());
+        assert!(
+            !String::from_utf8_lossy(&output.stderr)
+                .contains("synthetic-laboratory-api-credential")
+        );
+    }
+}
+
+#[test]
+fn malformed_or_oversized_environment_registries_fail_before_host_execution() {
+    let directory = TempDir::new().unwrap();
+    let marker = directory.path().join("started");
+    let config = mock(&directory, &format!("touch {}", quoted_path(&marker)));
+    let registry = directory.path().join("tools.toml");
+    for contents in [
+        "[tools.lab]\nkind = 'command'\ninherit_env = ['LAB_API_TOKEN', 'LAB_API_TOKEN']\n"
+            .to_owned(),
+        "[tools.lab]\nkind = 'command'\ninherit_env = [123]\n".to_owned(),
+        "[tools.lab]\nkind = 'json_file'\ninherit_env = ['LAB_API_TOKEN']\n".to_owned(),
+        "#".repeat(1024 * 1024 + 1),
+    ] {
+        fs::write(&registry, contents).unwrap();
+        let output = collector_cli(&directory, &config.executable, &registry)
+            .env("LAB_API_TOKEN", "synthetic-laboratory-api-credential")
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(!marker.exists());
+        assert!(output.stdout.is_empty());
+    }
+}

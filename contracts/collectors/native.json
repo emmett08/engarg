@@ -1,0 +1,283 @@
+{
+  "schema": "eal.collector-catalogue/1",
+  "acquisition_contract": "eal.acquisition/1",
+  "collectors": [
+    {
+      "id": "kubernetes",
+      "version": "1",
+      "purpose": "Read a named Kubernetes resource in every operator-declared inventory context. Resource presence remains separate from health and inventory completeness.",
+      "parameters": [
+        "inventory",
+        "resource",
+        "kind",
+        "namespace",
+        "name"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource",
+          "namespace",
+          "name"
+        ],
+        "properties": {
+          "resource": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*$"
+          },
+          "namespace": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^[A-Za-z0-9_.][A-Za-z0-9_.-]*$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "cluster_count",
+          "all_present",
+          "clusters"
+        ],
+        "properties": {
+          "cluster_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          },
+          "all_present": {
+            "type": "boolean"
+          },
+          "clusters": {
+            "type": "array"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "eal-collector",
+          "kubernetes",
+          "--executable",
+          "{operator.executable}",
+          "--supervisor",
+          "{operator.supervisor}",
+          "--inventory",
+          "{inventory}",
+          "--resource",
+          "{resource}",
+          "--kind",
+          "{kind}",
+          "--namespace",
+          "{namespace}",
+          "--name",
+          "{name}",
+          "--inherit-env",
+          "PATH",
+          "--inherit-env",
+          "HOME",
+          "--inherit-env",
+          "KUBECONFIG",
+          "--timeout-seconds",
+          "60",
+          "--max-bytes",
+          "1048576"
+        ],
+        "inherit_env": [
+          "PATH",
+          "HOME",
+          "KUBECONFIG"
+        ],
+        "timeout_seconds": 65,
+        "max_output_bytes": 4194304,
+        "parallel_safe": false
+      },
+      "acquisition_predicate": "cluster_count >= 1",
+      "constraints": []
+    },
+    {
+      "id": "github",
+      "version": "1",
+      "purpose": "Read an exact GitHub commit and tree through the operator-selected gh executable. Deployment correspondence requires separate evidence.",
+      "parameters": [
+        "repository",
+        "commit"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repository",
+          "commit"
+        ],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 507,
+            "pattern": "^(?!\\.{1,2}/)(?![^/]+/\\.{1,2}$)[A-Za-z0-9_.][A-Za-z0-9_.-]{0,252}/[A-Za-z0-9_.][A-Za-z0-9_.-]{0,252}$"
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{40}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "found",
+          "commit",
+          "tree"
+        ],
+        "properties": {
+          "found": {
+            "type": "boolean"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "tree": {
+            "type": "string"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "eal-collector",
+          "github",
+          "--executable",
+          "{operator.executable}",
+          "--supervisor",
+          "{operator.supervisor}",
+          "--repository",
+          "{repository}",
+          "--commit",
+          "{commit}",
+          "--inherit-env",
+          "PATH",
+          "--inherit-env",
+          "HOME",
+          "--inherit-env",
+          "GH_TOKEN",
+          "--inherit-env",
+          "GH_HOST",
+          "--timeout-seconds",
+          "60",
+          "--max-bytes",
+          "1048576"
+        ],
+        "inherit_env": [
+          "PATH",
+          "HOME",
+          "GH_TOKEN",
+          "GH_HOST"
+        ],
+        "timeout_seconds": 65,
+        "max_output_bytes": 4194304,
+        "parallel_safe": false
+      },
+      "acquisition_predicate": "found == true",
+      "constraints": []
+    },
+    {
+      "id": "tempo",
+      "version": "1",
+      "purpose": "Search Tempo per inventory cluster for a bounded rollout kind and name. Empty searches retain unavailable negative inference. Authentication requires explicit operator options.",
+      "parameters": [
+        "inventory",
+        "url",
+        "kind",
+        "name",
+        "cluster_attribute",
+        "start_unix",
+        "end_unix"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start_unix",
+          "end_unix"
+        ],
+        "properties": {
+          "start_unix": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "end_unix": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "cluster_count",
+          "all_matched",
+          "clusters"
+        ],
+        "properties": {
+          "cluster_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          },
+          "all_matched": {
+            "type": "boolean"
+          },
+          "clusters": {
+            "type": "array"
+          }
+        }
+      },
+      "command": {
+        "argv": [
+          "eal-collector",
+          "tempo",
+          "--inventory",
+          "{inventory}",
+          "--url",
+          "{url}",
+          "--kind",
+          "{kind}",
+          "--name",
+          "{name}",
+          "--cluster-attribute",
+          "{cluster_attribute}",
+          "--timeout-seconds",
+          "60",
+          "--max-bytes",
+          "1048576"
+        ],
+        "inherit_env": [
+          "PATH",
+          "TEMPO_TOKEN",
+          "TEMPO_TENANT"
+        ],
+        "timeout_seconds": 65,
+        "max_output_bytes": 4194304,
+        "parallel_safe": false
+      },
+      "acquisition_predicate": "cluster_count >= 1",
+      "constraints": [
+        {
+          "kind": "ordered_window",
+          "start": "start_unix",
+          "end": "end_unix",
+          "max_seconds": 86400
+        }
+      ]
+    }
+  ]
+}

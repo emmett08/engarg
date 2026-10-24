@@ -222,21 +222,33 @@ engarg eal export --input run.json --format json --output case.json
 engarg eal export --input run.json --output case.eal --manifest case-manifest.json
 ```
 
-The JSON bundle retains the generated source, original request and case, export revision, identifier source map, mapped claim names and outstanding review obligations. After upgrading the exporter, re-export saved canonical JSON reports to produce bundles with the current revision identity. Existing reports remain usable. The `.eal` file supplies an executable structural projection. Preserve its bundle or manifest when the original prose, evidence provenance and full canonical graph must be recoverable. Source alone provides a narrower representation.
+The JSON bundle retains the generated source and canonical case with the export revision and pending review obligations. V2 bundles also retain the selected collector catalogue and a projection-semantics version. Producer package updates preserve the source identity when projection semantics stay compatible. V1 bundles are reconstructed under their recorded producer version. Changes to source bytes or acquisition contracts require observations bound to the resulting exact requests. Preserve the bundle when the original prose and complete argument must remain recoverable.
 
 Version `0.6.0` exports both EAL source and a native tools TOML registry. The first example creates `case.json`, `case.eal` and `case.tools.toml`. The second creates `case.eal`, `case.tools.toml` and the requested manifest. `--tools-output` and the JSON format's `--source-output` select companion paths. With stdout output, companions use the input file's stem. All destinations must be new and distinct. A failed export removes files created by that export.
 
-New analyses identify acquisition tools and named arguments during the existing synthesis and adjudication calls. The catalogue includes the native `eal-collector` Kubernetes fleet reader, exact GitHub commit reader and cluster-scoped Tempo search. Generic `kubectl_get`, `gh_api_get` and `http_json_get` bindings remain available for their narrower read contracts. Values come from the supplied input. Unknown cluster contexts, endpoints, resource identities and other inputs remain explicit unresolved arguments. Every canonical evidence need receives a separate binding, including investigations of assumptions and counter-evidence. The plan is retained in the existing transcript, while the canonical argument and saved report schemas stay unchanged. `--no-tool-planning` selects the earlier direct-case model protocol.
+New analyses identify acquisition tools and named arguments during synthesis and adjudication. The default catalogue supports retained JSON artifacts through `artifact_json` and HTTP JSON reads through `http_json_get`. An unresolved `custom` binding represents investigations needing another adapter. Each evidence need has its own binding. Inputs come from the supplied claim, context or evidence and unknown values remain unresolved. `--no-tool-planning` selects the earlier direct-case model protocol.
 
-Known tools retain command bindings when inputs remain unresolved. Native bindings use `eal-collector` with explicit selector flags. Custom acquisition and review bindings use clearly marked command implementation stubs. Historical reports receive those custom stubs. A custom adapter can combine several operations when an investigation needs them. Each adapter must satisfy EAL's stdin request and observation-envelope contract. A raw `kubectl` or `gh` JSON response needs that adaptation. Export creates proposed configuration and performs no collection.
+Select an additional versioned catalogue with `--collector-catalogue PATH` during analysis. Its input schemas can describe scientific instruments, databases or other deterministic collectors. String parameters retain their literal values. Parameters with another JSON type use JSON encoded in the named argument's string value. EngArg validates the decoded value against the descriptor's schema. The saved run retains the selected catalogue for subsequent export and preparation. Operator-owned command templates select executables and permitted environment names separately from model-proposed inputs.
 
-For an executable local workflow, `eal prepare --input analysis.json --output-dir .engarg-local/case` creates Rust collector bindings and separate private input files. It supports scoped Kubernetes reads, exact Grafana Tempo queries and full trace reads, pinned retained JSON artifacts, and independently authored review records. Missing selectors and records remain unavailable rather than becoming accepted evidence. See [private collector inputs](docs/PRIVATE_COLLECTORS.md). Keep real endpoints and run artifacts in the ignored local directories; the public repository contains no operator input files.
+For the optional infrastructure collectors, obtain the catalogue from the installed EAL companion:
+
+```sh
+mkdir -p .engarg-local
+eal-collector describe > .engarg-local/infrastructure.collectors.json
+engarg analyse --input examples/request.json --model "$ENGARG_MODEL" \
+  --collector-catalogue .engarg-local/infrastructure.collectors.json \
+  --format json --output .engarg-local/analysis.json
+```
+
+Custom collectors can publish the same versioned descriptor contract. The EAL runtime accepts any operator-registered executable implementing its stdin request and observation-envelope protocol. Catalogue selection admits capabilities for planning. Collection uses the reviewed tools registry and explicit operator configuration.
+
+`eal prepare --input analysis.json --output-dir .engarg-local/case` writes seven private files with the saved per-need bindings and exact pending review requests. It preserves chosen adapters and their inputs. An unbound need receives an unresolved custom stub. Supply `--collector-catalogue PATH` when the selected descriptions are absent from the saved run. Preparation leaves operator-owned artifact input files intact. See [private collector inputs](docs/PRIVATE_COLLECTORS.md) for the file set and explicit existing scoped adapters.
 
 Use `--format argument` for one authored statement per indented line and `--format prose` for connected reading paragraphs. New generation instructions request positive plain-English sentences without prose colons, semicolons or comma inventories. Renderers preserve existing authored text and technical syntax, including TraceQL expressions. They preserve the conditions beside each qualified claim rather than rewriting old wording mechanically.
 
 See [the EAL mapping contract](docs/EAL_MAPPING.md) for the semantic projection, review policy and architecture rationale. The EAL service applies its own source, declaration, depth and execution budgets, which can reject a large or deep export even when the original EngArg case passes its checks.
 
-Install the official host and its companion executables into the same prefix. The integration boundary is [eal-mcp revision `48fe218`](https://github.com/emmett08/eal-mcp/tree/48fe2186974f2281a45914c3b41e1cdcb16a5147). From a checkout of that revision:
+Install the official host and its companion executables into the same prefix. Use the EAL revision pinned in [producer–consumer compatibility CI](.github/workflows/ci.yml). From a checkout of that revision:
 
 ```sh
 cargo +1.90.0 install --path crates/eal-runtime --locked
@@ -246,7 +258,7 @@ cargo +1.90.0 install --path crates/eal-coordination --locked
 cargo +1.90.0 install --path crates/eal-collectors --locked
 ```
 
-This follows the companion repository's application-package installation sequence. The local path uses `eal-host`, which starts its installed sibling `eal-mcp` and communicates through the official Rust MCP SDK. See its [installation instructions](https://github.com/emmett08/eal-mcp/blob/48fe2186974f2281a45914c3b41e1cdcb16a5147/README.md#build-and-use) and [host policy](https://github.com/emmett08/eal-mcp/blob/48fe2186974f2281a45914c3b41e1cdcb16a5147/docs/text-host.md) for the supported private-store environment and deployment settings.
+The collector package supplies the optional infrastructure integrations. The runtime's generic command and JSON-file bindings also support other domains. The local path uses `eal-host`, which starts its installed sibling `eal-mcp` through the official Rust MCP SDK. See the companion repository's [installation instructions](https://github.com/emmett08/eal-mcp#build-and-use) and [host policy](https://github.com/emmett08/eal-mcp/blob/main/docs/text-host.md) for deployment settings.
 
 Validate, plan and assess the exported case without making further LLM calls:
 
@@ -263,7 +275,7 @@ Choose the explicit assessment instant appropriate to the retained observations.
 
 `collect` explicitly runs the configured collectors through `eal-host`. Put the installed `engarg` and `eal-collector` executables on `PATH` and resolve registry file paths against the selected workspace. Retain the returned collection identifier for `assess --collection-id ID` using the same source, context and database. Each collected JSON observation remains subject to an independent acceptance review against its measurement, comparator and criterion. Review stubs must be replaced with a trusted reviewer or compatible independently retained observations before those gates can be discharged.
 
-Local credentials remain explicit. Pass `--collector-env KUBECONFIG`, `--collector-env GH_TOKEN` or `--collector-env GH_HOST` only when required. HTTP bearer collection requires both `--collector-env ENGARG_COLLECTOR_TOKEN` and `--collector-env ENGARG_COLLECTOR_ORIGIN`. Set the latter to the exact HTTPS origin such as `https://tempo.example:443`. The adapter sends the token only to that origin and follows no redirects. These settings apply to a local registry. Remote collection uses the remote service's configured collectors and credentials.
+Local credentials remain explicit. `--collector-env NAME` forwards a variable declared by the selected local tools registry. A scientific collector can therefore request `LAB_API_TOKEN`, while infrastructure bindings can request their own configured names. HTTP bearer collection requires both `--collector-env ENGARG_COLLECTOR_TOKEN` and `--collector-env ENGARG_COLLECTOR_ORIGIN`. Set the latter to the exact HTTPS origin such as `https://tempo.example:443`. The adapter sends the token only to that origin and follows no redirects. These settings apply to a local registry. Remote collection uses the remote service's configured collectors and credentials.
 
 | Command or option | Purpose |
 | --- | --- |
@@ -383,15 +395,16 @@ Rust 1.99.1 and the latest non-yanked stable direct dependencies were checked ag
 
 GPL-3.0-only licensed. No model service, API access or paid inference is bundled.
 
-### Native collector configuration
+### Optional infrastructure collector configuration
 
-A native binding names the actual collector command even while operator configuration remains incomplete. Replace `REPLACE` paths and selectors in TOML. Kubernetes and GitHub require absolute CLI and `eal-command-supervisor` paths. Kubernetes and Tempo require an absolute approved inventory path. Its JSON contains a nonempty `revision` and a `clusters` array with `id`, `context` and `tempo_cluster` for each declared cluster. Pin the configured files through EAL's `pinned_files` registry support.
+Select the native infrastructure catalogue explicitly for new generation. Saved reports naming these older built-in IDs remain exportable through their compatibility contracts. A native binding names the collector command while operator configuration remains incomplete. Replace `REPLACE` paths and selectors in TOML. Kubernetes and GitHub require absolute CLI and `eal-command-supervisor` paths. Kubernetes and Tempo require an absolute approved inventory path. Its JSON contains a nonempty `revision` and a `clusters` array with `id`, `context` and `tempo_cluster` for each declared cluster. Pin the configured files through EAL's `pinned_files` registry support.
 
 Resolve missing source inputs by overriding evidence-need bindings and re-exporting the saved report. The override file is a JSON array of acquisition-plan records. Omitted needs keep their retained bindings. Each provided `need_id` must identify an existing need exactly once. This changes the acquisition plan and export revision while preserving the canonical argument and performing no model calls.
 
 ```sh
 engarg eal export --input analysis.json \
   --acquisition-plan bindings.json \
+  --collector-catalogue .engarg-local/infrastructure.collectors.json \
   --output configured.eal --manifest configured.json
 ```
 
@@ -408,3 +421,22 @@ Native source inputs match these collectors' strict contracts. Kubernetes receiv
 Tempo builds a rollout query with a per-cluster filter and returns trace summaries. An exact unchanged TraceQL expression should use `http_json_get` with its encoded search URL. Inspecting complete spans needs a trace-by-ID read. Empty Tempo results retain an unavailable negative inference. Resource absence remains a measured Kubernetes observation. Neither outcome automatically settles the engineering claim.
 
 Native Tempo authentication requires operator approval of the exact configured endpoint. Append `--token-env`, `TEMPO_TOKEN` and optionally `--tenant-env`, `TEMPO_TENANT` to its TOML argv after that approval. Forward the selected variables explicitly with `--collector-env TEMPO_TOKEN` and `--collector-env TEMPO_TENANT` during collection. The generated argv initially performs anonymous requests, so a model-proposed endpoint receives no bearer credentials automatically.
+
+Version 0.9 adds an optional `collector_catalogue` field to the public Rust
+`RunConfig`. Struct literals can use `..RunConfig::default()`. Old saved run
+configurations deserialize with no selected external catalogue. Current planning
+then exposes the three neutral adapters. Older recorded native bindings remain
+exportable through the pinned compatibility catalogue.
+
+New EAL bundles use `engarg.eal-export/2` and a separate projection semantics
+version. The package version records producer provenance. An unrelated package
+release therefore preserves the projected source identity. Version 1 bundles
+are reconstructed under their recorded producer version and original rules.
+Changing source bytes or collector contracts changes evidence identity and
+requires observations bound to that revised source and configuration.
+
+The `eal-compatibility` CI job builds the exact EAL revision named in
+`.github/workflows/ci.yml`. It compares the published collector catalogue and
+runs every installed producer–consumer test, including the laboratory collector.
+Missing companion binaries fail that job. EAL repository workflows remain
+manually triggered.

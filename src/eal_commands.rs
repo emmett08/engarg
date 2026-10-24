@@ -7,8 +7,8 @@ use engarg::{
     Error,
     acquisition::{self, AcquisitionPlan},
     domain::{ArgumentCase, Request},
-    eal_acquisition::{export_with_plan, plan_from_bundle},
-    eal_export::{EalExport, export},
+    eal_acquisition::{export_with_catalogue, reconstruct_bundle},
+    eal_export::EalExport,
     eal_host::{HostConfig, invoke},
     engine::CallRecord,
     provider::Role,
@@ -57,12 +57,9 @@ pub struct PrepareArgs {
     /// New private directory, normally under .engarg-local/ or engarg-runs/.
     #[arg(long)]
     output_dir: PathBuf,
-    /// Explicitly authorised kubectl context. Does not establish production membership.
+    /// Operator-selected collector catalogue. Otherwise use the saved run's catalogue.
     #[arg(long)]
-    kube_context: Option<String>,
-    /// Operator-approved Grafana HTTPS origin; retained only in private inputs.
-    #[arg(long)]
-    grafana_origin: Option<String>,
+    collector_catalogue: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -79,6 +76,9 @@ pub struct ExportArgs {
     /// JSON acquisition-plan entries overriding retained bindings by evidence need ID.
     #[arg(long)]
     acquisition_plan: Option<PathBuf>,
+    /// Operator-selected collector catalogue. Otherwise use the saved run's catalogue.
+    #[arg(long)]
+    collector_catalogue: Option<PathBuf>,
     /// Companion tools registry. Defaults beside output, or beside input for stdout.
     #[arg(long)]
     tools_output: Option<PathBuf>,
@@ -108,7 +108,7 @@ pub struct HostOptions {
     #[arg(long, conflicts_with = "url")]
     tools: Option<PathBuf>,
     /// Explicit local collector credential/configuration variable NAME. Repeat as needed.
-    /// Supports KUBECONFIG, GH_TOKEN, GH_HOST, ENGARG_COLLECTOR_TOKEN, ENGARG_COLLECTOR_ORIGIN, TEMPO_TOKEN and TEMPO_TENANT.
+    /// The name must appear in inherit_env of the selected operator registry.
     #[arg(long, requires = "tools")]
     collector_env: Vec<String>,
     /// Existing Streamable HTTP endpoint; omit to use the host's stdio transport.
@@ -252,6 +252,8 @@ struct CanonicalReport {
     argument: ArgumentCase,
     #[serde(default)]
     transcript: Vec<CallRecord>,
+    #[serde(default)]
+    run_config: Option<engarg::engine::RunConfig>,
 }
 
 struct SourceDocument {
@@ -286,11 +288,7 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
         )
     })?;
     // This checks deterministic identity, not authenticity or empirical truth.
-    let expected = if let Some(plan) = plan_from_bundle(&bundle)? {
-        export_with_plan(&bundle.original_request, &bundle.original_case, &plan)?.bundle
-    } else {
-        export(&bundle.original_request, &bundle.original_case)?
-    };
+    let expected = reconstruct_bundle(&bundle)?;
     if serde_json::to_value(&bundle)? != serde_json::to_value(&expected)? {
         return Err(Error::InvalidInput(
             "EAL bundle differs from the current deterministic export; re-export the canonical case, or assess edited text with --input-format eal".into(),
@@ -393,6 +391,22 @@ fn json_bytes(value: &impl serde::Serialize) -> Result<Vec<u8>, Error> {
     Ok(bytes)
 }
 
+fn selected_catalogue(
+    path: Option<&Path>,
+    report: &CanonicalReport,
+) -> Result<Option<engarg::collector_catalogue::CollectorCatalogue>, Error> {
+    if let Some(path) = path {
+        let text = read_text(path)?;
+        return Ok(Some(
+            engarg::collector_catalogue::CollectorCatalogue::from_json(text.as_bytes())?,
+        ));
+    }
+    Ok(report
+        .run_config
+        .as_ref()
+        .and_then(|config| config.collector_catalogue.clone()))
+}
+
 fn retained_plan(report: &CanonicalReport) -> Result<Vec<AcquisitionPlan>, Error> {
     let Some(record) = report
         .transcript
@@ -412,7 +426,14 @@ fn retained_plan(report: &CanonicalReport) -> Result<Vec<AcquisitionPlan>, Error
             "retained acquisition plan belongs to a different canonical argument".into(),
         ));
     }
-    let errors = acquisition::validate(&report.argument, &planned.acquisition_plan);
+    let errors = acquisition::validate_with_catalogue(
+        &report.argument,
+        &planned.acquisition_plan,
+        report
+            .run_config
+            .as_ref()
+            .and_then(|config| config.collector_catalogue.as_ref()),
+    );
     if !errors.is_empty() {
         return Err(Error::InvalidInput(errors.join("; ")));
     }
@@ -472,11 +493,18 @@ fn execute_export(args: ExportArgs) -> Result<(), Error> {
     let destinations = export_destinations(&args)?;
     let report: CanonicalReport = super::read_json(&args.input, MAX_INPUT_BYTES)?;
     let mut plan = retained_plan(&report)?;
+    let catalogue = selected_catalogue(args.collector_catalogue.as_deref(), &report)?;
     if let Some(path) = args.acquisition_plan {
         let overrides: Vec<AcquisitionPlan> = super::read_json(&path, MAX_INPUT_BYTES)?;
-        plan = acquisition::override_plans(&report.argument, &plan, overrides)?;
+        plan = acquisition::override_plans_with_catalogue(
+            &report.argument,
+            &plan,
+            overrides,
+            catalogue.as_ref(),
+        )?;
     }
-    let artifacts = export_with_plan(&report.request, &report.argument, &plan)?;
+    let artifacts =
+        export_with_catalogue(&report.request, &report.argument, &plan, catalogue.as_ref())?;
     let bundle = artifacts.bundle;
     let manifest_bytes = json_bytes(&bundle)?;
     let primary = match args.format {
@@ -555,6 +583,7 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
         EalCommand::Prepare(args) => {
             let report: CanonicalReport = super::read_json(&args.input, MAX_INPUT_BYTES)?;
             let plan = retained_plan(&report)?;
+            let catalogue = selected_catalogue(args.collector_catalogue.as_deref(), &report)?;
             if args.output_dir.exists() {
                 return Err(Error::InvalidInput(
                     "prepare output directory already exists".into(),
@@ -571,14 +600,13 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             }
             let result = (|| {
                 let directory = args.output_dir.canonicalize()?;
-                let files = engarg::eal_prepare::prepare(
+                let files = engarg::eal_prepare::prepare_with_catalogue(
                     &report.request,
                     &report.argument,
                     &plan,
                     &directory,
                     &std::env::current_exe()?,
-                    args.kube_context.as_deref(),
-                    args.grafana_origin.as_deref(),
+                    catalogue.as_ref(),
                 )?;
                 for (name, bytes) in files {
                     let mut file = PendingFile::create(directory.join(name))?;

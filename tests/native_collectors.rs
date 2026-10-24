@@ -87,11 +87,11 @@ fn native_templates_preserve_typed_inputs_and_unresolved_scope() {
                 .source
                 .contains(&format!("require {predicate}"))
         );
-        assert!(
-            result
-                .tools_toml
-                .contains(&format!("argv = [\"eal-collector\", \"{id}\""))
-        );
+        assert!(result.registry.tools.values().any(|binding| {
+            binding
+                .argv
+                .starts_with(&["eal-collector".to_owned(), id.to_owned()])
+        }));
         assert!(!result.tools_toml.contains("kind = \"json_file\""));
         assert!(
             result
@@ -173,11 +173,11 @@ fn host(binary: &std::path::Path, dir: &std::path::Path, request: Value) -> Valu
 }
 #[test]
 #[cfg(unix)]
+#[ignore = "requires the pinned EAL producer; mandatory compatibility CI supplies it"]
 fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() {
     use std::os::unix::fs::PermissionsExt;
-    let Some(binary) = std::env::var_os("ENGARG_EAL_HOST") else {
-        return;
-    };
+    let binary =
+        std::env::var_os("ENGARG_EAL_HOST").expect("compatibility test requires ENGARG_EAL_HOST");
     let binary = std::path::PathBuf::from(binary);
     let bin_dir = binary.parent().unwrap();
     let collector = bin_dir.join("eal-collector");
@@ -251,12 +251,9 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
         let exported = export_with_plan(&request, &case, &plan).unwrap();
         let registry = exported
             .tools_toml
-            .replace("/REPLACE_WITH_ABSOLUTE_KUBECTL", fake.to_str().unwrap())
-            .replace("/REPLACE_WITH_ABSOLUTE_GH", fake.to_str().unwrap())
-            .replace(
-                "/REPLACE_WITH_ABSOLUTE_EAL_COMMAND_SUPERVISOR",
-                supervisor.to_str().unwrap(),
-            );
+            .replace("/REPLACE_EXECUTABLE", fake.to_str().unwrap())
+            .replace("/REPLACE_EXECUTABLE", fake.to_str().unwrap())
+            .replace("/REPLACE_SUPERVISOR", supervisor.to_str().unwrap());
         std::fs::write(dir.path().join("tools.toml"), registry).unwrap();
         let bundle = exported.bundle;
         assert_eq!(

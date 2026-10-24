@@ -144,6 +144,9 @@ struct Analyse {
     /// Omit acquisition tool planning when only the canonical argument is needed.
     #[arg(long)]
     no_tool_planning: bool,
+    /// Operator-selected versioned collector catalogue, for example eal-collector describe output.
+    #[arg(long, conflicts_with = "no_tool_planning")]
+    collector_catalogue: Option<PathBuf>,
     #[command(flatten)]
     output: Output,
 }
@@ -354,6 +357,14 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         max_calls: args.max_calls,
         max_argument_depth: args.argument_depth,
         max_repairs: args.max_repairs,
+        collector_catalogue: args
+            .collector_catalogue
+            .as_deref()
+            .map(|path| {
+                let bytes = std::fs::read(path)?;
+                engarg::collector_catalogue::CollectorCatalogue::from_json(&bytes)
+            })
+            .transpose()?,
         max_input_bytes: args.max_input_bytes,
         max_response_bytes: args.max_response_bytes,
     };

@@ -7,6 +7,7 @@
 use crate::Error;
 use serde_json::Value;
 use std::{
+    collections::BTreeSet,
     ffi::OsString,
     io::Write,
     net::IpAddr,
@@ -24,6 +25,9 @@ const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 const MAX_STDERR: usize = 64 * 1024;
 const MAX_TIMEOUT: Duration = Duration::from_secs(3600);
 const CLEANUP_GRACE: Duration = Duration::from_secs(1);
+const MAX_REGISTRY: usize = 1024 * 1024;
+const MAX_COLLECTOR_ENV: usize = 64;
+const MAX_ENV_VALUE: usize = 16 * 1024;
 
 #[derive(Default)]
 struct RequestBuffer {
@@ -110,7 +114,7 @@ impl HostConfig {
                 "a local tools registry cannot configure a remote EAL server",
             ));
         }
-        let collector_env = collector_environment(&self.collector_env, registry.is_some())?;
+        let collector_env = collector_environment(&self.collector_env, registry.as_deref())?;
         if let Some(url) = &self.url {
             validate_url(url, self.token_env.is_some())?;
         } else if self.token_env.is_some() {
@@ -151,37 +155,85 @@ impl HostConfig {
 
 fn collector_environment(
     names: &[String],
-    local_registry: bool,
+    registry: Option<&Path>,
 ) -> Result<Vec<(String, OsString)>, Error> {
-    if !names.is_empty() && !local_registry {
+    if names.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Some(registry) = registry else {
         return Err(invalid(
             "collector-env requires an explicit local tools registry",
         ));
+    };
+    if names.len() > MAX_COLLECTOR_ENV {
+        return Err(invalid("collector-env exceeds 64 variable names"));
     }
+    let allowed = registry_environment(registry)?;
+    let mut selected = BTreeSet::new();
     let mut values = Vec::new();
     for name in names {
-        if !environment_name(name)
-            || !matches!(
-                name.as_str(),
-                "KUBECONFIG"
-                    | "GH_TOKEN"
-                    | "GH_HOST"
-                    | "ENGARG_COLLECTOR_TOKEN"
-                    | "ENGARG_COLLECTOR_ORIGIN"
-                    | "TEMPO_TOKEN"
-                    | "TEMPO_TENANT"
-            )
-        {
-            return Err(invalid("unsupported collector-env name"));
+        if !environment_name(name) || !selected.insert(name) || !allowed.contains(name) {
+            return Err(invalid(
+                "collector-env requires distinct names declared in the registry's inherit_env",
+            ));
         }
         let value = std::env::var_os(name)
-            .filter(|value| !value.is_empty())
+            .filter(|value| {
+                value.to_str().is_some_and(|value| {
+                    !value.is_empty() && value.len() <= MAX_ENV_VALUE.saturating_sub(name.len())
+                })
+            })
             .ok_or_else(|| {
-                invalid("a configured collector environment variable is missing or empty")
+                invalid(
+                    "a configured collector environment variable requires bounded nonempty UTF-8",
+                )
             })?;
         values.push((name.clone(), value));
     }
     Ok(values)
+}
+
+/// Only operator command bindings can grant forwarding through this process.
+/// The official host remains responsible for complete registry validation.
+fn registry_environment(path: &Path) -> Result<BTreeSet<String>, Error> {
+    let bytes = crate::bounded_file::read(path, MAX_REGISTRY, "eal-host registry")?;
+    let text = std::str::from_utf8(&bytes)
+        .map_err(|_| invalid("eal-host registry must contain UTF-8 TOML"))?;
+    let table: toml::Table =
+        toml::from_str(text).map_err(|_| invalid("eal-host registry must contain valid TOML"))?;
+    let mut allowed = BTreeSet::new();
+    let Some(tools) = table.get("tools") else {
+        return Ok(allowed);
+    };
+    let tools = tools
+        .as_table()
+        .ok_or_else(|| invalid("eal-host registry tools must be a table"))?;
+    for binding in tools.values() {
+        let binding = binding
+            .as_table()
+            .ok_or_else(|| invalid("eal-host registry bindings must be tables"))?;
+        let Some(inherited) = binding.get("inherit_env") else {
+            continue;
+        };
+        let inherited = inherited
+            .as_array()
+            .filter(|names| {
+                binding.get("kind").and_then(toml::Value::as_str) == Some("command")
+                    && names.len() <= MAX_COLLECTOR_ENV
+            })
+            .ok_or_else(|| {
+                invalid("registry inherit_env requires bounded command variable names")
+            })?;
+        let mut names = BTreeSet::new();
+        for name in inherited {
+            let name = name
+                .as_str()
+                .filter(|name| environment_name(name) && names.insert(*name))
+                .ok_or_else(|| invalid("registry inherit_env requires distinct valid names"))?;
+            allowed.insert(name.to_owned());
+        }
+    }
+    Ok(allowed)
 }
 
 fn invalid(message: &str) -> Error {
@@ -203,9 +255,10 @@ fn absolute_path(path: &Path) -> Result<PathBuf, Error> {
 
 fn environment_name(value: &str) -> bool {
     let mut bytes = value.bytes();
-    bytes
-        .next()
-        .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
+    value.len() <= 128
+        && bytes
+            .next()
+            .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
         && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
@@ -409,8 +462,26 @@ pub async fn invoke(config: &HostConfig, request: &Value) -> Result<Value, Error
     let mut response: Value = serde_json::from_slice(&stdout)
         .map_err(|_| Error::Provider("eal-host returned invalid JSON".to_owned()))?;
     validate_response(&response, request, status)?;
-    if let Some(token) = target.token.as_deref().and_then(|value| value.to_str()) {
-        redact(&mut response, token)?;
+    let secrets: Vec<_> = target
+        .token
+        .as_deref()
+        .into_iter()
+        .chain(
+            target
+                .collector_env
+                .iter()
+                .map(|(_, value)| value.as_os_str()),
+        )
+        .filter_map(|value| value.to_str())
+        .collect();
+    for secret in &secrets {
+        redact(&mut response, secret)?;
+    }
+    if secrets
+        .iter()
+        .any(|secret| contains_secret(&response, secret))
+    {
+        return Err(Error::Provider("eal-host response redaction failed".into()));
     }
     Ok(response)
 }
@@ -467,4 +538,15 @@ fn redact(value: &mut Value, token: &str) -> Result<(), Error> {
         _ => {}
     }
     Ok(())
+}
+
+fn contains_secret(value: &Value, secret: &str) -> bool {
+    match value {
+        Value::String(text) => text.contains(secret),
+        Value::Array(values) => values.iter().any(|value| contains_secret(value, secret)),
+        Value::Object(values) => values
+            .iter()
+            .any(|(key, value)| key.contains(secret) || contains_secret(value, secret)),
+        _ => false,
+    }
 }

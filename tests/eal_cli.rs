@@ -547,7 +547,7 @@ mod unix_host {
         let directory = tempfile::tempdir().unwrap();
         let tools = directory.path().join("tools.toml");
         let marker = directory.path().join("credential-received");
-        std::fs::write(&tools, "").unwrap();
+        std::fs::write(&tools, "[tools.source]\nkind = \"command\"\nversion = \"1\"\nargv = [\"/operator/collector\"]\ninherit_env = [\"GH_TOKEN\"]\n").unwrap();
         let (executable, _) = host(directory.path(), "credential", success("describe"), 0);
         let script = format!(
             "#!/bin/sh\nif [ \"$GH_TOKEN\" = 'synthetic-collector-credential' ]; then touch {}; fi\ncat >/dev/null\nprintf '%s\\n' {}\n",
@@ -711,7 +711,12 @@ fn operator_native_override_reuses_saved_argument_without_a_model_call() {
     assert_eq!(bundle["original_case"], report["argument"]);
     assert_eq!(std::fs::read(report_path).unwrap(), before);
     let tools = std::fs::read_to_string(directory.path().join("case.tools.toml")).unwrap();
-    assert!(tools.contains("[\"eal-collector\", \"kubernetes\""));
+    let parsed: engarg::collector_catalogue::ToolsRegistry = toml::from_str(&tools).unwrap();
+    assert!(parsed.tools.values().any(|binding| {
+        binding
+            .argv
+            .starts_with(&["eal-collector".to_owned(), "kubernetes".to_owned()])
+    }));
     assert!(!tools.contains("kind = \"json_file\""));
     assert!(
         std::fs::read_to_string(source)
