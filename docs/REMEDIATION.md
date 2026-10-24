@@ -93,7 +93,7 @@ An unsafe historical binding cannot bypass current execution admission.
 
 Growing private responsibilities were extracted into contract admission, process supervision, adapter profiles, argument indexing, presentation budgets and typed operation definitions.
 The current exporter retains declaration order and case-to-EAL mapping as one cohesive projection responsibility.
-Retained-objection comparison remains beside its workflow transition because adjudication and repair share that same invariant.
+Retained-objection comparison remains beside its workflow transition because adjudication and repair share that same invariant. Its target-context policy is extracted into `output_validation/target_context.rs`, separating semantic fields from mutable support and investigation records. All case-producing roles receive the same identity and restore instructions. Field-level diagnostics and deterministic one-repair `critic-3` regressions cover preserved open dissent, justified revision, silent target mutation and investigation refinement. A missing target in an invalid candidate does not freeze a fictitious null meaning; its known scope and attack identity remain protected until the target is supplied.
 Compatibility command facades contain delegation and case binding rather than independent acquisition algorithms.
 
 This evidence closes the listed findings at the paired tested revisions.

@@ -6,11 +6,13 @@ use serde_json::Value;
 use crate::{
     argument_depth::ClaimDepths,
     domain::{
-        ArgumentCase, ArgumentIndex, ArgumentNode, Defeater, DefeaterBasis, DefeaterKind,
-        DefeaterStatus, Request, validate_argument,
+        ArgumentCase, ArgumentIndex, Defeater, DefeaterBasis, DefeaterKind, DefeaterStatus,
+        Request, validate_argument,
     },
     provider::Role,
 };
+
+mod target_context;
 
 #[derive(Debug, Serialize)]
 pub(crate) struct RetainedObjection {
@@ -32,35 +34,12 @@ pub(crate) struct ObjectionIdentity {
     target_context: Value,
 }
 
-fn target_context(index: &ArgumentIndex<'_>, id: &str) -> Value {
-    let value = match index.node(id) {
-        Some(ArgumentNode::Root(value)) => serde_json::to_value(value),
-        Some(ArgumentNode::Claim(value)) => serde_json::to_value(value),
-        Some(ArgumentNode::Ground(value)) => serde_json::to_value(value),
-        Some(ArgumentNode::Warrant(value)) => serde_json::to_value(value),
-        Some(ArgumentNode::Assumption(value)) => serde_json::to_value(value),
-        Some(ArgumentNode::Defeater(value)) => serde_json::to_value(value),
-        None => return Value::Null,
-    }
-    .expect("target serialises");
-    serde_json::json!({"scope":index.case().scope,"target":semantic_context(value)})
-}
-
-fn semantic_context(mut value: Value) -> Value {
-    if let Some(object) = value.as_object_mut() {
-        for key in ["status", "response", "evidence_ids", "backing_evidence_ids"] {
-            object.remove(key);
-        }
-    }
-    value
-}
-
 fn identity(index: &ArgumentIndex<'_>, defeater: &Defeater) -> ObjectionIdentity {
     ObjectionIdentity {
         target_id: defeater.target_id.clone(),
         kind: defeater.kind,
         basis: defeater.basis,
-        target_context: target_context(index, &defeater.target_id),
+        target_context: target_context::capture(index, &defeater.target_id),
     }
 }
 
@@ -78,6 +57,16 @@ pub(crate) fn retain_objections(
             objection.must_remain_material |= defeater.material;
             if objection.identity.is_none() && objection.challenge == defeater.challenge {
                 objection.identity = Some(identity(&index, defeater));
+            } else if objection.challenge == defeater.challenge
+                && let Some(original) = &mut objection.identity
+                && original.target_id == defeater.target_id
+                && original.kind == defeater.kind
+                && original.basis == defeater.basis
+            {
+                target_context::complete_target(
+                    &mut original.target_context,
+                    &target_context::capture(&index, &defeater.target_id),
+                );
             }
         } else {
             retained.push(RetainedObjection {
@@ -156,11 +145,17 @@ pub(crate) fn errors(
                     || defeater.basis != original.basis
                 {
                     errors.push(format!("DISSENT_IDENTITY_CHANGED retained objection {} changed target, attack kind or basis", objection.id));
-                } else if target_context(index, &defeater.target_id) != original.target_context
-                    && !(defeater.status == DefeaterStatus::InapplicableAfterRevision
-                        && !defeater.response.trim().is_empty())
-                {
-                    errors.push(format!("DISSENT_TARGET_CHANGED retained objection {} requires an explicit inapplicable_after_revision disposition for its revised target", objection.id));
+                } else {
+                    let changed = target_context::changed_fields(
+                        &original.target_context,
+                        &target_context::capture(index, &defeater.target_id),
+                    );
+                    if !changed.is_empty()
+                        && !(defeater.status == DefeaterStatus::InapplicableAfterRevision
+                            && !defeater.response.trim().is_empty())
+                    {
+                        errors.push(format!("DISSENT_TARGET_CHANGED retained objection {} changed {}; restore these fields from identity.target_context, or use an explicit inapplicable_after_revision disposition with a response explaining the specific revision that removes the challenge", objection.id, changed.join(", ")));
+                    }
                 }
             }
         }
@@ -271,6 +266,153 @@ mod identity_tests {
         assert_eq!(
             retained[0].identity.as_ref().unwrap().target_id,
             original.defeaters[0].target_id
+        );
+    }
+
+    #[test]
+    fn investigation_refinement_and_attachment_order_preserve_assumption_identity() {
+        let (request, mut original) = fixture();
+        original.defeaters[0].target_id = original.assumptions[0].id.clone();
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Synthesiser, &mut retained);
+        let mut revised = original.clone();
+        revised.assumptions[0].validation =
+            "Inspect each fixture owner and compare isolated runs with paired concurrent runs."
+                .into();
+        assert!(revised.assumptions[0].applies_to.len() > 1);
+        revised.assumptions[0].applies_to.reverse();
+        assert_eq!(validate_argument(&request, &revised).map(|_| ()), Ok(()));
+        assert!(errors(&request, &revised, &retained, None).is_empty());
+        revised.assumptions[0]
+            .statement
+            .push_str(" A different condition.");
+        assert!(
+            errors(&request, &revised, &retained, None)
+                .iter()
+                .any(|message| message.contains("DISSENT_TARGET_CHANGED")
+                    && message.contains("target.statement"))
+        );
+        let mut changed_attachment = original.clone();
+        changed_attachment.assumptions[0].applies_to.pop();
+        assert!(
+            errors(&request, &changed_attachment, &retained, None)
+                .iter()
+                .any(|message| message.contains("DISSENT_TARGET_CHANGED")
+                    && message.contains("target.applies_to"))
+        );
+    }
+
+    #[test]
+    fn joint_premise_order_preserves_warrant_identity_but_membership_does_not() {
+        let (request, original) = fixture();
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Synthesiser, &mut retained);
+        let mut revised = original.clone();
+        let target = original.defeaters[0].target_id.clone();
+        let warrant = revised
+            .warrants
+            .iter_mut()
+            .find(|w| w.id == target)
+            .unwrap();
+        assert!(warrant.premise_ids.len() > 1);
+        warrant.premise_ids.reverse();
+        assert_eq!(validate_argument(&request, &revised).map(|_| ()), Ok(()));
+        assert!(errors(&request, &revised, &retained, None).is_empty());
+        revised
+            .warrants
+            .iter_mut()
+            .find(|w| w.id == target)
+            .unwrap()
+            .premise_ids
+            .pop();
+        assert!(
+            errors(&request, &revised, &retained, None)
+                .iter()
+                .any(|message| message.contains("DISSENT_TARGET_CHANGED")
+                    && message.contains("target.premise_ids"))
+        );
+    }
+
+    #[test]
+    fn target_diagnostics_name_all_changed_fields_without_echoing_source_values() {
+        let (request, mut original) = fixture();
+        original.defeaters[0].target_id = "current_claim".into();
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Synthesiser, &mut retained);
+        let mut revised = original.clone();
+        revised.current_claim.qualifier =
+            "A distinct qualification absent from diagnostics.".into();
+        revised.scope.configuration = "A distinct configuration absent from diagnostics.".into();
+        let diagnostics = errors(&request, &revised, &retained, None);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|message| message.contains("DISSENT_TARGET_CHANGED retained objection D1"))
+            .unwrap();
+        assert!(diagnostic.contains("scope.configuration, target.qualifier"));
+        assert!(diagnostic.contains("restore these fields from identity.target_context"));
+        assert!(!diagnostic.contains("absent from diagnostics"));
+    }
+
+    #[test]
+    fn supplying_a_missing_target_does_not_replace_a_fictitious_null_identity() {
+        let (request, mut original) = fixture();
+        original.defeaters[0].target_id = "pending-ground".into();
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Adjudicator, &mut retained);
+        let mut repaired = original.clone();
+        let mut ground = repaired.grounds[0].clone();
+        ground.id = "pending-ground".into();
+        repaired.grounds.push(ground);
+        assert!(
+            !errors(&request, &repaired, &retained, None)
+                .iter()
+                .any(|message| message.contains("DISSENT_TARGET_CHANGED"))
+        );
+        let mut wrong_identity = repaired.clone();
+        wrong_identity.defeaters[0].kind = DefeaterKind::Rebutting;
+        retain_objections(&wrong_identity, Role::Adjudicator, &mut retained);
+        assert!(retained[0].identity.as_ref().unwrap().target_context["target"].is_null());
+        retain_objections(&repaired, Role::Adjudicator, &mut retained);
+        assert!(!retained[0].identity.as_ref().unwrap().target_context["target"].is_null());
+        repaired
+            .grounds
+            .last_mut()
+            .unwrap()
+            .statement
+            .push_str(" A replacement premise.");
+        assert!(
+            errors(&request, &repaired, &retained, None)
+                .iter()
+                .any(|message| message.contains("DISSENT_TARGET_CHANGED")
+                    && message.contains("target.statement"))
+        );
+        // Known scope remains authoritative even before the target is available.
+        original
+            .scope
+            .configuration
+            .push_str(" A replacement scope.");
+        assert!(
+            errors(&request, &original, &retained, None)
+                .iter()
+                .any(|message| message.contains("DISSENT_TARGET_CHANGED")
+                    && message.contains("scope.configuration"))
+        );
+    }
+
+    #[test]
+    fn removing_a_known_target_still_changes_its_context() {
+        let (request, original) = fixture();
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Synthesiser, &mut retained);
+        let mut revised = original.clone();
+        revised
+            .warrants
+            .retain(|w| w.id != original.defeaters[0].target_id);
+        assert!(
+            errors(&request, &revised, &retained, None)
+                .iter()
+                .any(|message| message
+                    .contains("DISSENT_TARGET_CHANGED retained objection D1 changed target;"))
         );
     }
 }
