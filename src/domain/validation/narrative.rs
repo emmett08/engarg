@@ -1,23 +1,13 @@
-//! Narrative reference and paragraph-shape policy.
+//! Paragraph shape, section coverage and traceability requirements.
 
 use super::*;
 
 /// Narrative references provide traceability, not semantic equivalence between
 /// the graph and the prose. Both the prose and its interpretation need review.
-pub(super) fn validate(
-    case: &ArgumentCase,
-    claim_ids: &HashSet<&str>,
-    canonical_ids: &HashSet<String>,
-    errors: &mut Vec<String>,
-) {
+pub(super) fn validate(case: &ArgumentCase, errors: &mut Vec<String>) {
     let mut seen = HashSet::new();
     for section in &case.reading {
         let claim = section.claim_id.as_str();
-        if !claim_ids.contains(claim) {
-            errors.push(format!(
-                "reading section references unknown claim {claim:?}"
-            ));
-        }
         if !seen.insert(claim) {
             errors.push(format!("duplicate reading section for claim {claim:?}"));
         }
@@ -88,15 +78,6 @@ pub(super) fn validate(
                 errors.push(format!(
                     "{label} must reference canonical graph or evidence IDs"
                 ));
-            }
-            let mut references = HashSet::new();
-            for id in &paragraph.reference_ids {
-                if !canonical_ids.contains(id) {
-                    errors.push(format!("{label} references unknown canonical ID {id:?}"));
-                }
-                if !references.insert(id) {
-                    errors.push(format!("{label} repeats canonical ID {id:?}"));
-                }
             }
         }
     }

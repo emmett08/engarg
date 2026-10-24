@@ -10,6 +10,9 @@ use crate::{
     provider::Role,
 };
 
+mod target_contexts;
+pub(super) use target_contexts::compact_target_contexts;
+
 /// Only generated envelope locations can activate the reference primer.
 pub(super) fn uses_references(data: &Value) -> bool {
     let assessment_refs = |assessment: &Value| {

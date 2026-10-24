@@ -18327,5 +18327,366 @@
       "Reference token counts exclude model-specific framing, caching, hidden reasoning and provider billing. No paid inference was performed.",
       "The private retained source is represented only by digests and volume metadata."
     ]
+  },
+  "target_context_interning": {
+    "record": "engarg.target-context-interning.v1",
+    "date": "2026-10-24",
+    "decision_rule": "Retain at least 5% aggregate input reference-token reduction across the four public fixed-output workloads, with exact context reconstruction, unchanged six/seven-call topology, frozen canonical arguments and successful correctness checks.",
+    "comparison": "Same candidate with complete target contexts expanded and the conditional reference primer removed, versus its actual compact prompts. Includes scope, target and direct related-target meaning in both representations.",
+    "repetitions": 3,
+    "tokenizer": {
+      "encoding": "o200k_base",
+      "package": "tiktoken-rs",
+      "package_version": "0.12.1",
+      "scope": "Named reference encoding of recorded text; model-specific framing, caching, hidden reasoning and billing are excluded."
+    },
+    "source_tree_sha256": "d5330a40c0c094e967a15237325f0dc0fce20ec3c9feea1f333e3847a90a2e29",
+    "benchmark_source_sha256": "bfaf0c6fed32094cc8b61c7046eedfb948a138c614b1f35325bebf39b05f409b",
+    "binary_sha256": "beb28cb787848e8833debc8c41ee9dc2db07a1ce50fcf70e31aee0026f8c111c",
+    "capture_sha256": "af85291d571d7ae507625b3a66f9bddb6199749508e7c2b47a184353d6490b99",
+    "workload_source": {
+      "case.json": "a38f8a38777ad580fec58887e03e2c85ee0b7b0d1a25d17e2f437decda110069",
+      "claim-only-case.json": "1a194394707cc5cde231623748e9a5997c847b7f82d391e6b175c325f53e6056",
+      "claim-only-request.json": "2c2a1225a8a6e4fe92a3b7e6fabe54d3bccdf0e1cf9a0c76da762e82f1d8f02d",
+      "request.json": "24677fd51ef08811e0f057310341cf7b6e52e73b82643a2b2aec06a7fb0d70ee"
+    },
+    "aggregate_input_reference_tokens": {
+      "expanded": 134506,
+      "compact": 118793,
+      "saved": 15713,
+      "reduction_percent": 11.682006750628224
+    },
+    "workloads": {
+      "claim_only": {
+        "calls": 6,
+        "all_three_accepted": true,
+        "argument_sha256": "0eeed1cdbd37396b516b90e5ab15bcb00776329fed352186574ada621dff6dbb",
+        "request_sha256": "ccafa0c29dc2a98f9d16488f12aca37f1ddf1b3bbee017813e6214887d587088",
+        "expanded_input_reference_tokens": 22969,
+        "compact_input_reference_tokens": 22969,
+        "saved_input_reference_tokens": 0,
+        "expanded_input_range": [
+          22969,
+          22969
+        ],
+        "compact_input_range": [
+          22969,
+          22969
+        ],
+        "expanded_input_utf8_bytes": 124312,
+        "compact_input_utf8_bytes": 124312,
+        "output_reference_tokens": 7080,
+        "records": [
+          {
+            "role": "constructor",
+            "response_sha256": "dfb129150c1e388b0c4a6c9aa4c8149690143c2064d5d57841640a330d46a605",
+            "expanded_input_reference_tokens": 1423,
+            "compact_input_reference_tokens": 1423
+          },
+          {
+            "role": "sceptic",
+            "response_sha256": "dfb129150c1e388b0c4a6c9aa4c8149690143c2064d5d57841640a330d46a605",
+            "expanded_input_reference_tokens": 1446,
+            "compact_input_reference_tokens": 1446
+          },
+          {
+            "role": "evidence_auditor",
+            "response_sha256": "dfb129150c1e388b0c4a6c9aa4c8149690143c2064d5d57841640a330d46a605",
+            "expanded_input_reference_tokens": 1485,
+            "compact_input_reference_tokens": 1485
+          },
+          {
+            "role": "synthesiser",
+            "response_sha256": "0eeed1cdbd37396b516b90e5ab15bcb00776329fed352186574ada621dff6dbb",
+            "expanded_input_reference_tokens": 3925,
+            "compact_input_reference_tokens": 3925
+          },
+          {
+            "role": "final_critic",
+            "response_sha256": "dfb129150c1e388b0c4a6c9aa4c8149690143c2064d5d57841640a330d46a605",
+            "expanded_input_reference_tokens": 6391,
+            "compact_input_reference_tokens": 6391
+          },
+          {
+            "role": "adjudicator",
+            "response_sha256": "0eeed1cdbd37396b516b90e5ab15bcb00776329fed352186574ada621dff6dbb",
+            "expanded_input_reference_tokens": 8299,
+            "compact_input_reference_tokens": 8299
+          }
+        ]
+      },
+      "objections": {
+        "calls": 6,
+        "all_three_accepted": true,
+        "argument_sha256": "bc3477ae01c7cb20b903f195e22fdb2f0daadee8ed3de92488aaf0a9373eb6a4",
+        "request_sha256": "ccafa0c29dc2a98f9d16488f12aca37f1ddf1b3bbee017813e6214887d587088",
+        "expanded_input_reference_tokens": 37410,
+        "compact_input_reference_tokens": 31528,
+        "saved_input_reference_tokens": 5882,
+        "expanded_input_range": [
+          37410,
+          37410
+        ],
+        "compact_input_range": [
+          31528,
+          31528
+        ],
+        "expanded_input_utf8_bytes": 203076,
+        "compact_input_utf8_bytes": 169306,
+        "output_reference_tokens": 13585,
+        "records": [
+          {
+            "role": "constructor",
+            "response_sha256": "41878f09c40b1cce2453468d7b1534b4b64540fd82db6c453f0d3edb948ce466",
+            "expanded_input_reference_tokens": 1423,
+            "compact_input_reference_tokens": 1423
+          },
+          {
+            "role": "sceptic",
+            "response_sha256": "41878f09c40b1cce2453468d7b1534b4b64540fd82db6c453f0d3edb948ce466",
+            "expanded_input_reference_tokens": 1446,
+            "compact_input_reference_tokens": 1446
+          },
+          {
+            "role": "evidence_auditor",
+            "response_sha256": "41878f09c40b1cce2453468d7b1534b4b64540fd82db6c453f0d3edb948ce466",
+            "expanded_input_reference_tokens": 1485,
+            "compact_input_reference_tokens": 1485
+          },
+          {
+            "role": "synthesiser",
+            "response_sha256": "1d4301a99df992fc0a16e2ca5f67beea1a00dc0b268fb95dae400bfd820f79ab",
+            "expanded_input_reference_tokens": 5257,
+            "compact_input_reference_tokens": 5257
+          },
+          {
+            "role": "final_critic",
+            "response_sha256": "41878f09c40b1cce2453468d7b1534b4b64540fd82db6c453f0d3edb948ce466",
+            "expanded_input_reference_tokens": 12748,
+            "compact_input_reference_tokens": 9807
+          },
+          {
+            "role": "adjudicator",
+            "response_sha256": "bc3477ae01c7cb20b903f195e22fdb2f0daadee8ed3de92488aaf0a9373eb6a4",
+            "expanded_input_reference_tokens": 15051,
+            "compact_input_reference_tokens": 12110
+          }
+        ]
+      },
+      "repair": {
+        "calls": 7,
+        "all_three_accepted": true,
+        "argument_sha256": "bc3477ae01c7cb20b903f195e22fdb2f0daadee8ed3de92488aaf0a9373eb6a4",
+        "request_sha256": "ccafa0c29dc2a98f9d16488f12aca37f1ddf1b3bbee017813e6214887d587088",
+        "expanded_input_reference_tokens": 52957,
+        "compact_input_reference_tokens": 43126,
+        "saved_input_reference_tokens": 9831,
+        "expanded_input_range": [
+          52957,
+          52957
+        ],
+        "compact_input_range": [
+          43126,
+          43126
+        ],
+        "expanded_input_utf8_bytes": 285734,
+        "compact_input_utf8_bytes": 229298,
+        "output_reference_tokens": 19840,
+        "records": [
+          {
+            "role": "constructor",
+            "response_sha256": "41878f09c40b1cce2453468d7b1534b4b64540fd82db6c453f0d3edb948ce466",
+            "expanded_input_reference_tokens": 1423,
+            "compact_input_reference_tokens": 1423
+          },
+          {
+            "role": "sceptic",
+            "response_sha256": "41878f09c40b1cce2453468d7b1534b4b64540fd82db6c453f0d3edb948ce466",
+            "expanded_input_reference_tokens": 1446,
+            "compact_input_reference_tokens": 1446
+          },
+          {
+            "role": "evidence_auditor",
+            "response_sha256": "41878f09c40b1cce2453468d7b1534b4b64540fd82db6c453f0d3edb948ce466",
+            "expanded_input_reference_tokens": 1485,
+            "compact_input_reference_tokens": 1485
+          },
+          {
+            "role": "synthesiser",
+            "response_sha256": "1d4301a99df992fc0a16e2ca5f67beea1a00dc0b268fb95dae400bfd820f79ab",
+            "expanded_input_reference_tokens": 5257,
+            "compact_input_reference_tokens": 5257
+          },
+          {
+            "role": "final_critic",
+            "response_sha256": "41878f09c40b1cce2453468d7b1534b4b64540fd82db6c453f0d3edb948ce466",
+            "expanded_input_reference_tokens": 12748,
+            "compact_input_reference_tokens": 9807
+          },
+          {
+            "role": "adjudicator",
+            "response_sha256": "e721e7efd9022c694ad800e69440a2e7cb99dae3f47fdc8c111c500f62e7a219",
+            "expanded_input_reference_tokens": 15051,
+            "compact_input_reference_tokens": 12110
+          },
+          {
+            "role": "adjudicator",
+            "response_sha256": "bc3477ae01c7cb20b903f195e22fdb2f0daadee8ed3de92488aaf0a9373eb6a4",
+            "expanded_input_reference_tokens": 15547,
+            "compact_input_reference_tokens": 11598
+          }
+        ]
+      },
+      "supplied": {
+        "calls": 6,
+        "all_three_accepted": true,
+        "argument_sha256": "35f1cb45bdf296e00595462117cfd9f66c1102fd45b92922d18a89cc9f08addb",
+        "request_sha256": "6d82f2ea2a1eccfe3c4aacfc78d31cb97e33a0353572a0365e05a1bf8949f293",
+        "expanded_input_reference_tokens": 21170,
+        "compact_input_reference_tokens": 21170,
+        "saved_input_reference_tokens": 0,
+        "expanded_input_range": [
+          21170,
+          21170
+        ],
+        "compact_input_range": [
+          21170,
+          21170
+        ],
+        "expanded_input_utf8_bytes": 113716,
+        "compact_input_utf8_bytes": 113716,
+        "output_reference_tokens": 4930,
+        "records": [
+          {
+            "role": "constructor",
+            "response_sha256": "6fc4df69e733745c32a684c7997f20934325ac0a5a61991c548a50c1835f16de",
+            "expanded_input_reference_tokens": 1529,
+            "compact_input_reference_tokens": 1529
+          },
+          {
+            "role": "sceptic",
+            "response_sha256": "6fc4df69e733745c32a684c7997f20934325ac0a5a61991c548a50c1835f16de",
+            "expanded_input_reference_tokens": 1552,
+            "compact_input_reference_tokens": 1552
+          },
+          {
+            "role": "evidence_auditor",
+            "response_sha256": "6fc4df69e733745c32a684c7997f20934325ac0a5a61991c548a50c1835f16de",
+            "expanded_input_reference_tokens": 1591,
+            "compact_input_reference_tokens": 1591
+          },
+          {
+            "role": "synthesiser",
+            "response_sha256": "35f1cb45bdf296e00595462117cfd9f66c1102fd45b92922d18a89cc9f08addb",
+            "expanded_input_reference_tokens": 3979,
+            "compact_input_reference_tokens": 3979
+          },
+          {
+            "role": "final_critic",
+            "response_sha256": "6fc4df69e733745c32a684c7997f20934325ac0a5a61991c548a50c1835f16de",
+            "expanded_input_reference_tokens": 5314,
+            "compact_input_reference_tokens": 5314
+          },
+          {
+            "role": "adjudicator",
+            "response_sha256": "35f1cb45bdf296e00595462117cfd9f66c1102fd45b92922d18a89cc9f08addb",
+            "expanded_input_reference_tokens": 7205,
+            "compact_input_reference_tokens": 7205
+          }
+        ]
+      }
+    },
+    "limitations": [
+      "Reference text volume excludes provider framing, cache classes, hidden reasoning and billing.",
+      "Fixed-output replay establishes representation savings and structural acceptance, not live argument quality or cost per accepted result.",
+      "These four public fixtures receive equal weight; savings depend on repeated identical target contexts. Unique or small contexts stay expanded.",
+      "Historical token records use older retention rules and are not the control for this within-candidate comparison."
+    ],
+    "tool_planning": false,
+    "eal_revision": "d13e13e5edcb0a269e605076ea143804cbe47721",
+    "planned_output_validation": {
+      "tool_planning": true,
+      "repetitions": 3,
+      "source_tree_sha256": "d5330a40c0c094e967a15237325f0dc0fce20ec3c9feea1f333e3847a90a2e29",
+      "benchmark_source_sha256": "bfaf0c6fed32094cc8b61c7046eedfb948a138c614b1f35325bebf39b05f409b",
+      "binary_sha256": "beb28cb787848e8833debc8c41ee9dc2db07a1ce50fcf70e31aee0026f8c111c",
+      "capture_sha256": "4723e450f567834099df0ef22da1e636c996c476f13686439a0548df8a6f32fc",
+      "workloads": {
+        "claim_only": {
+          "calls": 6,
+          "all_three_accepted": true,
+          "argument_sha256": "0eeed1cdbd37396b516b90e5ab15bcb00776329fed352186574ada621dff6dbb",
+          "request_sha256": "ccafa0c29dc2a98f9d16488f12aca37f1ddf1b3bbee017813e6214887d587088",
+          "response_sequence_sha256": "e93d2426a2395ac808fa2a198727031371b270dc07a8b9c3218764e9fd3ffc41",
+          "expanded_input_reference_tokens": 24923,
+          "compact_input_reference_tokens": 24923,
+          "expanded_input_range": [
+            24923,
+            24923
+          ],
+          "compact_input_range": [
+            24923,
+            24923
+          ]
+        },
+        "objections": {
+          "calls": 6,
+          "all_three_accepted": true,
+          "argument_sha256": "bc3477ae01c7cb20b903f195e22fdb2f0daadee8ed3de92488aaf0a9373eb6a4",
+          "request_sha256": "ccafa0c29dc2a98f9d16488f12aca37f1ddf1b3bbee017813e6214887d587088",
+          "response_sequence_sha256": "429b13f0efbe4dc2b6bbc5fc83bff9d9d54ee75388c8997e0b8afbb510ffab9f",
+          "expanded_input_reference_tokens": 39808,
+          "compact_input_reference_tokens": 33926,
+          "expanded_input_range": [
+            39808,
+            39808
+          ],
+          "compact_input_range": [
+            33926,
+            33926
+          ]
+        },
+        "repair": {
+          "calls": 7,
+          "all_three_accepted": true,
+          "argument_sha256": "bc3477ae01c7cb20b903f195e22fdb2f0daadee8ed3de92488aaf0a9373eb6a4",
+          "request_sha256": "ccafa0c29dc2a98f9d16488f12aca37f1ddf1b3bbee017813e6214887d587088",
+          "response_sequence_sha256": "b5590f9526e1f91768e347646527e73e54943fe926a4063d16fdf9caf0fe2258",
+          "expanded_input_reference_tokens": 56407,
+          "compact_input_reference_tokens": 46576,
+          "expanded_input_range": [
+            56407,
+            56407
+          ],
+          "compact_input_range": [
+            46576,
+            46576
+          ]
+        },
+        "supplied": {
+          "calls": 6,
+          "all_three_accepted": true,
+          "argument_sha256": "35f1cb45bdf296e00595462117cfd9f66c1102fd45b92922d18a89cc9f08addb",
+          "request_sha256": "6d82f2ea2a1eccfe3c4aacfc78d31cb97e33a0353572a0365e05a1bf8949f293",
+          "response_sequence_sha256": "a20ff068afc887c332332dc6db58ed1bc82f1f1ea826955e63ea0449c30464e9",
+          "expanded_input_reference_tokens": 22852,
+          "compact_input_reference_tokens": 22852,
+          "expanded_input_range": [
+            22852,
+            22852
+          ],
+          "compact_input_range": [
+            22852,
+            22852
+          ]
+        }
+      },
+      "aggregate_input_reference_tokens": {
+        "expanded": 143990,
+        "compact": 128277,
+        "saved": 15713,
+        "reduction_percent": 10.91256337245642
+      }
+    }
   }
 }

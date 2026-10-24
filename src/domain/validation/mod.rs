@@ -134,6 +134,9 @@ pub fn validate_argument<'a>(
             vec!["original_claim must exactly preserve the requested claim".into()],
         ));
     }
+    if !diagnostics.is_empty() {
+        return Err(ordered(diagnostics));
+    }
     let context = Context::new(request, case);
     let mut structural = Vec::new();
     structure::references(request, case, &context, &mut structural);
@@ -163,7 +166,7 @@ pub fn validate_argument<'a>(
     // References and cycle admission have already established safe indexed
     // traversal. Composition-policy failures still need their status consequences.
     let mut messages = Vec::new();
-    narrative::validate(case, &context.claim_ids, &context.ids, &mut messages);
+    narrative::validate(case, &mut messages);
     diagnostics.extend(record(
         DiagnosticCode::NarrativePolicy,
         "argument.reading",

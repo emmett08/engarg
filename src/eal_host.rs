@@ -442,10 +442,15 @@ pub async fn invoke(config: &HostConfig, request: &Value) -> Result<Value, Error
         )
         .filter_map(|value| value.to_str())
         .collect();
-    if secrets
-        .iter()
-        .any(|secret| contains_secret(&response, secret))
-    {
+    let contains_secret = eal_collector_contracts::contains_sensitive_json(
+        &response,
+        &secrets,
+        eal_collector_contracts::SensitiveJsonLimits::default(),
+    )
+    .map_err(|_| {
+        Error::Provider("EAL_HOST_CREDENTIAL_INSPECTION: response inspection failed".into())
+    })?;
+    if contains_secret {
         return Err(Error::Provider(
             "EAL_HOST_CREDENTIAL_LEAK: host response contains sensitive data".into(),
         ));
@@ -479,17 +484,4 @@ fn validate_response(response: &Value, request: &Value, status: i32) -> Result<(
         return Err(invalid_response());
     }
     Ok(())
-}
-
-fn contains_secret(value: &Value, secret: &str) -> bool {
-    match value {
-        Value::String(text) => text.contains(secret),
-        Value::Array(values) => values.iter().any(|value| contains_secret(value, secret)),
-        Value::Object(values) => values
-            .iter()
-            .any(|(key, value)| key.contains(secret) || contains_secret(value, secret)),
-        Value::Number(number) => number.to_string().contains(secret),
-        Value::Bool(value) => value.to_string().contains(secret),
-        Value::Null => "null".contains(secret),
-    }
 }

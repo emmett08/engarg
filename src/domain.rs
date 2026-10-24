@@ -267,10 +267,14 @@ mod tests {
     #[test]
     fn duplicate_ids_and_broken_warrant_targets_are_rejected() {
         let (request, mut case) = fixtures();
+        let original_id = case.warrants[0].id.clone();
         case.warrants[0].id = case.grounds[0].id.clone();
         case.warrants[0].premise_ids = vec!["absent-ground".into()];
         let errors = validate_case(&request, &case).unwrap_err();
         assert!(errors.iter().any(|e| e.contains("duplicate")));
+        // Dependent reference checks resume only after identity admission.
+        case.warrants[0].id = original_id;
+        let errors = validate_case(&request, &case).unwrap_err();
         assert!(errors.iter().any(|e| e.contains("unknown premise")));
     }
 
@@ -278,7 +282,18 @@ mod tests {
     fn every_critical_assumption_needs_a_test() {
         let (request, mut case) = fixtures();
         let target = case.assumptions[0].id.clone();
+        let removed: std::collections::HashSet<_> = case
+            .evidence_plan
+            .iter()
+            .filter(|p| p.target_id == target)
+            .map(|p| p.id.clone())
+            .collect();
         case.evidence_plan.retain(|p| p.target_id != target);
+        // Keep reference admission valid so this test reaches the independent
+        // critical-assumption policy rather than a dangling reading reference.
+        for paragraph in case.reading.iter_mut().flat_map(|s| &mut s.paragraphs) {
+            paragraph.reference_ids.retain(|id| !removed.contains(id));
+        }
         assert!(
             validate_case(&request, &case)
                 .unwrap_err()
@@ -552,7 +567,17 @@ mod tests {
     #[test]
     fn unrelated_warrant_cannot_support_current_claim() {
         let (request, mut case) = provisional_narrow_case();
+        let removed: std::collections::HashSet<_> = case
+            .warrants
+            .iter()
+            .filter(|w| w.conclusion_id == "current_claim")
+            .map(|w| w.id.clone())
+            .collect();
         case.warrants.retain(|w| w.conclusion_id != "current_claim");
+        // Preserve reference safety while testing the missing support route.
+        for paragraph in case.reading.iter_mut().flat_map(|s| &mut s.paragraphs) {
+            paragraph.reference_ids.retain(|id| !removed.contains(id));
+        }
         assert!(
             validate_case(&request, &case)
                 .unwrap_err()

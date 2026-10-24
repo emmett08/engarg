@@ -15,35 +15,47 @@ fn label<T: serde::Serialize>(value: &T) -> String {
         .unwrap_or_default()
 }
 
-/// Escape untrusted content without allowing extra Markdown table columns or rows.
-fn cell(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('\\', "\\\\")
-        .replace('|', "\\|")
-        .replace(char::from(96), "&#96;")
-        .replace("\r\n", "\n")
-        .replace('\r', "\n")
-        .replace('\n', "<br>")
-}
+mod text;
+use std::fmt::Display;
+use text::{fragment, prose};
 
-fn prose(value: &str) -> String {
-    cell(value).replace("<br>", " ")
-}
-
-fn row(s: &mut BoundedText, values: &[&str]) {
-    s.push('|');
-    for value in values {
-        write!(s, " {} |", cell(value)).unwrap();
-    }
-    s.push('\n');
+// Each cell is evaluated only while output remains admissible. Display fragments
+// borrow canonical records and stop expanding as soon as the checked sink fails.
+macro_rules! row {
+    ($output:expr, &[$($value:expr),* $(,)?] $(,)?) => {{
+        let output: &mut BoundedText = &mut *$output;
+        if !output.failed() {
+            output.push('|');
+            $(
+                if !output.failed() {
+                    output.push(' ');
+                    text::cell(output, &$value);
+                    if !output.failed() { output.push_str(" |"); }
+                }
+            )*
+            if !output.failed() { output.push('\n'); }
+        }
+    }};
 }
 
 fn table(s: &mut BoundedText, headers: &[&str]) {
-    row(s, headers);
-    row(s, &vec!["---"; headers.len()]);
+    for values in [headers, &vec!["---"; headers.len()]] {
+        if s.failed() {
+            return;
+        }
+        s.push('|');
+        for value in values {
+            if s.failed() {
+                return;
+            }
+            s.push(' ');
+            text::cell(s, value);
+            if !s.failed() {
+                s.push_str(" |");
+            }
+        }
+        s.push('\n');
+    }
 }
 
 fn joined(values: &[String]) -> String {
@@ -54,6 +66,26 @@ fn joined(values: &[String]) -> String {
     }
 }
 
+fn list<I>(values: I, separator: &'static str, empty: &'static str) -> impl Display
+where
+    I: Iterator + Clone,
+    I::Item: Display,
+{
+    fragment(move |s| {
+        let mut values = values.clone().peekable();
+        if values.peek().is_none() {
+            return s.write_str(empty);
+        }
+        for (index, value) in values.enumerate() {
+            if index > 0 {
+                s.write_str(separator)?;
+            }
+            write!(s, "{value}")?;
+        }
+        Ok(())
+    })
+}
+
 fn claim<'a>(view: &PresentationView<'a>, id: &str) -> (&'a str, &'a str) {
     view.claim(id).unwrap_or((
         "Claim reference is absent from this assessment.",
@@ -61,312 +93,376 @@ fn claim<'a>(view: &PresentationView<'a>, id: &str) -> (&'a str, &'a str) {
     ))
 }
 
-fn claim_assessment(case: &ArgumentCase, id: &str) -> String {
-    match id {
-        "current_claim" => format!("Current assessment: {}. {}", label(&case.status), case.adjudication),
-        "stronger_target" => "Conditional target. Its fulfilment has not been established by this report.".into(),
-        _ => "Separate subclaim verdict not recorded. Its stated qualifier and dependencies govern its use.".into(),
+fn claim_assessment<'a>(case: &'a ArgumentCase, id: &'a str) -> impl Display + 'a {
+    fragment(move |s| {
+        match id {
+        "current_claim" => write!(s, "Current assessment: {}. {}", label(&case.status), case.adjudication),
+        "stronger_target" => s.write_str("Conditional target. Its fulfilment has not been established by this report."),
+        _ => s.write_str("Separate subclaim verdict not recorded. Its stated qualifier and dependencies govern its use."),
     }
+    })
 }
 
-fn composition_text(view: &PresentationView<'_>, conclusion: &str) -> String {
-    match view.composition(conclusion) {
-        Some(c) => format!(
+fn composition_text<'a>(view: &'a PresentationView<'_>, conclusion: &'a str) -> impl Display + 'a {
+    fragment(move |s| match view.composition(conclusion) {
+        Some(c) => write!(
+            s,
             "Relationship: {}. Selected warrants: {}. Model assessment rationale: {} Selection records a judgement; its adequacy requires the referenced reasoning and evidence.",
             label(&c.relationship),
-            if c.selected_warrant_ids.is_empty() {
-                "None; this composition remains unresolved.".into()
-            } else {
-                c.selected_warrant_ids.join(", ")
-            },
+            list(
+                c.selected_warrant_ids.iter(),
+                ", ",
+                "None; this composition remains unresolved."
+            ),
             c.rationale
         ),
-        None => "No composition assessment recorded for this conclusion.".into(),
-    }
+        None => s.write_str("No composition assessment recorded for this conclusion."),
+    })
 }
 
-fn evidence_summary(view: &PresentationView<'_>, ids: &[String]) -> String {
-    if ids.is_empty() {
-        return "No supporting evidence reference supplied.".into();
-    }
-    ids.iter()
-        .map(|id| match view.evidence(id) {
-            Some(e) => format!(
-                "{id}: {}. Source/location: {}. Kind: {}. User asserts checking: {}.",
-                e.title, e.source, e.kind, e.checked_by_user
-            ),
-            None => format!("{id}: reference absent from supplied evidence."),
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+fn evidence_refs<'a, I>(view: &'a PresentationView<'_>, ids: I) -> impl Display + 'a
+where
+    I: Iterator<Item = &'a str> + Clone + 'a,
+{
+    list(
+        ids.map(move |id| {
+            fragment(move |s| match view.evidence(id) {
+                Some(e) => write!(
+                    s,
+                    "{id}: {}. Source/location: {}. Kind: {}. User asserts checking: {}.",
+                    e.title, e.source, e.kind, e.checked_by_user
+                ),
+                None => write!(s, "{id}: reference absent from supplied evidence."),
+            })
+        }),
+        " ",
+        "No supporting evidence reference supplied.",
+    )
 }
 
-fn node_description(view: &PresentationView<'_>, id: &str) -> String {
-    if let Some(g) = view.ground(id) {
-        format!(
-            "{id}: {} Status: {}. {}",
-            g.statement,
-            label(&g.status),
-            evidence_summary(view, &g.evidence_ids)
+fn evidence_summary<'a>(view: &'a PresentationView<'_>, ids: &'a [String]) -> impl Display + 'a {
+    evidence_refs(view, ids.iter().map(String::as_str))
+}
+
+fn node_description<'a>(view: &'a PresentationView<'_>, id: &'a str) -> impl Display + 'a {
+    fragment(move |s| {
+        if let Some(g) = view.ground(id) {
+            write!(
+                s,
+                "{id}: {} Status: {}. {}",
+                g.statement,
+                label(&g.status),
+                evidence_summary(view, &g.evidence_ids)
+            )
+        } else {
+            let (text, qualifier) = claim(view, id);
+            write!(s, "{id}: {text} Qualifier: {qualifier}")
+        }
+    })
+}
+
+fn assumption_text<'a>(a: &'a Assumption, view: &'a PresentationView<'_>) -> impl Display + 'a {
+    fragment(move |s| {
+        write!(
+            s,
+            "{}: {} Critical: {}. Status: {}. Applies to: {}. Basis: {} Validation/check: {}. If a critical assumption fails, reassess each declared dependent inference.",
+            a.id,
+            a.statement,
+            a.critical,
+            label(&a.status),
+            list(a.applies_to.iter(), ", ", ""),
+            evidence_summary(view, &a.evidence_ids),
+            a.validation
         )
-    } else {
-        let (text, qualifier) = claim(view, id);
-        format!("{id}: {text} Qualifier: {qualifier}")
-    }
+    })
 }
 
-fn assumption_text(a: &Assumption, view: &PresentationView<'_>) -> String {
-    format!(
-        "{}: {} Critical: {}. Status: {}. Applies to: {}. Basis: {} Validation/check: {}. If a critical assumption fails, reassess each declared dependent inference.",
-        a.id,
-        a.statement,
-        a.critical,
-        label(&a.status),
-        a.applies_to.join(", "),
-        evidence_summary(view, &a.evidence_ids),
-        a.validation
-    )
+fn challenge_text<'a>(d: &'a Defeater, view: &'a PresentationView<'_>) -> impl Display + 'a {
+    fragment(move |s| {
+        write!(
+            s,
+            "{} targets {} by {}: {} Basis: {}. Material: {}. Disposition: {}. Response and remaining effect: {} Evidence: {}",
+            d.id,
+            d.target_id,
+            label(&d.kind),
+            d.challenge,
+            label(&d.basis),
+            d.material,
+            label(&d.status),
+            d.response,
+            evidence_summary(view, &d.evidence_ids)
+        )
+    })
 }
 
-fn challenge_text(d: &Defeater, view: &PresentationView<'_>) -> String {
-    format!(
-        "{} targets {} by {}: {} Basis: {}. Material: {}. Disposition: {}. Response and remaining effect: {} Evidence: {}",
-        d.id,
-        d.target_id,
-        label(&d.kind),
-        d.challenge,
-        label(&d.basis),
-        d.material,
-        label(&d.status),
-        d.response,
-        evidence_summary(view, &d.evidence_ids)
-    )
+fn need_text(n: &EvidenceNeed) -> impl Display + '_ {
+    fragment(move |s| {
+        write!(
+            s,
+            "{} targets {} and would strengthen {}. Question: {} Method: {} Measurement: {} Comparator: {} Proposed acceptance criterion: {} Favourable: reassess the enabled claim against that criterion and all its other dependencies. Adverse: {} Inconclusive: leave the stronger target unresolved. Priority: {}. Estimated effort: {}",
+            n.id,
+            n.target_id,
+            n.enables_claim,
+            n.question,
+            n.method,
+            n.measurement,
+            n.comparator,
+            n.acceptance_criterion,
+            n.if_failed,
+            n.priority,
+            n.cost
+        )
+    })
 }
 
-fn need_text(n: &EvidenceNeed) -> String {
-    format!(
-        "{} targets {} and would strengthen {}. Question: {} Method: {} Measurement: {} Comparator: {} Proposed acceptance criterion: {} Favourable: reassess the enabled claim against that criterion and all its other dependencies. Adverse: {} Inconclusive: leave the stronger target unresolved. Priority: {}. Estimated effort: {}",
-        n.id,
-        n.target_id,
-        n.enables_claim,
-        n.question,
-        n.method,
-        n.measurement,
-        n.comparator,
-        n.acceptance_criterion,
-        n.if_failed,
-        n.priority,
-        n.cost
-    )
+fn scope_text(case: &ArgumentCase) -> impl Display + '_ {
+    fragment(move |s| {
+        write!(
+            s,
+            "System boundary: {} Configuration: {} Operating conditions: {} Measures and units: {} Applicable period: {} Separate term definitions and established property criteria: not supplied unless explicitly stated in the foregoing assessment. Additional transfer justification is required for other configurations or operating conditions.",
+            case.scope.system_boundary,
+            case.scope.configuration,
+            case.scope.operating_conditions,
+            case.scope.units,
+            case.scope.time_horizon
+        )
+    })
 }
 
-fn scope_text(case: &ArgumentCase) -> String {
-    format!(
-        "System boundary: {} Configuration: {} Operating conditions: {} Measures and units: {} Applicable period: {} Separate term definitions and established property criteria: not supplied unless explicitly stated in the foregoing assessment. Additional transfer justification is required for other configurations or operating conditions.",
-        case.scope.system_boundary,
-        case.scope.configuration,
-        case.scope.operating_conditions,
-        case.scope.units,
-        case.scope.time_horizon
-    )
-}
-
-fn alternatives_text(view: &PresentationView<'_>) -> String {
-    let case = view.case;
-    if case.alternatives.is_empty() {
-        return "No competing explanation or option recorded. Completeness has not been established.".into();
-    }
-    case.alternatives.iter().map(|a|format!(
+fn alternatives_text<'a>(view: &'a PresentationView<'_>) -> impl Display + 'a {
+    list(view.case.alternatives.iter().map(move |a| fragment(move |s| write!(
+        s,
         "Alternative: {} Discriminating check: {} Evidence: {} An independently justified common decision criterion is not separately recorded.",
         a.explanation, a.distinguishing_test, evidence_summary(view, &a.evidence_ids)
-    )).collect::<Vec<_>>().join(" ")
+    ))), " ", "No competing explanation or option recorded. Completeness has not been established.")
 }
 
-fn current_summary(case: &ArgumentCase) -> String {
-    format!(
-        "current_claim: {} Qualifier: {} Assessment: {}. Decisive reasoning and limitations: {}",
-        case.current_claim.text,
-        case.current_claim.qualifier,
-        label(&case.status),
-        case.adjudication
-    )
+fn current_summary(case: &ArgumentCase) -> impl Display + '_ {
+    fragment(move |s| {
+        write!(
+            s,
+            "current_claim: {} Qualifier: {} Assessment: {}. Decisive reasoning and limitations: {}",
+            case.current_claim.text,
+            case.current_claim.qualifier,
+            label(&case.status),
+            case.adjudication
+        )
+    })
 }
 
-fn decision_text(case: &ArgumentCase) -> String {
-    format!(
-        "Consequences: {} Reliance limits: {} Residual risks: {} A separate action authorisation, value criterion and action acceptance decision are not recorded. Report revision policy: reassess affected inferences when evidence, assumptions, target configuration or operating conditions change.",
-        case.scope.consequences,
-        joined(&case.decision_limits),
-        joined(&case.residual_risks)
-    )
+fn decision_text(case: &ArgumentCase) -> impl Display + '_ {
+    fragment(move |s| {
+        write!(
+            s,
+            "Consequences: {} Reliance limits: {} Residual risks: {} A separate action authorisation, value criterion and action acceptance decision are not recorded. Report revision policy: reassess affected inferences when evidence, assumptions, target configuration or operating conditions change.",
+            case.scope.consequences,
+            list(case.decision_limits.iter(), " ", "None recorded."),
+            list(case.residual_risks.iter(), " ", "None recorded.")
+        )
+    })
+}
+
+fn composition_check<T: Display + ?Sized>(s: &mut BoundedText, name: &str, value: &T) {
+    if s.failed() {
+        return;
+    }
+    write!(s, "- **{name}:** ").unwrap();
+    text::prose_into(s, value);
+    if !s.failed() {
+        s.push('\n');
+    }
 }
 
 fn argument_record(s: &mut BoundedText, view: &PresentationView<'_>, w: &Warrant) {
+    if s.failed() {
+        return;
+    }
     let case = view.case;
     let nodes = view.inference_nodes(w);
     let (conclusion, qualifier) = claim(view, &w.conclusion_id);
-    let premises = w
-        .premise_ids
-        .iter()
-        .map(|id| node_description(view, id))
-        .collect::<Vec<_>>()
-        .join(" ");
-    let assumptions = case
-        .assumptions
-        .iter()
-        .filter(|a| nodes.contains(a.id.as_str()))
-        .map(|a| assumption_text(a, view))
-        .collect::<Vec<_>>();
-    let challenges = case
-        .defeaters
-        .iter()
-        .filter(|d| nodes.contains(d.id.as_str()))
-        .map(|d| challenge_text(d, view))
-        .collect::<Vec<_>>();
-    let needs = case
-        .evidence_plan
-        .iter()
-        .filter(|n| nodes.contains(n.target_id.as_str()) || n.enables_claim == w.conclusion_id)
-        .map(need_text)
-        .collect::<Vec<_>>();
-    let backing = if w.backing_evidence_ids.is_empty() {
-        format!(
-            "No backing evidence supplied for {}. Its rule and applicability remain recorded reasoning requiring appraisal.",
-            w.id
-        )
-    } else {
-        format!(
-            "{} Separate adequacy and domain-of-applicability justification for this backing is not recorded beyond the warrant's applicability statement.",
-            evidence_summary(view, &w.backing_evidence_ids)
-        )
+    let assumptions = || {
+        case.assumptions
+            .iter()
+            .filter(|a| nodes.contains(a.id.as_str()))
     };
-    let mut evidence_ids = BTreeSet::new();
-    evidence_ids.extend(w.backing_evidence_ids.iter().cloned());
+    let challenges = || {
+        case.defeaters
+            .iter()
+            .filter(|d| nodes.contains(d.id.as_str()))
+    };
+    let needs = || {
+        case.evidence_plan
+            .iter()
+            .filter(|n| nodes.contains(n.target_id.as_str()) || n.enables_claim == w.conclusion_id)
+    };
+    let mut evidence_ids: BTreeSet<&str> =
+        w.backing_evidence_ids.iter().map(String::as_str).collect();
     for g in case
         .grounds
         .iter()
         .filter(|g| nodes.contains(g.id.as_str()))
     {
-        evidence_ids.extend(g.evidence_ids.iter().cloned());
+        evidence_ids.extend(g.evidence_ids.iter().map(String::as_str));
     }
-    for a in case
-        .assumptions
-        .iter()
-        .filter(|a| nodes.contains(a.id.as_str()))
-    {
-        evidence_ids.extend(a.evidence_ids.iter().cloned());
+    for a in assumptions() {
+        evidence_ids.extend(a.evidence_ids.iter().map(String::as_str));
     }
-    for d in case
-        .defeaters
-        .iter()
-        .filter(|d| nodes.contains(d.id.as_str()))
-    {
-        evidence_ids.extend(d.evidence_ids.iter().cloned());
+    for d in challenges() {
+        evidence_ids.extend(d.evidence_ids.iter().map(String::as_str));
     }
-    let provenance = format!(
-        "{} Full findings and known shared uses are in the evidence register. Separate source dates, acquisition details and adequacy judgements are not inferred from identifiers.",
-        evidence_summary(view, &evidence_ids.into_iter().collect::<Vec<_>>())
-    );
-    let rebuttals = if challenges.is_empty() {
-        format!(
-            "No specific rebuttal condition is recorded for {}. Applicability boundary: {} Reassess the inference if evidence or analysis establishes that this boundary fails.",
-            w.id, w.applicability
-        )
-    } else {
-        format!(
-            "{} Applicability boundary: {} An established exception requires reassessment or qualification of this inference.",
-            joined(&challenges),
-            w.applicability
-        )
-    };
     writeln!(s, "\n## Argument record — ARG-{}\n", prose(&w.id)).unwrap();
     table(s, &["Component", "Engineering entry"]);
-    let entries = [
-        (
-            format!("1. Claim — {}", w.conclusion_id),
-            conclusion.to_owned(),
-        ),
-        (
-            "2. Grounds — jointly required premises".into(),
-            format!(
-                "{premises} These premises are jointly required within ARG-{}.",
+    row!(
+        s,
+        &[format_args!("1. Claim — {}", w.conclusion_id), conclusion]
+    );
+    row!(
+        s,
+        &[
+            "2. Grounds — jointly required premises",
+            format_args!(
+                "{} These premises are jointly required within ARG-{}.",
+                list(
+                    w.premise_ids.iter().map(|id| node_description(view, id)),
+                    " ",
+                    ""
+                ),
                 w.id
-            ),
-        ),
-        (
-            format!("3. Warrant — {}", w.id),
-            format!(
+            )
+        ]
+    );
+    row!(
+        s,
+        &[
+            format_args!("3. Warrant — {}", w.id),
+            format_args!(
                 "{} Given premises {} and assumptions {}, this warrant connects them to {}. Inference type: {}. Applicability: {}",
                 w.rule,
-                w.premise_ids.join(", "),
-                if assumptions.is_empty() {
-                    "none recorded".into()
-                } else {
-                    case.assumptions
-                        .iter()
-                        .filter(|a| nodes.contains(a.id.as_str()))
-                        .map(|a| a.id.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                },
+                list(w.premise_ids.iter(), ", ", ""),
+                list(assumptions().map(|a| &a.id), ", ", "none recorded"),
                 w.conclusion_id,
                 label(&w.inference),
                 w.applicability
-            ),
-        ),
-        ("4. Backing".into(), backing),
-        (
-            "5. Qualifier".into(),
-            format!(
-                "{qualifier} A separately calibrated numerical uncertainty estimate is not recorded."
-            ),
-        ),
-        ("6. Rebuttal conditions".into(), rebuttals),
-        (
-            "7. Scope, definitions and criteria".into(),
-            scope_text(case),
-        ),
-        ("8. Evidence provenance and adequacy".into(), provenance),
-        (
-            "9. Critical assumptions and dependencies".into(),
-            format!(
-                "{} Required ground or subclaim identifiers: {}.",
-                if assumptions.is_empty() {
-                    "No assumptions recorded for this inference.".into()
+            )
+        ]
+    );
+    row!(
+        s,
+        &[
+            "4. Backing",
+            fragment(|s| {
+                if w.backing_evidence_ids.is_empty() {
+                    write!(
+                        s,
+                        "No backing evidence supplied for {}. Its rule and applicability remain recorded reasoning requiring appraisal.",
+                        w.id
+                    )
                 } else {
-                    joined(&assumptions)
-                },
-                w.premise_ids.join(", ")
-            ),
-        ),
-        (
-            "10. Competing explanations or options".into(),
-            alternatives_text(view),
-        ),
-        (
-            "11. Challenges and responses".into(),
-            if challenges.is_empty() {
-                "No targeted challenge recorded for this inference and its imported support. Completeness remains unassessed.".into()
-            } else {
-                joined(&challenges)
-            },
-        ),
-        (
-            "12. Stronger target and evidence obligations".into(),
-            format!(
+                    write!(
+                        s,
+                        "{} Separate adequacy and domain-of-applicability justification for this backing is not recorded beyond the warrant's applicability statement.",
+                        evidence_summary(view, &w.backing_evidence_ids)
+                    )
+                }
+            })
+        ]
+    );
+    row!(
+        s,
+        &[
+            "5. Qualifier",
+            format_args!(
+                "{qualifier} A separately calibrated numerical uncertainty estimate is not recorded."
+            )
+        ]
+    );
+    row!(
+        s,
+        &[
+            "6. Rebuttal conditions",
+            fragment(|s| {
+                if challenges().next().is_none() {
+                    write!(
+                        s,
+                        "No specific rebuttal condition is recorded for {}. Applicability boundary: {} Reassess the inference if evidence or analysis establishes that this boundary fails.",
+                        w.id, w.applicability
+                    )
+                } else {
+                    write!(
+                        s,
+                        "{} Applicability boundary: {} An established exception requires reassessment or qualification of this inference.",
+                        list(challenges().map(|d| challenge_text(d, view)), " ", ""),
+                        w.applicability
+                    )
+                }
+            })
+        ]
+    );
+    row!(s, &["7. Scope, definitions and criteria", scope_text(case)]);
+    row!(
+        s,
+        &[
+            "8. Evidence provenance and adequacy",
+            format_args!(
+                "{} Full findings and known shared uses are in the evidence register. Separate source dates, acquisition details and adequacy judgements are not inferred from identifiers.",
+                evidence_refs(view, evidence_ids.iter().copied())
+            )
+        ]
+    );
+    row!(
+        s,
+        &[
+            "9. Critical assumptions and dependencies",
+            format_args!(
+                "{} Required ground or subclaim identifiers: {}.",
+                list(
+                    assumptions().map(|a| assumption_text(a, view)),
+                    " ",
+                    "No assumptions recorded for this inference."
+                ),
+                list(w.premise_ids.iter(), ", ", "")
+            )
+        ]
+    );
+    row!(
+        s,
+        &[
+            "10. Competing explanations or options",
+            alternatives_text(view)
+        ]
+    );
+    row!(
+        s,
+        &[
+            "11. Challenges and responses",
+            list(
+                challenges().map(|d| challenge_text(d, view)),
+                " ",
+                "No targeted challenge recorded for this inference and its imported support. Completeness remains unassessed."
+            )
+        ]
+    );
+    row!(
+        s,
+        &[
+            "12. Stronger target and evidence obligations",
+            format_args!(
                 "stronger_target: {} Qualifier: {} Relevant obligations: {}",
                 case.stronger_target.text,
                 case.stronger_target.qualifier,
-                if needs.is_empty() {
-                    "No additional obligation is separately recorded for this inference.".into()
-                } else {
-                    joined(&needs)
-                }
-            ),
-        ),
-        (
-            "13. Current assessment and defensible claim".into(),
-            format!(
+                list(
+                    needs().map(need_text),
+                    " ",
+                    "No additional obligation is separately recorded for this inference."
+                )
+            )
+        ]
+    );
+    row!(
+        s,
+        &[
+            "13. Current assessment and defensible claim",
+            format_args!(
                 "Record conclusion {}: {} Qualifier: {} {} This argument record is {} for its conclusion. {} Overall current formulation: {}",
                 w.conclusion_id,
                 conclusion,
@@ -379,16 +475,16 @@ fn argument_record(s: &mut BoundedText, view: &PresentationView<'_>, w: &Warrant
                 },
                 composition_text(view, &w.conclusion_id),
                 current_summary(case)
-            ),
-        ),
-        (
-            "14. Decision basis and revision triggers".into(),
-            decision_text(case),
-        ),
-    ];
-    for (component, entry) in entries {
-        row(s, &[&component, &entry]);
-    }
+            )
+        ]
+    );
+    row!(
+        s,
+        &[
+            "14. Decision basis and revision triggers",
+            decision_text(case)
+        ]
+    );
 }
 
 fn evidence_register(s: &mut BoundedText, view: &PresentationView<'_>) {
@@ -406,8 +502,11 @@ fn evidence_register(s: &mut BoundedText, view: &PresentationView<'_>) {
         ],
     );
     for e in &request.evidence {
+        if s.failed() {
+            return;
+        }
         let uses = view.evidence_uses(&e.id);
-        row(
+        row!(
             s,
             &[
                 &e.id,
@@ -416,16 +515,16 @@ fn evidence_register(s: &mut BoundedText, view: &PresentationView<'_>) {
                 } else {
                     uses.join("; ")
                 },
-                &format!(
+                &format_args!(
                     "{} Source/location: {}. Version/date: not separately supplied unless included in that provenance.",
                     e.title, e.source
                 ),
-                &format!("Kind: {}. Supplied finding/excerpt: {}", e.kind, e.excerpt),
-                &format!(
+                &format_args!("Kind: {}. Supplied finding/excerpt: {}", e.kind, e.excerpt),
+                &format_args!(
                     "Available as supplied text. User asserts checking: {}. Independent verification by this workflow: not performed.",
                     e.checked_by_user
                 ),
-                &format!(
+                &format_args!(
                     "Relevance, reliability, coverage and uncertainty require appraisal for the intended use. Known uses: {}. Reuse of one evidence identity supplies no independent replication.",
                     uses.len()
                 ),
@@ -433,7 +532,7 @@ fn evidence_register(s: &mut BoundedText, view: &PresentationView<'_>) {
         );
     }
     if request.evidence.is_empty() {
-        row(
+        row!(
             s,
             &[
                 "None supplied",
@@ -450,6 +549,9 @@ fn evidence_register(s: &mut BoundedText, view: &PresentationView<'_>) {
 fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
     let case = view.case;
     evidence_register(s, view);
+    if s.failed() {
+        return;
+    }
     writeln!(s, "\n## Assumptions and dependencies\n").unwrap();
     table(
         s,
@@ -462,11 +564,14 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
         ],
     );
     for a in &case.assumptions {
-        row(
+        if s.failed() {
+            return;
+        }
+        row!(
             s,
             &[
                 &a.id,
-                &format!(
+                &format_args!(
                     "{} Critical: {}. Status: {}.",
                     a.statement,
                     a.critical,
@@ -474,7 +579,7 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
                 ),
                 &evidence_summary(view, &a.evidence_ids),
                 &a.applies_to.join(", "),
-                &format!(
+                &format_args!(
                     "Reassess the declared dependencies if a critical assumption fails. Check: {}",
                     a.validation
                 ),
@@ -482,6 +587,9 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
         );
     }
     for c in &case.subclaims {
+        if s.failed() {
+            return;
+        }
         let dependencies = view
             .index
             .consumers_for(&c.id)
@@ -495,19 +603,21 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
             .map(|w| format!("ARG-{}", w.id))
             .collect::<Vec<_>>()
             .join(", ");
-        row(
+        row!(
             s,
             &[
                 &c.id,
-                &format!("{} Qualifier: {}", c.text, c.qualifier),
-                &format!("Declared supporting arguments: {routes}. Separate verdict not recorded."),
+                &format_args!("{} Qualifier: {}", c.text, c.qualifier),
+                &format_args!(
+                    "Declared supporting arguments: {routes}. Separate verdict not recorded."
+                ),
                 &dependencies,
                 "Reassess each inference importing this proposition if its support or qualifier changes.",
             ],
         );
     }
     if case.assumptions.is_empty() && case.subclaims.is_empty() {
-        row(
+        row!(
             s,
             &[
                 "None recorded",
@@ -520,18 +630,18 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
     }
     writeln!(s, "\n## Challenge register\n").unwrap();
     table(s, &["Attack type", "Target and interpretation"]);
-    row(
+    row!(
         s,
         &["Undermining", "Challenges a premise's truth or support."],
     );
-    row(
+    row!(
         s,
         &[
             "Undercutting",
             "Challenges the applicability or reliability of an inference while its premises may hold.",
         ],
     );
-    row(
+    row!(
         s,
         &[
             "Rebutting",
@@ -551,19 +661,22 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
         ],
     );
     for d in &case.defeaters {
-        row(
+        if s.failed() {
+            return;
+        }
+        row!(
             s,
             &[
                 &d.id,
-                &format!("{}: {}", d.target_id, label(&d.kind)),
-                &format!(
+                &format_args!("{}: {}", d.target_id, label(&d.kind)),
+                &format_args!(
                     "{} {}",
                     d.challenge,
                     evidence_summary(view, &d.evidence_ids)
                 ),
                 &label(&d.basis),
                 &d.response,
-                &format!(
+                &format_args!(
                     "Disposition: {}. Material to target: {}.",
                     label(&d.status),
                     d.material
@@ -572,7 +685,7 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
         );
     }
     if case.defeaters.is_empty() {
-        row(
+        row!(
             s,
             &[
                 "None recorded",
@@ -599,27 +712,30 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
     let mut needs = case.evidence_plan.iter().collect::<Vec<_>>();
     needs.sort_by_key(|n| n.priority);
     for n in needs {
-        row(
+        if s.failed() {
+            return;
+        }
+        row!(
             s,
             &[
-                &format!(
+                &format_args!(
                     "{} targets {}; enables {}.",
                     n.id, n.target_id, n.enables_claim
                 ),
                 &n.question,
-                &format!(
+                &format_args!(
                     "Method: {} Measurement: {} Comparator: {}",
                     n.method, n.measurement, n.comparator
                 ),
-                &format!(
+                &format_args!(
                     "Proposed criterion: {} Its independent justification must be established before decisive interpretation.",
                     n.acceptance_criterion
                 ),
-                &format!(
+                &format_args!(
                     "Favourable: reassess {} with all other dependencies. Adverse: {} Inconclusive: leave the stronger target unresolved.",
                     n.enables_claim, n.if_failed
                 ),
-                &format!(
+                &format_args!(
                     "Priority {}. Next action: {} Estimated effort: {}",
                     n.priority, n.method, n.cost
                 ),
@@ -627,7 +743,7 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
         );
     }
     if case.evidence_plan.is_empty() {
-        row(
+        row!(
             s,
             &[
                 "None recorded",
@@ -642,9 +758,12 @@ fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
 }
 
 fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
+    if s.failed() {
+        return;
+    }
     let case = view.case;
     let request = view.request;
-    writeln!(s,"\n## Composition overview for a complex case\n\n**Case question:** What formulation of the requested claim is justified? Requested claim: {}\n\n**Top-level claim — current_claim:** {}\n\n**Shared context:** {}\n\n**Composition warrant:** Each declared warrant identifies jointly required premises and its conclusion. Explicit composition records identify joint, cumulative or alternative support and the selected routes. Route selection is a model judgement whose evidential adequacy requires appraisal.\n\n**Required argument records:** {}\n",prose(&request.claim),prose(&format!("{} Qualifier: {}",case.current_claim.text,case.current_claim.qualifier)),prose(&scope_text(case)),case.warrants.iter().map(|w|format!("ARG-{}",w.id)).collect::<Vec<_>>().join(", ")).unwrap();
+    writeln!(s,"\n## Composition overview for a complex case\n\n**Case question:** What formulation of the requested claim is justified? Requested claim: {}\n\n**Top-level claim — current_claim:** {}\n\n**Shared context:** {}\n\n**Composition warrant:** Each declared warrant identifies jointly required premises and its conclusion. Explicit composition records identify joint, cumulative or alternative support and the selected routes. Route selection is a model judgement whose evidential adequacy requires appraisal.\n\n**Required argument records:** {}\n",prose(&request.claim),prose(&format_args!("{} Qualifier: {}",case.current_claim.text,case.current_claim.qualifier)),prose(&scope_text(case)),case.warrants.iter().map(|w|format!("ARG-{}",w.id)).collect::<Vec<_>>().join(", ")).unwrap();
     writeln!(s, "### Claim register\n").unwrap();
     table(
         s,
@@ -660,6 +779,9 @@ fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
         .chain(case.subclaims.iter().map(|c| c.id.as_str()))
         .chain(std::iter::once("stronger_target"));
     for id in ids {
+        if s.failed() {
+            return;
+        }
         let (text, qualifier) = claim(view, id);
         let routes = view
             .warrants(id)
@@ -674,11 +796,11 @@ fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
             .map(|d| d.id.as_str())
             .collect::<Vec<_>>()
             .join(", ");
-        row(
+        row!(
             s,
             &[
                 id,
-                &format!("{text} Qualifier: {qualifier} Shared engineering scope applies."),
+                &format_args!("{text} Qualifier: {qualifier} Shared engineering scope applies."),
                 &if routes.is_empty() {
                     "No warrant recorded.".into()
                 } else {
@@ -706,6 +828,9 @@ fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
         ],
     );
     for w in &case.warrants {
+        if s.failed() {
+            return;
+        }
         let nodes = view.inference_nodes(w);
         let assumptions = case
             .assumptions
@@ -714,18 +839,18 @@ fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
             .map(|a| a.id.as_str())
             .collect::<Vec<_>>()
             .join(", ");
-        row(
+        row!(
             s,
             &[
-                &format!("ARG-{}", w.id),
+                &format_args!("ARG-{}", w.id),
                 &w.conclusion_id,
                 &w.premise_ids.join(", "),
                 &w.id,
-                &format!(
+                &format_args!(
                     "Premises jointly required within this route. {}",
                     composition_text(view, &w.conclusion_id)
                 ),
-                &format!(
+                &format_args!(
                     "Applicability: {} Assumptions: {}.",
                     w.applicability,
                     if assumptions.is_empty() {
@@ -754,7 +879,7 @@ fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
         })
         .collect::<Vec<_>>()
         .join("; ");
-    row(
+    row!(
         s,
         &[
             "Serial support",
@@ -765,50 +890,49 @@ fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
             },
         ],
     );
-    row(
+    row!(
         s,
         &[
             "Joint support",
             "Each warrant's premises are jointly required. Missing support leaves that declared route unresolved.",
         ],
     );
-    row(
+    row!(
         s,
-        &["Alternative routes", &{
-            let decisions = case
-                .compositions
-                .iter()
-                .filter(|c| c.relationship == crate::domain::SupportRelationship::AlternativeRoutes)
-                .map(|c| {
-                    format!(
+        &[
+            "Alternative routes",
+            list(
+                case.compositions
+                    .iter()
+                    .filter(
+                        |c| c.relationship == crate::domain::SupportRelationship::AlternativeRoutes
+                    )
+                    .map(|c| fragment(move |s| write!(
+                        s,
                         "{}: {}",
                         c.conclusion_id,
                         composition_text(view, &c.conclusion_id)
-                    )
-                })
-                .collect::<Vec<_>>();
-            if decisions.is_empty() {
-                "No alternative-route composition recorded.".into()
-            } else {
-                joined(&decisions)
-            }
-        }],
+                    ))),
+                " ",
+                "No alternative-route composition recorded.",
+            ),
+        ],
     );
-    row(
+    row!(
         s,
         &[
             "Cumulative support",
             "Combination requires an explicit warrant and adequate treatment of shared dependencies. No quantitative score combination is inferred.",
         ],
     );
-    row(
+    row!(
         s,
         &[
             "Shared support or assumptions",
             "Canonical identifiers are reused across branches. Evidence and assumption registers show their declared uses.",
         ],
     );
-    row(
+    row!(
         s,
         &[
             "Attack",
@@ -824,22 +948,63 @@ fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
                 crate::domain::DefeaterStatus::Open | crate::domain::DefeaterStatus::Sustained
             )
         })
-        .map(|d| format!("{} → {} ({})", d.id, d.target_id, label(&d.status)))
-        .collect::<Vec<_>>();
+        .map(|d| fragment(move |s| write!(s, "{} → {} ({})", d.id, d.target_id, label(&d.status))));
     writeln!(s, "\n### Composition checks\n").unwrap();
-    let checks=[
-        ("Coverage","The declared graph identifies its premises and conclusions. Completeness of requirements, interfaces and interactions is not separately assessed.".to_owned()),
-        ("Compatibility",format!("Shared scope: {} Individual transfer arguments are not separately recorded.",scope_text(case))),
-        ("Support conditions",case.compositions.iter().map(|c|format!("{}: {}",c.conclusion_id,composition_text(view,&c.conclusion_id))).collect::<Vec<_>>().join(" ")),
-        ("Shared dependencies","Evidence and assumption registers retain canonical identities and uses. Shared identities supply no independent replication.".into()),
-        ("Conflict assessment",if unresolved.is_empty(){"No open or sustained challenge recorded. Completeness of challenge discovery remains unassessed.".into()}else{joined(&unresolved)}),
-        ("Circularity check",view.validation_summary()),
-        ("Change impact","Use the composition register to follow an altered premise through each consuming warrant to current_claim or stronger_target. Reassess affected assumptions and challenges as well.".into()),
-        ("Whole-case assessment",current_summary(case)),
-    ];
-    for (name, text) in checks {
-        writeln!(s, "- **{name}:** {}", prose(&text)).unwrap();
+    composition_check(
+        s,
+        "Coverage",
+        "The declared graph identifies its premises and conclusions. Completeness of requirements, interfaces and interactions is not separately assessed.",
+    );
+    composition_check(
+        s,
+        "Compatibility",
+        &format_args!(
+            "Shared scope: {} Individual transfer arguments are not separately recorded.",
+            scope_text(case)
+        ),
+    );
+    composition_check(
+        s,
+        "Support conditions",
+        &list(
+            case.compositions.iter().map(|c| {
+                fragment(move |s| {
+                    write!(
+                        s,
+                        "{}: {}",
+                        c.conclusion_id,
+                        composition_text(view, &c.conclusion_id)
+                    )
+                })
+            }),
+            " ",
+            "",
+        ),
+    );
+    composition_check(
+        s,
+        "Shared dependencies",
+        "Evidence and assumption registers retain canonical identities and uses. Shared identities supply no independent replication.",
+    );
+    composition_check(
+        s,
+        "Conflict assessment",
+        &list(
+            unresolved,
+            " ",
+            "No open or sustained challenge recorded. Completeness of challenge discovery remains unassessed.",
+        ),
+    );
+    if s.failed() {
+        return;
     }
+    composition_check(s, "Circularity check", &view.validation_summary());
+    composition_check(
+        s,
+        "Change impact",
+        "Use the composition register to follow an altered premise through each consuming warrant to current_claim or stronger_target. Reassess affected assumptions and challenges as well.",
+    );
+    composition_check(s, "Whole-case assessment", &current_summary(case));
     let next = case
         .evidence_plan
         .iter()
@@ -872,11 +1037,11 @@ pub fn markdown_with_limits(
     }
     writeln!(s, "## Argument context\n").unwrap();
     table(&mut s, &["Field", "Entry"]);
-    row(
+    row!(
         &mut s,
         &[
             "Argument identity",
-            &format!(
+            &format_args!(
                 "Engineering case; current conclusion current_claim. Argument records: {}. Separate case revision: not supplied.",
                 case.warrants
                     .iter()
@@ -886,12 +1051,12 @@ pub fn markdown_with_limits(
             ),
         ],
     );
-    row(&mut s, &["Engineering question", &request.claim]);
-    row(
+    row!(&mut s, &["Engineering question", &request.claim]);
+    row!(
         &mut s,
         &[
             "Intended use",
-            &format!(
+            &format_args!(
                 "Evidence-bounded argument assessment and investigation planning. Supplied context: {} Reliance limits: {}",
                 if request.context.trim().is_empty() {
                     "Not supplied."
@@ -902,11 +1067,11 @@ pub fn markdown_with_limits(
             ),
         ],
     );
-    row(
+    row!(
         &mut s,
         &[
             "Claim type",
-            &format!(
+            &format_args!(
                 "Not separately classified. Declared inference types: {}.",
                 case.warrants
                     .iter()
@@ -918,21 +1083,21 @@ pub fn markdown_with_limits(
             ),
         ],
     );
-    row(
+    row!(
         &mut s,
         &[
             "Target identity",
-            &format!(
+            &format_args!(
                 "{} Configuration: {}",
                 case.scope.system_boundary, case.scope.configuration
             ),
         ],
     );
-    row(
+    row!(
         &mut s,
         &[
             "Assessment boundary",
-            &format!(
+            &format_args!(
                 "Evidence considered: {} Applicable period: {} Operating conditions: {} Exclusions and reliance limits: {}",
                 request
                     .evidence
@@ -950,11 +1115,20 @@ pub fn markdown_with_limits(
         writeln!(s,"\n## Argument record\n\nNo inference warrant was supplied. A completed 14-component inference record requires an identified warrant and its conclusion.\n").unwrap();
     }
     for w in &case.warrants {
+        if s.failed() {
+            return s.finish();
+        }
         argument_record(&mut s, &view, w);
     }
     registers(&mut s, &view);
+    if s.failed() {
+        return s.finish();
+    }
     writeln!(s,"\n## Assessed argument\n\n> {} Declared grounds: {} Declared warrants: {} Consequential recorded challenges: {} The stronger target is {} Additional support is specified by evidence obligations {}.\n",prose(&current_summary(case)),case.grounds.iter().map(|g|g.id.as_str()).collect::<Vec<_>>().join(", "),case.warrants.iter().map(|w|w.id.as_str()).collect::<Vec<_>>().join(", "),case.defeaters.iter().filter(|d|d.material).map(|d|d.id.as_str()).collect::<Vec<_>>().join(", "),prose(&case.stronger_target.text),case.evidence_plan.iter().map(|n|n.id.as_str()).collect::<Vec<_>>().join(", ")).unwrap();
     for section in &case.reading {
+        if s.failed() {
+            return s.finish();
+        }
         writeln!(
             s,
             "\n### {} — {}\n",
@@ -963,19 +1137,20 @@ pub fn markdown_with_limits(
         )
         .unwrap();
         for paragraph in &section.paragraphs {
+            if s.failed() {
+                return s.finish();
+            }
             writeln!(
                 s,
                 "{} (References: {}.)\n",
                 prose(&paragraph.text),
-                paragraph
-                    .reference_ids
-                    .iter()
-                    .map(|id| prose(id))
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                list(paragraph.reference_ids.iter().map(prose), ", ", "")
             )
             .unwrap();
         }
+    }
+    if s.failed() {
+        return s.finish();
     }
     if case.warrants.len() > 1 || !case.subclaims.is_empty() {
         composition(&mut s, &view);
