@@ -262,7 +262,8 @@ impl FixtureRunner for DockerRunner {
             "--tmpfs",
             "/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777",
             "--tmpfs",
-            "/build:rw,nosuid,nodev,size=128m,mode=1777",
+            // Docker tmpfs defaults include noexec; compiled collectors run here.
+            "/build:rw,exec,nosuid,nodev,size=128m,mode=1777",
         ]
         .into_iter()
         .map(str::to_owned)
