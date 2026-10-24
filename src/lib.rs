@@ -16,6 +16,8 @@ pub mod provider;
 pub mod render;
 
 mod argument_depth;
+mod collector_registry;
+mod native_collectors;
 mod output_validation;
 
 /// Errors distinguish invalid arguments from transport and resource failures.

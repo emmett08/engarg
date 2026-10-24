@@ -69,6 +69,9 @@ const TOOLS: &[ToolSpec] = &[
 /// The executable and transport remain operator configuration. A catalogue ID
 /// describes a prospective adapter rather than granting execution authority.
 pub fn required_arguments(tool_id: &str) -> Option<&'static [&'static str]> {
+    if let Some(tool) = crate::native_collectors::spec(tool_id) {
+        return Some(tool.parameters);
+    }
     TOOLS
         .iter()
         .find(|tool| tool.id == tool_id)
@@ -77,15 +80,27 @@ pub fn required_arguments(tool_id: &str) -> Option<&'static [&'static str]> {
 
 /// Compact planning catalogue. It deliberately contains no executable paths or credentials.
 pub fn catalogue() -> Value {
-    serde_json::to_value(TOOLS).expect("tool catalogue serialises")
+    let mut tools = serde_json::to_value(TOOLS).expect("tool catalogue serialises");
+    tools.as_array_mut().expect("catalogue array").extend(
+        crate::native_collectors::TOOLS
+            .iter()
+            .map(|tool| json!({"id":tool.id,"purpose":tool.purpose,"arguments":tool.parameters})),
+    );
+    tools
 }
 
 pub fn planned_case_schema() -> Value {
     let mut schema =
         serde_json::to_value(schemars::schema_for!(PlannedArgument)).expect("schema serialises");
     schema.as_object_mut().expect("object").remove("$schema");
-    schema["$defs"]["AcquisitionPlan"]["properties"]["tool_id"]["enum"] =
-        json!(TOOLS.iter().map(|tool| tool.id).collect::<Vec<_>>());
+    schema["$defs"]["AcquisitionPlan"]["properties"]["tool_id"]["enum"] = json!(
+        catalogue()
+            .as_array()
+            .expect("catalogue array")
+            .iter()
+            .map(|tool| tool["id"].clone())
+            .collect::<Vec<_>>()
+    );
     schema
 }
 
@@ -130,6 +145,14 @@ pub fn validate(case: &ArgumentCase, plans: &[AcquisitionPlan]) -> Vec<String> {
             ));
             continue;
         };
+        if let Some(tool) = crate::native_collectors::spec(&plan.tool_id)
+            && let Err(error) = tool.input(plan)
+        {
+            errors.push(format!(
+                "acquisition plan {} has invalid native input {error}",
+                plan.need_id
+            ));
+        }
         let mut inputs = BTreeSet::new();
         for argument in &plan.arguments {
             if !required.contains(&argument.name.as_str()) {
@@ -185,7 +208,54 @@ pub fn validate(case: &ArgumentCase, plans: &[AcquisitionPlan]) -> Vec<String> {
     errors
 }
 
-pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools lists proposed trusted collector IDs and named string inputs. Choose an appropriate known tool where it fits the actual investigation and custom otherwise. Identify the required tools and inputs while constructing or auditing the evidence methods. Values must come from supplied claim, context or evidence. Leave unknown hosts, cluster contexts, resource identities, dates and other inputs unresolved rather than guessing. kubectl_get allows * for namespace or name only when that all-resources scope is established. A proposed collector or input is an unperformed plan and supplies no evidence. Collecting raw output does not establish an acceptance criterion or answer an inferential review.";
+/// Bind operator overrides to exact needs while retaining untouched proposed investigations.
+pub fn override_plans(
+    case: &ArgumentCase,
+    retained: &[AcquisitionPlan],
+    overrides: Vec<AcquisitionPlan>,
+) -> Result<Vec<AcquisitionPlan>, Error> {
+    if !retained.is_empty() {
+        let errors = validate(case, retained);
+        if !errors.is_empty() {
+            return Err(Error::InvalidInput(errors.join("; ")));
+        }
+    }
+    let mut merged: std::collections::BTreeMap<_, _> = case
+        .evidence_plan
+        .iter()
+        .map(|need| {
+            (
+                need.id.clone(),
+                AcquisitionPlan {
+                    need_id: need.id.clone(),
+                    tool_id: "custom".into(),
+                    arguments: vec![],
+                    unresolved_arguments: vec!["adapter".into()],
+                },
+            )
+        })
+        .collect();
+    for plan in retained {
+        merged.insert(plan.need_id.clone(), plan.clone());
+    }
+    let mut seen = BTreeSet::new();
+    for plan in overrides {
+        if !merged.contains_key(&plan.need_id) || !seen.insert(plan.need_id.clone()) {
+            return Err(Error::InvalidInput(
+                "acquisition override repeats a need or names an unknown need".into(),
+            ));
+        }
+        merged.insert(plan.need_id.clone(), plan);
+    }
+    let plans: Vec<_> = merged.into_values().collect();
+    let errors = validate(case, &plans);
+    if !errors.is_empty() {
+        return Err(Error::InvalidInput(errors.join("; ")));
+    }
+    Ok(plans)
+}
+
+pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools lists proposed trusted collector IDs and named string inputs. Use native kubernetes for fleet resource reads, github for exact commit identity and tempo for bounded cluster-scoped rollout searches when those measurements fit. Prefer known collectors even when their configuration is unknown and retain unresolved arguments. Split executable acquisitions from independent interpretation and controlled experiment design. Use gh_api_get for other GitHub GET endpoints and http_json_get for exact literal queries or trace-by-ID reads. Use custom only for an investigation the listed collectors cannot perform. Identify the required tools and inputs while constructing or auditing the evidence methods. Values must come from supplied claim, context or evidence. Leave unknown hosts, cluster contexts, resource identities, dates and other inputs unresolved rather than guessing. kubectl_get allows * for namespace or name only when that all-resources scope is established. A proposed collector or input is an unperformed plan and supplies no evidence. Collecting raw output does not establish an acceptance criterion or answer an inferential review.";
 
 pub(crate) const ENVELOPE_INSTRUCTIONS: &str = "PLANNED RESPONSE: Return the supplied envelope with argument holding the complete unchanged ArgumentCase and acquisition_plan holding exactly one record for every argument.evidence_plan ID. Each record names need_id and one acquisition_tools ID. Put each required named input either in arguments as {name,value} string entries or in unresolved_arguments, never both. Use only the catalogue's input names. For custom, arguments is empty and unresolved_arguments is [\"adapter\"]. Revise the argument and its acquisition bindings together. The plan is separate from the canonical case and must preserve its target, enabled claim, question, measurement, comparator and acceptance criterion.";
 

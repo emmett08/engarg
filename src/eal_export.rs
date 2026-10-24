@@ -131,7 +131,7 @@ fn export_projection(
     };
     if acquisition.is_some() {
         bundle.limitations.push(
-            "Acquisition evidence requires a collected marker that establishes successful JSON acquisition only. The existing independent review obligations still determine interpretation and sufficiency. Missing adapters or unresolved inputs remain file-import stubs. Acquisition observations use an explicit 86400-second export-policy age limit rather than an inferred engineering validity period.".into(),
+            "Acquisition availability follows the selected adapter contract. EngArg adapters use collected while native fleet collectors use cluster_count and native GitHub uses found. The existing independent review obligations still determine interpretation and sufficiency. Custom collectors remain command implementation stubs and unresolved inputs retain explicit command configuration templates. Acquisition observations use an explicit 86400-second export-policy age limit rather than an inferred engineering validity period.".into(),
         );
     }
     Ok(bundle)
@@ -305,7 +305,7 @@ impl<'a> Exporter<'a> {
         ));
         if let Some(acquisition) = self.acquisition {
             self.source
-                .push_str(&acquisition.declarations(self.revision, ENVIRONMENT));
+                .push_str(&acquisition.declarations(self.revision, ENVIRONMENT)?);
             for (id, tool, evidence) in acquisition.mappings() {
                 self.record(id, "tool", tool, "planned_acquisition_tool");
                 self.record(id, "evidence", evidence, "planned_acquisition");

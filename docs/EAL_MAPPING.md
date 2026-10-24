@@ -2,7 +2,7 @@
 
 EngArg exports an authored engineering argument into EAL/3. The result is a structural projection with explicit review obligations. It is suitable for inspection and EAL assessment after admissible observations have been collected. Conversion alone supplies neither those observations nor a proof of the natural-language argument.
 
-The integration was developed against [eal-mcp revision d311d5a4f9e294ba3228127bc5210b48c5de3a12](https://github.com/emmett08/eal-mcp/tree/d311d5a4f9e294ba3228127bc5210b48c5de3a12). EngArg invokes that project's official `eal-host`, which negotiates MCP with `eal-mcp`. This reuses its tool-schema validation, authentication and exact-number handling rather than maintaining another MCP implementation.
+The integration is verified against [eal-mcp revision 48fe2186974f2281a45914c3b41e1cdcb16a5147](https://github.com/emmett08/eal-mcp/tree/48fe2186974f2281a45914c3b41e1cdcb16a5147). EngArg invokes that project's official `eal-host`, which negotiates MCP with `eal-mcp`. This reuses its tool-schema validation, authentication and exact-number handling rather than maintaining another MCP implementation.
 
 ## Representation
 
@@ -18,7 +18,8 @@ The integration was developed against [eal-mcp revision d311d5a4f9e294ba3228127b
 | Critical assumption | Validated EAL assumption attached to affected support | A model's supported label is retained as metadata |
 | Challenge | Evidence-gated objection at the matching claim, reasoning, assumption or objection | Its activation requires admissible support |
 | Open or sustained material challenge | Additional resolution gate on affected support | An unsupported objection must not silently remove an existing EngArg reliance condition |
-| Evidence plan, alternatives and reading prose | Preserved in the JSON bundle | No executable experiment or decision authority is fabricated |
+| Evidence plan | Native collector or custom command binding with typed input | Collection availability and acceptance review remain separate |
+| Alternatives and reading prose | Preserved in the JSON bundle | No experiment result or decision authority is fabricated |
 
 An objection that relies on a critical assumption receives an auxiliary premise claim. That claim has a native EAL argument requiring the assumption and its validation evidence. An accepted attack on the assumption can therefore defeat the dependent objection, as well as ordinary arguments that require it. The auxiliary bridge has no claim premises of its own and adds no premise cycle.
 
@@ -58,17 +59,17 @@ ENGARG_EAL_HOST=/absolute/path/to/eal-host cargo test --locked --test eal_live -
 
 These tests require the real host and sibling server/runtime binaries. The normal test suite uses deterministic local doubles for process and API failure cases. Neither kind of test establishes the truth of a proposed engineering claim or comparative argument quality.
 
-## Acquisition plans and paired export in 0.6.0
+## Acquisition plans and paired export
 
 The CLI pairs every export with a native eal-mcp tools registry. The canonical `ArgumentCase`, `RunReport` and `EalExport` record fields retain their existing schemas. The internal model protocol adds an envelope containing the case and an acquisition plan. Its raw response remains in the report's existing transcript field. The final envelope must name each evidence need exactly once and use a permitted collector identifier. Every required named input is either supplied or explicitly unresolved. Repairs must update the graph and these bindings together within the original call allowance.
 
 The separate `acquisition` module owns the catalogue and plan validation. The `eal_acquisition` projection normalises the retained plan, binds it into the export revision and stores it in a deterministic EAL source comment. Observation context retains only the export digest so the plan is not duplicated into every observation and does not exceed EAL collection context limits. Each evidence need has a source-map entry for its acquisition tool and evidence declaration. Existing reports with no retained plan get explicit custom stubs. The exporter verifies retained plans against the exact saved argument and rejects mismatched canonical contents.
 
-Acquisition evidence requires `collected == true`. The adapter uses this marker only after a successful bounded JSON read. It returns the raw result alongside the exact acquisition identity. Every applicable existing review gate continues to require its own `accepted == true` observation. This preserves the distinction between obtaining a measurement and establishing that it meets the proposed criterion. Collection of counter-evidence likewise remains an observation whose interpretation requires review.
+EngArg adapters use `collected == true`. Native fleet collectors use `cluster_count >= 1` as an availability gate and the exact GitHub commit collector uses `found == true`. These gates retain successful negative observations for independent interpretation. The adapter uses this marker only after a successful bounded JSON read. It returns the raw result alongside the exact acquisition identity. Every applicable existing review gate continues to require its own `accepted == true` observation. This preserves the distinction between obtaining a measurement and establishing that it meets the proposed criterion. Collection of counter-evidence likewise remains an observation whose interpretation requires review.
 
 Known resolved adapters use command bindings to `engarg eal observe`. The generated registry supplies fixed argv and explicit environment-name allowlists. The model supplies named data arguments rather than an executable. Kubernetes collection uses an explicit context and resource scope with a fixed `get` operation. GitHub collection uses a relative API path and a fixed GET method. HTTP collection follows no redirects. Bearer tokens require an operator-authorised exact HTTPS origin. Command stderr and remote error bodies stay outside error messages. Adapters bound acquisition to 60 seconds and raw JSON to 1 MiB. Registry limits allow 65 seconds and 4 MiB for the full envelope including its bound request.
 
-Custom adapters and unresolved inputs produce missing-file `json_file` stubs. Each stub names the target need and unresolved configuration in comments. A compatible imported observation must carry `value`, `observed_at`, `context` and `request`. Its request identity contains exactly `tool`, `tool_version`, `input` and scoped `context`. The review stub's one fixed file cannot satisfy several distinct review requests. Operators must implement a trusted request-aware reviewer or independently supply matching observations for each obligation.
+Custom collectors and independent reviews have `command` implementation stubs with explicit replacement executable paths. Known collectors keep their executable templates while scope inputs remain unresolved. EAL still supports explicitly configured `json_file` imports. Imported records require `value`, `observed_at`, `context` and the exact acquisition `request`.
 
 `eal collect` invokes the official host's `collect_claim` operation only on explicit operator request. `--tools` resolves to the host's `--registry` flag for local collection. `--collector-env` passes only supported explicitly named collector variables. Remote collection uses the remote server's own registry and credential configuration. Analysis and conversion perform no acquisition. Both source and TOML companions participate in the existing exclusive-create and rollback transaction.
 

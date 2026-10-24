@@ -132,7 +132,7 @@ impl AcquisitionProjection {
         })
     }
 
-    pub(crate) fn declarations(&self, revision: &str, environment: &str) -> String {
+    pub(crate) fn declarations(&self, revision: &str, environment: &str) -> Result<String, Error> {
         let mut source = String::new();
         for entry in &self.entries {
             let arguments: BTreeMap<_, _> = entry
@@ -141,7 +141,7 @@ impl AcquisitionProjection {
                 .iter()
                 .map(|argument| (&argument.name, &argument.value))
                 .collect();
-            let input = json!({
+            let mut input = json!({
                 "schema": SCHEMA,
                 "case_digest": revision,
                 "need": entry.need,
@@ -149,12 +149,23 @@ impl AcquisitionProjection {
                 "arguments": arguments,
                 "unresolved_arguments": entry.plan.unresolved_arguments,
             });
+            let predicate = if let Some(tool) = crate::native_collectors::spec(&entry.plan.tool_id)
+            {
+                input = tool.input(&entry.plan)?;
+                source.push_str(&format!(
+                    "// engarg_evidence_need {}\n",
+                    serde_json::to_string(&entry.need)?
+                ));
+                tool.predicate()
+            } else {
+                "collected == true"
+            };
             source.push_str(&format!(
-                "tool {} {{\n  version \"1\"\n}}\n\nevidence {} {{\n  tool {}\n  kind acquisition\n  environment {environment}\n  max_age {OBSERVATION_MAX_AGE_SECONDS}\n  input {input}\n  require collected == true\n}}\n\n",
+                "tool {} {{\n  version \"1\"\n}}\n\nevidence {} {{\n  tool {}\n  kind acquisition\n  environment {environment}\n  max_age {OBSERVATION_MAX_AGE_SECONDS}\n  input {input}\n  require {predicate}\n}}\n\n",
                 entry.tool_name, entry.evidence_name, entry.tool_name
             ));
         }
-        source
+        Ok(source)
     }
 
     pub(crate) fn mappings(&self) -> impl Iterator<Item = (&str, &str, &str)> {
@@ -183,8 +194,9 @@ impl AcquisitionProjection {
             .map(|entry| {
                 json!({
                     "need_id": entry.need.id,
+                    "need": entry.need,
                     "evidence_id": entry.evidence_name,
-                    "interpretation": "Independently assess the observation against the evidence need and its comparator and acceptance criterion. A collected marker establishes JSON acquisition only."
+                    "interpretation": "Independently assess the observation against the evidence need and its comparator and acceptance criterion. Successful acquisition establishes the recorded measurement only."
                 })
             })
             .collect()
@@ -192,7 +204,7 @@ impl AcquisitionProjection {
 
     fn registry(&self) -> String {
         let mut registry = String::from(
-            "# Native eal-mcp tool registry for this exact exported case.\n# Exporting this file performs no collection.\n# Commands are explicit operator configuration.\n# Replace review stubs with a trusted reviewer that handles each exact request.\n# Imported files require value plus observed_at plus context plus request.\n# request must contain tool plus tool_version plus input plus scoped context.\n# collected means successful JSON acquisition and each acceptance decision requires independent review.\n\n[tools.engarg_review_contract]\nkind = \"json_file\"\nversion = \"1\"\npath = \"observations/engarg_review_contract.json\"\n# Stub for independent review. Each review has a different acquisition request.\n# One fixed observation cannot discharge every review obligation.\n\n",
+            "# Native eal-mcp tool registry for this exact exported case.\n# Exporting this file performs no collection.\n# Commands are explicit operator configuration.\n# Replace review stubs with a trusted reviewer that handles each exact request.\n# Each command receives an EAL acquisition JSON request on stdin.\n# Successful collectors return the native EAL observation envelope.\n# REPLACE selectors and executable paths require operator configuration.\n# Acquisition results require independent interpretation against their acceptance criteria.\n\n[tools.engarg_review_contract]\nkind = \"command\"\nversion = \"1\"\nargv = [\"/REPLACE_WITH_INDEPENDENT_REVIEW_COLLECTOR\"]\ntimeout_seconds = 65\nmax_output_bytes = 4194304\n# Stub for independent review. Each review has a different acquisition request.\n# The reviewer must assess the exact request and return its own acceptance decision.\n\n",
         );
         for entry in &self.entries {
             registry.push_str(&format!(
@@ -212,24 +224,9 @@ impl AcquisitionProjection {
                 registry.push_str(&format!("# Unresolved input {}\n", quoted(argument)));
             }
             registry.push_str(&format!("[tools.{}]\n", entry.tool_name));
-            if entry.plan.tool_id == "custom" || !entry.plan.unresolved_arguments.is_empty() {
-                registry.push_str(&format!(
-                    "kind = \"json_file\"\nversion = \"1\"\npath = {}\n# Stub remains unavailable until a compatible observation is independently supplied.\n# A custom collector must implement the EAL stdin request and output envelope.\n\n",
-                    quoted(&format!("observations/{}.json", entry.evidence_name))
-                ));
-                continue;
-            }
-            let inherited = match entry.plan.tool_id.as_str() {
-                "kubectl_get" => "[\"PATH\", \"HOME\", \"KUBECONFIG\"]",
-                "gh_api_get" => "[\"PATH\", \"HOME\", \"GH_TOKEN\", \"GH_HOST\"]",
-                "http_json_get" => {
-                    "[\"PATH\", \"ENGARG_COLLECTOR_TOKEN\", \"ENGARG_COLLECTOR_ORIGIN\"]"
-                }
-                _ => unreachable!("validated tool catalogue"),
-            };
-            registry.push_str(&format!(
-                "kind = \"command\"\nversion = \"1\"\nargv = [\"engarg\", \"eal\", \"observe\", \"--tool\", {}]\ntimeout_seconds = 65\nmax_output_bytes = 4194304\ninherit_env = {inherited}\nparallel_safe = false\n# Named arguments are in the matching EAL evidence input.arguments object.\n# The adapter invokes the selected read operation without a shell.\n\n",
-                quoted(&entry.plan.tool_id)
+            registry.push_str(&crate::collector_registry::binding(
+                &entry.plan,
+                &entry.need.id,
             ));
         }
         registry
