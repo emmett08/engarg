@@ -254,17 +254,18 @@ Use `--format argument` for one authored statement per indented line and `--form
 
 See [the EAL mapping contract](docs/EAL_MAPPING.md) for the semantic projection, review policy and architecture rationale. The EAL service applies its own source, declaration, depth and execution budgets, which can reject a large or deep export even when the original EngArg case passes its checks.
 
-Install the official host and its companion executables into the same prefix. Use the EAL revision pinned in [producer–consumer compatibility CI](.github/workflows/ci.yml). From a checkout of that revision:
+Install the Rust EAL host and its companions in a dedicated prefix using the revision pinned by this checkout:
 
 ```sh
-cargo +1.90.0 install --path crates/eal-runtime --locked
-cargo +1.90.0 install --path crates/eal-cli --locked
-cargo +1.90.0 install --path crates/eal-mcp --locked
-cargo +1.90.0 install --path crates/eal-coordination --locked
-cargo +1.90.0 install --path crates/eal-collectors --locked
+export ENGARG_EAL_HOST="$(bash scripts/install-eal-runtime.sh)"
+engarg eal describe --eal-host "$ENGARG_EAL_HOST" --workspace .
 ```
 
-The collector package supplies the optional infrastructure integrations. The runtime's generic command and JSON-file bindings also support other domains. The local path uses `eal-host`, which starts its installed sibling `eal-mcp` through the official Rust MCP SDK. See the companion repository's [installation instructions](https://github.com/emmett08/eal-mcp#build-and-use) and [host policy](https://github.com/emmett08/eal-mcp/blob/main/docs/text-host.md) for deployment settings.
+The installer reads the locked EAL Git revision from Cargo metadata and installs `eal-mcp`, `eal-runtime` and `eal-process` under `.engarg-local/eal-runtime/REVISION`. It verifies all five executables before reusing an installation. Build output goes to stderr, leaving the absolute host path on stdout. The catalog sync authoring script selects this installation automatically unless `ENGARG_EAL_HOST` explicitly selects another host. Input-only preflight remains independent of Rust and the runtime.
+
+Python EARL and Rust EAL both install executables named `eal-host` and `eal-mcp`. An earlier Python executable on `PATH` can reject Rust's `--methods builtin` setting with `methods must have the form package.module:function`. The dedicated prefix keeps the Rust host, server, worker and both supervisor names together. An explicit host override retains operator control, and the authoring script reports its resolved path.
+
+The optional `eal-collectors` package supplies infrastructure integrations. The runtime's generic command and JSON-file bindings also support other domains. The local path uses `eal-host`, which starts its installed sibling `eal-mcp` through the official Rust MCP SDK. See the companion repository's [installation instructions](https://github.com/emmett08/eal-mcp#build-and-use) and [host policy](https://github.com/emmett08/eal-mcp/blob/main/docs/text-host.md) for deployment settings.
 
 Validate, plan and assess the exported case without making further LLM calls:
 

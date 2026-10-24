@@ -48,6 +48,9 @@ operation = 'eal describe' if args[:2] == ['eal', 'describe'] else args[0]
 with pathlib.Path(os.environ['STUB_TRACE']).open('a') as stream:
     stream.write(json.dumps(operation) + '\\n')
 if operation == 'eal describe':
+    expected = os.environ.get('STUB_EXPECT_HOST')
+    if expected and args[args.index('--eal-host') + 1] != expected:
+        raise SystemExit('selected the wrong host installation')
     destination = pathlib.Path(args[args.index('--output') + 1])
     failed = os.environ.get('STUB_DESCRIBE_FAIL') == '1'
     result = {'is_error': True, 'error': 'synthetic MCP initialization failure'} if failed else {
@@ -115,6 +118,46 @@ raise SystemExit(91)
 
     def test_canonical_supervisor_and_complete_host_are_probed_before_model_call(self):
         self.assert_probe_precedes_inference(self.run_script())
+
+    def installer(self, source):
+        path = self.fixture.repo / "scripts/install-eal-runtime.sh"
+        self.executable(path, source)
+        self.fixture.git("add", str(path))
+        self.fixture.git("commit", "-qm", "Add managed runtime fixture")
+
+    def test_default_runtime_ignores_incompatible_python_tools_on_path(self):
+        for name in ["eal-host", "eal-mcp", "eal-method-worker", "eal-process-supervisor"]:
+            self.executable(self.commands / name, """#!/usr/bin/env python3
+import json
+print(json.dumps({'is_error': True, 'error': 'methods must have the form package.module:function'}))
+raise SystemExit(2)
+""")
+        self.installer('#!/usr/bin/env bash\nprintf \'%s\\n\' "$STUB_MANAGED_HOST"\n')
+        host = str((self.prefix / "eal-host").resolve())
+        result = self.run_script(
+            ENGARG_EAL_HOST="", STUB_MANAGED_HOST=host, STUB_EXPECT_HOST=host,
+        )
+        self.assert_probe_precedes_inference(result)
+        settings = json.loads((self.run_directory() / "run-settings.json").read_text())
+        self.assertEqual(settings["eal_host_selection"], "managed")
+        self.assertEqual(settings["eal_host_path"], host)
+        self.assertEqual(settings["model"], "gpt-6.1-sol")
+        self.assertIn("Selected EAL host (managed): " + host, result.stderr)
+
+    def test_explicit_host_bypasses_managed_installation(self):
+        self.installer("#!/usr/bin/env bash\nexit 89\n")
+        result = self.run_script()
+        self.assert_probe_precedes_inference(result)
+        settings = json.loads((self.run_directory() / "run-settings.json").read_text())
+        self.assertEqual(settings["eal_host_selection"], "operator")
+        self.assertIn(str((self.prefix / "eal-host").resolve()), result.stderr)
+
+    def test_failed_managed_installation_stops_before_host_or_model_call(self):
+        self.installer("#!/usr/bin/env bash\nexit 89\n")
+        result = self.run_script(ENGARG_EAL_HOST="")
+        self.assertEqual(result.returncode, 89, result.stdout + result.stderr)
+        self.assertEqual(self.invocations(), [])
+        self.assertIn("during EAL runtime installation", result.stderr)
 
     def test_legacy_supervisor_is_supported_without_canonical_companion(self):
         (self.prefix / "eal-process-supervisor").unlink()

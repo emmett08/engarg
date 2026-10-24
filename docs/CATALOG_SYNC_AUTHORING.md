@@ -93,23 +93,35 @@ and time correspondence require independent review.
 
 ## Run authoring and deterministic validation
 
-Full runs require a clean tracked checkout, the repository's pinned Rust toolchain
-and the complete compatible EAL runtime. The host needs its sibling `eal-mcp`.
-The server needs `eal-method-worker` and its selected supervisor beside its own
-physical executable. It selects `eal-command-supervisor` when that path is a
-regular file, otherwise `eal-process-supervisor`. A nonexecutable legacy
-supervisor remains a setup error even when the fallback executable is present.
-Build the EAL
-host from the revision pinned in `Cargo.toml`, following the
-[installation instructions](../README.md#eal3-export-and-mcp-assessment).
-The host can be on `PATH` or selected explicitly:
+Full runs require a clean tracked checkout and Rustup with the repository's pinned
+Rust toolchain. The script installs the EAL revision selected by locked Cargo
+metadata into `.engarg-local/eal-runtime/REVISION` on its first full run. Later
+runs verify and reuse that installation. This keeps the Rust host, server, method
+worker and both supervisor names in one prefix. Existing Python EARL tools on
+`PATH` remain available to their callers.
+
+The standard full run selects the managed installation automatically:
 
 ```sh
-export ENGARG_EAL_HOST="/absolute/path/to/eal-host"
 # Export OPENAI_API_KEY through your normal secret-management mechanism.
 bash scripts/run-catalog-sync-authoring.sh \
   .engarg-local/catalog-sync-operator-20261024T120522Z/collector-inputs.json
 ```
+
+An explicit `ENGARG_EAL_HOST` selects an operator-owned installation and bypasses
+the managed installer. That host needs its sibling `eal-mcp`; the server needs
+`eal-method-worker` and its selected supervisor beside its physical executable.
+The server prefers an existing `eal-command-supervisor` file over
+`eal-process-supervisor`, so an explicit prefix must contain compatible
+companions under both names when both are present. The script prints the resolved
+host path and retains the selection and binary paths in `run-settings.json`.
+
+Run `bash scripts/install-eal-runtime.sh` independently to prepare the runtime
+without authoring a claim. Its stdout contains the absolute host path. Use
+`--root DIR` for an empty dedicated prefix or an existing installation managed by
+this helper. The installer preserves unrelated nonempty prefixes. Installation
+records bind the revision and executable hashes, so partial or changed bundles
+are rebuilt as a complete package set.
 
 The script admits the required companions, builds the EngArg binary and process
 supervisor, then checks actual EAL server startup through `eal describe` before
@@ -164,28 +176,37 @@ Missing runtime companions can close the MCP connection during initialisation.
 Other responses can identify source diagnostics, compatibility problems or a host
 deadline. Inspect the saved response before changing source or resource limits.
 
-The response `methods must have the form package.module:function` identifies an
-incompatible method loader. EngArg passes `--methods builtin`, which the current
-Rust host/server accepts. Select `eal-host` and its sibling server from the same
-pinned Rust build. An older host or server expecting Python method factories can
-return this error before inspecting the EAL source. For raw `.eal` input, use the
-exported claim identifier; canonical `current_claim` mapping is available when
-supplying the matching JSON bundle.
+The response `methods must have the form package.module:function` comes from the
+Python EARL method loader. EngArg passes `--methods builtin`, which Rust EAL
+accepts. Both projects install the same host and server executable names, so PATH
+selection can choose the Python implementation. Replacing only the server cannot
+correct a selected Python host, which starts its own Python module.
+
+Select the complete pinned Rust installation and probe it without model calls:
+
+```sh
+export ENGARG_EAL_HOST="$(bash scripts/install-eal-runtime.sh)"
+engarg eal describe --eal-host "$ENGARG_EAL_HOST" --workspace .
+```
+
+A startup-preflight failure occurs before argument generation. Rerun the original
+authoring command after this probe succeeds. For raw `.eal` input, use the
+exported claim identifier; canonical `current_claim` mapping is available with
+the matching JSON bundle.
 
 For the generated HTML, open the downloaded file directly in a browser. Native
 disclosures need no JavaScript. Some document previews remove styling or native
 interaction. The renderer keeps claim qualifications and critical conditions
 visible while placing complete registers behind labelled disclosure headings.
 
-A custom binding marks an implementation gap. An LLM coding agent can implement
-that collector from its evidence-need contract, supply protocol and negative-case
-fixtures, test the implementation and register the reviewed executable. The
-current argument-generation pipeline supplies no automatic coding or activation
-stage. Reuse an implemented adapter when it fits, and retain missing settings as
-unresolved inputs. Generating collector code does not supply an independent
-applicability or sufficiency assessment.
+A custom binding marks an implementation gap. The optional
+[collector implementation stage](TOOL_IMPLEMENTATION.md) can implement it from
+the evidence-need contract. Frozen fixtures and observed test results gate
+registration. Reuse an implemented adapter when it fits, and retain missing
+settings as unresolved inputs. Applicability and sufficiency remain independent
+assessment obligations.
 
-Once the cause is corrected, reuse the saved `argument.bundle.json`. Validation
+When a run reached export, reuse its saved `argument.bundle.json`. Validation
 and planning require no model call or API key. Use a new output directory because
 the CLI preserves existing files:
 
