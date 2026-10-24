@@ -46,21 +46,7 @@ where
                 }
                 // Repairs may revise disposition with a justified response, but
                 // cannot make dissent disappear simply to pass validation.
-                for defeater in &case.defeaters {
-                    if let Some(retained) = retained_objections
-                        .iter_mut()
-                        .find(|item| item.id == defeater.id)
-                    {
-                        retained.must_remain_material |= defeater.material;
-                    } else {
-                        retained_objections.push(RetainedObjection {
-                            id: defeater.id.clone(),
-                            challenge: defeater.challenge.clone(),
-                            source_role: candidate.role,
-                            must_remain_material: defeater.material,
-                        });
-                    }
-                }
+                output_validation::retain_objections(&case, candidate.role, retained_objections);
                 (
                     errors,
                     context::argument(request, &case, retained_objections)?,
