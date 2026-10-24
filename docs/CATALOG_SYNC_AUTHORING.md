@@ -54,11 +54,13 @@ Keep credentials in environment variables rather than the input file.
 ## Select a catalogue when needed
 
 No `approved.collectors.json` file is needed by default. Omit the optional second
-argument to use EngArg's built-in `artifact_json`, `http_json_get` and `custom`
-planning tools. These describe prospective acquisition; reading settings into a
-claim does not create executable bindings. Kubernetes evidence still needs
-retained artifacts or an explicitly configured compatible collector. Review each
-generated binding and unresolved parameter before collection.
+argument to use EngArg's implemented `artifact_json`, `scoped_json`, `kubectl_get`,
+`gh_api_get` and `http_json_get` adapters alongside unresolved `custom` bindings.
+These describe prospective acquisition. Reading settings into a claim does not
+create executable bindings. The direct Kubernetes adapter can use the supplied
+context and resource selectors. Scoped Grafana operations still need a matching
+operator-owned input file and trace IDs for full-trace reads. Review each generated
+binding and unresolved parameter before collection.
 
 To admit additional collector capabilities, pass an existing operator-selected
 catalogue as the second argument:
@@ -161,6 +163,27 @@ The generic `EAL host reported failure` message alone does not identify the caus
 Missing runtime companions can close the MCP connection during initialisation.
 Other responses can identify source diagnostics, compatibility problems or a host
 deadline. Inspect the saved response before changing source or resource limits.
+
+The response `methods must have the form package.module:function` identifies an
+incompatible method loader. EngArg passes `--methods builtin`, which the current
+Rust host/server accepts. Select `eal-host` and its sibling server from the same
+pinned Rust build. An older host or server expecting Python method factories can
+return this error before inspecting the EAL source. For raw `.eal` input, use the
+exported claim identifier; canonical `current_claim` mapping is available when
+supplying the matching JSON bundle.
+
+For the generated HTML, open the downloaded file directly in a browser. Native
+disclosures need no JavaScript. Some document previews remove styling or native
+interaction. The renderer keeps claim qualifications and critical conditions
+visible while placing complete registers behind labelled disclosure headings.
+
+A custom binding marks an implementation gap. An LLM coding agent can implement
+that collector from its evidence-need contract, supply protocol and negative-case
+fixtures, test the implementation and register the reviewed executable. The
+current argument-generation pipeline supplies no automatic coding or activation
+stage. Reuse an implemented adapter when it fits, and retain missing settings as
+unresolved inputs. Generating collector code does not supply an independent
+applicability or sufficiency assessment.
 
 Once the cause is corrected, reuse the saved `argument.bundle.json`. Validation
 and planning require no model call or API key. Use a new output directory because

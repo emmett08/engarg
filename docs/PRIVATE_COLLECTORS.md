@@ -28,14 +28,26 @@ receives a custom adapter stub.
 | `review-requests.json` | Exact pending six-field EAL review requests |
 | `context.json` | Matching `engarg_export_digest` environment context |
 
-The default planning catalogue supports retained JSON artifacts and HTTP JSON
-reads. Its custom stub represents investigations needing an additional collector.
-Select other capabilities with `--collector-catalogue PATH`. For the optional
-infrastructure package:
+The default planning catalogue exposes the five implemented compatibility adapters.
+Planning selects an operation without granting execution or access to credentials.
+
+| Adapter | Implemented acquisition |
+| --- | --- |
+| `artifact_json` | Explicit digest-checked retained JSON artifacts |
+| `scoped_json` | Configured Kubernetes reads and literal Grafana search/full-trace reads |
+| `kubectl_get` | Read-only resource JSON through an explicit Kubernetes context |
+| `gh_api_get` | Read-only JSON from an explicit GitHub API path |
+| `http_json_get` | JSON from an explicit HTTP endpoint |
+
+A fitting implemented collector keeps missing inputs unresolved. The `custom`
+stub represents an operation needing an additional implementation. Independent
+acceptance remains a separate recorded review; acquiring a review document does
+not establish that its judgement is sufficient. Select additional capabilities
+with `--collector-catalogue PATH`. For the optional infrastructure package:
 
 ```sh
 mkdir -p .engarg-local
-eal-collector describe > .engarg-local/infrastructure.collectors.json
+eal-collector describe --catalogue-version 2 > .engarg-local/infrastructure.collectors.json
 engarg eal prepare \
   --input path/to/analysis.json \
   --collector-catalogue .engarg-local/infrastructure.collectors.json \
@@ -68,6 +80,17 @@ private directories. Tracked documentation and test fixtures use sanitised
 examples. Ignore rules apply to future additions.
 
 ## Existing scoped adapter profile
+
+Existing saved analyses can gain implemented bindings without another model call.
+Supply exact need IDs in an acquisition override file and re-export the retained
+`analysis.json` using `--acquisition-plan`. Bind a direct Kubernetes read to
+`kubectl_get` when its context, resource, namespace and name are supplied. Bind
+literal Grafana operations to `scoped_json` with an operator-owned inputs path.
+Its `needs` map must explicitly select `grafana_search` or `grafana_trace` for each
+new need ID. The exporter preserves that path and does not infer operation
+assignments from prose. After re-export, use the new bundle's case digest in the
+scoped inputs. Existing source, context and tools files must retain matching
+export identity; editing only a registry cannot establish that correspondence.
 
 The existing `scoped_json` adapter remains available for explicitly retained
 infrastructure bindings. Choose it per evidence need and supply its operator-owned

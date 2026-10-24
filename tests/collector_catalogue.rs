@@ -281,7 +281,7 @@ fn descriptors_cannot_override_reserved_generic_adapter_ids() {
 }
 
 #[test]
-fn default_planning_is_domain_neutral_and_selected_schemas_hide_execution_settings() {
+fn default_planning_exposes_implemented_adapters_and_hides_execution_settings() {
     let default = acquisition::catalogue();
     let ids: Vec<_> = default
         .as_array()
@@ -289,7 +289,29 @@ fn default_planning_is_domain_neutral_and_selected_schemas_hide_execution_settin
         .iter()
         .map(|tool| tool["id"].as_str().unwrap())
         .collect();
-    assert_eq!(ids, ["artifact_json", "http_json_get", "custom"]);
+    assert_eq!(
+        ids,
+        [
+            "artifact_json",
+            "scoped_json",
+            "kubectl_get",
+            "gh_api_get",
+            "http_json_get",
+            "custom"
+        ]
+    );
+    let default_schema = acquisition::planned_case_schema();
+    for id in &ids {
+        assert!(
+            default_schema["$defs"]["AcquisitionPlan"]["properties"]["tool_id"]["enum"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(id))
+        );
+    }
+    assert!(!default.to_string().contains("KUBECONFIG"));
+    assert!(!default.to_string().contains("TEMPO_TOKEN"));
+    assert!(!default.to_string().contains("GH_TOKEN"));
     let selected = catalogue();
     let schema = acquisition::planned_case_schema_with(Some(&selected));
     assert!(
@@ -312,6 +334,50 @@ fn default_planning_is_domain_neutral_and_selected_schemas_hide_execution_settin
     assert!(lab.get("command").is_none());
     assert!(!view.to_string().contains("LAB_API_TOKEN"));
     assert!(!view.to_string().contains("operator.collector"));
+}
+
+#[test]
+fn known_collectors_keep_real_implementations_while_missing_inputs_remain_unresolved() {
+    let (request, case) = fixture();
+    for id in [
+        "artifact_json",
+        "scoped_json",
+        "kubectl_get",
+        "gh_api_get",
+        "http_json_get",
+    ] {
+        let mut planned = plans(&case);
+        planned[0] = AcquisitionPlan {
+            need_id: case.evidence_plan[0].id.clone(),
+            tool_id: id.into(),
+            arguments: vec![],
+            unresolved_arguments: acquisition::required_arguments(id)
+                .unwrap()
+                .iter()
+                .map(|name| (*name).into())
+                .collect(),
+        };
+        assert!(acquisition::validate_selected(&case, &planned, None).is_empty());
+        let export = export_with_catalogue(&request, &case, &planned, None).unwrap();
+        assert!(
+            export
+                .registry
+                .tools
+                .values()
+                .any(|binding| binding.argv == ["engarg", "eal", "observe", "--tool", id])
+        );
+        let saved = export.bundle.acquisition_plan.unwrap().entries;
+        assert_eq!(saved[0].tool_id, id);
+        assert!(saved[0].arguments.is_empty());
+        assert_eq!(
+            saved[0].unresolved_arguments.len(),
+            planned[0].unresolved_arguments.len()
+        );
+        assert_eq!(
+            export.registry.tools["engarg_review_contract"].argv,
+            ["/REPLACE_WITH_INDEPENDENT_REVIEW_COLLECTOR"]
+        );
+    }
 }
 
 #[test]

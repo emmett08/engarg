@@ -1,5 +1,6 @@
 //! EngArg case-specific mapping to optional EAL source adapters.
-//! The specialised facade is removed in EngArg 0.11 after catalogue migration.
+//! Retain the facade until native catalogues preserve its literal-query contract
+//! and existing saved bindings have a verified migration.
 use crate::Error;
 use eal_adapters::scoped::{Grafana, Kubernetes, Operation};
 use eal_collector_contracts::AcquisitionRequest;

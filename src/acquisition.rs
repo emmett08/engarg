@@ -54,11 +54,10 @@ pub fn catalogue() -> Value {
 }
 
 pub fn catalogue_with(selected: Option<&CollectorCatalogue>) -> Value {
-    // EngArg owns which neutral capabilities appear in its default authoring flow.
-    // The adapter owner supplies each capability's actual contract.
+    // Planning exposes every implemented compatibility adapter. The EAL owner
+    // supplies its contract; selection grants neither execution nor credentials.
     let mut tools: Vec<Value> = eal_adapters::profiles::ALL
         .iter()
-        .filter(|profile| matches!(profile.id, "artifact_json" | "http_json_get"))
         .map(|profile| profile.planning_view())
         .collect();
     tools.push(json!({"id":"custom","purpose":"A custom collection or independent review adapter","arguments":CUSTOM_ARGUMENTS}));
@@ -114,7 +113,7 @@ pub fn validate(case: &ArgumentCase, plans: &[AcquisitionPlan]) -> Vec<String> {
     validate_with_catalogue(case, plans, None)
 }
 
-/// Validate a current plan against neutral defaults and an explicitly selected catalogue.
+/// Validate a current plan against implemented defaults and an explicitly selected catalogue.
 pub fn validate_with_catalogue(
     case: &ArgumentCase,
     plans: &[AcquisitionPlan],
@@ -273,7 +272,7 @@ pub fn override_plans_with_catalogue(
     Ok(plans)
 }
 
-/// Current generation admits only the operator-selected catalogue and neutral defaults.
+/// Current generation admits only implemented defaults and the operator-selected catalogue.
 pub fn validate_selected(
     case: &ArgumentCase,
     plans: &[AcquisitionPlan],
@@ -297,7 +296,7 @@ pub fn validate_selected(
     errors
 }
 
-pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools is the complete selected collector catalogue. Select by the measurement needed for this argument. Each collector describes its admitted inputs. For a string property supply the literal string. For another JSON type encode the value as JSON in the named string value. Keep unknown parameters unresolved. Use custom when no selected collector can perform the investigation. Derive values only from supplied claim, context or evidence. A proposed collector is an unperformed plan. Successful acquisition establishes the recorded measurement, and independent review establishes applicability and sufficiency.";
+pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools is the complete selected collector catalogue. Select by the measurement needed for this argument. Prefer an implemented collector whose actual operation supplies the required observation. Missing observations, credentials or input values do not require a custom implementation. Keep missing named inputs in unresolved_arguments while retaining the fitting implemented collector. Each collector describes its admitted inputs. For a string property supply the literal string. For another JSON type encode the value as JSON in the named string value. Use custom only when no selected collector performs the required operation. Derive values only from supplied claim, context or evidence. Reuse a compatible acquisition for shared investigations while retaining a separate plan for every targeted evidence need. An existing independently authored review can be acquired as a retained artifact, but a generated judgement or successful acquisition cannot supply independent acceptance. Keep unavailable review records and their inputs unresolved. A proposed collector is an unperformed plan. Successful acquisition establishes the recorded measurement, and independent review establishes applicability and sufficiency.";
 
 pub(crate) const ENVELOPE_INSTRUCTIONS: &str = "PLANNED RESPONSE: Return the supplied envelope with argument holding the complete unchanged ArgumentCase and acquisition_plan holding exactly one record for every argument.evidence_plan ID. Each record names need_id and one acquisition_tools ID. Put each required named input either in arguments as {name,value} string entries or in unresolved_arguments, never both. Use only the catalogue's input names. For custom, arguments is empty and unresolved_arguments is [\"adapter\"]. Revise the argument and its acquisition bindings together. The plan is separate from the canonical case and must preserve its target, enabled claim, question, measurement, comparator and acceptance criterion.";
 

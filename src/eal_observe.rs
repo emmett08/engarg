@@ -1,5 +1,6 @@
 //! Compatibility routing for EngArg-specific bindings and optional EAL adapters.
-//! Remove known-tool facade commands in EngArg 0.11 after catalogue migration.
+//! Retain these facades until native catalogues provide equivalent literal-query
+//! collectors and saved binding migration has been verified.
 use crate::Error;
 use serde_json::Value;
 use std::collections::BTreeMap;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Author a dev-cluster/Grafana claim from operator inputs. Bash 3.2+ and Python 3.
 # Usage: bash scripts/run-catalog-sync-authoring.sh [--check-only] INPUTS.json [CATALOGUE.json]
-# Without a catalogue, use EngArg's built-in artifact_json/http_json_get/custom tools.
+# Defaults include retained/HTTP JSON, scoped Grafana, Kubernetes and GitHub tools.
 # Preflight accepts tracked changes and needs no Rust tools, host or API key.
 # Full runs need a clean checkout, Rustup and the complete compatible EAL runtime.
 # Authoring, rendering, export and planning do not collect or assess evidence.

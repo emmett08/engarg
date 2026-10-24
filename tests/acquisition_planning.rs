@@ -111,6 +111,19 @@ async fn tools_are_planned_with_the_graph_without_extra_calls_or_a_new_report_sc
             .get("acquisition_tools")
             .is_some()
     );
+    for call in calls.iter().filter(|call| {
+        serde_json::from_str::<Value>(&call.user)
+            .unwrap()
+            .get("acquisition_tools")
+            .is_some()
+    }) {
+        assert!(call.system.contains("Prefer an implemented collector"));
+        assert!(
+            call.system
+                .contains("Keep missing named inputs in unresolved_arguments")
+        );
+        assert!(call.system.contains("cannot supply independent acceptance"));
+    }
 }
 
 #[tokio::test]

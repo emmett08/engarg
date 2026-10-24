@@ -594,9 +594,24 @@ async fn host_operation(destination: HostOutput, request: Value) -> Result<(), E
         stdout(&bytes)?;
     }
     if semantic_failure(&response) {
-        return Err(Error::Provider(
-            "EAL host reported failure; the complete JSON response has been emitted".into(),
-        ));
+        let operation = request["operation"].as_str().unwrap_or("operation");
+        let location = output.as_ref().map_or_else(
+            || "written to stdout".to_owned(),
+            |file| format!("saved to {}", file.path.display()),
+        );
+        let hint = if response
+            .get("error")
+            .and_then(Value::as_str)
+            .is_some_and(|error| {
+                error.contains("methods must have the form package.module:function")
+            }) {
+            "; incompatible host/server method loader: select matching Rust EAL binaries supporting --methods builtin"
+        } else {
+            ""
+        };
+        return Err(Error::Provider(format!(
+            "EAL {operation} failed; complete JSON response {location}{hint}"
+        )));
     }
     Ok(())
 }

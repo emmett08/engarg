@@ -566,5 +566,10 @@ fn compatibility_binding_metadata_comes_from_the_adapter_owner() {
         .iter()
         .map(|tool| tool["id"].as_str().unwrap())
         .collect();
-    assert_eq!(ids, ["artifact_json", "http_json_get", "custom"]);
+    let expected: Vec<_> = eal_adapters::profiles::ALL
+        .iter()
+        .map(|profile| profile.id)
+        .chain(std::iter::once("custom"))
+        .collect();
+    assert_eq!(ids, expected);
 }

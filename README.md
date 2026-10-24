@@ -228,7 +228,7 @@ The JSON bundle retains the generated source and canonical case with the export 
 
 Version `0.6.0` exports both EAL source and a native tools TOML registry. The first example creates `case.json`, `case.eal` and `case.tools.toml`. The second creates `case.eal`, `case.tools.toml` and the requested manifest. `--tools-output` and the JSON format's `--source-output` select companion paths. With stdout output, companions use the input file's stem. All destinations must be new and distinct. A failed export removes files created by that export.
 
-New analyses identify acquisition tools and named arguments during synthesis and adjudication. The default catalogue supports retained JSON artifacts through `artifact_json` and HTTP JSON reads through `http_json_get`. An unresolved `custom` binding represents investigations needing another adapter. Each evidence need has its own binding. Inputs come from the supplied claim, context or evidence and unknown values remain unresolved. `--no-tool-planning` selects the earlier direct-case model protocol.
+New analyses identify acquisition tools and named arguments during synthesis and adjudication. The default catalogue now exposes all five implemented compatibility adapters: `artifact_json`, `scoped_json`, `kubectl_get`, `gh_api_get` and `http_json_get`. This expands planning capability beyond the earlier artifact/HTTP defaults while preserving explicit execution and credential configuration. A fitting collector retains missing inputs in `unresolved_arguments`; `custom` represents an operation that needs another implementation. Each evidence need has its own binding. Inputs come from the supplied claim, context or evidence and unknown values remain unresolved. `--no-tool-planning` selects the earlier direct-case model protocol.
 
 Select an additional versioned catalogue with `--collector-catalogue PATH` during analysis. Its input schemas can describe scientific instruments, databases or other deterministic collectors. String parameters retain their literal values. Parameters with another JSON type use JSON encoded in the named argument's string value. EngArg validates the decoded value against the descriptor's schema. The saved run retains the selected catalogue for subsequent export and preparation. Operator-owned command templates select executables and permitted environment names separately from model-proposed inputs.
 
@@ -438,7 +438,9 @@ Native Tempo authentication requires operator approval of the exact configured e
 Version 0.9 adds an optional `collector_catalogue` field to the public Rust
 `RunConfig`. Struct literals can use `..RunConfig::default()`. Old saved run
 configurations deserialize with no selected external catalogue. Current planning
-then exposes the three neutral adapters. Older saved reports require explicit catalogue selection when re-exported.
+then exposes the five implemented compatibility adapters and the unresolved custom
+binding. Earlier releases exposed only the three artifact/HTTP/custom choices.
+Older saved reports require explicit catalogue selection when re-exported.
 Historical export bundles remain reconstructible through their frozen readers.
 
 New EAL bundles use `engarg.eal-export/3` and a separate projection semantics

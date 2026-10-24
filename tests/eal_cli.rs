@@ -501,6 +501,9 @@ mod unix_host {
             serde_json::from_slice::<Value>(&std::fs::read(&output).unwrap()).unwrap(),
             response
         );
+        let diagnostic = String::from_utf8_lossy(&result.stderr);
+        assert!(diagnostic.contains("EAL validate failed"));
+        assert!(diagnostic.contains(output.canonicalize().unwrap().to_str().unwrap()));
     }
 
     #[test]
@@ -520,6 +523,41 @@ mod unix_host {
             serde_json::from_slice::<Value>(&result.stdout).unwrap(),
             response
         );
+        let diagnostic = String::from_utf8_lossy(&result.stderr);
+        assert!(diagnostic.contains("EAL describe failed"));
+        assert!(diagnostic.contains("written to stdout"));
+        assert!(!diagnostic.contains("incompatible host/server"));
+    }
+
+    #[test]
+    fn legacy_method_loader_error_preserves_response_and_identifies_the_rust_pair() {
+        let directory = tempfile::tempdir().unwrap();
+        let output = directory.path().join("legacy-response.json");
+        let response = json!({
+            "is_error": true,
+            "error": "methods must have the form package.module:function"
+        });
+        let (executable, _) = host(directory.path(), "legacy", response.clone(), 1);
+        let result = cli()
+            .args(["eal", "describe", "--eal-host"])
+            .arg(executable)
+            .arg("--workspace")
+            .arg(directory.path())
+            .arg("--output")
+            .arg(&output)
+            .output()
+            .unwrap();
+        assert!(!result.status.success());
+        assert!(result.stdout.is_empty());
+        assert_eq!(
+            serde_json::from_slice::<Value>(&std::fs::read(&output).unwrap()).unwrap(),
+            response
+        );
+        let diagnostic = String::from_utf8_lossy(&result.stderr);
+        assert!(diagnostic.contains("EAL describe failed"));
+        assert!(diagnostic.contains("incompatible host/server method loader"));
+        assert!(diagnostic.contains("--methods builtin"));
+        assert!(diagnostic.contains(output.canonicalize().unwrap().to_str().unwrap()));
     }
 
     #[test]
