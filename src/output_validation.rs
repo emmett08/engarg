@@ -13,8 +13,30 @@ pub(crate) struct RetainedObjection {
     pub(crate) id: String,
     pub(crate) challenge: String,
     pub(crate) source_role: Role,
-    /// Repairs cannot evade an existing obligation by downgrading materiality.
+    /// Later revisions cannot evade an existing obligation by downgrading materiality.
     pub(crate) must_remain_material: bool,
+}
+
+/// Carry authored dissent into the next review without changing its disposition.
+/// Existing identities and challenge text remain authoritative. A later case may
+/// explain why a revision answers a challenge, while retaining its original record.
+pub(crate) fn retain_objections(
+    case: &ArgumentCase,
+    source_role: Role,
+    retained: &mut Vec<RetainedObjection>,
+) {
+    for defeater in &case.defeaters {
+        if let Some(objection) = retained.iter_mut().find(|item| item.id == defeater.id) {
+            objection.must_remain_material |= defeater.material;
+        } else {
+            retained.push(RetainedObjection {
+                id: defeater.id.clone(),
+                challenge: defeater.challenge.clone(),
+                source_role,
+                must_remain_material: defeater.material,
+            });
+        }
+    }
 }
 
 /// No corrective data is invented here. Errors go back to the model, whose full
@@ -59,7 +81,7 @@ pub(crate) fn errors(
             && retained.is_some_and(|defeater| !defeater.material)
         {
             errors.push(format!(
-                "repair downgraded materiality of retained objection {}",
+                "revision downgraded materiality of retained objection {}",
                 objection.id
             ));
         }

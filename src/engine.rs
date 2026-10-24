@@ -505,6 +505,7 @@ where
     if tool_planning {
         draft_validation_errors.extend(acquisition::validate(&draft, &draft_acquisition_plan));
     }
+    output_validation::retain_objections(&draft, synthesis.role, &mut retained_objections);
     let draft_view = context::argument(request, &draft, &retained_objections)?;
     let mut critique_data = json!({"request": request, "independent_assessments": assessments, "draft": draft_view, "retained_objections": retained_objections, "draft_validation_errors": draft_validation_errors});
     if tool_planning {

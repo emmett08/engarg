@@ -70,6 +70,10 @@ fn command_args(
                 || !resource
                     .bytes()
                     .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+                || (name != "*"
+                    && !name
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b)))
             {
                 return Err(invalid(
                     "kubectl resource and scope arguments must be literal identifiers",
@@ -80,14 +84,19 @@ fn command_args(
                 "get".into(),
                 resource.into(),
             ];
-            if name != "*" {
-                argv.push(name.into());
-            }
-            argv.push(if namespace == "*" {
-                "--all-namespaces".into()
+            if namespace == "*" {
+                argv.push("--all-namespaces".into());
+                if name != "*" {
+                    // kubectl rejects a positional name across all namespaces.
+                    // A field selector retains the requested name in the list query.
+                    argv.push(format!("--field-selector=metadata.name={name}"));
+                }
             } else {
-                format!("--namespace={namespace}")
-            });
+                if name != "*" {
+                    argv.push(name.into());
+                }
+                argv.push(format!("--namespace={namespace}"));
+            }
             argv.extend(["--output=json".into(), "--request-timeout=55s".into()]);
             Ok(("kubectl", argv))
         }
@@ -143,7 +152,8 @@ async fn command_json(tool: &str, args: &BTreeMap<String, String>) -> Result<Val
         if !status.success() {
             return Err(Error::Provider("collector command failed".into()));
         }
-        serde_json::from_slice(&bytes).map_err(|_| invalid("collector returned invalid JSON"))
+        crate::retained_collectors::parse_json(&bytes)
+            .map_err(|_| invalid("collector returned invalid JSON"))
     })
     .await;
     match result {
@@ -209,7 +219,8 @@ async fn http_json(args: &BTreeMap<String, String>) -> Result<Value, Error> {
         }
         bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_slice(&bytes).map_err(|_| invalid("collector returned invalid JSON"))
+    crate::retained_collectors::parse_json(&bytes)
+        .map_err(|_| invalid("collector returned invalid JSON"))
 }
 
 fn validate_token_origin(url: &reqwest::Url, allowed: &str) -> Result<(), Error> {
@@ -296,8 +307,8 @@ mod tests {
                 "--context=prod cluster",
                 "get",
                 "applications.argoproj.io",
-                "pilot-sync-operator",
                 "--all-namespaces",
+                "--field-selector=metadata.name=pilot-sync-operator",
                 "--output=json",
                 "--request-timeout=55s"
             ]
@@ -305,6 +316,45 @@ mod tests {
         let mut bad = args;
         bad.insert("name".into(), "--raw=/secrets".into());
         assert!(command_args("kubectl_get", &bad).is_err());
+    }
+
+    #[test]
+    fn kubectl_preserves_named_and_wildcard_scope_without_selector_injection() {
+        for (namespace, name, expected) in [
+            ("pilot", "operator", vec!["operator", "--namespace=pilot"]),
+            ("pilot", "*", vec!["--namespace=pilot"]),
+            ("*", "*", vec!["--all-namespaces"]),
+            (
+                "*",
+                "operator",
+                vec![
+                    "--all-namespaces",
+                    "--field-selector=metadata.name=operator",
+                ],
+            ),
+        ] {
+            let args = BTreeMap::from([
+                ("context".into(), "pilot".into()),
+                ("namespace".into(), namespace.into()),
+                ("resource".into(), "pods".into()),
+                ("name".into(), name.into()),
+            ]);
+            let (_, argv) = command_args("kubectl_get", &args).unwrap();
+            assert_eq!(&argv[3..argv.len() - 2], expected);
+        }
+        for name in [
+            "operator,status.phase=Running",
+            "operator=other",
+            "operator other",
+        ] {
+            let args = BTreeMap::from([
+                ("context".into(), "pilot".into()),
+                ("namespace".into(), "*".into()),
+                ("resource".into(), "pods".into()),
+                ("name".into(), name.into()),
+            ]);
+            assert!(command_args("kubectl_get", &args).is_err());
+        }
     }
 
     #[test]

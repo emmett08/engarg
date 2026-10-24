@@ -6,7 +6,7 @@ Version 0.8.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | --- | --- |
 | `cargo fmt --all -- --check` | Passed |
 | `cargo clippy --locked --all-targets -- -D warnings` | Passed |
-| `cargo test --locked --all-targets` | 195 passed, 0 failed, 4 external integration tests passed separately |
+| `cargo test --locked --all-targets` | 233 passed, 0 failed, 4 external integration tests ignored by this command |
 | `cargo build --locked --release` | Passed |
 | Offline demo and fixture validation | Passed, including `demo --claim-only` with no source records |
 | Minimal input contract | `--claim TEXT` and JSON containing only `claim` succeed without context or evidence |
@@ -30,6 +30,7 @@ Version 0.8.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Release reasoning-effort workflow | Single-call release CLI passed against a local HTTP double, retaining requested high and provider-reported medium in its audit and report |
 | Reported missing `auditor-5` plan | Reproduced in hybrid and single fixtures; exact diagnostic reaches adjudication and explicit bounded repair; corrected plan must target the objection directly |
 | Repair integrity and bounds | Disabled by default; allowance reserved before calls; success uses no unused allowance; exhaustion, deletion and materiality downgrade fail; the repair loop does not retry provider failures |
+| Synthesis-to-adjudication integrity | A synthesis-only material objection cannot disappear; a specialist objection marked material during synthesis cannot be downgraded; an explained scope revision can change disposition while retaining the challenge |
 | Generation depth | Depth 1 rejects a two-layer fixture; depth 2 accepts it with unchanged conditional status; every role receives the limit; longest and shared shortest routes checked |
 | Display depth | Outline, prose and HTML limit detailed claim levels without changing canonical JSON; qualifiers and consequential conditions remain visible; existing indentation-only behaviour passes |
 | Depth/repair release workflow | Real release executable completed a seven-call hybrid run against a local HTTP double, repaired the targeted gap, retained depth/settings/receipts and rendered three limited views without modifying the report |
@@ -42,7 +43,7 @@ Version 0.8.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Acquisition planning | Six calls retained, every need bound exactly once, missing binding uses the existing repair budget, legacy direct-case mode remains available |
 | Paired EAL export | Source and native tools TOML always written, explicit companion paths and stdout covered, aliases and failed output transactions preserve existing files |
 | Observation and acceptance | Native EAL collection made synthetic JSON available while the claim stayed unsupported without independent reviews |
-| Collector boundaries | Fixed read operations and literal argv, relative GitHub paths, bounded JSON, exact HTTPS credential origin and explicit environment forwarding passed |
+| Collector boundaries | Fixed read operations and literal argv, safe all-namespace name selectors, relative GitHub paths, bounded strict JSON, duplicate response-key rejection, exact integer preservation, exact HTTPS credential origin and explicit environment forwarding passed |
 | Plain argument view | Sentence-line records preserve claim qualifiers, composition, nested conditions, inference types, investigations, shared arguments and bounded indentation |
 | Schema preservation | Exported request and case schemas byte-identical to 0.5.1, report and EAL bundle field sets unchanged |
 | Remote MCP deployment | Configuration and credential handling tested locally, no real remote service contacted |
