@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+# Author a dev-cluster/Grafana claim from operator inputs. Bash 3.2+ and Python 3.
+# Usage: bash scripts/run-catalog-sync-authoring.sh [--check-only] INPUTS.json [CATALOGUE.json]
+# Without a catalogue, use EngArg's built-in artifact_json/http_json_get/custom tools.
+# Preflight accepts tracked changes and needs no Rust tools, host or API key.
+# Full runs need a clean checkout, Rustup and a compatible EAL host with eal-mcp.
+# Authoring, rendering, export and planning do not collect or assess evidence.
+set -euo pipefail
+umask 077
+
+check_only=0
+if [[ ${1:-} == --check-only ]]; then check_only=1; shift; fi
+if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+  sed -n '2,7p' "$0"
+  exit 0
+fi
+[[ $# -ge 1 && $# -le 2 ]] || { printf 'Usage: bash %s [--check-only] INPUTS.json [CATALOGUE.json]\n' "$0" >&2; exit 2; }
+
+fail() { printf '%s\n' "$*" >&2; exit 2; }
+for required in git python3; do command -v "$required" >/dev/null || fail "Required command: $required"; done
+repo=$(git rev-parse --show-toplevel) || fail 'Run from an EngArg checkout.'
+# Keep operator paths relative to the invocation directory, including leaf-file
+# symlinks so the bounded, no-follow admission below can reject them.
+absolute_path() { python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$1"; }
+inputs=$(absolute_path "$1")
+[[ -e $inputs ]] || fail "Operator inputs do not exist: $inputs"
+catalogue=''
+if [[ $# -eq 2 ]]; then
+  catalogue=$(absolute_path "$2")
+  [[ -e $catalogue ]] || fail "Collector catalogue does not exist: $catalogue. Omit CATALOGUE.json to use the built-in planning tools."
+fi
+# Resolve an explicitly selected host before changing directory; only full runs
+# require it. Do not probe tools or credentials during input-only preflight.
+eal_host=''
+if [[ $check_only -eq 0 && -n ${ENGARG_EAL_HOST:-} ]]; then
+  eal_host=$(absolute_path "$ENGARG_EAL_HOST")
+fi
+cd "$repo"
+
+mkdir -p "$repo/engarg-runs"
+run_dir=$(mktemp -d "$repo/engarg-runs/catalog-sync-operator-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+on_exit() {
+  status=$?
+  if [[ $status -ne 0 ]]; then
+    printf 'Run stopped with status %s. Retained artifacts: %s\n' "$status" "$run_dir" >&2
+  fi
+}
+trap on_exit EXIT
+
+# Read each operator file once, bound its size, reject duplicate keys and retain
+# exact private snapshots. Only allowlisted scope fields enter the LLM request.
+python3 - "$inputs" "$catalogue" "$run_dir" <<'PY'
+import datetime, hashlib, json, os, pathlib, stat, sys, urllib.parse
+
+inputs_path, catalogue_path, directory = map(pathlib.Path, sys.argv[1:])
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('Duplicate JSON key')
+        result[key] = value
+    return result
+def read(path):
+    flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, 'O_NOFOLLOW', 0)
+    with os.fdopen(os.open(path, flags), 'rb') as source:
+        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+            raise ValueError('Operator inputs require regular files')
+        raw = source.read(1_048_577)
+    if len(raw) > 1_048_576:
+        raise ValueError('Operator input exceeds 1 MiB')
+    value = json.loads(raw, object_pairs_hook=unique,
+                       parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Non-finite JSON number')))
+    if not isinstance(value, dict):
+        raise ValueError('Operator inputs require JSON objects')
+    return raw, value
+def text(config, key):
+    value = config.get(key)
+    if not isinstance(value, str) or not value.strip() or 'REPLACE' in value:
+        raise ValueError('Unconfigured scope field: ' + key)
+    return value
+def write(name, value):
+    (directory / name).write_text(json.dumps(value, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+try:
+    original, inputs = read(inputs_path)
+    catalogue_raw, catalogue = read(catalogue_path) if sys.argv[2] else (None, None)
+    kube, grafana = inputs['kubernetes'], inputs['grafana']
+    if not isinstance(kube, dict) or not isinstance(grafana, dict):
+        raise ValueError('Kubernetes and Grafana scope require JSON objects')
+    if kube.get('context') != 'dev':
+        raise ValueError('This run is restricted to kubectl context dev')
+    selectors = {key: text(kube, key) for key in ['resource', 'kind', 'namespace', 'name']}
+    origin, uid, query = [text(grafana, key) for key in ['origin', 'datasource_uid', 'query']]
+    url = urllib.parse.urlsplit(origin)
+    _ = url.port
+    if (url.scheme != 'https' or not url.hostname or url.username or url.password
+            or url.path not in ['', '/'] or url.query or url.fragment
+            or any(character.isspace() for character in origin)):
+        raise ValueError('Grafana requires an HTTPS origin without credentials, path, query or fragment')
+    if len(query.encode()) > 65_536:
+        raise ValueError('TraceQL query exceeds 64 KiB')
+    start, end = grafana.get('start_unix'), grafana.get('end_unix')
+    if type(start) is not int or type(end) is not int or not 0 < start < end:
+        raise ValueError('Configure ordered integer grafana.start_unix and grafana.end_unix')
+    window = [datetime.datetime.fromtimestamp(value, datetime.timezone.utc).isoformat() for value in [start, end]]
+    for key, expected in [('rollout_kind', selectors['kind']), ('rollout_name', selectors['name'])]:
+        if grafana.get(key) is not None and grafana[key] != expected:
+            raise ValueError('Grafana and Kubernetes selectors disagree: ' + key)
+    if catalogue is not None and (catalogue.get('schema') != 'eal.collector-catalogue/1' or not catalogue.get('collectors')):
+        raise ValueError('Select a nonempty versioned collector catalogue')
+    quote = lambda value: json.dumps(value, ensure_ascii=False)
+    claim = (
+        f'The Kubernetes resource of kind {quote(selectors["kind"])} named {quote(selectors["name"])} '
+        f'(resource {quote(selectors["resource"])}) exists in namespace {quote(selectors["namespace"])} '
+        'in the single development cluster selected by kubectl context "dev". '
+        f'The exact TraceQL query below returns at least one trace in the search window {window[0]} to {window[1]} '
+        f'through Grafana origin {quote(origin)} and Tempo datasource UID {quote(uid)}, '
+        'and at least one retrieved trace can be attributed to that same resource in that same cluster.\n'
+        + query
+    )
+    context = {
+        'kubernetes_scope': dict(context='dev', **selectors),
+        'grafana_scope': dict(origin=origin, datasource_uid=uid, start_unix=start, end_unix=end),
+        'observations_supplied': False,
+        'binding_state': 'Operator settings describe scope. Each evidence need still requires an explicit compatible binding.',
+        'query_contract': 'The literal query is retained in the claim. Native Tempo generates a different query contract. Exact-query execution requires a compatible Grafana/scoped/custom HTTP route.',
+        'correspondence_obligation': 'Search matches require full trace and Kubernetes identity review for cluster, namespace, UID, resource identity and time correspondence. Missing attributes remain unresolved.'
+    }
+    request = dict(claim=claim, context=json.dumps(context, ensure_ascii=False), evidence=[])
+    ages = {name: int(os.environ.get(variable, '86400')) for name, variable in [
+        ('review_max_age_seconds', 'ENGARG_REVIEW_MAX_AGE_SECONDS'),
+        ('acquisition_max_age_seconds', 'ENGARG_ACQUISITION_MAX_AGE_SECONDS')]}
+    if any(not 1 <= age <= 315_360_000 for age in ages.values()):
+        raise ValueError('Freshness ages must be positive seconds through 315360000')
+    (directory / 'collector-inputs.snapshot.json').write_bytes(original)
+    if catalogue_raw is not None:
+        (directory / 'collectors.snapshot.json').write_bytes(catalogue_raw)
+    write('request.json', request)
+    write('export-policy.json', dict(schema='engarg.export-policy/1', **ages, acquisition_per_need={}))
+    write('input-identity.json', {
+        'inputs_sha256': hashlib.sha256(original).hexdigest(),
+        'catalogue_sha256': hashlib.sha256(catalogue_raw).hexdigest() if catalogue_raw is not None else None,
+        'catalogue_selection': 'external' if catalogue_raw is not None else 'engarg built-in',
+        'search_window_utc': window,
+        'operator_inputs': str(inputs_path), 'operator_catalogue': str(catalogue_path) if catalogue_raw is not None else None
+    })
+except (KeyError, TypeError, ValueError, OSError, OverflowError):
+    raise SystemExit('Input preflight failed. Check scope fields, exact query, time window, catalogue and freshness ages.')
+PY
+
+if [[ $check_only -eq 1 ]]; then
+  printf 'Input preflight passed. No build, inference or evidence acquisition performed. Artifacts: %s\n' "$run_dir"
+  exit 0
+fi
+# A full run identifies its build by commit. Input-only checks remain available
+# while tracked edits are staged or unstaged.
+git diff --quiet HEAD -- || fail 'Full runs require a clean tracked checkout. --check-only accepts tracked changes; commit or stash them before inference.'
+model=${ENGARG_MODEL:-gpt-6.1-sol}
+service_tier=${ENGARG_SERVICE_TIER:-default}
+reasoning_effort=${ENGARG_REASONING_EFFORT:-high}
+repairs=${ENGARG_MAX_REPAIRS:-1}
+[[ $repairs =~ ^[0-3]$ ]] || fail 'ENGARG_MAX_REPAIRS must be 0, 1, 2 or 3.'
+max_calls=$((6 + repairs))
+request_timeout=${ENGARG_REQUEST_TIMEOUT_SECS:-1800}
+run_timeout=${ENGARG_TIMEOUT_SECS:-10800}
+input_bytes=${ENGARG_MAX_INPUT_BYTES:-1048576}
+response_bytes=${ENGARG_MAX_RESPONSE_BYTES:-1048576}
+output_tokens=${ENGARG_MAX_OUTPUT_TOKENS:-65536}
+concurrent=${ENGARG_MAX_CONCURRENT_REQUESTS:-3}
+# Set concurrency to 1 to pace the specialists. Request deadlines include queue waits.
+# Three retries permit up to four HTTP attempts per logical call, at most 28 with defaults.
+
+for required in cargo rustc; do command -v "$required" >/dev/null || fail "Required command for a full run: $required"; done
+if [[ -z $eal_host ]]; then eal_host=$(command -v eal-host || true); fi
+[[ -n $eal_host ]] || fail 'Set ENGARG_EAL_HOST to the compatible eal-host executable or put eal-host on PATH. See README.md.'
+eal_host=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve())' "$eal_host")
+[[ -f $eal_host && -x $eal_host && -f $(dirname "$eal_host")/eal-mcp && -x $(dirname "$eal_host")/eal-mcp ]] ||
+  fail 'eal-host and its sibling eal-mcp must both be regular executable files.'
+: "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
+
+cargo build --locked --release --bin engarg --bin engarg-process-supervisor
+target_dir=$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
+engarg_bin="$target_dir/release/engarg"
+[[ -x $engarg_bin && -x $target_dir/release/engarg-process-supervisor ]] || fail 'Release companion binaries are missing.'
+
+python3 - "$run_dir" "$engarg_bin" "$eal_host" "$model" "$service_tier" "$reasoning_effort" \
+  "$max_calls" "$repairs" "$request_timeout" "$run_timeout" "$input_bytes" "$response_bytes" "$output_tokens" "$concurrent" <<'PY'
+import hashlib, json, pathlib, subprocess, sys
+directory, executable, host = map(pathlib.Path, sys.argv[1:4])
+def output(*args): return subprocess.check_output(args, text=True).strip()
+record = dict(zip(['model','service_tier','reasoning_effort','max_calls','max_repairs',
+    'request_timeout_seconds','run_timeout_seconds','max_input_bytes','max_response_bytes',
+    'max_output_tokens','max_concurrent_requests'], sys.argv[4:]))
+record.update(git_commit=output('git','rev-parse','HEAD'), rustc=output('rustc','-vV'),
+    engarg_binary_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
+    eal_host_binary_sha256=hashlib.sha256(host.read_bytes()).hexdigest(),
+    eal_mcp_binary_sha256=hashlib.sha256(host.with_name('eal-mcp').read_bytes()).hexdigest(),
+    api='responses', http_retries=3, retry_max_delay_seconds=120)
+metadata = json.loads(output('cargo','metadata','--locked','--no-deps','--format-version','1'))
+record['eal_dependency_sources'] = [dependency['source'] for package in metadata['packages']
+    if package['name']=='engarg' for dependency in package['dependencies']
+    if dependency['name'] in ['eal-collector-contracts','eal-process','eal-adapters']]
+(directory/'run-settings.json').write_text(json.dumps(record, indent=2)+'\n')
+PY
+
+# Append the optional catalogue only when selected. Omitting it preserves the
+# executable's built-in contracts rather than manufacturing an approved file.
+with_catalogue() {
+  if [[ -n $catalogue ]]; then
+    "$engarg_bin" "$@" --collector-catalogue "$run_dir/collectors.snapshot.json"
+  else
+    "$engarg_bin" "$@"
+  fi
+}
+with_catalogue analyse --input "$run_dir/request.json" \
+  --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
+  --api responses --api-key-env OPENAI_API_KEY --mode hybrid --argument-depth 2 \
+  --max-calls "$max_calls" --max-repairs "$repairs" \
+  --http-retries 3 --retry-max-delay-secs 120 --max-concurrent-requests "$concurrent" \
+  --request-timeout-secs "$request_timeout" --timeout-secs "$run_timeout" \
+  --max-input-bytes "$input_bytes" --max-output-tokens "$output_tokens" --max-response-bytes "$response_bytes" \
+  --format json --audit "$run_dir/analysis.audit.jsonl" --output "$run_dir/analysis.json"
+
+python3 - "$run_dir" <<'PY'
+import json, pathlib, sys
+directory = pathlib.Path(sys.argv[1])
+report = json.loads((directory/'analysis.json').read_text())
+expected = json.loads((directory/'request.json').read_text())
+if report['request'] != expected:
+    raise SystemExit('Saved analysis changed the supplied request')
+(directory/'case.json').write_text(json.dumps(report['argument'], indent=2)+'\n')
+PY
+"$engarg_bin" validate --input "$run_dir/request.json" --case "$run_dir/case.json"
+"$engarg_bin" render --input "$run_dir/analysis.json" --format argument --outline-depth 3 --display-depth 2 --output "$run_dir/argument.txt"
+"$engarg_bin" render --input "$run_dir/analysis.json" --format prose --display-depth 2 --output "$run_dir/prose.md"
+"$engarg_bin" render --input "$run_dir/analysis.json" --format html --display-depth 2 --output "$run_dir/argument.html"
+with_catalogue eal export --input "$run_dir/analysis.json" \
+  --export-policy "$run_dir/export-policy.json" \
+  --output "$run_dir/argument.eal" --tools-output "$run_dir/argument.tools.toml" --manifest "$run_dir/argument.bundle.json"
+# Prepared stubs are intentionally not passed as an executable registry to the host.
+"$engarg_bin" eal validate --input "$run_dir/argument.bundle.json" --input-format json \
+  --eal-host "$eal_host" --workspace "$run_dir" --output "$run_dir/eal-validation.json"
+"$engarg_bin" eal plan --input "$run_dir/argument.bundle.json" --input-format json --claim current_claim \
+  --eal-host "$eal_host" --workspace "$run_dir" --output "$run_dir/evidence-plan.json"
+python3 - "$run_dir" <<'PY'
+import json, pathlib, sys
+directory = pathlib.Path(sys.argv[1])
+for filename in ['eal-validation.json','evidence-plan.json']:
+    result = json.loads((directory/filename).read_text())
+    if result.get('is_error') is not False:
+        raise SystemExit('EAL host reported a failed operation: '+filename)
+    if filename == 'eal-validation.json' and result.get('result',{}).get('valid') is not True:
+        raise SystemExit('Exported EAL failed validation')
+report = json.loads((directory/'analysis.json').read_text())
+bundle = json.loads((directory/'argument.bundle.json').read_text())
+plan = bundle.get('acquisition_plan') or {}
+entries = plan.get('entries', [])
+summary = {
+    'completed_phase': 'argument authoring and deterministic export validation',
+    'evidence_collected': False,
+    'argument_status': report['argument']['status'],
+    'recorded_model_calls': len(report.get('transcript', [])),
+    'selected_collectors': sorted({entry['tool_id'] for entry in entries}),
+    'unresolved_arguments': [{'need_id': entry['need_id'], 'arguments': entry['unresolved_arguments']}
+        for entry in entries if entry['unresolved_arguments']],
+    'pending_review_obligations': len(bundle.get('obligations', [])),
+    'next_step': 'Review exact-query compatibility and operator bindings before explicit collection and assessment.'
+}
+(directory/'run-summary.json').write_text(json.dumps(summary, indent=2)+'\n')
+PY
+printf 'Authoring, rendering, export and EAL planning passed. Artifacts: %s\n' "$run_dir"
+printf 'Review per-need bindings and independent review obligations before collection and assessment.\n'
