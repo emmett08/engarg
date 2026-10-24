@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Author a dev-cluster/Grafana claim from operator inputs. Bash 3.2+ and Python 3.
-# Usage: bash scripts/run-catalog-sync-authoring.sh [--check-only] INPUTS.json [CATALOGUE.json]
+# Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOGUE.json]
 # Defaults include retained/HTTP JSON, scoped Grafana, Kubernetes and GitHub tools.
 # Preflight accepts tracked changes and needs no Rust tools, host or API key.
 # Full runs need a clean checkout and Rustup; the pinned EAL runtime is cached locally.
@@ -8,15 +8,53 @@
 set -euo pipefail
 umask 077
 
-check_only=0
-if [[ ${1:-} == --check-only ]]; then check_only=1; shift; fi
-if [[ ${1:-} == --help || ${1:-} == -h ]]; then
-  sed -n '2,7p' "$0"
-  exit 0
-fi
-[[ $# -ge 1 && $# -le 2 ]] || { printf 'Usage: bash %s [--check-only] INPUTS.json [CATALOGUE.json]\n' "$0" >&2; exit 2; }
-
 fail() { printf '%s\n' "$*" >&2; exit 2; }
+usage() {
+  cat <<'HELP'
+Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOGUE.json]
+  --check-only                 Check inputs without build, Docker, host or inference.
+  --implement-tools            Generate and fixture-test missing collectors (PR #9).
+  --tool-language LANGUAGE      Explicit implementation language, matching the profile.
+  --toolchain JSON              Operator-owned toolchain profile; image must be installed.
+  --tool-store DIR              Reusable package store (default: .engarg-local/tool-store).
+  --tool-max-calls N            Separate implementation budget (1-256; default: 16).
+  --tool-timeout-secs N         Separate implementation deadline (1-86400; default: 3600).
+HELP
+}
+check_only=0
+implement_tools=0
+tool_options=0
+tool_language=''
+toolchain=''
+tool_store=''
+tool_max_calls=16
+tool_timeout=3600
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --check-only) check_only=1; shift ;;
+    --implement-tools) implement_tools=1; shift ;;
+    --tool-language|--toolchain|--tool-store|--tool-max-calls|--tool-timeout-secs)
+      [[ $# -ge 2 && -n $2 ]] || fail "Missing value for $1"
+      tool_options=1
+      case $1 in
+        --tool-language) tool_language=$2 ;;
+        --toolchain) toolchain=$2 ;;
+        --tool-store) tool_store=$2 ;;
+        --tool-max-calls) tool_max_calls=$2 ;;
+        --tool-timeout-secs) tool_timeout=$2 ;;
+      esac
+      shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    --) shift; break ;;
+    -*) fail "Unknown option: $1" ;;
+    *) break ;;
+  esac
+done
+[[ $# -ge 1 && $# -le 2 ]] || { usage >&2; exit 2; }
+[[ $implement_tools -eq 1 || $tool_options -eq 0 ]] || fail 'Tool implementation options require --implement-tools.'
+if [[ $implement_tools -eq 1 ]]; then
+  [[ -n $tool_language && -n $toolchain ]] || fail '--implement-tools requires --tool-language and --toolchain.'
+fi
 for required in git python3; do command -v "$required" >/dev/null || fail "Required command: $required"; done
 repo=$(git rev-parse --show-toplevel) || fail 'Run from an EngArg checkout.'
 # Keep operator paths relative to the invocation directory, including leaf-file
@@ -28,6 +66,15 @@ catalogue=''
 if [[ $# -eq 2 ]]; then
   catalogue=$(absolute_path "$2")
   [[ -e $catalogue ]] || fail "Collector catalogue does not exist: $catalogue. Omit CATALOGUE.json to use the built-in planning tools."
+fi
+if [[ $implement_tools -eq 1 ]]; then
+  toolchain=$(absolute_path "$toolchain")
+  [[ -e $toolchain ]] || fail "Toolchain profile does not exist: $toolchain"
+  if [[ -n $tool_store ]]; then
+    tool_store=$(absolute_path "$tool_store")
+  else
+    tool_store="$repo/.engarg-local/tool-store"
+  fi
 fi
 # Resolve an explicitly selected host before changing directory; only full runs
 # require it. Do not probe tools or credentials during input-only preflight.
@@ -57,10 +104,11 @@ trap on_exit EXIT
 
 # Read each operator file once, bound its size, reject duplicate keys and retain
 # exact private snapshots. Only allowlisted scope fields enter the LLM request.
-python3 - "$inputs" "$catalogue" "$run_dir" <<'PY'
-import datetime, hashlib, json, os, pathlib, stat, sys, urllib.parse
+python3 - "$inputs" "$catalogue" "$run_dir" "$implement_tools" "$tool_language" \
+  "$toolchain" "$tool_store" "$tool_max_calls" "$tool_timeout" <<'PY'
+import datetime, hashlib, json, os, pathlib, re, stat, sys, urllib.parse
 
-inputs_path, catalogue_path, directory = map(pathlib.Path, sys.argv[1:])
+inputs_path, catalogue_path, directory = map(pathlib.Path, sys.argv[1:4])
 def unique(pairs):
     result = {}
     for key, value in pairs:
@@ -68,14 +116,14 @@ def unique(pairs):
             raise ValueError('Duplicate JSON key')
         result[key] = value
     return result
-def read(path):
+def read(path, limit=1_048_576):
     flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, 'O_NOFOLLOW', 0)
     with os.fdopen(os.open(path, flags), 'rb') as source:
         if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
             raise ValueError('Operator inputs require regular files')
-        raw = source.read(1_048_577)
-    if len(raw) > 1_048_576:
-        raise ValueError('Operator input exceeds 1 MiB')
+        raw = source.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError('Operator input exceeds its byte limit')
     value = json.loads(raw, object_pairs_hook=unique,
                        parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Non-finite JSON number')))
     if not isinstance(value, dict):
@@ -115,6 +163,19 @@ try:
             raise ValueError('Grafana and Kubernetes selectors disagree: ' + key)
     if catalogue is not None and (catalogue.get('schema') != 'eal.collector-catalogue/1' or not catalogue.get('collectors')):
         raise ValueError('Select a nonempty versioned collector catalogue')
+    implementation = {'enabled': sys.argv[4] == '1'}
+    profile_raw = None
+    if implementation['enabled']:
+        language, profile_path, store, calls, timeout = sys.argv[5:10]
+        profile_raw, profile = read(pathlib.Path(profile_path), limit=65_536)
+        if profile.get('schema') != 'engarg.toolchain/1' or profile.get('language') != language:
+            raise ValueError('Tool language must match the operator toolchain profile')
+        if (not re.fullmatch(r'[0-9]+', calls) or not 1 <= int(calls) <= 256
+                or not re.fullmatch(r'[0-9]+', timeout) or not 1 <= int(timeout) <= 86_400):
+            raise ValueError('Invalid tool implementation budget')
+        implementation.update(language=language, operator_toolchain=profile_path,
+                              toolchain_sha256=hashlib.sha256(profile_raw).hexdigest(),
+                              store=store, max_calls=int(calls), timeout_seconds=int(timeout))
     quote = lambda value: json.dumps(value, ensure_ascii=False)
     claim = (
         f'The Kubernetes resource of kind {quote(selectors["kind"])} named {quote(selectors["name"])} '
@@ -142,6 +203,8 @@ try:
     (directory / 'collector-inputs.snapshot.json').write_bytes(original)
     if catalogue_raw is not None:
         (directory / 'collectors.snapshot.json').write_bytes(catalogue_raw)
+    if profile_raw is not None:
+        (directory / 'toolchain.snapshot.json').write_bytes(profile_raw)
     write('request.json', request)
     write('export-policy.json', dict(schema='engarg.export-policy/1', **ages, acquisition_per_need={}))
     write('input-identity.json', {
@@ -149,10 +212,11 @@ try:
         'catalogue_sha256': hashlib.sha256(catalogue_raw).hexdigest() if catalogue_raw is not None else None,
         'catalogue_selection': 'external' if catalogue_raw is not None else 'engarg built-in',
         'search_window_utc': window,
-        'operator_inputs': str(inputs_path), 'operator_catalogue': str(catalogue_path) if catalogue_raw is not None else None
+        'operator_inputs': str(inputs_path), 'operator_catalogue': str(catalogue_path) if catalogue_raw is not None else None,
+        'tool_implementation': implementation
     })
 except (KeyError, TypeError, ValueError, OSError, OverflowError):
-    raise SystemExit('Input preflight failed. Check scope fields, exact query, time window, catalogue and freshness ages.')
+    raise SystemExit('Input preflight failed. Check scope fields, exact query, time window, catalogue, toolchain, implementation budgets and freshness ages.')
 PY
 
 if [[ $check_only -eq 1 ]]; then
@@ -223,6 +287,7 @@ record.update(git_commit=output('git','rev-parse','HEAD'), rustc=output('rustc',
     eal_host_binary_sha256=hashlib.sha256(host.read_bytes()).hexdigest(),
     eal_mcp_binary_sha256=hashlib.sha256(host.with_name('eal-mcp').read_bytes()).hexdigest(),
     api='responses', http_retries=3, retry_max_delay_seconds=120)
+record['tool_implementation'] = json.loads((directory/'input-identity.json').read_text())['tool_implementation']
 metadata = json.loads(output('cargo','metadata','--locked','--no-deps','--format-version','1'))
 record['eal_dependency_sources'] = [dependency['source'] for package in metadata['packages']
     if package['name']=='engarg' for dependency in package['dependencies']
@@ -258,8 +323,18 @@ with_catalogue() {
     "$engarg_bin" "$@"
   fi
 }
+run_analysis() {
+  if [[ $implement_tools -eq 1 ]]; then
+    set -- "$@" --implement-tools --tool-language "$tool_language" \
+      --toolchain "$run_dir/toolchain.snapshot.json" --tool-store "$tool_store" \
+      --tool-output-dir "$run_dir/tooling" --tool-max-calls "$tool_max_calls" \
+      --tool-timeout-secs "$tool_timeout"
+  fi
+  with_catalogue analyse "$@"
+}
 stage='model analysis'
-with_catalogue analyse --input "$run_dir/request.json" \
+if [[ $implement_tools -eq 1 ]]; then stage='model analysis and tool implementation'; fi
+run_analysis --input "$run_dir/request.json" \
   --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
   --api responses --api-key-env OPENAI_API_KEY --mode hybrid --argument-depth 2 \
   --max-calls "$max_calls" --max-repairs "$repairs" \
@@ -324,6 +399,17 @@ summary = {
     'pending_review_obligations': len(bundle.get('obligations', [])),
     'next_step': 'Review exact-query compatibility and operator bindings before explicit collection and assessment.'
 }
+implementation = json.loads((directory/'input-identity.json').read_text())['tool_implementation']
+summary['tool_implementation'] = {'enabled': implementation['enabled']}
+if implementation['enabled']:
+    tooling = report.get('tooling')
+    if not isinstance(tooling, dict) or tooling.get('schema') != 'engarg.tooling/1':
+        raise SystemExit('Implementation was enabled but the analysis has no tooling report')
+    summary['tool_implementation'].update(
+        language=tooling['language'], model_calls=tooling['model_calls'],
+        verified_packages=len(tooling['packages']),
+        reused_packages=sum(package['reused'] for package in tooling['packages']),
+        audit_path=tooling['audit_path'], catalogue_path=str(directory/'tooling/collectors.json'))
 (directory/'run-summary.json').write_text(json.dumps(summary, indent=2)+'\n')
 PY
 printf 'Authoring, rendering, export and EAL planning passed. Artifacts: %s\n' "$run_dir"

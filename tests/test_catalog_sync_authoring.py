@@ -1,4 +1,4 @@
-"""Offline regressions for operator-input preflight; no build or model calls."""
+"""Offline preflight and script orchestration regressions; no build or model calls."""
 
 import hashlib
 import json
@@ -8,6 +8,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+import textwrap
 import unittest
 
 
@@ -108,6 +109,108 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
             [(path.name, path.read_bytes()) for path in sorted(self.repo.glob("tracked-*.txt"))],
         )
 
+    def write_toolchain(self, language="rust"):
+        path = self.inputs.with_name("operator toolchain.json")
+        profile = {
+            "schema": "engarg.toolchain/1", "language": language,
+            "docker": "must-not-run-docker", "image": "operator-fixture:local",
+            "build_argv": ["rustc", "/src/collector.rs", "-o", "/build/collector"],
+            "run_argv": ["/build/collector"], "inherit_env": [],
+            "runtime_network": "none", "timeout_seconds": 30,
+            "memory_mb": 128, "output_bytes": 1_048_576,
+        }
+        path.write_text(json.dumps(profile, indent=4) + "\n\n")
+        return path
+
+    def install_pipeline_stubs(self):
+        """Replace CLI boundaries only; script control flow and artifacts stay real."""
+        (self.commands / 'dirname').symlink_to(shutil.which('dirname'))
+        target = self.root / "stub target"
+        release = target / "release"
+        release.mkdir(parents=True)
+        self.log = self.root / "engarg invocations.jsonl"
+        self.env.update(FAKE_ENGARG_LOG=str(self.log), FAKE_TARGET=str(target),
+                        OPENAI_API_KEY="synthetic-key-must-not-be-used",
+                        ENGARG_EAL_HOST=str(self.commands / "eal-host"))
+        for path in [self.commands / name for name in [
+            "rustc", "eal-host", "eal-mcp", "eal-method-worker", "eal-command-supervisor"
+        ]] + [release / "engarg-process-supervisor"]:
+            path.write_text("#!/usr/bin/env bash\nprintf 'offline fixture\\n'\n")
+            path.chmod(0o700)
+        cargo = self.commands / "cargo"
+        cargo.write_text(textwrap.dedent("""\
+            #!/usr/bin/env python3
+            import json, os, sys
+            if sys.argv[1] == 'metadata':
+                print(json.dumps({'target_directory': os.environ['FAKE_TARGET'],
+                                  'packages': [{'name': 'engarg', 'dependencies': []}]}))
+            elif sys.argv[1] != 'build':
+                raise SystemExit('Unexpected cargo operation')
+            """))
+        cargo.chmod(0o700)
+        binary = release / "engarg"
+        binary.write_text(textwrap.dedent(r"""
+            #!/usr/bin/env python3
+            import json, os, pathlib, sys
+            args = sys.argv[1:]
+            with open(os.environ['FAKE_ENGARG_LOG'], 'a') as log:
+                log.write(json.dumps(args) + '\n')
+            def option(name):
+                return args[args.index(name) + 1]
+            def write(path, value):
+                pathlib.Path(path).write_text(json.dumps(value) + '\n')
+            if args[:2] == ['eal', 'describe']:
+                write(option('--output'), {'is_error': False, 'result': {
+                    'source_syntax': 'EAL/3', 'methods': {'structured/1': {}}}})
+            elif args[0] == 'analyse':
+                request = json.loads(pathlib.Path(option('--input')).read_text())
+                report = {'request': request, 'argument': {'status': 'supported'}, 'transcript': []}
+                if '--implement-tools' in args:
+                    directory = pathlib.Path(option('--tool-output-dir'))
+                    assert not directory.exists(), 'Tool output must be a new directory'
+                    directory.mkdir()
+                    write(directory / 'argument.analysis.json', report)
+                    failed = bool(os.environ.get('FAIL_TOOLING'))
+                    write(directory / 'tooling.audit.jsonl', {'event': 'finished', 'passed': not failed})
+                    if not failed:
+                        write(directory / 'collectors.json', {'schema': 'eal.collector-catalogue/1'})
+                        report['tooling'] = {
+                            'schema': 'engarg.tooling/1', 'language': option('--tool-language'),
+                            'model_calls': 2, 'packages': [{'need_id': 'E1', 'reused': False}],
+                            'audit_path': str(directory / 'tooling.audit.jsonl')}
+                    write(option('--output'), report)
+                    if failed:
+                        raise SystemExit(3)
+                else:
+                    write(option('--output'), report)
+            elif args[0] == 'validate':
+                pass
+            elif args[0] == 'render':
+                pathlib.Path(option('--output')).write_text('offline rendered fixture\n')
+            elif args[:2] == ['eal', 'export']:
+                report = json.loads(pathlib.Path(option('--input')).read_text())
+                tool_id = 'generated_fixture' if report.get('tooling') else 'http_json_get'
+                pathlib.Path(option('--output')).write_text('offline EAL fixture\n')
+                pathlib.Path(option('--tools-output')).write_text('offline registry fixture\n')
+                write(option('--manifest'), {'acquisition_plan': {'entries': [
+                    {'tool_id': tool_id, 'unresolved_arguments': []}]}, 'obligations': []})
+            elif args[:2] == ['eal', 'validate']:
+                write(option('--output'), {'is_error': False, 'result': {'valid': True}})
+            elif args[:2] == ['eal', 'plan']:
+                write(option('--output'), {'is_error': False, 'result': {}})
+            else:
+                raise SystemExit('Unexpected EngArg operation')
+            """).lstrip())
+        binary.chmod(0o700)
+
+    def pipeline_directory(self, result):
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Authoring, rendering, export and EAL planning passed", result.stdout)
+        return Path(result.stdout.split("Artifacts: ", 1)[1].splitlines()[0])
+
+    def invocations(self):
+        return [json.loads(line) for line in self.log.read_text().splitlines()]
+
     def test_dirty_preflight_needs_only_input_tools_and_preserves_tracked_edits(self):
         self.make_dirty()
         before = self.tracked_state()
@@ -201,6 +304,131 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         )
         self.assertTrue((directory / "request.json").is_file())
         self.assertFalse((directory / "run-settings.json").exists())
+
+    def test_implementation_preflight_snapshots_profile_without_docker_or_model(self):
+        profile = self.write_toolchain()
+        original = profile.read_bytes()
+        directory = self.successful_run_directory(self.run_script(
+            "--implement-tools", "--check-only", "--tool-language", "rust",
+            "--toolchain", profile, self.inputs,
+        ))
+        identity = json.loads((directory / "input-identity.json").read_text())['tool_implementation']
+        self.assertTrue(identity['enabled'])
+        self.assertEqual(identity['language'], 'rust')
+        self.assertEqual(identity['max_calls'], 16)
+        self.assertEqual(identity['timeout_seconds'], 3600)
+        self.assertEqual(identity['toolchain_sha256'], hashlib.sha256(original).hexdigest())
+        self.assertEqual((directory / 'toolchain.snapshot.json').read_bytes(), original)
+        self.assertEqual(stat.S_IMODE((directory / 'toolchain.snapshot.json').stat().st_mode), 0o600)
+        self.assertEqual(Path(identity['store']).resolve(), (self.repo / '.engarg-local/tool-store').resolve())
+        self.assertFalse((self.repo / '.engarg-local/tool-store').exists())
+        self.assertFalse((directory / 'tooling').exists())
+
+    def test_inactive_or_incomplete_implementation_options_are_rejected(self):
+        for options in [
+            ['--tool-language', 'rust'],
+            ['--implement-tools'],
+            ['--implement-tools', '--tool-language', 'rust'],
+        ]:
+            with self.subTest(options=options):
+                result = self.run_script('--check-only', *options, self.inputs)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('require', result.stderr)
+                self.assertFalse((self.repo / 'engarg-runs').exists())
+
+    def test_invalid_implementation_settings_fail_input_preflight(self):
+        profile = self.write_toolchain()
+        for extra in [
+            ['--tool-language', 'python'], ['--tool-max-calls', '0'],
+            ['--tool-max-calls', '257'], ['--tool-timeout-secs', '0'],
+            ['--tool-timeout-secs', '86401'], ['--tool-max-calls', 'invalid'],
+        ]:
+            with self.subTest(extra=extra):
+                result = self.run_script(
+                    '--check-only', '--implement-tools', '--tool-language', 'rust',
+                    '--toolchain', profile, *extra, self.inputs,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Input preflight failed', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+        self.assertFalse(list((self.repo / 'engarg-runs').glob('*/request.json')))
+
+    def test_relative_toolchain_and_store_use_invocation_directory(self):
+        profile = self.write_toolchain()
+        directory = self.successful_run_directory(self.run_script(
+            '--check-only', '--implement-tools', '--tool-language', 'rust',
+            '--toolchain', '../.engarg-local/' + profile.name,
+            '--tool-store', '../shared tool store', '../.engarg-local/collector-inputs.json',
+            cwd=self.repo / 'scripts',
+        ))
+        identity = json.loads((directory / 'input-identity.json').read_text())['tool_implementation']
+        self.assertTrue(profile.samefile(identity['operator_toolchain']))
+        self.assertEqual(Path(identity['store']).resolve(), (self.repo / 'shared tool store').resolve())
+
+    def test_full_implementation_exports_enriched_analysis_and_retains_separate_budget(self):
+        profile = self.write_toolchain()
+        self.install_pipeline_stubs()
+        store = self.root / 'shared verified store'
+        directory = self.pipeline_directory(self.run_script(
+            '--implement-tools', '--tool-language', 'rust', '--toolchain', profile,
+            '--tool-store', store, '--tool-max-calls', '4', '--tool-timeout-secs', '7200',
+            self.inputs,
+        ))
+        calls = self.invocations()
+        analysis = next(call for call in calls if call[0] == 'analyse')
+        def argument(name):
+            return analysis[analysis.index(name) + 1]
+        self.assertIn('--implement-tools', analysis)
+        self.assertEqual(argument('--tool-language'), 'rust')
+        self.assertEqual(argument('--tool-store'), str(store))
+        self.assertEqual(argument('--toolchain'), str(directory / 'toolchain.snapshot.json'))
+        self.assertEqual(argument('--tool-output-dir'), str(directory / 'tooling'))
+        self.assertEqual(argument('--tool-max-calls'), '4')
+        self.assertEqual(argument('--tool-timeout-secs'), '7200')
+        self.assertEqual(argument('--max-calls'), '7')
+        self.assertEqual(argument('--timeout-secs'), '10800')
+        export = next(call for call in calls if call[:2] == ['eal', 'export'])
+        self.assertEqual(export[export.index('--input') + 1], str(directory / 'analysis.json'))
+        report = json.loads((directory / 'analysis.json').read_text())
+        self.assertEqual(report['tooling']['schema'], 'engarg.tooling/1')
+        summary = json.loads((directory / 'run-summary.json').read_text())
+        self.assertFalse(summary['evidence_collected'])
+        self.assertEqual(summary['selected_collectors'], ['generated_fixture'])
+        self.assertEqual(summary['tool_implementation']['model_calls'], 2)
+        self.assertEqual(summary['tool_implementation']['verified_packages'], 1)
+        self.assertEqual(summary['tool_implementation']['reused_packages'], 0)
+        settings = json.loads((directory / 'run-settings.json').read_text())
+        self.assertEqual(settings['tool_implementation']['max_calls'], 4)
+        self.assertEqual(settings['tool_implementation']['toolchain_sha256'],
+                         hashlib.sha256(profile.read_bytes()).hexdigest())
+        self.assertNotIn('synthetic-key', json.dumps(calls))
+
+    def test_argument_only_pipeline_does_not_enable_implementation(self):
+        self.install_pipeline_stubs()
+        directory = self.pipeline_directory(self.run_script(self.inputs))
+        analysis = next(call for call in self.invocations() if call[0] == 'analyse')
+        self.assertNotIn('--implement-tools', analysis)
+        self.assertNotIn('--toolchain', analysis)
+        summary = json.loads((directory / 'run-summary.json').read_text())
+        self.assertEqual(summary['tool_implementation'], {'enabled': False})
+        self.assertFalse((directory / 'tooling').exists())
+
+    def test_implementation_failure_preserves_analysis_and_stops_before_export(self):
+        profile = self.write_toolchain()
+        self.install_pipeline_stubs()
+        result = self.run_script(
+            '--implement-tools', '--tool-language', 'rust', '--toolchain', profile, self.inputs,
+            env=dict(self.env, FAIL_TOOLING='1'),
+        )
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn('during model analysis and tool implementation', result.stderr)
+        directory = next((self.repo / 'engarg-runs').iterdir())
+        self.assertTrue((directory / 'analysis.json').is_file())
+        audit = json.loads((directory / 'tooling/tooling.audit.jsonl').read_text())
+        self.assertFalse(audit['passed'])
+        self.assertFalse((directory / 'argument.bundle.json').exists())
+        self.assertFalse((directory / 'run-summary.json').exists())
+        self.assertFalse(any(call[:2] == ['eal', 'export'] for call in self.invocations()))
 
     def test_relative_input_path_is_relative_to_invocation_directory(self):
         # macOS /var aliases /private/var. Exercise an aliased parent on every

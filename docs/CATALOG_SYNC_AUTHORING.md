@@ -91,6 +91,50 @@ Neither selecting a catalogue nor finding a nonempty search establishes resource
 attribution. Full traces, Kubernetes identity, cluster, namespace, resource UID
 and time correspondence require independent review.
 
+## Implement missing collectors
+
+Enable PR #9's implementation stage with `--implement-tools`. The language and
+operator-owned toolchain profile are explicit and must match. For example, with
+the included Python profile and its Docker image already installed:
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh \
+  --implement-tools --tool-language python \
+  --toolchain examples/toolchains/python.json \
+  --tool-store .engarg-local/tool-store \
+  --tool-max-calls 16 --tool-timeout-secs 3600 \
+  .engarg-local/collector-inputs.json
+```
+
+Use `--tool-language rust` with an operator-owned Rust profile, or select another
+language and matching profile. The script does not select execution commands or
+pull images. See [collector implementation](TOOL_IMPLEMENTATION.md) for the
+profile contract and fixture isolation. Options must precede the input paths.
+
+The default persistent package store is `.engarg-local/tool-store` in the selected
+checkout. An explicit `--tool-store` resolves from the invocation directory, as
+does `--toolchain`. Use the same store across worktrees to reuse verified packages
+when their identities match. The script retains an exact private profile snapshot
+and its digest. `--check-only` can check the profile envelope, language match and
+budgets without Docker, Rust or inference; a full run admits the complete profile
+and its installed immutable image before any model call.
+
+Implementation has its own call budget (default 16, range 1–256) and deadline
+(default 3600 seconds, range 1–86400). Argument budgets remain unchanged. Known
+collectors bypass generation; verified packages can be reused without coding
+calls. A unique `tooling/` directory within each run retains the original analysis,
+implementation audit and combined `collectors.json`. Source and verification
+receipts remain in the package store and are referenced by the tooling report.
+
+The successful `analysis.json` carries the tooling metadata. The normal export
+then verifies registrations and writes matching EAL, TOML and bundle bindings.
+`run-summary.json` reports implementation calls and verified/reused package
+counts. If coding or verification fails, the script stops before export and
+preserves the canonical analysis and available tooling artifacts. Fixture tests
+do not collect live evidence or discharge independent review obligations.
+Omitting `--implement-tools` retains the argument-only flow; implementation
+options without that switch are rejected.
+
 ## Run authoring and deterministic validation
 
 Full runs require a clean tracked checkout and Rustup with the repository's pinned
