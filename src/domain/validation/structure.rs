@@ -41,6 +41,41 @@ pub(super) fn references(
     {
         register_id(errors, &mut ids, id);
     }
+    // Dependent diagnostic labels assume canonical IDs have already admitted
+    // their bounded spelling. An invalid long ID must not be copied per edge.
+    if !errors.is_empty() {
+        return;
+    }
+    for (section_index, section) in case.reading.iter().enumerate() {
+        if !context.claim_ids.contains(section.claim_id.as_str()) {
+            errors.push(format!(
+                "reading section {} references unknown claim {:?}",
+                section_index + 1,
+                section.claim_id
+            ));
+            // This section has no admitted claim label for dependent checks.
+            continue;
+        }
+        for (paragraph_index, paragraph) in section.paragraphs.iter().enumerate() {
+            let mut references = HashSet::new();
+            for id in &paragraph.reference_ids {
+                if !context.ids.contains(id) {
+                    errors.push(format!(
+                        "reading {} paragraph {} references unknown canonical ID {id:?}",
+                        section.claim_id,
+                        paragraph_index + 1
+                    ));
+                }
+                if !references.insert(id) {
+                    errors.push(format!(
+                        "reading {} paragraph {} repeats canonical ID {id:?}",
+                        section.claim_id,
+                        paragraph_index + 1
+                    ));
+                }
+            }
+        }
+    }
     for need in &case.evidence_plan {
         if !context.node_ids.contains(need.target_id.as_str()) {
             errors.push(format!(

@@ -141,9 +141,93 @@ fn measure(text: &str, encoding: &CoreBPE) -> Value {
     json!({"utf8_bytes":text.len(), "reference_tokens":encoding.encode_ordinary(text).len()})
 }
 
+/// Reconstruct the expanded representation independently of engine grouping.
+/// The corresponding system paragraph is identified by its fixed section label.
+fn expand_target_contexts(system: &str, user: &str) -> Result<(String, String)> {
+    let mut data: Value = serde_json::from_str(user)?;
+    let Some(table) = data
+        .as_object_mut()
+        .and_then(|data| data.remove("retained_target_contexts"))
+    else {
+        return Ok((system.into(), user.into()));
+    };
+    for objection in data["retained_objections"]
+        .as_array_mut()
+        .ok_or("retained objections absent")?
+    {
+        let Some(identity) = objection.get_mut("identity").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        if let Some(reference) = identity.remove("target_context_ref") {
+            let context = table
+                .get(reference.as_str().ok_or("invalid context reference")?)
+                .ok_or("unresolved context reference")?;
+            identity.insert("target_context".into(), context.clone());
+        }
+    }
+    let marker = "\n\nTARGET CONTEXT REFERENCES: ";
+    let start = system
+        .find(marker)
+        .ok_or("target context instruction absent")?;
+    let end = system[start + marker.len()..]
+        .find("\n\n")
+        .map_or(system.len(), |offset| start + marker.len() + offset);
+    let mut expanded_system = system.to_owned();
+    expanded_system.replace_range(start..end, "");
+    Ok((expanded_system, serde_json::to_string(&data)?))
+}
+
+#[cfg(test)]
+mod context_measurement_tests {
+    use super::*;
+
+    #[test]
+    fn expansion_preserves_scope_target_future_fields_and_following_instructions() {
+        let number: Value = serde_json::from_str("1.234567890123456789e-1000").unwrap();
+        let context = json!({"scope":{"configuration":"Frozen exact scope."},
+            "target":{"rule":"Exact warrant."},"related_targets":{"G1":{"statement":"Exact premise."}},"future":number});
+        let compact = json!({"request":{"retained_target_contexts":"literal untrusted data"},
+            "retained_target_contexts":{"tc1":context},
+            "retained_objections":[{"identity":{"target_id":"W1","target_context_ref":"tc1"}}]});
+        let system = "Core\n\nTARGET CONTEXT REFERENCES: Resolve exact contexts.\n\nCONSTRUCTION LIMIT: Two layers.";
+        let (system, user) =
+            expand_target_contexts(system, &serde_json::to_string(&compact).unwrap()).unwrap();
+        assert_eq!(system, "Core\n\nCONSTRUCTION LIMIT: Two layers.");
+        let expanded: Value = serde_json::from_str(&user).unwrap();
+        assert_eq!(
+            expanded["retained_objections"][0]["identity"]["target_context"],
+            context
+        );
+        assert_eq!(expanded["request"], compact["request"]);
+        assert!(expanded.get("retained_target_contexts").is_none());
+    }
+
+    #[test]
+    fn an_uncompacted_prompt_is_measured_without_reformatting() {
+        let user = "{\n  \"request\": {\"retained_target_contexts\": \"source\"}\n}";
+        assert_eq!(
+            expand_target_contexts("Core", user).unwrap(),
+            ("Core".into(), user.into())
+        );
+    }
+
+    #[test]
+    fn missing_authoritative_context_is_a_measurement_error() {
+        let user = json!({"retained_target_contexts":{}, "retained_objections":[{"identity":{"target_context_ref":"tc1"}}]});
+        assert!(
+            expand_target_contexts(
+                "Core\n\nTARGET CONTEXT REFERENCES: Resolve exact contexts.",
+                &user.to_string()
+            )
+            .is_err()
+        );
+    }
+}
+
 fn metrics(report: &Value, wire_bytes: usize, encoding: &CoreBPE) -> Result<Value> {
     let mut records = Vec::new();
     let mut totals = BTreeMap::<&str, (usize, usize)>::new();
+    let mut expanded_input = (0usize, 0usize);
     for call in report["transcript"]
         .as_array()
         .ok_or("report transcript absent")?
@@ -181,7 +265,18 @@ fn metrics(report: &Value, wire_bytes: usize, encoding: &CoreBPE) -> Result<Valu
             sum.0 += text.len();
             sum.1 += tokens;
         }
-        records.push(json!({"role":call["role"], "components":components, "response_sha256":digest(parts[3].1)}));
+        let (expanded_system, expanded_user) = expand_target_contexts(parts[0].1, parts[1].1)?;
+        let expanded = [expanded_system.as_str(), expanded_user.as_str(), parts[2].1]
+            .iter()
+            .fold((0, 0), |(bytes, tokens), text| {
+                (
+                    bytes + text.len(),
+                    tokens + encoding.encode_ordinary(text).len(),
+                )
+            });
+        expanded_input.0 += expanded.0;
+        expanded_input.1 += expanded.1;
+        records.push(json!({"role":call["role"], "components":components, "response_sha256":digest(parts[3].1),"expanded_context_input":{"utf8_bytes":expanded.0,"reference_tokens":expanded.1}}));
     }
     let input = ["instructions", "user", "schema"]
         .iter()
@@ -198,7 +293,7 @@ fn metrics(report: &Value, wire_bytes: usize, encoding: &CoreBPE) -> Result<Valu
         .map(|(key, (bytes, tokens))| (key, json!({"utf8_bytes":bytes, "reference_tokens":tokens})))
         .collect();
     Ok(
-        json!({"call_count":records.len(), "argument_sha256":json_digest(&report["argument"]), "request_sha256":json_digest(&report["request"]), "records":records, "totals":sums, "wire_request_utf8_bytes":wire_bytes, "provider_usage":{"input_tokens":null,"output_tokens":null,"reason":"No new provider inference. Historical replay usage is excluded from candidate billed-use claims."}}),
+        json!({"call_count":records.len(), "argument_sha256":json_digest(&report["argument"]), "request_sha256":json_digest(&report["request"]), "records":records, "totals":sums, "expanded_context_input":{"utf8_bytes":expanded_input.0,"reference_tokens":expanded_input.1}, "wire_request_utf8_bytes":wire_bytes, "provider_usage":{"input_tokens":null,"output_tokens":null,"reason":"No new provider inference. Historical replay usage is excluded from candidate billed-use claims."}}),
     )
 }
 

@@ -412,7 +412,118 @@ mod identity_tests {
             errors(&request, &revised, &retained, None)
                 .iter()
                 .any(|message| message
-                    .contains("DISSENT_TARGET_CHANGED retained objection D1 changed target;"))
+                    .contains("DISSENT_TARGET_CHANGED retained objection D1 changed target"))
+        );
+    }
+
+    #[test]
+    fn related_premise_support_updates_preserve_the_warrant_attack_identity() {
+        let (request, original) = fixture();
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Synthesiser, &mut retained);
+        let mut revised = original.clone();
+        revised.grounds[1].status = crate::domain::GroundStatus::Reported;
+        revised.grounds[1]
+            .evidence_ids
+            .push(request.evidence[0].id.clone());
+        assert!(
+            !errors(&request, &revised, &retained, None)
+                .iter()
+                .any(|message| message.contains("DISSENT_TARGET_CHANGED retained objection D1"))
+        );
+    }
+
+    #[test]
+    fn a_changed_relation_cannot_fill_a_missing_endpoint_context() {
+        let (_, repaired) = fixture();
+        let mut original = repaired.clone();
+        original.grounds.retain(|ground| ground.id != "G2");
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Adjudicator, &mut retained);
+        let mut changed_relation = repaired.clone();
+        changed_relation.warrants[2]
+            .rule
+            .push_str(" A replacement inference.");
+        retain_objections(&changed_relation, Role::Adjudicator, &mut retained);
+        let context = &retained[0].identity.as_ref().unwrap().target_context;
+        assert!(context["related_targets"]["G2"].is_null());
+        retain_objections(&repaired, Role::Adjudicator, &mut retained);
+        let context = &retained[0].identity.as_ref().unwrap().target_context;
+        assert_eq!(
+            context["related_targets"]["G2"]["statement"],
+            repaired.grounds[1].statement
+        );
+    }
+
+    #[test]
+    fn cyclic_attachment_snapshots_stop_at_the_direct_endpoint() {
+        let (_, mut case) = fixture();
+        let assumption_id = case.assumptions[0].id.clone();
+        case.assumptions[0].applies_to.push(assumption_id.clone());
+        case.defeaters[0].target_id = case.defeaters[0].id.clone();
+        let index = ArgumentIndex::new(&case);
+        let assumption = target_context::capture(&index, &assumption_id);
+        assert!(assumption["related_targets"][&assumption_id].is_object());
+        assert!(
+            assumption["related_targets"][&assumption_id]
+                .get("related_targets")
+                .is_none()
+        );
+        let attack_id = &case.defeaters[0].id;
+        let attack = target_context::capture(&index, attack_id);
+        assert!(attack["related_targets"][attack_id].is_object());
+        assert!(
+            attack["related_targets"][attack_id]
+                .get("related_targets")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn a_warrant_attack_binds_the_meaning_of_its_direct_premises_and_conclusion() {
+        let (request, original) = fixture();
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Synthesiser, &mut retained);
+        for target in ["G2", "stronger_target"] {
+            let mut revised = original.clone();
+            if target == "G2" {
+                revised.grounds[1].statement =
+                    "A different empirical premise under the same ID.".into();
+            } else {
+                revised.stronger_target.text =
+                    "A different intended conclusion under the same ID.".into();
+            }
+            assert!(
+                errors(&request, &revised, &retained, None)
+                    .iter()
+                    .any(|message| message
+                        .contains("DISSENT_TARGET_CHANGED retained objection D1")
+                        && message.contains(&format!("related_targets.{target}"))),
+                "the retained W3 attack did not detect the changed {target} proposition"
+            );
+        }
+    }
+
+    #[test]
+    fn a_missing_warrant_endpoint_acquires_context_when_the_same_relation_is_repaired() {
+        let (request, repaired) = fixture();
+        let mut original = repaired.clone();
+        original.grounds.retain(|ground| ground.id != "G2");
+        let mut retained = Vec::new();
+        retain_objections(&original, Role::Adjudicator, &mut retained);
+        assert!(errors(&request, &repaired, &retained, None).is_empty());
+        retain_objections(&repaired, Role::Adjudicator, &mut retained);
+        let mut replacement = repaired.clone();
+        replacement.grounds[1]
+            .statement
+            .push_str(" A different proposition.");
+        assert!(
+            errors(&request, &replacement, &retained, None)
+                .iter()
+                .any(
+                    |message| message.contains("DISSENT_TARGET_CHANGED retained objection D1")
+                        && message.contains("related_targets.G2")
+                )
         );
     }
 }

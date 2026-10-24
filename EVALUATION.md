@@ -73,3 +73,61 @@ The 0.6.0 acquisition update repeats this protocol against immutable 0.5.1 with 
 Acquisition planning is measured separately because it returns additional information. Across the four public fixtures, consolidating those instructions reduced the planned path from 120,935 to 119,776 input reference tokens, saving 1,159 tokens or 0.96%. Planning requires 9,971 additional input reference tokens compared with the final case-only path, a 9.08% increase. It adds no model calls. Each fixture still completes in six calls, or seven when its deliberately invalid final candidate requires a repair. These measurements include proposed tools, arguments, unresolved inputs and their review context. The planned fixtures use explicit custom-adapter stubs so their acceptance makes no claim about real tool execution.
 
 An exploratory dictionary for repeated long strings was rejected. Its estimated aggregate saving was 1.75%, below the preselected 5% threshold for adding another model reference protocol. The existing claim and objection references already remove the decisive repeated text in the retained report. The prototype was removed before engine integration. Both the negative result and the complete accepted captures are retained under `eal_acquisition_update` in the existing benchmark record. No live inference was available, so semantic quality and billed cost remain unmeasured.
+
+Retained target contexts now include scope, the attacked node and the meaning of
+its direct related nodes. When several objections retain the same complete
+context, subsequent prompts repeat that context unnecessarily. A request-local
+table now supplies exact references to repeated contexts. Unique contexts keep
+their literal representation. The encoded request must shrink after including
+the additional instruction and JSON string escaping. The table changes no
+canonical graph field, objection identity, evidence requirement or review stage.
+Independent tests reconstruct every context exactly, including future fields,
+arbitrary-precision numbers and unbound objections.
+
+The acceptance threshold was a 5% aggregate reduction across the four public
+fixed-output workloads. Three release-process repetitions of each workload gave
+identical text volumes and accepted the frozen canonical argument, source request
+and completion sequence. These captures use the case-only output contract. The
+control expands the same candidate's contexts and
+removes its reference instruction. It therefore holds the stronger target
+retention policy constant rather than attributing a policy change to compaction.
+
+| Public workload | Calls | Expanded input reference tokens | Compact input reference tokens | Reduction |
+| --- | ---: | ---: | ---: | ---: |
+| Claim-only | 6 | 22,969 | 22,969 | 0% |
+| Supplied evidence | 6 | 21,170 | 21,170 | 0% |
+| Retained objections | 6 | 37,410 | 31,528 | 15.72% |
+| Missing-plan repair | 7 | 52,957 | 43,126 | 18.56% |
+| Sum of one run per workload | 25 | 134,506 | 118,793 | 11.68% |
+
+A separate capture with acquisition planning enabled retained the same
+six/seven-call sequences across three repetitions of each fixture. Within that
+output contract, expanded input contained 143,990 reference tokens and compact
+input contained 128,277, saving the same 15,713 tokens or 10.91%. The benchmark
+record retains this mode separately because its schema and output obligations
+differ from the case-only contract.
+
+These are named `o200k_base` text tokens from `tiktoken-rs 0.12.1`, including the
+conditional instruction. They exclude proprietary framing, cache classes,
+hidden reasoning and billing. The four fixtures receive equal weight. The
+measured gain depends on repeated identical contexts and establishes no change
+in live reasoning quality, latency or billed cost. The six-call topology and
+explicit repair allowance remain unchanged. Compare a shorter topology in a
+separate paired study with the same total inference budget and expert-reviewed
+argument-quality criteria before adopting it.
+
+The `target_context_interning` section in the existing benchmark record retains
+the source and binary identities, fixture digests, per-role response digests and
+three-repetition ranges. Reproduce the capture with the existing command:
+
+```sh
+cargo run --locked --release --example benchmark_tokens -- capture \
+  --binary target/release/engarg --repo . \
+  --label target-context-interning --build-profile release \
+  --output /tmp/engarg-target-context-tokens.json --repetitions 3
+```
+
+Each result's `expanded_context_input` provides the independently reconstructed
+control for its recorded compact prompts. Repeat with `--tool-planning` and a
+new output path for the planned-output comparison. Existing historical captures and
+their original interpretation remain unchanged.

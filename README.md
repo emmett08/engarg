@@ -463,5 +463,9 @@ Operator configuration values remain sensitive by default.
 Use `--public-collector-env NAME` only for public configuration already selected by `--collector-env NAME`.
 Credential names and bearer tokens retain sensitive treatment.
 Known sensitive values in semantic host output cause a safe failure.
+The shared inspector checks decoded JSON values and keys, including repeatedly encoded JSON text.
+It also checks numeric and boolean spellings while leaving successful response values unchanged.
+Ambiguous encoded JSON and exhausted inspection allowances fail safely.
+Unrelated prose beginning with JSON punctuation retains its exact text.
 Unresolved prepared registry paths require operator resolution before execution.
 The installed `engarg-process-supervisor` companion supplies bounded process execution and is installed with EngArg.

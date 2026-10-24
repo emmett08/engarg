@@ -18,6 +18,15 @@ or wall-clock deadlines.
 The `*_with_limits` entry points let applications select lower ceilings.
 The encoded input is counted without allocating a second encoded document.
 Output storage stops growing when its byte allowance is exhausted.
+The extended template streams repeated evidence and condition descriptions from
+borrowed records through its escaping writer.
+It does not retain one expanded source copy per reference or build all fourteen
+argument entries before checking the output allowance.
+A failed output write stops the remaining cell and record expansion.
+Composition summaries use the same streaming path, including inspection views
+with duplicate composition diagnostics.
+Repeated lookups of one retained rationale therefore share the output allowance
+without first allocating one rationale copy per record.
 
 The shared borrowed `PresentationView` consumes the index from
 `ValidatedArgument` when domain admission succeeds.

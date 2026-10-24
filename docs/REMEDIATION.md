@@ -2,9 +2,10 @@
 
 This ledger tracks the 21 findings in the 24 October 2026 remediation plan.
 It records implementation locations and the checks needed to close each finding.
-All 21 findings have implementation and regression evidence.
-A second independent source audit rechecked every row after integration and found no remaining implementation blocker within this plan.
-Exact consumer commit identity and hosted platform results are recorded on the paired pull request.
+The original programme supplied implementation and regression evidence for all 21 findings.
+Subsequent adversarial checks exposed boundary gaps that the original checks missed.
+The follow-up below records their corrections and the additional evidence.
+Exact tested revisions and hosted platform results are recorded on the paired pull requests.
 
 The reviewed bases are EngArg `c4606e52d9dd07cf0e4e364d0dab30687118682c` and EAL `7bd9948ed242b1173b8331a5c4cee4a158a42722`.
 These base identities describe the starting point and provide no acceptance evidence for the changes.
@@ -60,7 +61,36 @@ An unsafe historical binding is refused.
 Explicit re-export creates a new revision and requires evidence bound to that revision.
 Neither re-export nor reuse changes the original observation age.
 
-## Final acceptance record
+## Boundary follow-up
+
+The follow-up starts at consumer `74af378` and producer `b48a48d`.
+Those identities identify the inspected sources rather than acceptance of the corrections.
+
+| Gap | Implemented correction | Additional evidence |
+| --- | --- | --- |
+| Encoded known credentials | EAL contracts own the bounded sensitive-JSON inspector used by EngArg, EAL host and native Tempo. Ambiguous encoded JSON and exhausted inspection budgets fail safely. Successful semantic responses retain their exact values | Contracts inspector tests, both host suites and native CLI credential tests |
+| Repeated evidence expansion before output admission | Template rows borrow records and stream through bounded escaping. Output failure stops further expansion | `tests/template_expansion.rs` uses a fresh process with 1,500 references to one 64-KiB source. Streaming unit tests and existing presentation suites preserve escaping and complete output |
+| Repeated composition prose in failed-admission inspection | Alternative-route and support-condition lists stream through the same checked sink. Reference-safe inspection retains its admission notice | Fresh-process duplicate-composition regressions preserve inspection and stay within the working allowance |
+| Diagnostic labels expanded before narrative admission | Invalid requests and canonical IDs stop dependent checks. Reading claim and paragraph references admit before narrative policy can reuse their labels | `tests/reference_admission.rs` covers API/CLI refusal, bounded diagnostic volume, all renderers and fresh-process memory probes |
+| Same-ID replacement of an inference endpoint | Retained target context includes direct endpoint propositions for warrants, assumptions and defeaters. Capture follows one hop without traversing dependency closures | Identity tests cover premise/conclusion replacement, support-only updates, missing endpoint admission, changed-relation poisoning and cyclic attachments |
+| Repeated authoritative prompt context | Generated prompts may intern identical complete target contexts into a request-local table when the encoded request shrinks after the added instruction. Every original context remains recoverable in the same request | Independent round-trip tests and the fixed-output token replay in `EVALUATION.md` |
+| Evidence qualification lost by packet projection | EAL preserves unresolved availability when issues were omitted and rejects unknown issue values | Producer packet and model-context suites, including incomplete packet/3 and fallback cases |
+| Reusable path and native admission gaps | EAL canonicalises relative-artifact bases and admits native attribute and UTF-8 path configuration before effects | Producer adapter, configuration and installed collector regressions |
+
+Direct endpoint context preserves represented proposition fields, rather than proving equivalence between rewritten sentences.
+Support status, evidence links, backing and investigation plans can change without replacing those propositions.
+Unknown context from an invalid candidate is filled only when the original target relation is unchanged.
+The known scope remains fixed throughout repair.
+
+The template escaping responsibility is extracted into `render/text.rs`.
+The existing argument-record formatter retains its fourteen-component semantic mapping and uses borrowed display fragments.
+Prompt context interning is a separate private policy with an independent reconstruction check.
+The six-call hybrid topology, provider settings, output schema and repair allowance remain unchanged.
+Replay measures input reference tokens and preserved fixed completions, not live reasoning quality or billed cost.
+Reading-reference defects now use the existing `ReferenceIntegrity` category rather than `NarrativePolicy`.
+Known-reference cases with narrative or composition policy defects remain available for labelled inspection.
+
+## Original programme acceptance record
 
 The immutable EAL producer is `b081ef126bf231bf66be3523870efa39b362229c`.
 Cargo and the compatibility job pin that same revision.

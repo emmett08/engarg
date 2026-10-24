@@ -24,6 +24,17 @@ admission returns `ValidatedArgument`, whose source borrow prevents mutation
 while its index remains in use. The compatible `validate_case` function formats
 the same diagnostics as strings.
 
+Request admission stops before dependent reference checks when it fails.
+Canonical declaration IDs admit before diagnostic labels use them per edge.
+Reading sections must name `current_claim`, `stronger_target` or a declared
+subclaim. Paragraph reference lists admit known distinct canonical IDs before
+narrative policy runs. Unknown reading targets and unknown or repeated paragraph
+references now report the existing `ReferenceIntegrity` category rather than
+`NarrativePolicy`. No diagnostic enum or serialised record changes.
+Consumers classifying invalid reading inputs must handle that corrected category.
+Presentations reject those unsafe references. Reference-safe policy defects,
+such as missing paragraph text or titles, remain eligible for labelled inspection.
+
 The index distinguishes all candidate routes from selected reliance. Selection
 records the author's adequacy judgement and supplies no evidence that the
 judgement is correct. Warrant-specific dependencies include that inference's

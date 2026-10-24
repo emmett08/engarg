@@ -25,6 +25,8 @@ const ASSESSMENT_OUTPUT: &str = r#"ASSESSMENT OUTPUT: Return only the supplied t
 /// present in the same request, so no retrieval or model-authored summary is used.
 pub(crate) const REFERENCE_CONTEXT: &str = r#"REFERENCE CONTEXT: Assessment objection_ids resolve to exact retained_objections entries in this same message, in source order. In draft or candidate_json, original_claim_ref = request.claim means the exact request.claim value. A defeater's challenge_ref names the retained_objections ID supplying its exact challenge. Resolve these references during review and restore literal original_claim and challenge fields in your complete output. All other graph and reading fields are complete. References never remove a condition, objection or evidence requirement. A structured candidate_json is the candidate object, not an escaped JSON string. Validation diagnostics are structural feedback, not empirical evidence. Preserve the authoritative values exactly."#;
 
+pub(crate) const TARGET_CONTEXT_REFERENCES: &str = r#"TARGET CONTEXT REFERENCES: In retained_objections, identity.target_context_ref names the complete authoritative identity.target_context in retained_target_contexts in this same message. Resolve that exact object before checking or restoring scope, target and related_targets. Contexts retain every field and value. These references supply no new evidence and never change an objection's identity or disposition."#;
+
 /// Select a fixed task instruction without permitting evidence to select a role.
 #[must_use]
 pub fn system(role: Role) -> String {

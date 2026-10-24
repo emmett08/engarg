@@ -467,11 +467,16 @@ fn sensitive_values_in_nested_keys_values_and_escaped_text_are_refused_without_r
     let registry = directory.path().join("sensitive.tools.toml");
     fs::write(&registry,"[tools.lab]\nkind='command'\nversion='1'\nargv=['/operator/lab']\ninherit_env=['LAB_API_TOKEN']\n").unwrap();
     let secret = "synthetic-sensitive-proof";
+    let encoded = format!("{{\"evidence\":\"\\u0073{}\"}}", &secret[1..]);
+    let encoded_key = format!("{{\"\\u0073{}\":true}}", &secret[1..]);
     for result in [
         json!({"status":secret}),
         json!({"nested":[{"evidence":secret}]}),
         json!({(secret):"public"}),
         json!({"evidence":format!("\"{secret}\"\n")}),
+        json!({"encoded_evidence": encoded}),
+        json!({(encoded_key): "public"}),
+        json!({"encoded_evidence": serde_json::to_string(&json!({"nested": encoded})).unwrap()}),
     ] {
         let mut envelope = response(result);
         envelope["operation"] = json!("describe");
@@ -486,4 +491,56 @@ fn sensitive_values_in_nested_keys_values_and_escaped_text_are_refused_without_r
         assert!(error.contains("EAL_HOST_CREDENTIAL_LEAK"));
         assert!(!error.contains(secret));
     }
+}
+
+#[test]
+fn response_inspection_exhaustion_and_ambiguous_encoded_json_fail_without_output() {
+    let directory = TempDir::new().unwrap();
+    let registry = directory.path().join("sensitive.tools.toml");
+    fs::write(&registry,"[tools.lab]\nkind='command'\nversion='1'\nargv=['/operator/lab']\ninherit_env=['LAB_API_TOKEN']\n").unwrap();
+    for result in [
+        json!({"evidence":"{\"value\":\"public\",\"value\":\"\\u0073ecret\"}"}),
+        json!({"values": vec![0; 100_001]}),
+    ] {
+        let mut envelope = response(result);
+        envelope["operation"] = json!("describe");
+        let config = mock(&directory, &emit(&envelope, 0));
+        let output = collector_cli(&directory, &config.executable, &registry)
+            .env("LAB_API_TOKEN", "secret")
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(error.contains("EAL_HOST_CREDENTIAL_INSPECTION"));
+        assert!(!error.contains("\\u0073ecret"));
+    }
+}
+
+#[test]
+fn unrelated_json_like_prose_remains_exact_with_sensitive_forwarded_configuration() {
+    let directory = TempDir::new().unwrap();
+    let registry = directory.path().join("sensitive.tools.toml");
+    fs::write(&registry,"[tools.lab]\nkind='command'\nversion='1'\nargv=['/operator/lab']\ninherit_env=['LAB_API_TOKEN']\n").unwrap();
+    let mut expected = response(json!({
+        "[Results]": "[Results] calibration passed",
+        "{draft}": "{draft} awaits measurement",
+        "quotation": "\"An unfinished quotation",
+        "encoded": "{\"public\":true}"
+    }));
+    expected["operation"] = json!("describe");
+    let config = mock(&directory, &emit(&expected, 0));
+    let output = collector_cli(&directory, &config.executable, &registry)
+        .env("LAB_API_TOKEN", "synthetic-sensitive-proof")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+        expected
+    );
 }

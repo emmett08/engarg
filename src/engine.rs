@@ -224,7 +224,7 @@ fn tool_prompt(
 
 fn prompt(
     role: Role,
-    data: Value,
+    mut data: Value,
     schema: Value,
     config: &RunConfig,
 ) -> Result<CompletionRequest, Error> {
@@ -232,6 +232,10 @@ fn prompt(
     if context::uses_references(&data) {
         system.push_str("\n\n");
         system.push_str(prompts::REFERENCE_CONTEXT);
+    }
+    if context::compact_target_contexts(&mut data, prompts::TARGET_CONTEXT_REFERENCES)? {
+        system.push_str("\n\n");
+        system.push_str(prompts::TARGET_CONTEXT_REFERENCES);
     }
     if let Some(depth) = config.max_argument_depth {
         system.push_str(&format!(
@@ -997,6 +1001,58 @@ mod tests {
             assert!(record.response.content.is_empty());
             assert_eq!(record.response_content_sha256.len(), 64);
         }
+    }
+    #[test]
+    fn repeated_contexts_shrink_the_typed_request_with_actual_primer_and_escaping() {
+        let snapshot = json!({
+            "scope":{"configuration":"Quoted \"scope\" \\ path\r\nα\n".repeat(100)},
+            "target":{"id":"W1","rule":"Preserve the exact inference."},
+            "related_targets":{"G1":{"statement":"An exact premise."}}
+        });
+        let original = json!({
+            "request":{"context":{"retained_target_contexts":"literal source data"}},
+            "retained_objections":[
+                {"id":"critic-1","identity":{"target_id":"W1","target_context":snapshot}},
+                {"id":"critic-2","identity":{"target_id":"W1","target_context":snapshot}}
+            ]
+        });
+        let compact = prompt(
+            Role::Adjudicator,
+            original.clone(),
+            case_schema(),
+            &RunConfig {
+                max_argument_depth: Some(2),
+                ..RunConfig::default()
+            },
+        )
+        .unwrap();
+        let instruction = format!("\n\n{}", prompts::TARGET_CONTEXT_REFERENCES);
+        assert_eq!(compact.system.matches(&instruction).count(), 1);
+        let expanded_request = CompletionRequest {
+            role: compact.role,
+            system: compact.system.replacen(&instruction, "", 1),
+            user: serde_json::to_string(&original).unwrap(),
+            schema: compact.schema.clone(),
+        };
+        assert!(
+            serde_json::to_vec(&compact).unwrap().len()
+                < serde_json::to_vec(&expanded_request).unwrap().len()
+        );
+        let mut data: Value = serde_json::from_str(&compact.user).unwrap();
+        let table = data
+            .as_object_mut()
+            .unwrap()
+            .remove("retained_target_contexts")
+            .unwrap();
+        for objection in data["retained_objections"].as_array_mut().unwrap() {
+            let identity = objection["identity"].as_object_mut().unwrap();
+            let reference = identity.remove("target_context_ref").unwrap();
+            identity.insert(
+                "target_context".into(),
+                table[reference.as_str().unwrap()].clone(),
+            );
+        }
+        assert_eq!(data, original);
     }
     #[test]
     fn audit_hash_matches_sha256_known_vector() {
