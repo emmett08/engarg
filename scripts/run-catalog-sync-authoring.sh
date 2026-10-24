@@ -3,7 +3,7 @@
 # Usage: bash scripts/run-catalog-sync-authoring.sh [--check-only] INPUTS.json [CATALOGUE.json]
 # Without a catalogue, use EngArg's built-in artifact_json/http_json_get/custom tools.
 # Preflight accepts tracked changes and needs no Rust tools, host or API key.
-# Full runs need a clean checkout, Rustup and a compatible EAL host with eal-mcp.
+# Full runs need a clean checkout, Rustup and the complete compatible EAL runtime.
 # Authoring, rendering, export and planning do not collect or assess evidence.
 set -euo pipefail
 umask 077
@@ -39,10 +39,16 @@ cd "$repo"
 
 mkdir -p "$repo/engarg-runs"
 run_dir=$(mktemp -d "$repo/engarg-runs/catalog-sync-operator-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+stage='input preflight'
+host_report=''
 on_exit() {
   status=$?
   if [[ $status -ne 0 ]]; then
-    printf 'Run stopped with status %s. Retained artifacts: %s\n' "$status" "$run_dir" >&2
+    printf 'Run stopped with status %s during %s. Retained artifacts: %s\n' "$status" "$stage" "$run_dir" >&2
+    if [[ -n $host_report && -s $host_report ]]; then
+      printf 'Complete EAL host response: %s\n' "$host_report" >&2
+      printf 'Inspect with: python3 -m json.tool %q\n' "$host_report" >&2
+    fi
   fi
 }
 trap on_exit EXIT
@@ -153,6 +159,7 @@ if [[ $check_only -eq 1 ]]; then
 fi
 # A full run identifies its build by commit. Input-only checks remain available
 # while tracked edits are staged or unstaged.
+stage='full-run prerequisites'
 git diff --quiet HEAD -- || fail 'Full runs require a clean tracked checkout. --check-only accepts tracked changes; commit or stash them before inference.'
 model=${ENGARG_MODEL:-gpt-6.1-sol}
 service_tier=${ENGARG_SERVICE_TIER:-default}
@@ -166,6 +173,7 @@ input_bytes=${ENGARG_MAX_INPUT_BYTES:-1048576}
 response_bytes=${ENGARG_MAX_RESPONSE_BYTES:-1048576}
 output_tokens=${ENGARG_MAX_OUTPUT_TOKENS:-65536}
 concurrent=${ENGARG_MAX_CONCURRENT_REQUESTS:-3}
+eal_timeout=${ENGARG_EAL_TIMEOUT_SECS:-30}
 # Set concurrency to 1 to pace the specialists. Request deadlines include queue waits.
 # Three retries permit up to four HTTP attempts per logical call, at most 28 with defaults.
 
@@ -175,21 +183,32 @@ if [[ -z $eal_host ]]; then eal_host=$(command -v eal-host || true); fi
 eal_host=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve())' "$eal_host")
 [[ -f $eal_host && -x $eal_host && -f $(dirname "$eal_host")/eal-mcp && -x $(dirname "$eal_host")/eal-mcp ]] ||
   fail 'eal-host and its sibling eal-mcp must both be regular executable files.'
+# The server resolves its worker and supervisor beside its own physical binary.
+# Follow an operator-installed eal-mcp alias, preserving the runtime's legacy
+# supervisor preference when both companion names are installed.
+eal_runtime_dir=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).with_name("eal-mcp").resolve().parent)' "$eal_host")
+[[ -f $eal_runtime_dir/eal-method-worker && -x $eal_runtime_dir/eal-method-worker ]] ||
+  fail "Missing executable EAL companion: $eal_runtime_dir/eal-method-worker. Install the pinned eal-runtime package; see README.md."
+eal_supervisor="$eal_runtime_dir/eal-process-supervisor"
+if [[ -f $eal_runtime_dir/eal-command-supervisor ]]; then eal_supervisor="$eal_runtime_dir/eal-command-supervisor"; fi
+[[ -f $eal_supervisor && -x $eal_supervisor ]] ||
+  fail "Missing executable EAL companion: $eal_supervisor. Install the pinned EAL runtime/process packages; see README.md."
 : "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
 
+stage='release build'
 cargo build --locked --release --bin engarg --bin engarg-process-supervisor
 target_dir=$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
 engarg_bin="$target_dir/release/engarg"
 [[ -x $engarg_bin && -x $target_dir/release/engarg-process-supervisor ]] || fail 'Release companion binaries are missing.'
 
 python3 - "$run_dir" "$engarg_bin" "$eal_host" "$model" "$service_tier" "$reasoning_effort" \
-  "$max_calls" "$repairs" "$request_timeout" "$run_timeout" "$input_bytes" "$response_bytes" "$output_tokens" "$concurrent" <<'PY'
+  "$max_calls" "$repairs" "$request_timeout" "$run_timeout" "$input_bytes" "$response_bytes" "$output_tokens" "$concurrent" "$eal_timeout" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 directory, executable, host = map(pathlib.Path, sys.argv[1:4])
 def output(*args): return subprocess.check_output(args, text=True).strip()
 record = dict(zip(['model','service_tier','reasoning_effort','max_calls','max_repairs',
     'request_timeout_seconds','run_timeout_seconds','max_input_bytes','max_response_bytes',
-    'max_output_tokens','max_concurrent_requests'], sys.argv[4:]))
+    'max_output_tokens','max_concurrent_requests','eal_timeout_seconds'], sys.argv[4:]))
 record.update(git_commit=output('git','rev-parse','HEAD'), rustc=output('rustc','-vV'),
     engarg_binary_sha256=hashlib.sha256(executable.read_bytes()).hexdigest(),
     eal_host_binary_sha256=hashlib.sha256(host.read_bytes()).hexdigest(),
@@ -202,6 +221,25 @@ record['eal_dependency_sources'] = [dependency['source'] for package in metadata
 (directory/'run-settings.json').write_text(json.dumps(record, indent=2)+'\n')
 PY
 
+# Initialise the actual server and inspect its required authoring interface
+# before any paid inference.
+stage='EAL host startup preflight'
+host_report="$run_dir/eal-preflight.json"
+"$engarg_bin" eal describe --eal-host "$eal_host" --workspace "$run_dir" \
+  --timeout-secs "$eal_timeout" --output "$host_report"
+python3 - "$host_report" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as source:
+    envelope = json.load(source)
+result = envelope.get('result')
+methods = result.get('methods') if isinstance(result, dict) else None
+if (envelope.get('is_error') is not False or not isinstance(result, dict)
+        or result.get('source_syntax') != 'EAL/3'
+        or not isinstance(methods, dict) or 'structured/1' not in methods):
+    raise SystemExit('EAL host preflight requires EAL/3 syntax and the structured/1 method. Install the pinned compatible runtime.')
+PY
+host_report=''
+
 # Append the optional catalogue only when selected. Omitting it preserves the
 # executable's built-in contracts rather than manufacturing an approved file.
 with_catalogue() {
@@ -211,6 +249,7 @@ with_catalogue() {
     "$engarg_bin" "$@"
   fi
 }
+stage='model analysis'
 with_catalogue analyse --input "$run_dir/request.json" \
   --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
   --api responses --api-key-env OPENAI_API_KEY --mode hybrid --argument-depth 2 \
@@ -229,27 +268,38 @@ if report['request'] != expected:
     raise SystemExit('Saved analysis changed the supplied request')
 (directory/'case.json').write_text(json.dumps(report['argument'], indent=2)+'\n')
 PY
+stage='argument validation'
 "$engarg_bin" validate --input "$run_dir/request.json" --case "$run_dir/case.json"
+stage='argument rendering'
 "$engarg_bin" render --input "$run_dir/analysis.json" --format argument --outline-depth 3 --display-depth 2 --output "$run_dir/argument.txt"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format prose --display-depth 2 --output "$run_dir/prose.md"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format html --display-depth 2 --output "$run_dir/argument.html"
+stage='EAL export'
 with_catalogue eal export --input "$run_dir/analysis.json" \
   --export-policy "$run_dir/export-policy.json" \
   --output "$run_dir/argument.eal" --tools-output "$run_dir/argument.tools.toml" --manifest "$run_dir/argument.bundle.json"
 # Prepared stubs are intentionally not passed as an executable registry to the host.
+stage='EAL validation'
+host_report="$run_dir/eal-validation.json"
 "$engarg_bin" eal validate --input "$run_dir/argument.bundle.json" --input-format json \
-  --eal-host "$eal_host" --workspace "$run_dir" --output "$run_dir/eal-validation.json"
+  --eal-host "$eal_host" --workspace "$run_dir" --timeout-secs "$eal_timeout" --output "$host_report"
+stage='EAL evidence planning'
+host_report="$run_dir/evidence-plan.json"
 "$engarg_bin" eal plan --input "$run_dir/argument.bundle.json" --input-format json --claim current_claim \
-  --eal-host "$eal_host" --workspace "$run_dir" --output "$run_dir/evidence-plan.json"
+  --eal-host "$eal_host" --workspace "$run_dir" --timeout-secs "$eal_timeout" --output "$host_report"
+host_report=''
+stage='run summary'
 python3 - "$run_dir" <<'PY'
 import json, pathlib, sys
 directory = pathlib.Path(sys.argv[1])
-for filename in ['eal-validation.json','evidence-plan.json']:
+for filename in ['eal-preflight.json','eal-validation.json','evidence-plan.json']:
     result = json.loads((directory/filename).read_text())
     if result.get('is_error') is not False:
         raise SystemExit('EAL host reported a failed operation: '+filename)
-    if filename == 'eal-validation.json' and result.get('result',{}).get('valid') is not True:
-        raise SystemExit('Exported EAL failed validation')
+    if filename == 'eal-validation.json':
+        validation = result.get('result')
+        if not isinstance(validation, dict) or validation.get('valid') is not True:
+            raise SystemExit('Exported EAL failed validation or returned an unsupported validation envelope: '+filename)
 report = json.loads((directory/'analysis.json').read_text())
 bundle = json.loads((directory/'argument.bundle.json').read_text())
 plan = bundle.get('acquisition_plan') or {}

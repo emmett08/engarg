@@ -92,7 +92,12 @@ and time correspondence require independent review.
 ## Run authoring and deterministic validation
 
 Full runs require a clean tracked checkout, the repository's pinned Rust toolchain
-and a compatible installed `eal-host` with its sibling `eal-mcp`. Build the EAL
+and the complete compatible EAL runtime. The host needs its sibling `eal-mcp`.
+The server needs `eal-method-worker` and its selected supervisor beside its own
+physical executable. It selects `eal-command-supervisor` when that path is a
+regular file, otherwise `eal-process-supervisor`. A nonexecutable legacy
+supervisor remains a setup error even when the fallback executable is present.
+Build the EAL
 host from the revision pinned in `Cargo.toml`, following the
 [installation instructions](../README.md#eal3-export-and-mcp-assessment).
 The host can be on `PATH` or selected explicitly:
@@ -104,8 +109,11 @@ bash scripts/run-catalog-sync-authoring.sh \
   .engarg-local/catalog-sync-operator-20261024T120522Z/collector-inputs.json
 ```
 
-The script builds the EngArg binary and process supervisor, then uses their
-absolute paths. The default model is `gpt-6.1-sol`, with high reasoning effort,
+The script admits the required companions, builds the EngArg binary and process
+supervisor, then checks actual EAL server startup through `eal describe` before
+any paid inference. The retained `eal-preflight.json` must advertise EAL/3 source
+syntax and the `structured/1` method. Executable presence and startup compatibility
+are separate checks. The default model is `gpt-6.1-sol`, with high reasoning effort,
 the Responses API and the default service tier. Six planned model calls plus
 one repair permit seven logical calls. Three HTTP retries allow up to four HTTP
 attempts per logical call. No inference occurs during `--check-only`.
@@ -116,9 +124,57 @@ Environment overrides retain the downloaded script's `ENGARG_MODEL`,
 `ENGARG_MAX_RESPONSE_BYTES`, `ENGARG_MAX_OUTPUT_TOKENS` and
 `ENGARG_MAX_CONCURRENT_REQUESTS`. Freshness policy overrides are
 `ENGARG_REVIEW_MAX_AGE_SECONDS` and `ENGARG_ACQUISITION_MAX_AGE_SECONDS`.
+`ENGARG_EAL_TIMEOUT_SECS` sets the separate host deadline for startup, validation
+and planning, from 1 to 3600 seconds with a default of 30 seconds. The longer model
+and overall analysis deadlines do not change this host deadline.
 
 Each run retains request and input identity, build and binary provenance, the
 analysis audit, all renders, the EAL bundle, validation result, evidence plan and
 `run-summary.json` in a unique private directory. Failures preserve existing run
 artifacts. A passing run means authoring and deterministic planning succeeded;
 `evidence_collected` remains `false`.
+
+## Inspect and retry a host failure
+
+The line `Structural and reporting checks passed` confirms EngArg's domain
+validation. A subsequent EAL host failure belongs to a separate deterministic
+operation. With an output destination, EngArg saves the complete JSON response
+to that file before returning a failure status. The script now names the stage
+and retained response path when it stops.
+
+Inspect the applicable file in the failed run directory:
+
+| File | Operation |
+| --- | --- |
+| `eal-preflight.json` | Server startup and supported syntax/method discovery |
+| `eal-validation.json` | Validation of the exported EAL source |
+| `evidence-plan.json` | Evidence planning for the exported current claim |
+
+For example:
+
+```sh
+run="/absolute/path/to/retained/run"
+python3 -m json.tool "$run/eal-validation.json"
+```
+
+The generic `EAL host reported failure` message alone does not identify the cause.
+Missing runtime companions can close the MCP connection during initialisation.
+Other responses can identify source diagnostics, compatibility problems or a host
+deadline. Inspect the saved response before changing source or resource limits.
+
+Once the cause is corrected, reuse the saved `argument.bundle.json`. Validation
+and planning require no model call or API key. Use a new output directory because
+the CLI preserves existing files:
+
+```sh
+retry=$(mktemp -d "$run/eal-retry-XXXXXX")
+engarg eal validate --input "$run/argument.bundle.json" --input-format json \
+  --eal-host "$ENGARG_EAL_HOST" --workspace "$retry" --timeout-secs 30 \
+  --output "$retry/eal-validation.json"
+engarg eal plan --input "$run/argument.bundle.json" --input-format json \
+  --claim current_claim --eal-host "$ENGARG_EAL_HOST" --workspace "$retry" \
+  --timeout-secs 30 --output "$retry/evidence-plan.json"
+```
+
+Use the EngArg binary recorded in the run or a compatible build. Preserve the
+original analysis and audit when retrying the deterministic operations.
