@@ -1,8 +1,9 @@
 //! Native tool bindings use the consuming collector's exact stdin contract.
 use engarg::{
-    acquisition::{AcquisitionPlan, ToolArgument, override_plans},
+    acquisition::{AcquisitionPlan, ToolArgument, override_plans_with_catalogue},
+    collector_catalogue::CollectorCatalogue,
     domain::{ArgumentCase, Request},
-    eal_acquisition::export_with_plan,
+    eal_acquisition::export_with_catalogue,
 };
 use serde_json::{Value, json};
 use std::{
@@ -16,6 +17,10 @@ fn fixture() -> (Request, ArgumentCase) {
         serde_json::from_str(include_str!("../examples/case.json")).unwrap(),
     )
 }
+fn catalogue() -> CollectorCatalogue {
+    CollectorCatalogue::from_json(include_bytes!("../contracts/collectors/native.json")).unwrap()
+}
+
 fn selected(
     case: &ArgumentCase,
     id: &str,
@@ -78,8 +83,14 @@ fn native_templates_preserve_typed_inputs_and_unresolved_scope() {
             "cluster_count >= 1",
         ),
     ] {
-        let plans = override_plans(&case, &[], vec![selected(&case, id, &args, &unknown)]).unwrap();
-        let result = export_with_plan(&request, &case, &plans).unwrap();
+        let plans = override_plans_with_catalogue(
+            &case,
+            &[],
+            vec![selected(&case, id, &args, &unknown)],
+            Some(&catalogue()),
+        )
+        .unwrap();
+        let result = export_with_catalogue(&request, &case, &plans, Some(&catalogue())).unwrap();
         assert_eq!(input(&result.bundle.source), expected);
         assert!(
             result
@@ -112,13 +123,39 @@ fn native_templates_preserve_typed_inputs_and_unresolved_scope() {
     }
 }
 #[test]
+fn native_ids_require_explicit_catalogue_selection_in_current_exports() {
+    let (request, case) = fixture();
+    for descriptor in catalogue().0.collectors {
+        let plan = AcquisitionPlan {
+            need_id: case.evidence_plan[0].id.clone(),
+            tool_id: descriptor.id.clone(),
+            arguments: Vec::new(),
+            unresolved_arguments: descriptor.parameters.clone(),
+        };
+        assert!(override_plans_with_catalogue(&case, &[], vec![plan.clone()], None).is_err());
+        let plans =
+            override_plans_with_catalogue(&case, &[], vec![plan], Some(&catalogue())).unwrap();
+        assert!(engarg::eal_acquisition::export_with_plan(&request, &case, &plans).is_err());
+        assert!(export_with_catalogue(&request, &case, &plans, Some(&catalogue())).is_ok());
+    }
+}
+
+#[test]
 fn overrides_reject_duplicate_unknown_and_invalid_native_inputs() {
     let (_, case) = fixture();
     let plan = selected(&case, "custom", &[], &["adapter"]);
-    assert!(override_plans(&case, &[], vec![plan.clone(), plan.clone()]).is_err());
+    assert!(
+        override_plans_with_catalogue(
+            &case,
+            &[],
+            vec![plan.clone(), plan.clone()],
+            Some(&catalogue())
+        )
+        .is_err()
+    );
     let mut unknown = plan;
     unknown.need_id = "unknown".into();
-    assert!(override_plans(&case, &[], vec![unknown]).is_err());
+    assert!(override_plans_with_catalogue(&case, &[], vec![unknown], Some(&catalogue())).is_err());
     let mut plan = selected(
         &case,
         "tempo",
@@ -133,13 +170,16 @@ fn overrides_reject_duplicate_unknown_and_invalid_native_inputs() {
         ],
     );
     let request = fixture().0;
-    assert!(override_plans(&case, &[], vec![plan.clone()]).is_err());
+    assert!(
+        override_plans_with_catalogue(&case, &[], vec![plan.clone()], Some(&catalogue())).is_err()
+    );
     plan.arguments[0].value = "1".into();
     assert!(
-        export_with_plan(
+        export_with_catalogue(
             &request,
             &case,
-            &override_plans(&case, &[], vec![plan]).unwrap()
+            &override_plans_with_catalogue(&case, &[], vec![plan], Some(&catalogue())).unwrap(),
+            Some(&catalogue())
         )
         .is_ok()
     );
@@ -247,14 +287,42 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
                 ("end_unix", "2"),
             ],
         };
-        let plan = override_plans(&case, &[], vec![selected(&case, provider, &args, &[])]).unwrap();
-        let exported = export_with_plan(&request, &case, &plan).unwrap();
-        let registry = exported
-            .tools_toml
-            .replace("/REPLACE_EXECUTABLE", fake.to_str().unwrap())
-            .replace("/REPLACE_EXECUTABLE", fake.to_str().unwrap())
-            .replace("/REPLACE_SUPERVISOR", supervisor.to_str().unwrap());
-        std::fs::write(dir.path().join("tools.toml"), registry).unwrap();
+        let plan = override_plans_with_catalogue(
+            &case,
+            &[],
+            vec![selected(&case, provider, &args, &[])],
+            Some(&catalogue()),
+        )
+        .unwrap();
+        let exported = export_with_catalogue(&request, &case, &plan, Some(&catalogue())).unwrap();
+        // Resolve exactly the one selected native acquisition. Review and other
+        // unperformed needs remain prepared stubs and receive no execution grant.
+        let tool = exported.bundle.source_map[&case.evidence_plan[0].id]
+            .declarations
+            .iter()
+            .find(|declaration| declaration.kind == "tool")
+            .expect("native acquisition tool")
+            .name
+            .clone();
+        let mut binding = exported
+            .registry
+            .tools
+            .get(&tool)
+            .expect("native binding")
+            .clone();
+        for argument in &mut binding.argv {
+            *argument = match argument.as_str() {
+                "eal-collector" => collector.to_str().unwrap().to_owned(),
+                "/REPLACE_EXECUTABLE" => fake.to_str().unwrap().to_owned(),
+                "/REPLACE_SUPERVISOR" => supervisor.to_str().unwrap().to_owned(),
+                _ => argument.clone(),
+            };
+        }
+        binding.validate(&tool).expect("resolved native binding");
+        let registry = eal_collector_contracts::CommandRegistry {
+            tools: std::collections::BTreeMap::from([(tool, binding)]),
+        };
+        std::fs::write(dir.path().join("tools.toml"), registry.to_toml().unwrap()).unwrap();
         let bundle = exported.bundle;
         assert_eq!(
             host(

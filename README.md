@@ -397,7 +397,18 @@ GPL-3.0-only licensed. No model service, API access or paid inference is bundled
 
 ### Optional infrastructure collector configuration
 
-Select the native infrastructure catalogue explicitly for new generation. Saved reports naming these older built-in IDs remain exportable through their compatibility contracts. A native binding names the collector command while operator configuration remains incomplete. Replace `REPLACE` paths and selectors in TOML. Kubernetes and GitHub require absolute CLI and `eal-command-supervisor` paths. Kubernetes and Tempo require an absolute approved inventory path. Its JSON contains a nonempty `revision` and a `clusters` array with `id`, `context` and `tempo_cluster` for each declared cluster. Pin the configured files through EAL's `pinned_files` registry support.
+Select the infrastructure catalogue explicitly for generation, overrides and every new export.
+Obtain the versioned descriptors from their EAL owner:
+
+```sh
+eal-collector describe --catalogue-version 2 > .engarg-local/infrastructure.collectors.json
+```
+
+The selected catalogue supplies required inputs, predicates and command templates.
+EngArg applies the same authoring contract to an instrument, retained artifact or infrastructure collector.
+Saved v1 and v2 export bundles retain their original reconstruction rules.
+Re-exporting an older saved report into v3 requires its selected catalogue.
+Resolve operator paths and selectors in the prepared registry before execution, then use EAL registry admission and file pins to validate that execution configuration.
 
 Resolve missing source inputs by overriding evidence-need bindings and re-exporting the saved report. The override file is a JSON array of acquisition-plan records. Omitted needs keep their retained bindings. Each provided `need_id` must identify an existing need exactly once. This changes the acquisition plan and export revision while preserving the canonical argument and performing no model calls.
 
@@ -408,30 +419,28 @@ engarg eal export --input analysis.json \
   --output configured.eal --manifest configured.json
 ```
 
-Each record uses `need_id`, `tool_id`, `arguments` and `unresolved_arguments`. Each supplied argument is a `{ "name": "...", "value": "..." }` object. Available native contracts are:
+Each override record uses `need_id`, `tool_id`, `arguments` and `unresolved_arguments`.
+Each supplied argument is a `{ "name": "...", "value": "..." }` object.
+The selected descriptor defines the names and JSON types admitted for that collector version.
+Unresolved inputs remain explicit preparation requirements.
+The full investigation and acceptance criterion remain in the bundle and independent review input.
 
-| Tool ID | Required argument names | Executed command |
-| --- | --- | --- |
-| `kubernetes` | `inventory`, `resource`, `kind`, `namespace`, `name` | `eal-collector kubernetes` with fixed `kubectl get` selectors for every inventory context |
-| `github` | `repository`, `commit` | `eal-collector github` with `gh api` for the exact 40-character commit |
-| `tempo` | `inventory`, `url`, `kind`, `name`, `cluster_attribute`, `start_unix`, `end_unix` | `eal-collector tempo` using the Tempo HTTP search API |
-
-Native source inputs match these collectors' strict contracts. Kubernetes receives only resource, namespace and name. GitHub receives repository and commit. Tempo receives integer Unix-second bounds. Unresolved source inputs appear as `null` and fail collection until resolved. Tempo windows must be positive and ordered with a maximum span of 86,400 seconds. The full engineering investigation and acceptance criterion remain in the bundle and the review input.
-
-Tempo builds a rollout query with a per-cluster filter and returns trace summaries. An exact unchanged TraceQL expression should use `http_json_get` with its encoded search URL. Inspecting complete spans needs a trace-by-ID read. Empty Tempo results retain an unavailable negative inference. Resource absence remains a measured Kubernetes observation. Neither outcome automatically settles the engineering claim.
+The native collector package documents resource scope, optional metadata and trace-search limitations in [its collector guide](https://github.com/emmett08/eal-mcp/blob/main/docs/collectors.md).
+Successful acquisition records the measurement.
+The argument's acceptance review determines its applicability and sufficiency.
 
 Native Tempo authentication requires operator approval of the exact configured endpoint. Append `--token-env`, `TEMPO_TOKEN` and optionally `--tenant-env`, `TEMPO_TENANT` to its TOML argv after that approval. Forward the selected variables explicitly with `--collector-env TEMPO_TOKEN` and `--collector-env TEMPO_TENANT` during collection. The generated argv initially performs anonymous requests, so a model-proposed endpoint receives no bearer credentials automatically.
 
 Version 0.9 adds an optional `collector_catalogue` field to the public Rust
 `RunConfig`. Struct literals can use `..RunConfig::default()`. Old saved run
 configurations deserialize with no selected external catalogue. Current planning
-then exposes the three neutral adapters. Older recorded native bindings remain
-exportable through the pinned compatibility catalogue.
+then exposes the three neutral adapters. Older saved reports require explicit catalogue selection when re-exported.
+Historical export bundles remain reconstructible through their frozen readers.
 
-New EAL bundles use `engarg.eal-export/2` and a separate projection semantics
+New EAL bundles use `engarg.eal-export/3` and a separate projection semantics
 version. The package version records producer provenance. An unrelated package
-release therefore preserves the projected source identity. Version 1 bundles
-are reconstructed under their recorded producer version and original rules.
+release therefore preserves the projected source identity. Version 1 and 2 bundles
+are reconstructed through frozen readers under their original identity rules.
 Changing source bytes or collector contracts changes evidence identity and
 requires observations bound to that revised source and configuration.
 
@@ -440,3 +449,17 @@ The `eal-compatibility` CI job builds the exact EAL revision named in
 runs every installed producer–consumer test, including the laboratory collector.
 Missing companion binaries fail that job. EAL repository workflows remain
 manually triggered.
+
+### Version 0.10 migration
+
+Rendering APIs return `Result` and enforce explicit resource budgets.
+See [the presentation API](docs/PRESENTATION_API.md).
+Export v3 stores structural acquisition plans and a resolved freshness policy.
+Pass `--export-policy policy.json` to `eal export` or `eal prepare` to choose review and acquisition ages.
+See [the translation contract](docs/EAL_MAPPING.md) and [the remediation record](docs/REMEDIATION.md).
+Operator configuration values remain sensitive by default.
+Use `--public-collector-env NAME` only for public configuration already selected by `--collector-env NAME`.
+Credential names and bearer tokens retain sensitive treatment.
+Known sensitive values in semantic host output cause a safe failure.
+Unresolved prepared registry paths require operator resolution before execution.
+The installed `engarg-process-supervisor` companion supplies bounded process execution and is installed with EngArg.

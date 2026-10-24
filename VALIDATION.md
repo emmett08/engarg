@@ -47,7 +47,7 @@ Version 0.9.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Collector catalogue | Neutral default adapters and operator-selected scientific schemas checked. Typed arrays/integers, local schema references, nulls, unresolved inputs, reserved IDs and bounded windows covered |
 | Preparation | Each need retains its adapter and scope. Seven private files and exact structured reviews replace source reparsing, comment substitutions and global infrastructure configuration |
 | Versioned identity | Actual v1 custom/native/HTTP bundles admitted through the real host. V2 identity remains stable across producer-only version changes and changes when selected contracts change |
-| Credential and file boundaries | Registry-declared custom environment names work only when requested. Responses redact their values. Registry and scoped-input FIFOs and leaf symlinks fail before reading |
+| Credential and file boundaries | Registry-declared custom environment names work only when requested. Known sensitive values in semantic responses fail safely. Explicit public configuration preserves its exact value. FIFOs and untrusted leaf aliases fail regular-file admission. Operator registry aliases select a canonical target |
 | Producer–consumer CI | Pinned EAL producer catalogue compared as JSON. Every external test fails on missing prerequisites when selected by the mandatory compatibility job |
 | Plain argument view | Sentence-line records preserve claim qualifiers, composition, nested conditions, inference types, investigations, shared arguments and bounded indentation |
 | Schema preservation | Canonical request/case schemas preserved. RunConfig adds an optional selected catalogue. EAL export v2 separates producer and projection identity, while v1 source-bound bundles remain readable |
@@ -151,3 +151,36 @@ The domain graph, provider and argument-presentation responsibilities remain in
 EngArg. Generic EAL request/observation contracts and optional collector discovery
 are owned by the EAL workspace. These changes preserve measured negatives,
 failed collection and unavailable conclusions as distinct results.
+
+## File admission policy
+
+Public input boundaries check an opened regular file and enforce their byte
+allowance before parsing. On POSIX, untrusted leaf aliases are rejected with
+non-following, non-blocking opens. Parent-directory aliases resolve to a selected
+canonical parent. The operator tools registry has an explicit compatibility
+exception. Its leaf alias resolves once and the canonical target is passed to
+the host. Retargeting the original alias does not change that selected path.
+
+| Input | Byte allowance |
+| --- | --- |
+| Analysis request | Explicit `--max-input-bytes`, positive and configurable |
+| Validation request and case | 1 MiB each |
+| Saved rendering report | 16 MiB |
+| EAL report, source, acquisition-plan override and context | 16 MiB each |
+| Collector catalogue at every CLI boundary | 1 MiB |
+| Operator tools registry | 1 MiB |
+| Scoped inputs and retained import/review inputs | 1 MiB each |
+| Delegated retained artifacts | 1 MiB each with a separate 4 MiB aggregate allowance |
+
+`tests/file_admission.rs` exercises public CLI boundaries with sparse oversized
+files, exact limits, malformed and non-UTF-8 inputs, directories, missing files,
+FIFOs and FIFO aliases. Direct reader checks cover empty files and parent aliases.
+Its parent watchdog terminates a blocked test process so a regression cannot
+stall the test runner indefinitely.
+
+The analysis deadline begins before file admission and the remaining budget is
+checked before provider execution. Regular-file admission bounds allocation and
+rejects unsupported special files. It cannot pre-empt every operating-system
+filesystem stall. Path-identity checks also do not establish immutable contents
+during a concurrent in-place write. Observation pins and correspondence checks
+remain separate requirements.

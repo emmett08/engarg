@@ -34,58 +34,18 @@ pub struct PlannedArgument {
     pub acquisition_plan: Vec<AcquisitionPlan>,
 }
 
-#[derive(Serialize)]
-struct ToolSpec {
-    id: &'static str,
-    purpose: &'static str,
-    arguments: &'static [&'static str],
-}
-
-const TOOLS: &[ToolSpec] = &[
-    ToolSpec {
-        id: "artifact_json",
-        purpose: "Read explicitly supplied, digest-checked retained JSON artifacts for the exact evidence need. Missing artifacts fail collection; existence does not establish acceptance.",
-        arguments: &["inputs"],
-    },
-    ToolSpec {
-        id: "scoped_json",
-        purpose: "Read Kubernetes Application JSON or exact Grafana Tempo search/full traces using an operator-owned inputs file. Unresolved selectors fail before I/O; scope and interpretation require independent review.",
-        arguments: &["inputs"],
-    },
-    ToolSpec {
-        id: "kubectl_get",
-        purpose: "Read Kubernetes resource JSON",
-        arguments: &["context", "namespace", "resource", "name"],
-    },
-    ToolSpec {
-        id: "gh_api_get",
-        purpose: "Read a GitHub REST API JSON endpoint",
-        arguments: &["endpoint"],
-    },
-    ToolSpec {
-        id: "http_json_get",
-        purpose: "Read an HTTP JSON endpoint",
-        arguments: &["url"],
-    },
-    ToolSpec {
-        id: "custom",
-        purpose: "A custom collection or independent review adapter",
-        arguments: &["adapter"],
-    },
-];
+const CUSTOM_ARGUMENTS: &[&str] = &["adapter"];
 
 /// Required named inputs for the fixed collector catalogue.
 ///
 /// The executable and transport remain operator configuration. A catalogue ID
 /// describes a prospective adapter rather than granting execution authority.
 pub fn required_arguments(tool_id: &str) -> Option<&'static [&'static str]> {
-    if let Some(tool) = crate::legacy_native_collectors::spec(tool_id) {
-        return Some(tool.parameters);
+    if tool_id == "custom" {
+        Some(CUSTOM_ARGUMENTS)
+    } else {
+        eal_adapters::profiles::get(tool_id).map(|profile| profile.arguments)
     }
-    TOOLS
-        .iter()
-        .find(|tool| tool.id == tool_id)
-        .map(|tool| tool.arguments)
 }
 
 /// Compact planning catalogue. It deliberately contains no executable paths or credentials.
@@ -94,11 +54,14 @@ pub fn catalogue() -> Value {
 }
 
 pub fn catalogue_with(selected: Option<&CollectorCatalogue>) -> Value {
-    let mut tools: Vec<Value> = TOOLS
+    // EngArg owns which neutral capabilities appear in its default authoring flow.
+    // The adapter owner supplies each capability's actual contract.
+    let mut tools: Vec<Value> = eal_adapters::profiles::ALL
         .iter()
-        .filter(|tool| matches!(tool.id, "artifact_json" | "http_json_get" | "custom"))
-        .map(|tool| serde_json::to_value(tool).expect("catalogue serialises"))
+        .filter(|profile| matches!(profile.id, "artifact_json" | "http_json_get"))
+        .map(|profile| profile.planning_view())
         .collect();
+    tools.push(json!({"id":"custom","purpose":"A custom collection or independent review adapter","arguments":CUSTOM_ARGUMENTS}));
     if let Some(selected) = selected {
         tools.extend(
             selected
@@ -151,7 +114,7 @@ pub fn validate(case: &ArgumentCase, plans: &[AcquisitionPlan]) -> Vec<String> {
     validate_with_catalogue(case, plans, None)
 }
 
-/// Validate a recorded plan. Legacy built-in IDs remain readable for existing reports.
+/// Validate a current plan against neutral defaults and an explicitly selected catalogue.
 pub fn validate_with_catalogue(
     case: &ArgumentCase,
     plans: &[AcquisitionPlan],
@@ -177,7 +140,8 @@ pub fn validate_with_catalogue(
         let descriptor = selected.and_then(|catalogue| catalogue.get(&plan.tool_id));
         let required = descriptor
             .map(|tool| {
-                tool.parameters
+                tool.0
+                    .parameters
                     .iter()
                     .map(String::as_str)
                     .collect::<Vec<_>>()
@@ -195,15 +159,6 @@ pub fn validate_with_catalogue(
         {
             errors.push(format!(
                 "acquisition plan {} has invalid input {error}",
-                plan.need_id
-            ));
-        }
-        if descriptor.is_none()
-            && let Some(tool) = crate::legacy_native_collectors::spec(&plan.tool_id)
-            && let Err(error) = tool.input(plan)
-        {
-            errors.push(format!(
-                "acquisition plan {} has invalid native input {error}",
                 plan.need_id
             ));
         }

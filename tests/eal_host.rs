@@ -29,6 +29,7 @@ fn mock(directory: &TempDir, script: &str) -> HostConfig {
         database: None,
         registry: None,
         collector_env: Vec::new(),
+        public_collector_env: Vec::new(),
         url: None,
         token_env: None,
         timeout: Duration::from_secs(2),
@@ -82,7 +83,10 @@ async fn preserves_exact_json_and_passes_explicit_server_configuration() {
     assert_eq!(received, request);
     assert_eq!(received["test_number"].to_string(), integer);
     let actual_args = fs::read_to_string(args).unwrap();
-    let actual_args: Vec<_> = actual_args.lines().collect();
+    let mut actual_args: Vec<_> = actual_args.lines().collect();
+    let remaining: f64 = actual_args[7].parse().unwrap();
+    assert!(remaining > 0.0 && remaining <= 2.0);
+    actual_args[7] = "2";
     let canonical_workspace = config.workspace.canonicalize().unwrap();
     let canonical_registry = registry.canonicalize().unwrap();
     assert_eq!(
@@ -279,7 +283,7 @@ async fn rejects_unsafe_urls_and_invalid_deadlines_before_spawning() {
 }
 
 #[tokio::test]
-async fn redacts_the_named_bearer_token_from_host_diagnostics() {
+async fn refuses_the_named_bearer_token_in_any_host_response() {
     // Reuse a process-owned variable without modifying the global environment.
     let token = std::env::var("PATH").unwrap();
     if token.is_empty() || !token.bytes().all(|b| (33..=126).contains(&b)) {
@@ -290,11 +294,11 @@ async fn redacts_the_named_bearer_token_from_host_diagnostics() {
     let mut config = mock(&directory, &emit(&envelope, 2));
     config.url = Some("http://127.0.0.1:9123/mcp".to_owned());
     config.token_env = Some("PATH".to_owned());
-    let result = invoke(&config, &json!({"operation":"validate"}))
+    let error = invoke(&config, &json!({"operation":"validate"}))
         .await
-        .unwrap();
-    assert_eq!(result["error"], "token was [REDACTED]");
-    assert!(!result.to_string().contains(&token));
+        .unwrap_err();
+    assert!(error.to_string().contains("EAL_HOST_CREDENTIAL_LEAK"));
+    assert!(!error.to_string().contains(&token));
 }
 
 fn collector_cli(directory: &TempDir, host: &Path, registry: &Path) -> Command {
@@ -311,7 +315,7 @@ fn collector_cli(directory: &TempDir, host: &Path, registry: &Path) -> Command {
 }
 
 #[test]
-fn operator_registry_can_forward_and_redact_a_domain_specific_credential() {
+fn operator_registry_forwards_credentials_but_refuses_them_in_semantic_output() {
     let directory = TempDir::new().unwrap();
     let secret = "synthetic-laboratory-api-credential";
     let mut envelope = response(json!({"diagnostic":format!("collector received {secret}")}));
@@ -336,16 +340,9 @@ fn operator_registry_can_forward_and_redact_a_domain_specific_credential() {
         )
         .output()
         .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(
-        result["result"]["diagnostic"],
-        "collector received [REDACTED]"
-    );
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("EAL_HOST_CREDENTIAL_LEAK"));
     assert!(!String::from_utf8_lossy(&output.stdout).contains(secret));
     assert!(!String::from_utf8_lossy(&output.stderr).contains(secret));
 }
@@ -421,5 +418,72 @@ fn malformed_or_oversized_environment_registries_fail_before_host_execution() {
         assert!(!output.status.success());
         assert!(!marker.exists());
         assert!(output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn operator_public_configuration_preserves_assessment_state_and_sensitive_configuration_refuses_leakage()
+ {
+    let directory = TempDir::new().unwrap();
+    let registry = directory.path().join("public.tools.toml");
+    fs::write(&registry,"[tools.lab]\nkind='command'\nversion='1'\nargv=['/operator/lab']\ninherit_env=['LAB_MODE']\n").unwrap();
+    let mut envelope = response(json!({"status":"supported"}));
+    envelope["operation"] = json!("describe");
+    let host = mock(&directory, &emit(&envelope, 0));
+    for public in [false, true] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
+        command
+            .args(["eal", "describe", "--workspace"])
+            .arg(directory.path())
+            .arg("--eal-host")
+            .arg(&host.executable)
+            .arg("--tools")
+            .arg(&registry)
+            .args(["--collector-env", "LAB_MODE"])
+            .env("LAB_MODE", "supported");
+        if public {
+            command.args(["--public-collector-env", "LAB_MODE"]);
+        }
+        let output = command.output().unwrap();
+        assert_eq!(
+            output.status.success(),
+            public,
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if public {
+            let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(result["result"]["status"], "supported");
+        } else {
+            assert!(output.stdout.is_empty());
+            assert!(String::from_utf8_lossy(&output.stderr).contains("EAL_HOST_CREDENTIAL_LEAK"));
+        }
+    }
+}
+
+#[test]
+fn sensitive_values_in_nested_keys_values_and_escaped_text_are_refused_without_rewriting() {
+    let directory = TempDir::new().unwrap();
+    let registry = directory.path().join("sensitive.tools.toml");
+    fs::write(&registry,"[tools.lab]\nkind='command'\nversion='1'\nargv=['/operator/lab']\ninherit_env=['LAB_API_TOKEN']\n").unwrap();
+    let secret = "synthetic-sensitive-proof";
+    for result in [
+        json!({"status":secret}),
+        json!({"nested":[{"evidence":secret}]}),
+        json!({(secret):"public"}),
+        json!({"evidence":format!("\"{secret}\"\n")}),
+    ] {
+        let mut envelope = response(result);
+        envelope["operation"] = json!("describe");
+        let config = mock(&directory, &emit(&envelope, 0));
+        let output = collector_cli(&directory, &config.executable, &registry)
+            .env("LAB_API_TOKEN", secret)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(error.contains("EAL_HOST_CREDENTIAL_LEAK"));
+        assert!(!error.contains(secret));
     }
 }

@@ -3,18 +3,19 @@
 //! These views preserve recorded assessments. Formatting does not establish the
 //! truth of a claim or the semantic fidelity of a model-authored paragraph.
 
-use crate::argument_depth::ClaimDepths;
-use crate::domain::{
-    ArgumentCase, DefeaterStatus, Request, SupportComposition, SupportRelationship, Warrant,
-    relied_dependency_closure,
-};
+use crate::domain::{ArgumentCase, Request, SupportComposition, SupportRelationship, Warrant};
 use std::{
     collections::{HashSet, VecDeque},
     fmt::Write,
 };
 
+mod budget;
 mod plain;
-pub use plain::{plain_lines, plain_lines_with_depth};
+mod view;
+pub(crate) use budget::BoundedText;
+pub use budget::{RenderError, RenderLimits};
+pub use plain::{plain_lines, plain_lines_with_depth, plain_lines_with_limits};
+pub(crate) use view::{Attachment, Condition, PresentationView};
 
 fn label<T: serde::Serialize>(value: &T) -> String {
     serde_json::to_value(value)
@@ -70,22 +71,12 @@ fn md_reference(id: &str) -> String {
     format!("[{}](#{})", inline(id), anchor(id))
 }
 
-fn claim<'a>(case: &'a ArgumentCase, id: &str) -> Option<(&'a str, &'a str)> {
-    match id {
-        "current_claim" => Some((&case.current_claim.text, &case.current_claim.qualifier)),
-        "stronger_target" => Some((&case.stronger_target.text, &case.stronger_target.qualifier)),
-        _ => case
-            .subclaims
-            .iter()
-            .find(|item| item.id == id)
-            .map(|item| (item.text.as_str(), item.qualifier.as_str())),
-    }
+fn claim<'a>(view: &PresentationView<'a>, id: &str) -> Option<(&'a str, &'a str)> {
+    view.claim(id)
 }
 
-fn composition<'a>(case: &'a ArgumentCase, id: &str) -> Option<&'a SupportComposition> {
-    case.compositions
-        .iter()
-        .find(|item| item.conclusion_id == id)
+fn composition<'a>(view: &PresentationView<'a>, id: &str) -> Option<&'a SupportComposition> {
+    view.composition(id)
 }
 
 fn relationship(value: SupportRelationship) -> &'static str {
@@ -96,10 +87,10 @@ fn relationship(value: SupportRelationship) -> &'static str {
     }
 }
 
-fn selection(case: &ArgumentCase, warrant: &Warrant) -> &'static str {
-    match composition(case, &warrant.conclusion_id) {
-        Some(item) if item.selected_warrant_ids.contains(&warrant.id) => "relied-upon route",
-        Some(_) => "candidate route, not selected for reliance",
+fn selection(view: &PresentationView<'_>, warrant: &Warrant) -> &'static str {
+    match view.selected(warrant) {
+        Some(true) => "relied-upon route",
+        Some(false) => "candidate route, not selected for reliance",
         None => "reliance relationship not declared",
     }
 }
@@ -111,80 +102,48 @@ fn claim_ids(case: &ArgumentCase) -> Vec<&str> {
         .collect()
 }
 
-/// Use the same declared reliance route as the domain assessment.
-fn conditions(case: &ArgumentCase, root: &str) -> Vec<String> {
-    let closure = relied_dependency_closure(case, root);
-    let mut result = Vec::new();
-    for assumption in &case.assumptions {
-        if assumption.critical && closure.contains(&assumption.id) {
-            result.push(format!(
+/// Consequential conditions use the shared selected-dependency semantics.
+fn conditions<'a>(view: &PresentationView<'a>, root: &'a str) -> Vec<String> {
+    view.conditions(root)
+        .into_iter()
+        .map(|condition| match condition {
+            Condition::Assumption(a) => format!(
                 "Critical condition {} ({}): {}",
-                assumption.id,
-                label(&assumption.status),
-                assumption.statement
-            ));
-        }
-    }
-    for defeater in &case.defeaters {
-        if defeater.material
-            && closure.contains(&defeater.id)
-            && matches!(
-                defeater.status,
-                DefeaterStatus::Open | DefeaterStatus::Sustained
-            )
-        {
-            result.push(format!(
+                a.id,
+                label(&a.status),
+                a.statement
+            ),
+            Condition::Challenge(d) => format!(
                 "Outstanding challenge {} ({}): {}",
-                defeater.id,
-                label(&defeater.status),
-                defeater.challenge
-            ));
-        }
-    }
-    result
+                d.id,
+                label(&d.status),
+                d.challenge
+            ),
+        })
+        .collect()
 }
 
-fn direct_notes(case: &ArgumentCase, id: &str) -> Vec<String> {
-    let mut result = Vec::new();
-    for assumption in &case.assumptions {
-        if assumption.applies_to.iter().any(|target| target == id) {
-            result.push(format!(
-                "{}Assumption {} ({}): {} Check: {}",
-                if assumption.critical { "Critical " } else { "" },
-                assumption.id,
-                label(&assumption.status),
-                assumption.statement,
-                assumption.validation
-            ));
-        }
-    }
-    for defeater in &case.defeaters {
-        if defeater.target_id == id {
-            result.push(format!(
-                "{}Challenge {} — {} ({}; {}): {} Response: {}",
-                if defeater.material { "Material " } else { "" },
-                defeater.id,
-                label(&defeater.kind),
-                label(&defeater.basis),
-                label(&defeater.status),
-                defeater.challenge,
-                defeater.response
-            ));
-        }
-    }
-    result
+fn direct_notes(view: &PresentationView<'_>, id: &str) -> Vec<String> {
+    let Some(id) = view.canonical_id(id) else {
+        return Vec::new();
+    };
+    view.attachment_walk(id, &mut HashSet::new()).into_iter().map(|attachment| match attachment {
+        Attachment::Assumption(a) => format!("{}Assumption {} ({}): {} Check: {}", if a.critical { "Critical " } else { "" }, a.id, label(&a.status), a.statement, a.validation),
+        Attachment::Challenge(d) => format!("{}Challenge {} — {} ({}; {}): {} Response: {}", if d.material { "Material " } else { "" }, d.id, label(&d.kind), label(&d.basis), label(&d.status), d.challenge, d.response),
+        Attachment::Investigation(n) => format!("Investigation {} targets {} and could strengthen {}. Question: {} Method: {} Measurement: {} Comparator: {} Acceptance criterion: {} Adverse result: {} Priority: {}. Cost: {}", n.id, n.target_id, n.enables_claim, n.question, n.method, n.measurement, n.comparator, n.acceptance_criterion, n.if_failed, n.priority, n.cost),
+    }).collect()
 }
 
 struct Outline<'a> {
-    case: &'a ArgumentCase,
-    text: String,
+    text: BoundedText,
+    view: PresentationView<'a>,
     max_depth: usize,
     display_depth: Option<u8>,
-    depths: ClaimDepths<'a>,
     printed_claims: HashSet<String>,
     expanded_claims: HashSet<String>,
     printed_grounds: HashSet<String>,
     deferred: VecDeque<String>,
+    queued: HashSet<String>,
 }
 
 impl Outline<'_> {
@@ -193,16 +152,16 @@ impl Outline<'_> {
     }
 
     fn defer(&mut self, id: &str) {
-        if self.depths.visible(id, self.display_depth)
+        if self.view.depths.visible(id, self.display_depth)
             && !self.expanded_claims.contains(id)
-            && !self.deferred.iter().any(|queued| queued == id)
+            && self.queued.insert(id.to_owned())
         {
             self.deferred.push_back(id.to_owned());
         }
     }
 
-    fn claim(&mut self, id: &str, level: usize) {
-        let Some((text, qualifier)) = claim(self.case, id) else {
+    fn claim(&mut self, id: &'_ str, level: usize) {
+        let Some((text, qualifier)) = claim(&self.view, id) else {
             return;
         };
         if !self.printed_claims.insert(id.to_owned()) {
@@ -225,8 +184,11 @@ impl Outline<'_> {
                 inline(qualifier)
             ),
         );
-        let notes = conditions(self.case, id);
-        if !self.depths.visible(id, self.display_depth) {
+        let notes = conditions(
+            &self.view,
+            self.view.canonical_id(id).unwrap_or("current_claim"),
+        );
+        if !self.view.depths.visible(id, self.display_depth) {
             for note in notes {
                 self.line(level, &inline(&note));
             }
@@ -262,7 +224,7 @@ impl Outline<'_> {
         if !self.expanded_claims.insert(id.to_owned()) {
             return;
         }
-        if let Some(item) = composition(self.case, id) {
+        if let Some(item) = composition(&self.view, id) {
             self.line(
                 level,
                 &format!(
@@ -274,23 +236,21 @@ impl Outline<'_> {
         } else {
             self.line(level, "Supporting-argument relationship: not declared.");
         }
-        let warrants: Vec<_> = self
-            .case
-            .warrants
-            .iter()
-            .filter(|warrant| warrant.conclusion_id == id)
-            .collect();
+        for note in direct_notes(&self.view, id) {
+            self.line(level, &inline(&note));
+        }
+        let warrants = self.view.warrants(id).to_vec();
         if warrants.is_empty() {
             self.line(level, "No attached warrant is recorded.");
         }
         for warrant in warrants {
-            self.line(level, &format!("<a id=\"{}\"></a>**ARG-{} — Warrant {}:** {} **Premises jointly required:** {}. Route: {}. Applicability: {}", anchor(&warrant.id), inline(&warrant.id), inline(&warrant.id), inline(&warrant.rule), warrant.premise_ids.iter().map(|id| md_reference(id)).collect::<Vec<_>>().join(", "), selection(self.case, warrant), inline(&warrant.applicability)));
+            self.line(level, &format!("<a id=\"{}\"></a>**ARG-{} — Warrant {}:** {} **Premises jointly required:** {}. Route: {}. Applicability: {}", anchor(&warrant.id), inline(&warrant.id), inline(&warrant.id), inline(&warrant.rule), warrant.premise_ids.iter().map(|id| md_reference(id)).collect::<Vec<_>>().join(", "), selection(&self.view, warrant), inline(&warrant.applicability)));
             let note_level = if level + 1 < self.max_depth {
                 level + 1
             } else {
                 level
             };
-            for note in direct_notes(self.case, &warrant.id) {
+            for note in direct_notes(&self.view, &warrant.id) {
                 self.line(note_level, &inline(&note));
             }
             if !warrant.backing_evidence_ids.is_empty() {
@@ -308,8 +268,8 @@ impl Outline<'_> {
                 );
             }
             for premise in &warrant.premise_ids {
-                if claim(self.case, premise).is_some() {
-                    if !self.depths.visible(premise, self.display_depth) {
+                if claim(&self.view, premise).is_some() {
+                    if !self.view.depths.visible(premise, self.display_depth) {
                         self.claim(premise, note_level);
                     } else if detached || level + 1 >= self.max_depth {
                         self.line(
@@ -320,12 +280,7 @@ impl Outline<'_> {
                     } else {
                         self.claim(premise, level + 1);
                     }
-                } else if let Some(ground) = self
-                    .case
-                    .grounds
-                    .iter()
-                    .find(|ground| ground.id == *premise)
-                {
+                } else if let Some(ground) = self.view.ground(premise) {
                     if self.printed_grounds.insert(ground.id.clone()) {
                         self.line(
                             note_level,
@@ -347,7 +302,7 @@ impl Outline<'_> {
                                 }
                             ),
                         );
-                        for note in direct_notes(self.case, &ground.id) {
+                        for note in direct_notes(&self.view, &ground.id) {
                             self.line(note_level, &inline(&note));
                         }
                     } else {
@@ -364,32 +319,54 @@ impl Outline<'_> {
 
 /// One claim per line, with stated support relationships and bounded indentation.
 /// Deeper support is retained in separate shallow records rather than discarded.
-#[must_use]
-pub fn outline(request: &Request, case: &ArgumentCase, max_depth: usize) -> String {
+pub fn outline(
+    request: &Request,
+    case: &ArgumentCase,
+    max_depth: usize,
+) -> Result<String, RenderError> {
     outline_with_depth(request, case, max_depth, None)
 }
 
 /// Limit detailed claim levels without altering the graph or its assessments.
 /// Boundary claims keep their qualification and consequential conditions.
-#[must_use]
 pub fn outline_with_depth(
     request: &Request,
     case: &ArgumentCase,
     max_depth: usize,
     display_depth: Option<u8>,
-) -> String {
-    let mut output = Outline {
+) -> Result<String, RenderError> {
+    outline_with_limits(
+        request,
         case,
-        text: String::new(),
+        max_depth,
+        display_depth,
+        RenderLimits::default(),
+    )
+}
+
+pub fn outline_with_limits(
+    request: &Request,
+    case: &ArgumentCase,
+    max_depth: usize,
+    display_depth: Option<u8>,
+    limits: RenderLimits,
+) -> Result<String, RenderError> {
+    let view = PresentationView::new(request, case, limits)?;
+    let mut output = Outline {
+        text: BoundedText::new(limits.max_output_bytes),
+        view,
         max_depth: max_depth.clamp(1, 6),
         display_depth,
-        depths: ClaimDepths::new(case),
         printed_claims: HashSet::new(),
         expanded_claims: HashSet::new(),
         printed_grounds: HashSet::new(),
         deferred: VecDeque::new(),
+        queued: HashSet::new(),
     };
     writeln!(output.text, "# Working argument outline\n\nRequested claim: {}\n\nCurrent assessment: **{}**. {}\n\nScope: {} Configuration: {} Operating conditions: {} Time horizon: {}\n", inline(&request.claim), label(&case.status), inline(&case.adjudication), inline(&case.scope.system_boundary), inline(&case.scope.configuration), inline(&case.scope.operating_conditions), inline(&case.scope.time_horizon)).unwrap();
+    if let Some(notice) = output.view.inspection_notice() {
+        writeln!(output.text, "> {}\n", inline(&notice)).unwrap();
+    }
     if let Some(depth) = display_depth {
         writeln!(output.text, "Detailed claim levels: {depth}. Deeper supporting records are collapsed in this view. The canonical JSON retains the complete graph.\n").unwrap();
     }
@@ -408,7 +385,7 @@ pub fn outline_with_depth(
         if output.expanded_claims.contains(&id) {
             continue;
         }
-        if let Some((text, qualifier)) = claim(case, &id) {
+        if let Some((text, qualifier)) = claim(&output.view, &id) {
             if output.printed_claims.insert(id.clone()) {
                 writeln!(
                     output.text,
@@ -419,7 +396,10 @@ pub fn outline_with_depth(
                     inline(qualifier)
                 )
                 .unwrap();
-                for note in conditions(case, &id) {
+                for note in conditions(
+                    &output.view,
+                    output.view.canonical_id(&id).unwrap_or("current_claim"),
+                ) {
                     output.line(0, &inline(&note));
                 }
             } else {
@@ -438,36 +418,49 @@ pub fn outline_with_depth(
     for evidence in &request.evidence {
         writeln!(output.text, "- <a id=\"{}\"></a>**{}:** {} Source: {}. Kind: {}. Checked by user: {}. Finding supplied: {}", anchor(&evidence.id), inline(&evidence.id), inline(&evidence.title), inline(&evidence.source), inline(&evidence.kind), evidence.checked_by_user, inline(&evidence.excerpt)).unwrap();
     }
-    output.text
+    output.view.finish()?;
+    output.text.finish()
 }
 
 /// Connected, model-authored paragraphs with canonical references. Each section
 /// appears once; the renderer adds no measurements or inferred support status.
-#[must_use]
-pub fn prose(request: &Request, case: &ArgumentCase) -> String {
+pub fn prose(request: &Request, case: &ArgumentCase) -> Result<String, RenderError> {
     prose_with_depth(request, case, None)
 }
 
 /// A reading view with a bounded set of detailed claim sections. Parent prose
 /// is never rewritten, and outstanding relied-upon conditions remain explicit.
-#[must_use]
 pub fn prose_with_depth(
     request: &Request,
     case: &ArgumentCase,
     display_depth: Option<u8>,
-) -> String {
-    let depths = ClaimDepths::new(case);
-    let mut output = format!(
+) -> Result<String, RenderError> {
+    prose_with_limits(request, case, display_depth, RenderLimits::default())
+}
+
+pub fn prose_with_limits(
+    request: &Request,
+    case: &ArgumentCase,
+    display_depth: Option<u8>,
+    limits: RenderLimits,
+) -> Result<String, RenderError> {
+    let view = PresentationView::new(request, case, limits)?;
+    let depths = &view.depths;
+    let mut output = BoundedText::new(limits.max_output_bytes);
+    write!(output,
         "# Engineering assessment\n\n> Canonical current claim: {}\n>\n> Qualification: {}\n>\n> Current assessment: **{}**.\n",
         inline(&case.current_claim.text),
         inline(&case.current_claim.qualifier),
         label(&case.status)
-    );
+    ).unwrap();
+    if let Some(notice) = view.inspection_notice() {
+        writeln!(output, "\n> {}\n", inline(&notice)).unwrap();
+    }
     if let Some(depth) = display_depth {
         writeln!(output, "\nDetailed claim levels: {depth}. Deeper supporting sections are omitted from this view and retained in the canonical JSON.\n").unwrap();
-        for condition in conditions(case, "current_claim") {
-            writeln!(output, "{}\n", inline(&condition)).unwrap();
-        }
+    }
+    for condition in conditions(&view, "current_claim") {
+        writeln!(output, "{}\n", inline(&condition)).unwrap();
     }
     let mut sections: Vec<_> = case.reading.iter().collect();
     sections.sort_by_key(|section| usize::from(section.claim_id != "current_claim"));
@@ -494,13 +487,11 @@ pub fn prose_with_depth(
                 inline(&case.stronger_target.qualifier)
             )
             .unwrap();
-            if display_depth.is_some() {
-                for condition in conditions(case, "stronger_target") {
-                    writeln!(output, "{}\n", inline(&condition)).unwrap();
-                }
+            for condition in conditions(&view, "stronger_target") {
+                writeln!(output, "{}\n", inline(&condition)).unwrap();
             }
         } else if section.claim_id != "current_claim"
-            && let Some((_, qualifier)) = claim(case, &section.claim_id)
+            && let Some((_, qualifier)) = claim(&view, &section.claim_id)
         {
             writeln!(output, "Qualification: {}\n", inline(qualifier)).unwrap();
         }
@@ -527,10 +518,8 @@ pub fn prose_with_depth(
             inline(&case.stronger_target.qualifier)
         )
         .unwrap();
-        if display_depth.is_some() {
-            for condition in conditions(case, "stronger_target") {
-                writeln!(output, "{}\n", inline(&condition)).unwrap();
-            }
+        for condition in conditions(&view, "stronger_target") {
+            writeln!(output, "{}\n", inline(&condition)).unwrap();
         }
     }
     writeln!(output, "## Limits on reliance\n").unwrap();
@@ -551,48 +540,66 @@ pub fn prose_with_depth(
         )
         .unwrap();
     }
-    output
+    view.finish()?;
+    output.finish()
 }
 
 fn html_reference(id: &str) -> String {
     format!("<a href=\"#{}\">{}</a>", anchor(id), escape_html(id))
 }
 
-fn html_notes(output: &mut String, case: &ArgumentCase, id: &str) {
-    for note in direct_notes(case, id) {
+fn html_notes(output: &mut BoundedText, view: &PresentationView<'_>, id: &str) {
+    for note in direct_notes(view, id) {
         write!(output, "<p class=\"condition\">{}</p>", escape_html(&note)).unwrap();
     }
 }
 
 /// Self-contained expandable graph. Dynamic strings are text, never markup,
 /// scripts, style, source URLs or attribute values supplied by an agent.
-#[must_use]
-pub fn html(request: &Request, case: &ArgumentCase) -> String {
+pub fn html(request: &Request, case: &ArgumentCase) -> Result<String, RenderError> {
     html_with_depth(request, case, None)
 }
 
 /// Omit deeper claim bodies and reading sections while keeping their summaries,
 /// canonical anchors, qualifications and consequential unresolved conditions.
-#[must_use]
 pub fn html_with_depth(
     request: &Request,
     case: &ArgumentCase,
     display_depth: Option<u8>,
-) -> String {
-    let depths = ClaimDepths::new(case);
-    let mut output = String::from(
+) -> Result<String, RenderError> {
+    html_with_limits(request, case, display_depth, RenderLimits::default())
+}
+
+pub fn html_with_limits(
+    request: &Request,
+    case: &ArgumentCase,
+    display_depth: Option<u8>,
+    limits: RenderLimits,
+) -> Result<String, RenderError> {
+    let view = PresentationView::new(request, case, limits)?;
+    let depths = &view.depths;
+    let mut output = BoundedText::new(limits.max_output_bytes);
+    output.push_str(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'\"><title>Engineering argument</title><style>body{font:17px/1.6 system-ui,sans-serif;max-width:72rem;margin:auto;padding:2rem;color:#17212e;background:#f7f9fc}h1,h2,h3{line-height:1.2}details{background:white;border:1px solid #bac8d8;border-radius:.5rem;padding:1rem;margin:1rem 0}summary{cursor:pointer;font-weight:600}summary span{display:block}.qualifier,.condition{font-weight:400;color:#3c4c60}.condition{border-left:3px solid #a56b18;padding-left:.75rem}.relation{background:#edf3fb;padding:.6rem}a{color:#174a87}article{border-top:1px solid #ccd5e0;padding:1rem 0}.references{font-size:.9rem;color:#46596c}section{margin:2rem 0}li{margin:.5rem 0}</style></head><body><main><h1>Engineering argument</h1>",
     );
+    if let Some(notice) = view.inspection_notice() {
+        write!(
+            output,
+            "<aside role=\"note\" class=\"condition\">{}</aside>",
+            escape_html(&notice)
+        )
+        .unwrap();
+    }
     write!(output, "<p><strong>Current assessment: {}.</strong> {}</p><p>Requested claim: {}</p><p>Scope: {} Configuration: {} Operating conditions: {} Time horizon: {}</p><nav><a href=\"#argument-view\">Expandable argument view</a> · <a href=\"#reading-view\">Connected reading</a> · <a href=\"#sources\">Sources</a></nav><section id=\"argument-view\"><h2>Expandable argument view</h2>", escape_html(&label(&case.status)), escape_html(&case.adjudication), escape_html(&request.claim), escape_html(&case.scope.system_boundary), escape_html(&case.scope.configuration), escape_html(&case.scope.operating_conditions), escape_html(&case.scope.time_horizon)).unwrap();
     if let Some(depth) = display_depth {
         write!(output, "<p>Detailed claim levels: {depth}. Deeper claim bodies and reading sections are omitted from this view. Summaries, conditions and investigation registers remain visible. The canonical JSON retains the complete graph.</p>").unwrap();
     }
     for id in claim_ids(case) {
-        let Some((text, qualifier)) = claim(case, id) else {
+        let Some((text, qualifier)) = claim(&view, id) else {
             continue;
         };
         write!(output, "<details id=\"{}\"><summary><span>{} — {}</span><span class=\"qualifier\">Qualification: {}</span>", anchor(id), escape_html(id), escape_html(text), escape_html(qualifier)).unwrap();
-        if let Some(item) = composition(case, id) {
+        if let Some(item) = composition(&view, id) {
             write!(
                 output,
                 "<span class=\"qualifier\">{}. Selected route(s): {}.</span>",
@@ -605,7 +612,7 @@ pub fn html_with_depth(
             )
             .unwrap();
         }
-        for condition in conditions(case, id) {
+        for condition in conditions(&view, id) {
             write!(
                 output,
                 "<span class=\"condition\">{}</span>",
@@ -618,7 +625,7 @@ pub fn html_with_depth(
             output.push_str("<p>Supporting detail collapsed by display-depth; retained in the canonical JSON.</p></details>");
             continue;
         }
-        if let Some(item) = composition(case, id) {
+        if let Some(item) = composition(&view, id) {
             write!(
                 output,
                 "<p class=\"relation\"><strong>{}.</strong> {}</p>",
@@ -629,15 +636,11 @@ pub fn html_with_depth(
         } else {
             output.push_str("<p>Supporting-argument relationship: not declared.</p>");
         }
-        html_notes(&mut output, case, id);
-        for warrant in case
-            .warrants
-            .iter()
-            .filter(|warrant| warrant.conclusion_id == id)
-        {
-            write!(output, "<article id=\"{}\"><h3>ARG-{} — Warrant {}</h3><p>{}</p><p>Route: {}. Inference: {}.</p><p>Applicability: {}</p><p><strong>Premises jointly required:</strong></p><ul>", anchor(&warrant.id), escape_html(&warrant.id), escape_html(&warrant.id), escape_html(&warrant.rule), selection(case, warrant), escape_html(&label(&warrant.inference)), escape_html(&warrant.applicability)).unwrap();
+        html_notes(&mut output, &view, id);
+        for warrant in view.warrants(id).iter().copied() {
+            write!(output, "<article id=\"{}\"><h3>ARG-{} — Warrant {}</h3><p>{}</p><p>Route: {}. Inference: {}.</p><p>Applicability: {}</p><p><strong>Premises jointly required:</strong></p><ul>", anchor(&warrant.id), escape_html(&warrant.id), escape_html(&warrant.id), escape_html(&warrant.rule), selection(&view, warrant), escape_html(&label(&warrant.inference)), escape_html(&warrant.applicability)).unwrap();
             for premise in &warrant.premise_ids {
-                if let Some((text, qualifier)) = claim(case, premise) {
+                if let Some((text, qualifier)) = claim(&view, premise) {
                     write!(
                         output,
                         "<li>{} — {} Qualification: {}</li>",
@@ -646,9 +649,7 @@ pub fn html_with_depth(
                         escape_html(qualifier)
                     )
                     .unwrap();
-                } else if let Some(ground) =
-                    case.grounds.iter().find(|ground| ground.id == *premise)
-                {
+                } else if let Some(ground) = view.ground(premise) {
                     write!(
                         output,
                         "<li>{} — {} ({})</li>",
@@ -673,7 +674,7 @@ pub fn html_with_depth(
                 )
                 .unwrap();
             }
-            html_notes(&mut output, case, &warrant.id);
+            html_notes(&mut output, &view, &warrant.id);
             output.push_str("</article>");
         }
         output.push_str("</details>");
@@ -699,7 +700,7 @@ pub fn html_with_depth(
             }
         )
         .unwrap();
-        html_notes(&mut output, case, &ground.id);
+        html_notes(&mut output, &view, &ground.id);
         output.push_str("</article>");
     }
     output.push_str("</section><section id=\"reading-view\"><h2>Connected reading</h2>");
@@ -724,7 +725,7 @@ pub fn html_with_depth(
         if section.claim_id == "stronger_target" {
             write!(output, "<aside class=\"claim-summary\"><p><strong>Canonical stronger target:</strong> {}</p><p class=\"qualifier\">Qualification: {}</p></aside>", escape_html(&case.stronger_target.text), escape_html(&case.stronger_target.qualifier)).unwrap();
         } else if section.claim_id != "current_claim"
-            && let Some((_, qualifier)) = claim(case, &section.claim_id)
+            && let Some((_, qualifier)) = claim(&view, &section.claim_id)
         {
             write!(
                 output,
@@ -771,5 +772,6 @@ pub fn html_with_depth(
         write!(output,"<article id=\"{}\"><h3>{} — Priority {}</h3><p>{}</p><p>Target: {}. Enables claim: {}.</p><p>Method: {}</p><p>Measurement: {}</p><p>Comparator: {}</p><p>Acceptance criterion: {}</p><p>If it fails: {}</p><p>Effort: {}</p></article>",anchor(&need.id),escape_html(&need.id),need.priority,escape_html(&need.question),html_reference(&need.target_id),html_reference(&need.enables_claim),escape_html(&need.method),escape_html(&need.measurement),escape_html(&need.comparator),escape_html(&need.acceptance_criterion),escape_html(&need.if_failed),escape_html(&need.cost)).unwrap();
     }
     output.push_str("</section></main></body></html>");
-    output
+    view.finish()?;
+    output.finish()
 }

@@ -22,7 +22,7 @@ fn escaped(value: &str) -> String {
 #[test]
 fn outline_explains_shared_claim_once_and_states_parent_child_relationships() {
     let (request, case) = fixtures();
-    let output = presentations::outline(&request, &case, 3);
+    let output = presentations::outline(&request, &case, 3).unwrap();
     assert_eq!(output.matches(&case.subclaims[0].text).count(), 1);
     assert!(output.contains("See [S1]"));
     assert!(output.contains("Jointly required supporting arguments"));
@@ -53,7 +53,7 @@ fn alternative_and_cumulative_support_are_explicitly_distinguished() {
         .unwrap();
     composition.relationship = SupportRelationship::AlternativeRoutes;
     composition.selected_warrant_ids = vec![original.id.clone()];
-    let output = presentations::outline(&request, &case, 3);
+    let output = presentations::outline(&request, &case, 3).unwrap();
     assert!(output.contains("Alternative supporting arguments"));
     assert!(output.contains("candidate route, not selected for reliance"));
     assert!(output.contains("relied-upon route"));
@@ -63,7 +63,9 @@ fn alternative_and_cumulative_support_are_explicitly_distinguished() {
         .unwrap()
         .relationship = SupportRelationship::Cumulative;
     assert!(
-        presentations::outline(&request, &case, 3).contains("Cumulative evidence and arguments")
+        presentations::outline(&request, &case, 3)
+            .unwrap()
+            .contains("Cumulative evidence and arguments")
     );
 }
 
@@ -99,7 +101,7 @@ fn outline_depth_limits_indentation_and_retains_deeper_argument_records() {
         .find(|item| item.conclusion_id == "current_claim")
         .unwrap()
         .premise_ids = vec!["Deep149".into()];
-    let output = presentations::outline(&request, &case, 2);
+    let output = presentations::outline(&request, &case, 2).unwrap();
     assert!(output.contains("Separate argument records"));
     assert!(output.contains("Deep claim 149."));
     assert!(output.contains("Deep claim 0."));
@@ -115,7 +117,7 @@ fn outline_depth_limits_indentation_and_retains_deeper_argument_records() {
 #[test]
 fn collapsed_html_summaries_retain_qualifiers_and_consequential_conditions() {
     let (request, case) = fixtures();
-    let output = presentations::html(&request, &case);
+    let output = presentations::html(&request, &case).unwrap();
     let first_summary = output
         .split_once("<summary>")
         .unwrap()
@@ -147,7 +149,7 @@ fn html_escapes_content_and_never_uses_supplied_source_as_a_link() {
     case.reading[0].paragraphs[0].text = attack.into();
     request.evidence[0].source = "javascript:alert(3)".into();
     request.evidence[0].excerpt = attack.into();
-    let output = presentations::html(&request, &case);
+    let output = presentations::html(&request, &case).unwrap();
     assert!(!output.contains("<script>"));
     assert!(!output.contains("<img"));
     assert!(!output.contains("href=\"javascript:"));
@@ -164,7 +166,7 @@ fn prose_preserves_authored_paragraphs_with_references_and_no_fabricated_measure
     // unvalidated record is passed directly to this presentation function.
     let section = case.reading[1].clone();
     case.reading.push(section.clone());
-    let output = presentations::prose(&request, &case);
+    let output = presentations::prose(&request, &case).unwrap();
     for paragraph in &section.paragraphs {
         assert_eq!(output.matches(&paragraph.text).count(), 1);
         assert!(output.contains(&format!(
@@ -188,7 +190,7 @@ fn authored_target_is_explained_once_with_its_canonical_conditions_beside_it() {
         .unwrap();
     target.title = "Whether the performance target is warranted".into();
     let paragraphs = target.paragraphs.clone();
-    let output = presentations::prose(&request, &case);
+    let output = presentations::prose(&request, &case).unwrap();
     assert!(!output.contains("## Stronger conditional target\n"));
     assert_eq!(
         output
@@ -201,7 +203,7 @@ fn authored_target_is_explained_once_with_its_canonical_conditions_beside_it() {
     for paragraph in &paragraphs {
         assert_eq!(output.matches(&paragraph.text).count(), 1);
     }
-    let html = presentations::html(&request, &case);
+    let html = presentations::html(&request, &case).unwrap();
     let reading = html
         .split_once("<section id=\"reading-view\">")
         .unwrap()
@@ -235,13 +237,13 @@ fn target_without_authored_section_still_has_one_explicit_scope_and_qualificatio
     let (request, mut case) = fixtures();
     case.reading
         .retain(|section| section.claim_id != "stronger_target");
-    let output = presentations::prose(&request, &case);
+    let output = presentations::prose(&request, &case).unwrap();
     assert_eq!(
         output.matches("## Stronger conditional target\n").count(),
         1
     );
     assert_eq!(output.matches(&case.stronger_target.text).count(), 1);
-    let html = presentations::html(&request, &case);
+    let html = presentations::html(&request, &case).unwrap();
     let reading = html
         .split_once("<section id=\"reading-view\">")
         .unwrap()
@@ -279,15 +281,15 @@ fn display_depth_omits_deeper_details_without_changing_the_graph_or_hiding_condi
         .find(|w| w.conclusion_id == "S1")
         .unwrap();
     let deeper_reading = case.reading.iter().find(|s| s.claim_id == "S1").unwrap();
-    let outline = presentations::outline_with_depth(&request, &case, 3, Some(1));
+    let outline = presentations::outline_with_depth(&request, &case, 3, Some(1)).unwrap();
     assert!(!outline.contains(&format!("ARG-{} — Warrant", deeper_warrant.id)));
     assert!(outline.contains("Supporting detail collapsed by display-depth"));
     assert!(outline.contains("Qualification:"));
     assert!(outline.contains(&case.current_claim.qualifier));
     assert!(outline.contains(&case.assumptions[0].statement));
     assert!(outline.contains(&case.defeaters[0].challenge));
-    let prose = presentations::prose_with_depth(&request, &case, Some(1));
-    let html = presentations::html_with_depth(&request, &case, Some(1));
+    let prose = presentations::prose_with_depth(&request, &case, Some(1)).unwrap();
+    let html = presentations::html_with_depth(&request, &case, Some(1)).unwrap();
     assert!(!prose.contains(&deeper_reading.paragraphs[0].text));
     assert!(!html.contains(&escaped(&deeper_reading.paragraphs[0].text)));
     for output in [&prose, &html] {
@@ -297,7 +299,7 @@ fn display_depth_omits_deeper_details_without_changing_the_graph_or_hiding_condi
         assert!(output.contains(&case.defeaters[0].challenge));
     }
     assert!(!html.contains(&format!("<h4>ARG-{}", deeper_warrant.id)));
-    let full = presentations::outline_with_depth(&request, &case, 3, Some(2));
+    let full = presentations::outline_with_depth(&request, &case, 3, Some(2)).unwrap();
     assert!(full.contains(&format!("ARG-{} — Warrant", deeper_warrant.id)));
     assert_eq!(serde_json::to_value(&case).unwrap(), before);
 }

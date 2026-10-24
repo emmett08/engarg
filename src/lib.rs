@@ -12,6 +12,7 @@ pub mod eal_host;
 pub mod eal_observe;
 pub mod eal_prepare;
 pub mod engine;
+pub mod export_policy;
 pub mod presentations;
 pub mod prompts;
 pub mod provider;
@@ -21,9 +22,18 @@ pub mod scoped_collectors;
 pub mod trace_inspection;
 
 mod argument_depth;
-mod bounded_file;
+pub mod bounded_file;
 mod collector_registry;
 mod legacy_native_collectors;
+// Frozen persisted projection readers deliberately retain their historical rules.
+#[allow(dead_code)]
+mod legacy_acquisition;
+#[allow(dead_code)]
+mod legacy_catalogue;
+#[allow(dead_code)]
+mod legacy_export;
+#[allow(dead_code)]
+mod legacy_plans;
 mod output_validation;
 
 /// Errors distinguish invalid arguments from transport and resource failures.
@@ -41,4 +51,16 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+}
+
+impl From<eal_adapters::Error> for Error {
+    fn from(error: eal_adapters::Error) -> Self {
+        match error {
+            eal_adapters::Error::InvalidInput(message) => Self::InvalidInput(message),
+            eal_adapters::Error::Provider(message) => Self::Provider(message),
+            eal_adapters::Error::Budget(message) => Self::Budget(message),
+            eal_adapters::Error::Io(error) => Self::Io(error),
+            eal_adapters::Error::Json(error) => Self::Json(error),
+        }
+    }
 }

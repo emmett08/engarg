@@ -2,7 +2,7 @@
 
 EngArg exports an authored engineering argument into EAL/3. The result is a structural projection with explicit review obligations. It is suitable for inspection and EAL assessment after admissible observations have been collected. Conversion alone supplies neither those observations nor a proof of the natural-language argument.
 
-The integration is verified against [eal-mcp revision 48fe2186974f2281a45914c3b41e1cdcb16a5147](https://github.com/emmett08/eal-mcp/tree/48fe2186974f2281a45914c3b41e1cdcb16a5147). EngArg invokes that project's official `eal-host`, which negotiates MCP with `eal-mcp`. This reuses its tool-schema validation, authentication and exact-number handling rather than maintaining another MCP implementation.
+The integration uses the immutable EAL producer revision pinned in `Cargo.toml` and `.github/workflows/ci.yml`. EngArg invokes that project's official `eal-host`, which negotiates MCP with `eal-mcp`. This reuses its tool-schema validation, authentication and exact-number handling rather than maintaining another MCP implementation.
 
 ## Representation
 
@@ -25,7 +25,7 @@ An objection that relies on a critical assumption receives an auxiliary premise 
 
 Source identity, ground interpretation, warrant adequacy, assumption validation, composition adequacy, challenge activation and consequential challenge resolution are separate review contracts. Each requires `accepted == true` from its own observation. `engarg_review_contract` declares an interface. It does not install a collector or create a trusted reviewer.
 
-Review contracts use an explicit 86,400-second maximum age. This is an export policy for the review observations, not a claim that the original artefacts expire daily. The generated context digest binds observations to the authored case revision. It does not establish that the real environment meets the declared conditions. Review-policy changes require a reviewed revision of the exporter and a new assessment.
+Review and acquisition ages are separately configured through `--export-policy` and resolved into export v3. The initial default for each is 86,400 seconds. Ages must be positive seconds through 315,360,000. Zero is rejected. `acquisition_per_need` overrides named needs, and persisted policy records the effective age of every need. The digest binds policy, plans, catalogue and authoring profile to the case revision. Changing policy creates a new revision and requires evidence bound to that revision. Source artefacts retain their original observation age.
 
 ## Identity and preservation
 
@@ -69,8 +69,8 @@ EngArg adapters use `collected == true`. Native fleet collectors use `cluster_co
 
 Known resolved adapters use command bindings to `engarg eal observe`. The generated registry supplies fixed argv and explicit environment-name allowlists. The model supplies named data arguments rather than an executable. Kubernetes collection uses an explicit context and resource scope with a fixed `get` operation. GitHub collection uses a relative API path and a fixed GET method. HTTP collection follows no redirects. Bearer tokens require an operator-authorised exact HTTPS origin. Command stderr and remote error bodies stay outside error messages. Adapters bound acquisition to 60 seconds and raw JSON to 1 MiB. Registry limits allow 65 seconds and 4 MiB for the full envelope including its bound request.
 
-Custom collectors and independent reviews have `command` implementation stubs with explicit replacement executable paths. Known collectors keep their executable templates while scope inputs remain unresolved. EAL still supports explicitly configured `json_file` imports. Imported records require `value`, `observed_at`, `context` and the exact acquisition `request`.
+Prepared registries can contain explicit replacement paths for unresolved custom collectors and reviews. Executable registry admission rejects these paths, including unused bindings. An operator resolves the required bindings or supplies a registry containing only the independently configured bindings selected for execution. Known collectors keep their executable templates while scope inputs remain unresolved. EAL still supports explicitly configured `json_file` imports. Imported records require `value`, `observed_at`, `context` and the exact acquisition `request`.
 
 `eal collect` invokes the official host's `collect_claim` operation only on explicit operator request. `--tools` resolves to the host's `--registry` flag for local collection. `--collector-env` passes only supported explicitly named collector variables. Remote collection uses the remote server's own registry and credential configuration. Analysis and conversion perform no acquisition. Both source and TOML companions participate in the existing exclusive-create and rollback transaction.
 
-`EXTRACTED` acquisition policy, observation adapters and plain sentence-line rendering each have a cohesive module. `RETAINED` the fixed workflow still owns dependency ordering and the pure EAL builder still owns declaration order and semantic projection. This feature extends the existing adapter boundary and requires no new generic agent framework or production crate.
+Acquisition request contracts, bounded subprocess execution and reusable adapters have separate EAL-owned packages. EngArg owns evidence-need mapping and the pure EAL projection. The runtime owns correspondence and reuse. The language core depends on none of the infrastructure packages.

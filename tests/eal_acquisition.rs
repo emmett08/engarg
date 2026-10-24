@@ -322,7 +322,7 @@ fn host_call(
 /// Set ENGARG_EAL_HOST to the actual eal-host with its sibling server and companions.
 #[test]
 #[ignore = "requires the pinned EAL producer; mandatory compatibility CI supplies it"]
-fn upstream_accepts_the_paired_registry_and_missing_stubs_supply_no_evidence() {
+fn upstream_refuses_prepared_stubs_and_missing_bindings_supply_no_evidence() {
     let binary =
         std::env::var_os("ENGARG_EAL_HOST").expect("compatibility test requires ENGARG_EAL_HOST");
     let (request, case) = fixtures();
@@ -330,6 +330,16 @@ fn upstream_accepts_the_paired_registry_and_missing_stubs_supply_no_evidence() {
     let workspace = tempfile::tempdir().unwrap();
     std::fs::write(workspace.path().join("tools.toml"), &artifacts.tools_toml).unwrap();
     let bundle = artifacts.bundle;
+    let (rejected, diagnostic) = host_call(
+        &binary,
+        workspace.path(),
+        json!({"operation":"validate","source":bundle.source}),
+    );
+    assert!(
+        !rejected.status.success(),
+        "prepared selections must be refused before execution: {diagnostic}"
+    );
+    std::fs::write(workspace.path().join("tools.toml"), "[tools]\n").unwrap();
     let (output, validation) = host_call(
         &binary,
         workspace.path(),
@@ -406,12 +416,9 @@ fn upstream_accepts_the_paired_registry_and_missing_stubs_supply_no_evidence() {
     )
     .unwrap();
     // Explicit operator substitution with a file collector is supported by EAL.
-    let mut registry = artifacts.tools_toml;
-    let start = registry.find(&format!("[tools.{tool}]\n")).unwrap();
-    let end = registry[start + 1..]
-        .find("[tools.")
-        .map_or(registry.len(), |offset| start + 1 + offset);
-    registry.replace_range(start..end, &format!("[tools.{tool}]\nkind = \"json_file\"\nversion = \"1\"\npath = \"observations/{evidence}.json\"\n\n"));
+    let registry = format!(
+        "[tools.{tool}]\nkind = \"json_file\"\nversion = \"1\"\npath = \"observations/{evidence}.json\"\n"
+    );
     std::fs::write(workspace.path().join("tools.toml"), registry).unwrap();
     let (output, collected) = host_call(
         &binary,
@@ -480,7 +487,23 @@ fn upstream_accepts_the_paired_registry_and_missing_stubs_supply_no_evidence() {
             unresolved_arguments: Vec::new(),
         };
         let artifacts = export_with_plan(&request, &case, &plans).unwrap();
-        std::fs::write(workspace.path().join("tools.toml"), artifacts.tools_toml).unwrap();
+        let tool = declaration(
+            &artifacts.bundle,
+            &case.evidence_plan[0].id,
+            "planned_acquisition_tool",
+        )
+        .to_owned();
+        let registry = eal_collector_contracts::CommandRegistry {
+            tools: std::collections::BTreeMap::from([(
+                tool.clone(),
+                artifacts.registry.tools[&tool].clone(),
+            )]),
+        };
+        std::fs::write(
+            workspace.path().join("tools.toml"),
+            registry.to_toml().unwrap(),
+        )
+        .unwrap();
         let (output, validation) = host_call(
             &binary,
             workspace.path(),
@@ -494,4 +517,54 @@ fn upstream_accepts_the_paired_registry_and_missing_stubs_supply_no_evidence() {
             "{tool_id}: {validation}"
         );
     }
+}
+
+#[test]
+fn compatibility_binding_metadata_comes_from_the_adapter_owner() {
+    use engarg::{
+        acquisition::{AcquisitionPlan, override_plans},
+        eal_acquisition::export_with_plan,
+    };
+    let request: engarg::domain::Request =
+        serde_json::from_str(include_str!("../examples/request.json")).unwrap();
+    let case: engarg::domain::ArgumentCase =
+        serde_json::from_str(include_str!("../examples/case.json")).unwrap();
+    for profile in eal_adapters::profiles::ALL {
+        let plans = override_plans(
+            &case,
+            &[],
+            vec![AcquisitionPlan {
+                need_id: case.evidence_plan[0].id.clone(),
+                tool_id: profile.id.into(),
+                arguments: Vec::new(),
+                unresolved_arguments: profile
+                    .arguments
+                    .iter()
+                    .map(|name| (*name).to_owned())
+                    .collect(),
+            }],
+        )
+        .unwrap();
+        let exported = export_with_plan(&request, &case, &plans).unwrap();
+        let tool = &exported.bundle.source_map[&case.evidence_plan[0].id]
+            .declarations
+            .iter()
+            .find(|declaration| declaration.kind == "tool")
+            .unwrap()
+            .name;
+        let binding = &exported.registry.tools[tool];
+        assert_eq!(binding.version, profile.version);
+        assert_eq!(binding.inherit_env, profile.inherit_env);
+        assert_eq!(binding.timeout_seconds, profile.timeout_seconds);
+        assert_eq!(binding.max_output_bytes, profile.max_output_bytes);
+        assert_eq!(binding.parallel_safe, profile.parallel_safe);
+    }
+    let defaults = engarg::acquisition::catalogue();
+    let ids: Vec<_> = defaults
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["artifact_json", "http_json_get", "custom"]);
 }

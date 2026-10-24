@@ -4,6 +4,7 @@
 //! not been supplied rather than filling evidential gaps with generated findings.
 
 use crate::domain::{ArgumentCase, Assumption, Defeater, EvidenceNeed, Request, Warrant};
+use crate::presentations::{BoundedText, PresentationView, RenderError, RenderLimits};
 use std::collections::BTreeSet;
 use std::fmt::Write;
 
@@ -32,7 +33,7 @@ fn prose(value: &str) -> String {
     cell(value).replace("<br>", " ")
 }
 
-fn row(s: &mut String, values: &[&str]) {
+fn row(s: &mut BoundedText, values: &[&str]) {
     s.push('|');
     for value in values {
         write!(s, " {} |", cell(value)).unwrap();
@@ -40,7 +41,7 @@ fn row(s: &mut String, values: &[&str]) {
     s.push('\n');
 }
 
-fn table(s: &mut String, headers: &[&str]) {
+fn table(s: &mut BoundedText, headers: &[&str]) {
     row(s, headers);
     row(s, &vec!["---"; headers.len()]);
 }
@@ -53,20 +54,11 @@ fn joined(values: &[String]) -> String {
     }
 }
 
-fn claim<'a>(case: &'a ArgumentCase, id: &str) -> (&'a str, &'a str) {
-    match id {
-        "current_claim" => (&case.current_claim.text, &case.current_claim.qualifier),
-        "stronger_target" => (&case.stronger_target.text, &case.stronger_target.qualifier),
-        _ => case
-            .subclaims
-            .iter()
-            .find(|c| c.id == id)
-            .map(|c| (c.text.as_str(), c.qualifier.as_str()))
-            .unwrap_or((
-                "Claim reference is absent from this assessment.",
-                "Not assessed.",
-            )),
-    }
+fn claim<'a>(view: &PresentationView<'a>, id: &str) -> (&'a str, &'a str) {
+    view.claim(id).unwrap_or((
+        "Claim reference is absent from this assessment.",
+        "Not assessed.",
+    ))
 }
 
 fn claim_assessment(case: &ArgumentCase, id: &str) -> String {
@@ -77,12 +69,8 @@ fn claim_assessment(case: &ArgumentCase, id: &str) -> String {
     }
 }
 
-fn composition_text(case: &ArgumentCase, conclusion: &str) -> String {
-    match case
-        .compositions
-        .iter()
-        .find(|c| c.conclusion_id == conclusion)
-    {
+fn composition_text(view: &PresentationView<'_>, conclusion: &str) -> String {
+    match view.composition(conclusion) {
         Some(c) => format!(
             "Relationship: {}. Selected warrants: {}. Model assessment rationale: {} Selection records a judgement; its adequacy requires the referenced reasoning and evidence.",
             label(&c.relationship),
@@ -97,12 +85,12 @@ fn composition_text(case: &ArgumentCase, conclusion: &str) -> String {
     }
 }
 
-fn evidence_summary(request: &Request, ids: &[String]) -> String {
+fn evidence_summary(view: &PresentationView<'_>, ids: &[String]) -> String {
     if ids.is_empty() {
         return "No supporting evidence reference supplied.".into();
     }
     ids.iter()
-        .map(|id| match request.evidence.iter().find(|e| &e.id == id) {
+        .map(|id| match view.evidence(id) {
             Some(e) => format!(
                 "{id}: {}. Source/location: {}. Kind: {}. User asserts checking: {}.",
                 e.title, e.source, e.kind, e.checked_by_user
@@ -113,57 +101,21 @@ fn evidence_summary(request: &Request, ids: &[String]) -> String {
         .join(" ")
 }
 
-fn node_description(case: &ArgumentCase, request: &Request, id: &str) -> String {
-    if let Some(g) = case.grounds.iter().find(|g| g.id == id) {
+fn node_description(view: &PresentationView<'_>, id: &str) -> String {
+    if let Some(g) = view.ground(id) {
         format!(
             "{id}: {} Status: {}. {}",
             g.statement,
             label(&g.status),
-            evidence_summary(request, &g.evidence_ids)
+            evidence_summary(view, &g.evidence_ids)
         )
     } else {
-        let (text, qualifier) = claim(case, id);
+        let (text, qualifier) = claim(view, id);
         format!("{id}: {text} Qualifier: {qualifier}")
     }
 }
 
-/// Premises imported by one inference, without pulling in sibling warrants.
-fn inference_nodes(case: &ArgumentCase, warrant: &Warrant) -> BTreeSet<String> {
-    let mut nodes = BTreeSet::from([warrant.id.clone(), warrant.conclusion_id.clone()]);
-    let mut pending = warrant.premise_ids.clone();
-    while let Some(id) = pending.pop() {
-        if !nodes.insert(id.clone()) {
-            continue;
-        }
-        let selection = case.compositions.iter().find(|c| c.conclusion_id == id);
-        for prior in case.warrants.iter().filter(|w| {
-            w.conclusion_id == id
-                && selection.is_none_or(|c| c.selected_warrant_ids.contains(&w.id))
-        }) {
-            nodes.insert(prior.id.clone());
-            pending.extend(prior.premise_ids.iter().cloned());
-        }
-    }
-    loop {
-        let before = nodes.len();
-        for a in &case.assumptions {
-            if a.applies_to.iter().any(|id| nodes.contains(id)) {
-                nodes.insert(a.id.clone());
-            }
-        }
-        for d in &case.defeaters {
-            if nodes.contains(&d.target_id) {
-                nodes.insert(d.id.clone());
-            }
-        }
-        if nodes.len() == before {
-            break;
-        }
-    }
-    nodes
-}
-
-fn assumption_text(a: &Assumption, request: &Request) -> String {
+fn assumption_text(a: &Assumption, view: &PresentationView<'_>) -> String {
     format!(
         "{}: {} Critical: {}. Status: {}. Applies to: {}. Basis: {} Validation/check: {}. If a critical assumption fails, reassess each declared dependent inference.",
         a.id,
@@ -171,12 +123,12 @@ fn assumption_text(a: &Assumption, request: &Request) -> String {
         a.critical,
         label(&a.status),
         a.applies_to.join(", "),
-        evidence_summary(request, &a.evidence_ids),
+        evidence_summary(view, &a.evidence_ids),
         a.validation
     )
 }
 
-fn challenge_text(d: &Defeater, request: &Request) -> String {
+fn challenge_text(d: &Defeater, view: &PresentationView<'_>) -> String {
     format!(
         "{} targets {} by {}: {} Basis: {}. Material: {}. Disposition: {}. Response and remaining effect: {} Evidence: {}",
         d.id,
@@ -187,7 +139,7 @@ fn challenge_text(d: &Defeater, request: &Request) -> String {
         d.material,
         label(&d.status),
         d.response,
-        evidence_summary(request, &d.evidence_ids)
+        evidence_summary(view, &d.evidence_ids)
     )
 }
 
@@ -219,13 +171,14 @@ fn scope_text(case: &ArgumentCase) -> String {
     )
 }
 
-fn alternatives_text(case: &ArgumentCase, request: &Request) -> String {
+fn alternatives_text(view: &PresentationView<'_>) -> String {
+    let case = view.case;
     if case.alternatives.is_empty() {
         return "No competing explanation or option recorded. Completeness has not been established.".into();
     }
     case.alternatives.iter().map(|a|format!(
         "Alternative: {} Discriminating check: {} Evidence: {} An independently justified common decision criterion is not separately recorded.",
-        a.explanation, a.distinguishing_test, evidence_summary(request, &a.evidence_ids)
+        a.explanation, a.distinguishing_test, evidence_summary(view, &a.evidence_ids)
     )).collect::<Vec<_>>().join(" ")
 }
 
@@ -248,31 +201,32 @@ fn decision_text(case: &ArgumentCase) -> String {
     )
 }
 
-fn argument_record(s: &mut String, case: &ArgumentCase, request: &Request, w: &Warrant) {
-    let nodes = inference_nodes(case, w);
-    let (conclusion, qualifier) = claim(case, &w.conclusion_id);
+fn argument_record(s: &mut BoundedText, view: &PresentationView<'_>, w: &Warrant) {
+    let case = view.case;
+    let nodes = view.inference_nodes(w);
+    let (conclusion, qualifier) = claim(view, &w.conclusion_id);
     let premises = w
         .premise_ids
         .iter()
-        .map(|id| node_description(case, request, id))
+        .map(|id| node_description(view, id))
         .collect::<Vec<_>>()
         .join(" ");
     let assumptions = case
         .assumptions
         .iter()
-        .filter(|a| nodes.contains(&a.id))
-        .map(|a| assumption_text(a, request))
+        .filter(|a| nodes.contains(a.id.as_str()))
+        .map(|a| assumption_text(a, view))
         .collect::<Vec<_>>();
     let challenges = case
         .defeaters
         .iter()
-        .filter(|d| nodes.contains(&d.id))
-        .map(|d| challenge_text(d, request))
+        .filter(|d| nodes.contains(d.id.as_str()))
+        .map(|d| challenge_text(d, view))
         .collect::<Vec<_>>();
     let needs = case
         .evidence_plan
         .iter()
-        .filter(|n| nodes.contains(&n.target_id) || n.enables_claim == w.conclusion_id)
+        .filter(|n| nodes.contains(n.target_id.as_str()) || n.enables_claim == w.conclusion_id)
         .map(need_text)
         .collect::<Vec<_>>();
     let backing = if w.backing_evidence_ids.is_empty() {
@@ -283,23 +237,35 @@ fn argument_record(s: &mut String, case: &ArgumentCase, request: &Request, w: &W
     } else {
         format!(
             "{} Separate adequacy and domain-of-applicability justification for this backing is not recorded beyond the warrant's applicability statement.",
-            evidence_summary(request, &w.backing_evidence_ids)
+            evidence_summary(view, &w.backing_evidence_ids)
         )
     };
     let mut evidence_ids = BTreeSet::new();
     evidence_ids.extend(w.backing_evidence_ids.iter().cloned());
-    for g in case.grounds.iter().filter(|g| nodes.contains(&g.id)) {
+    for g in case
+        .grounds
+        .iter()
+        .filter(|g| nodes.contains(g.id.as_str()))
+    {
         evidence_ids.extend(g.evidence_ids.iter().cloned());
     }
-    for a in case.assumptions.iter().filter(|a| nodes.contains(&a.id)) {
+    for a in case
+        .assumptions
+        .iter()
+        .filter(|a| nodes.contains(a.id.as_str()))
+    {
         evidence_ids.extend(a.evidence_ids.iter().cloned());
     }
-    for d in case.defeaters.iter().filter(|d| nodes.contains(&d.id)) {
+    for d in case
+        .defeaters
+        .iter()
+        .filter(|d| nodes.contains(d.id.as_str()))
+    {
         evidence_ids.extend(d.evidence_ids.iter().cloned());
     }
     let provenance = format!(
         "{} Full findings and known shared uses are in the evidence register. Separate source dates, acquisition details and adequacy judgements are not inferred from identifiers.",
-        evidence_summary(request, &evidence_ids.into_iter().collect::<Vec<_>>())
+        evidence_summary(view, &evidence_ids.into_iter().collect::<Vec<_>>())
     );
     let rebuttals = if challenges.is_empty() {
         format!(
@@ -338,7 +304,7 @@ fn argument_record(s: &mut String, case: &ArgumentCase, request: &Request, w: &W
                 } else {
                     case.assumptions
                         .iter()
-                        .filter(|a| nodes.contains(&a.id))
+                        .filter(|a| nodes.contains(a.id.as_str()))
                         .map(|a| a.id.as_str())
                         .collect::<Vec<_>>()
                         .join(", ")
@@ -375,7 +341,7 @@ fn argument_record(s: &mut String, case: &ArgumentCase, request: &Request, w: &W
         ),
         (
             "10. Competing explanations or options".into(),
-            alternatives_text(case, request),
+            alternatives_text(view),
         ),
         (
             "11. Challenges and responses".into(),
@@ -406,17 +372,12 @@ fn argument_record(s: &mut String, case: &ArgumentCase, request: &Request, w: &W
                 conclusion,
                 qualifier,
                 claim_assessment(case, &w.conclusion_id),
-                if case
-                    .compositions
-                    .iter()
-                    .any(|c| c.conclusion_id == w.conclusion_id
-                        && c.selected_warrant_ids.contains(&w.id))
-                {
+                if view.selected(w).unwrap_or(false) {
                     "selected"
                 } else {
                     "a retained, unselected candidate"
                 },
-                composition_text(case, &w.conclusion_id),
+                composition_text(view, &w.conclusion_id),
                 current_summary(case)
             ),
         ),
@@ -430,7 +391,8 @@ fn argument_record(s: &mut String, case: &ArgumentCase, request: &Request, w: &W
     }
 }
 
-fn evidence_register(s: &mut String, request: &Request, case: &ArgumentCase) {
+fn evidence_register(s: &mut BoundedText, view: &PresentationView<'_>) {
+    let request = view.request;
     writeln!(s, "\n## Evidence register\n").unwrap();
     table(
         s,
@@ -444,38 +406,7 @@ fn evidence_register(s: &mut String, request: &Request, case: &ArgumentCase) {
         ],
     );
     for e in &request.evidence {
-        let mut uses = Vec::new();
-        uses.extend(
-            case.grounds
-                .iter()
-                .filter(|g| g.evidence_ids.contains(&e.id))
-                .map(|g| format!("{}: premise support", g.id)),
-        );
-        uses.extend(
-            case.warrants
-                .iter()
-                .filter(|w| w.backing_evidence_ids.contains(&e.id))
-                .map(|w| format!("{}: warrant backing", w.id)),
-        );
-        uses.extend(
-            case.assumptions
-                .iter()
-                .filter(|a| a.evidence_ids.contains(&e.id))
-                .map(|a| format!("{}: assumption appraisal", a.id)),
-        );
-        uses.extend(
-            case.defeaters
-                .iter()
-                .filter(|d| d.evidence_ids.contains(&e.id))
-                .map(|d| format!("{}: challenge appraisal", d.id)),
-        );
-        uses.extend(
-            case.alternatives
-                .iter()
-                .enumerate()
-                .filter(|(_, a)| a.evidence_ids.contains(&e.id))
-                .map(|(i, _)| format!("alternative {}: comparative support", i + 1)),
-        );
+        let uses = view.evidence_uses(&e.id);
         row(
             s,
             &[
@@ -516,8 +447,9 @@ fn evidence_register(s: &mut String, request: &Request, case: &ArgumentCase) {
     }
 }
 
-fn registers(s: &mut String, case: &ArgumentCase, request: &Request) {
-    evidence_register(s, request, case);
+fn registers(s: &mut BoundedText, view: &PresentationView<'_>) {
+    let case = view.case;
+    evidence_register(s, view);
     writeln!(s, "\n## Assumptions and dependencies\n").unwrap();
     table(
         s,
@@ -540,7 +472,7 @@ fn registers(s: &mut String, case: &ArgumentCase, request: &Request) {
                     a.critical,
                     label(&a.status)
                 ),
-                &evidence_summary(request, &a.evidence_ids),
+                &evidence_summary(view, &a.evidence_ids),
                 &a.applies_to.join(", "),
                 &format!(
                     "Reassess the declared dependencies if a critical assumption fails. Check: {}",
@@ -550,17 +482,16 @@ fn registers(s: &mut String, case: &ArgumentCase, request: &Request) {
         );
     }
     for c in &case.subclaims {
-        let dependencies = case
-            .warrants
+        let dependencies = view
+            .index
+            .consumers_for(&c.id)
             .iter()
-            .filter(|w| w.premise_ids.contains(&c.id))
             .map(|w| format!("ARG-{} → {}", w.id, w.conclusion_id))
             .collect::<Vec<_>>()
             .join("; ");
-        let routes = case
-            .warrants
+        let routes = view
+            .warrants(&c.id)
             .iter()
-            .filter(|w| w.conclusion_id == c.id)
             .map(|w| format!("ARG-{}", w.id))
             .collect::<Vec<_>>()
             .join(", ");
@@ -628,7 +559,7 @@ fn registers(s: &mut String, case: &ArgumentCase, request: &Request) {
                 &format!(
                     "{} {}",
                     d.challenge,
-                    evidence_summary(request, &d.evidence_ids)
+                    evidence_summary(view, &d.evidence_ids)
                 ),
                 &label(&d.basis),
                 &d.response,
@@ -710,7 +641,9 @@ fn registers(s: &mut String, case: &ArgumentCase, request: &Request) {
     }
 }
 
-fn composition(s: &mut String, case: &ArgumentCase, request: &Request) {
+fn composition(s: &mut BoundedText, view: &PresentationView<'_>) {
+    let case = view.case;
+    let request = view.request;
     writeln!(s,"\n## Composition overview for a complex case\n\n**Case question:** What formulation of the requested claim is justified? Requested claim: {}\n\n**Top-level claim — current_claim:** {}\n\n**Shared context:** {}\n\n**Composition warrant:** Each declared warrant identifies jointly required premises and its conclusion. Explicit composition records identify joint, cumulative or alternative support and the selected routes. Route selection is a model judgement whose evidential adequacy requires appraisal.\n\n**Required argument records:** {}\n",prose(&request.claim),prose(&format!("{} Qualifier: {}",case.current_claim.text,case.current_claim.qualifier)),prose(&scope_text(case)),case.warrants.iter().map(|w|format!("ARG-{}",w.id)).collect::<Vec<_>>().join(", ")).unwrap();
     writeln!(s, "### Claim register\n").unwrap();
     table(
@@ -727,18 +660,17 @@ fn composition(s: &mut String, case: &ArgumentCase, request: &Request) {
         .chain(case.subclaims.iter().map(|c| c.id.as_str()))
         .chain(std::iter::once("stronger_target"));
     for id in ids {
-        let (text, qualifier) = claim(case, id);
-        let routes = case
-            .warrants
+        let (text, qualifier) = claim(view, id);
+        let routes = view
+            .warrants(id)
             .iter()
-            .filter(|w| w.conclusion_id == id)
             .map(|w| format!("ARG-{}", w.id))
             .collect::<Vec<_>>()
             .join(", ");
-        let challenges = case
-            .defeaters
+        let challenges = view
+            .index
+            .defeaters_for(id)
             .iter()
-            .filter(|d| d.target_id == id)
             .map(|d| d.id.as_str())
             .collect::<Vec<_>>()
             .join(", ");
@@ -774,11 +706,11 @@ fn composition(s: &mut String, case: &ArgumentCase, request: &Request) {
         ],
     );
     for w in &case.warrants {
-        let nodes = inference_nodes(case, w);
+        let nodes = view.inference_nodes(w);
         let assumptions = case
             .assumptions
             .iter()
-            .filter(|a| nodes.contains(&a.id))
+            .filter(|a| nodes.contains(a.id.as_str()))
             .map(|a| a.id.as_str())
             .collect::<Vec<_>>()
             .join(", ");
@@ -791,7 +723,7 @@ fn composition(s: &mut String, case: &ArgumentCase, request: &Request) {
                 &w.id,
                 &format!(
                     "Premises jointly required within this route. {}",
-                    composition_text(case, &w.conclusion_id)
+                    composition_text(view, &w.conclusion_id)
                 ),
                 &format!(
                     "Applicability: {} Assumptions: {}.",
@@ -813,7 +745,11 @@ fn composition(s: &mut String, case: &ArgumentCase, request: &Request) {
         .flat_map(|w| {
             w.premise_ids
                 .iter()
-                .filter(|p| case.subclaims.iter().any(|c| &c.id == *p))
+                .filter(|p| {
+                    view.claim(p).is_some()
+                        && p.as_str() != "current_claim"
+                        && p.as_str() != "stronger_target"
+                })
                 .map(move |p| format!("{p} → ARG-{} → {}", w.id, w.conclusion_id))
         })
         .collect::<Vec<_>>()
@@ -847,7 +783,7 @@ fn composition(s: &mut String, case: &ArgumentCase, request: &Request) {
                     format!(
                         "{}: {}",
                         c.conclusion_id,
-                        composition_text(case, &c.conclusion_id)
+                        composition_text(view, &c.conclusion_id)
                     )
                 })
                 .collect::<Vec<_>>();
@@ -894,10 +830,10 @@ fn composition(s: &mut String, case: &ArgumentCase, request: &Request) {
     let checks=[
         ("Coverage","The declared graph identifies its premises and conclusions. Completeness of requirements, interfaces and interactions is not separately assessed.".to_owned()),
         ("Compatibility",format!("Shared scope: {} Individual transfer arguments are not separately recorded.",scope_text(case))),
-        ("Support conditions",case.compositions.iter().map(|c|format!("{}: {}",c.conclusion_id,composition_text(case,&c.conclusion_id))).collect::<Vec<_>>().join(" ")),
+        ("Support conditions",case.compositions.iter().map(|c|format!("{}: {}",c.conclusion_id,composition_text(view,&c.conclusion_id))).collect::<Vec<_>>().join(" ")),
         ("Shared dependencies","Evidence and assumption registers retain canonical identities and uses. Shared identities supply no independent replication.".into()),
         ("Conflict assessment",if unresolved.is_empty(){"No open or sustained challenge recorded. Completeness of challenge discovery remains unassessed.".into()}else{joined(&unresolved)}),
-        ("Circularity check",match crate::domain::validate_case(request,case){Ok(())=>"Structural and reporting checks passed, including the acyclic support graph. This supplies no proof of semantic adequacy.".into(),Err(errors)=>format!("Structural or reporting defects remain: {}",errors.join(" "))}),
+        ("Circularity check",view.validation_summary()),
         ("Change impact","Use the composition register to follow an altered premise through each consuming warrant to current_claim or stronger_target. Reassess affected assumptions and challenges as well.".into()),
         ("Whole-case assessment",current_summary(case)),
     ];
@@ -919,8 +855,21 @@ fn composition(s: &mut String, case: &ArgumentCase, request: &Request) {
 }
 
 /// Render the populated engineering extended Toulmin template.
-pub fn markdown(request: &Request, case: &ArgumentCase) -> String {
-    let mut s = String::from("# Engineering Extended Toulmin Argument\n\n");
+pub fn markdown(request: &Request, case: &ArgumentCase) -> Result<String, RenderError> {
+    markdown_with_limits(request, case, RenderLimits::default())
+}
+
+pub fn markdown_with_limits(
+    request: &Request,
+    case: &ArgumentCase,
+    limits: RenderLimits,
+) -> Result<String, RenderError> {
+    let view = PresentationView::new(request, case, limits)?;
+    let mut s = BoundedText::new(limits.max_output_bytes);
+    s.push_str("# Engineering Extended Toulmin Argument\n\n");
+    if let Some(notice) = view.inspection_notice() {
+        writeln!(s, "> {}\n", prose(&notice)).unwrap();
+    }
     writeln!(s, "## Argument context\n").unwrap();
     table(&mut s, &["Field", "Entry"]);
     row(
@@ -1001,9 +950,9 @@ pub fn markdown(request: &Request, case: &ArgumentCase) -> String {
         writeln!(s,"\n## Argument record\n\nNo inference warrant was supplied. A completed 14-component inference record requires an identified warrant and its conclusion.\n").unwrap();
     }
     for w in &case.warrants {
-        argument_record(&mut s, case, request, w);
+        argument_record(&mut s, &view, w);
     }
-    registers(&mut s, case, request);
+    registers(&mut s, &view);
     writeln!(s,"\n## Assessed argument\n\n> {} Declared grounds: {} Declared warrants: {} Consequential recorded challenges: {} The stronger target is {} Additional support is specified by evidence obligations {}.\n",prose(&current_summary(case)),case.grounds.iter().map(|g|g.id.as_str()).collect::<Vec<_>>().join(", "),case.warrants.iter().map(|w|w.id.as_str()).collect::<Vec<_>>().join(", "),case.defeaters.iter().filter(|d|d.material).map(|d|d.id.as_str()).collect::<Vec<_>>().join(", "),prose(&case.stronger_target.text),case.evidence_plan.iter().map(|n|n.id.as_str()).collect::<Vec<_>>().join(", ")).unwrap();
     for section in &case.reading {
         writeln!(
@@ -1029,28 +978,114 @@ pub fn markdown(request: &Request, case: &ArgumentCase) -> String {
         }
     }
     if case.warrants.len() > 1 || !case.subclaims.is_empty() {
-        composition(&mut s, case, request);
+        composition(&mut s, &view);
     }
     writeln!(s,"\n## Interpretation notes\n\n- Source identification and structural integrity support traceability. Evidence adequacy and inferential soundness require separate appraisal.\n- Proposed investigation criteria remain proposed until adopted and tested. No investigation is represented as completed merely because it appears in this report.\n- The top-level status assesses current_claim. Subclaims and stronger_target retain their own wording and qualifications; a separate verdict is not inferred.\n- Residual risks: {}\n- Decision limits: {}\n",prose(&joined(&case.residual_risks)),prose(&joined(&case.decision_limits))).unwrap();
-    s
+    view.finish()?;
+    s.finish()
 }
 
-/// Include the complete report without letting embedded backticks end its fence.
-pub fn with_audit(
-    mut markdown: String,
-    report: &impl serde::Serialize,
+/// Include the complete report with bounded output and an injection-safe fence.
+pub fn with_audit(markdown: String, report: &serde_json::Value) -> Result<String, crate::Error> {
+    with_audit_limits(markdown, report, RenderLimits::default())
+}
+
+pub fn with_audit_limits(
+    markdown: String,
+    report: &serde_json::Value,
+    limits: RenderLimits,
 ) -> Result<String, crate::Error> {
-    let json = serde_json::to_string_pretty(report)?;
+    let budget_error = |e: RenderError| crate::Error::Budget(e.to_string());
+    if markdown.len() > limits.max_output_bytes
+        || limits.max_output_bytes.saturating_mul(3) > limits.max_working_bytes
+    {
+        return Err(budget_error(RenderError::ResourceLimit("audit bytes")));
+    }
+    // Admit JSON iteratively before serde's recursive pretty printer. The audit
+    // boundary accepts decoded JSON so its depth and work can be inspected.
+    let mut pending = vec![(report, 0usize)];
+    let mut visited = 0usize;
+    let mut bytes = 0usize;
+    let mut edges = 0usize;
+    while let Some((value, depth)) = pending.pop() {
+        visited = visited.saturating_add(1);
+        if depth > 128 || visited > limits.max_visits || visited > limits.max_nodes {
+            return Err(budget_error(RenderError::ResourceLimit("audit graph")));
+        }
+        let children = match value {
+            serde_json::Value::Array(v) => v.len(),
+            serde_json::Value::Object(v) => v.len(),
+            _ => 0,
+        };
+        edges = edges.saturating_add(children);
+        let pending_count = pending.len().saturating_add(children);
+        let working = pending_count
+            .saturating_mul(std::mem::size_of::<(&serde_json::Value, usize)>())
+            .saturating_add(limits.max_output_bytes.saturating_mul(3));
+        if edges > limits.max_edges
+            || pending_count > limits.max_nodes
+            || working > limits.max_working_bytes
+        {
+            return Err(budget_error(RenderError::ResourceLimit("audit storage")));
+        }
+        match value {
+            serde_json::Value::Array(values) => {
+                pending.extend(values.iter().map(|value| (value, depth + 1)))
+            }
+            serde_json::Value::Object(values) => {
+                for (key, value) in values {
+                    bytes = bytes.saturating_add(key.len());
+                    pending.push((value, depth + 1));
+                }
+            }
+            serde_json::Value::String(text) => bytes = bytes.saturating_add(text.len()),
+            _ => {}
+        }
+        if pending.len() > limits.max_edges || bytes > limits.max_input_bytes {
+            return Err(budget_error(RenderError::ResourceLimit("audit input")));
+        }
+    }
+    let mut json = BoundedText::new(limits.max_output_bytes);
+    {
+        struct JsonWriter<'a>(&'a mut BoundedText);
+        impl std::io::Write for JsonWriter<'_> {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                let text = std::str::from_utf8(bytes).map_err(std::io::Error::other)?;
+                self.0.push_str(text);
+                if self.0.failed() {
+                    return Err(std::io::Error::other("audit output budget exceeded"));
+                }
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        serde_json::to_writer_pretty(JsonWriter(&mut json), report)?;
+    }
+    let json = json.finish().map_err(budget_error)?;
     let longest = json
         .split(|c| c != char::from(96))
         .map(str::len)
         .max()
         .unwrap_or(0);
-    let fence = char::from(96).to_string().repeat((longest + 1).max(3));
+    let fence_len = (longest + 1).max(3);
+    if markdown
+        .len()
+        .saturating_add(json.len())
+        .saturating_add(fence_len.saturating_mul(2))
+        .saturating_add(64)
+        > limits.max_output_bytes
+    {
+        return Err(budget_error(RenderError::ResourceLimit("output bytes")));
+    }
+    let fence = char::from(96).to_string().repeat(fence_len);
+    let mut output = BoundedText::new(limits.max_output_bytes);
+    output.push_str(&markdown);
     writeln!(
-        markdown,
+        output,
         "\n## Complete audit record\n\n{fence}json\n{json}\n{fence}"
     )
     .unwrap();
-    Ok(markdown)
+    output.finish().map_err(budget_error)
 }
