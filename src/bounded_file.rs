@@ -119,10 +119,17 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn fifo_and_symlink_inputs_are_rejected_before_reading() {
-        use rustix::fs::{CWD, Mode, mkfifoat};
         let directory = tempfile::tempdir().unwrap();
         let fifo = directory.path().join("inputs.fifo");
-        mkfifoat(CWD, &fifo, Mode::RUSR | Mode::WUSR).unwrap();
+        // POSIX mkfifo is available on both Linux and macOS. rustix::mkfifoat
+        // is absent on macOS even though the production openat reader works there.
+        assert!(
+            std::process::Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
         let alias = directory.path().join("inputs-link");
         std::os::unix::fs::symlink(&fifo, &alias).unwrap();
         for path in [fifo, alias] {
