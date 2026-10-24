@@ -471,7 +471,8 @@ fn merge_catalogues(
                 && previous != value
             {
                 return Err(Error::InvalidInput(format!(
-                    "conflicting collector descriptor {}", descriptor.id,
+                    "conflicting collector descriptor {}",
+                    descriptor.id,
                 )));
             }
         }
@@ -487,11 +488,14 @@ fn merge_catalogues(
 fn export_inputs(
     input: &Path,
     selected: Option<&Path>,
-) -> Result<(
-    CanonicalReport,
-    Vec<AcquisitionPlan>,
-    Option<engarg::collector_catalogue::CollectorCatalogue>,
-), Error> {
+) -> Result<
+    (
+        CanonicalReport,
+        Vec<AcquisitionPlan>,
+        Option<engarg::collector_catalogue::CollectorCatalogue>,
+    ),
+    Error,
+> {
     let raw: Value = super::read_json(input, MAX_INPUT_BYTES)?;
     let registration = engarg::tooling::registration(&raw)?;
     let canonical = if raw.get("request").is_some() {
@@ -581,9 +585,8 @@ fn export_destinations(args: &ExportArgs) -> Result<Vec<(PathBuf, ExportArtifact
 
 fn execute_export(args: ExportArgs) -> Result<(), Error> {
     let destinations = export_destinations(&args)?;
-    let (report, mut plan, catalogue) = export_inputs(
-        &args.input, args.collector_catalogue.as_deref(),
-    )?;
+    let (report, mut plan, catalogue) =
+        export_inputs(&args.input, args.collector_catalogue.as_deref())?;
     if let Some(path) = args.acquisition_plan {
         let overrides: Vec<AcquisitionPlan> = super::read_json(&path, MAX_INPUT_BYTES)?;
         plan = acquisition::override_plans_with_catalogue(
@@ -697,9 +700,8 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
         EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
         EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
         EalCommand::Prepare(args) => {
-            let (report, plan, catalogue) = export_inputs(
-                &args.input, args.collector_catalogue.as_deref(),
-            )?;
+            let (report, plan, catalogue) =
+                export_inputs(&args.input, args.collector_catalogue.as_deref())?;
             if args.output_dir.exists() {
                 return Err(Error::InvalidInput(
                     "prepare output directory already exists".into(),

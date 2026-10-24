@@ -217,6 +217,28 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
     if supplied != parameters {
         return Err(invalid("every parameter must be supplied or explicitly unresolved"));
     }
+    // Admit the same consumer contract that will later be exported, before any
+    // implementation call or execution can spend its budget.
+    let descriptor = eal_collector_contracts::CollectorDescriptor {
+        id:"generated_contract_validation".into(),
+        version:"1".into(),
+        purpose:draft.purpose.clone(),
+        parameters:draft.parameters.clone(),
+        input_schema:draft.input_schema.clone(),
+        result_schema:draft.result_schema.clone(),
+        command:eal_collector_contracts::CommandTemplate {
+            argv:vec!["/engarg-contract-validation".into()], inherit_env:vec![],
+            timeout_seconds:30, max_output_bytes:1_048_576, parallel_safe:false,
+        },
+        acquisition_predicate:"collected == true".into(),
+        constraints:vec![],
+    };
+    descriptor.validate_for(eal_collector_contracts::AuthoringProfile::RuntimeExportable)
+        .map_err(invalid)?;
+    crate::collector_catalogue::CollectorDescriptor(&descriptor).input(&crate::acquisition::AcquisitionPlan {
+        need_id:contract.need.id.clone(), tool_id:descriptor.id.clone(),
+        arguments:draft.arguments.clone(), unresolved_arguments:draft.unresolved_arguments.clone(),
+    })?;
     if draft.fixtures.len() < 3 || draft.fixtures.len() > MAX_FIXTURES {
         return Err(invalid("tool contract requires 3 to 64 fixtures"));
     }
@@ -371,6 +393,16 @@ mod tests {
         let mut wrong_type = valid;
         wrong_type.draft.result_schema["properties"]["collected"]["type"] = json!("string");
         assert!(validate_contract(&wrong_type).is_err());
+    }
+
+    #[test]
+    fn eal_export_admission_rejects_oversized_purpose_before_coding() {
+        let mut value = contract();
+        value.draft.purpose = "x".repeat(8193);
+        assert!(validate_contract(&value).is_err());
+        let mut value = contract();
+        value.draft.input_schema["properties"]["mode"] = json!({"type":"integer"});
+        assert!(validate_contract(&value).is_err());
     }
 
     #[test]

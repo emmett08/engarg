@@ -2,7 +2,10 @@
 use clap::Args;
 use engarg::{
     Error,
-    provider::{ApiStyle, Completion, CompletionRequest, HttpConfig, HttpModel, LanguageModel, TransportConfig},
+    provider::{
+        ApiStyle, Completion, CompletionRequest, HttpConfig, HttpModel, LanguageModel,
+        TransportConfig,
+    },
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -37,9 +40,13 @@ pub struct ProviderArgs {
 impl ProviderArgs {
     pub fn model(&self) -> Result<CodingModel, Error> {
         if self.max_input_bytes == 0 || self.max_response_bytes == 0 {
-            return Err(Error::InvalidInput("resource limits must be positive".into()));
+            return Err(Error::InvalidInput(
+                "resource limits must be positive".into(),
+            ));
         }
-        let key = std::env::var(&self.api_key_env).ok().filter(|key| !key.trim().is_empty());
+        let key = std::env::var(&self.api_key_env)
+            .ok()
+            .filter(|key| !key.trim().is_empty());
         let missing_key = (self.endpoint == "https://api.openai.com/v1/responses" && key.is_none())
             .then(|| self.api_key_env.clone());
         let inner = independent_model(
@@ -53,7 +60,10 @@ impl ProviderArgs {
                 style: self.api,
                 timeout: Duration::from_secs(self.request_timeout_secs),
                 max_output_tokens: self.max_output_tokens,
-                max_body_bytes: self.max_response_bytes.saturating_mul(2).saturating_add(65_536),
+                max_body_bytes: self
+                    .max_response_bytes
+                    .saturating_mul(2)
+                    .saturating_add(65_536),
             },
             TransportConfig {
                 max_http_retries: self.http_retries,
@@ -75,7 +85,9 @@ pub struct CodingModel {
 impl LanguageModel for CodingModel {
     async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
         if let Some(name) = &self.missing_key {
-            return Err(Error::InvalidInput(format!("set {name} to the provider API key")));
+            return Err(Error::InvalidInput(format!(
+                "set {name} to the provider API key"
+            )));
         }
         self.inner.complete(request).await
     }

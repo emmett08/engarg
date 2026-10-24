@@ -443,20 +443,19 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         style: args.api,
         timeout: Duration::from_secs(args.request_timeout_secs),
         max_output_tokens: args.max_output_tokens,
-        max_body_bytes: args.max_response_bytes.saturating_mul(2).saturating_add(65536),
+        max_body_bytes: args
+            .max_response_bytes
+            .saturating_mul(2)
+            .saturating_add(65536),
     };
     let tooling_model = tooling_session
         .as_ref()
-        .map(|_| tooling_commands::provider::independent_model(
-            http_config(),
-            transport_config.clone(),
-        ))
+        .map(|_| {
+            tooling_commands::provider::independent_model(http_config(), transport_config.clone())
+        })
         .transpose()?;
-    let model = HttpModel::new_with_transport(
-        http_config(),
-        transport_config.clone(),
-        http_observer,
-    )?;
+    let model =
+        HttpModel::new_with_transport(http_config(), transport_config.clone(), http_observer)?;
     *audit
         .lock()
         .map_err(|_| Error::Provider("audit lock poisoned".into()))? = args
@@ -501,29 +500,35 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
                         model,
                         &original,
                         args.tooling.deadline(),
-                    ).await {
+                    )
+                    .await
+                    {
                         Ok(value) => value,
                         Err(error) => {
                             // A coding failure still leaves the completed canonical
                             // argument at the caller's requested normal output path.
                             let content = report_content(
-                                &args.output, &request, &report.argument, &original,
+                                &args.output,
+                                &request,
+                                &report.argument,
+                                &original,
                             )?;
                             emit(&args.output, content)?;
-                            audit_event(&audit, &json!({
-                                "event": "failure",
-                                "stage": "tool_implementation",
-                                "error": error.to_string()
-                            }))?;
+                            audit_event(
+                                &audit,
+                                &json!({
+                                    "event": "failure",
+                                    "stage": "tool_implementation",
+                                    "error": error.to_string()
+                                }),
+                            )?;
                             return Err(error);
                         }
                     }
                 }
                 _ => original,
             };
-            let content = report_content(
-                &args.output, &request, &report.argument, &final_report,
-            )?;
+            let content = report_content(&args.output, &request, &report.argument, &final_report)?;
             match emit(&args.output, content) {
                 Ok(()) => audit_event(
                     &audit,

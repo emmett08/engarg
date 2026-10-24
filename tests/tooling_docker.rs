@@ -208,8 +208,12 @@ impl MockServer {
             while !stop.load(Ordering::Acquire) && Instant::now() < deadline {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
-                        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-                        stream.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                        stream
+                            .set_read_timeout(Some(Duration::from_secs(5)))
+                            .unwrap();
+                        stream
+                            .set_write_timeout(Some(Duration::from_secs(5)))
+                            .unwrap();
                         let request = match read_request(&mut stream) {
                             Ok(request) => request,
                             Err(_) => continue,
@@ -220,9 +224,10 @@ impl MockServer {
                             list.push(request);
                             index
                         };
-                        let response = responses.get(index).cloned().unwrap_or_else(|| {
-                            json!({"unexpected_model_call": true})
-                        });
+                        let response = responses
+                            .get(index)
+                            .cloned()
+                            .unwrap_or_else(|| json!({"unexpected_model_call": true}));
                         let body = json!({
                             "id": format!("tool-fixture-{index}"),
                             "model": "fixture",
@@ -358,10 +363,13 @@ fn saved_report(path: &Path) {
     let mut argument: Value = serde_json::from_str(include_str!("../examples/case.json")).unwrap();
     let first = &mut argument["evidence_plan"][0];
     first["question"] = json!("Does the synthetic local instrument report presence?");
-    first["method"] = json!("Read the configured local instrument mode and retain the measured result.");
+    first["method"] =
+        json!("Read the configured local instrument mode and retain the measured result.");
     first["measurement"] = json!("One categorical presence measurement.");
-    first["comparator"] = json!("Positive and negative instrument states with an acquisition error.");
-    first["acceptance_criterion"] = json!("The acquired observation retains its exact request identity.");
+    first["comparator"] =
+        json!("Positive and negative instrument states with an acquisition error.");
+    first["acceptance_criterion"] =
+        json!("The acquired observation retains its exact request identity.");
     let plans: Vec<_> = argument["evidence_plan"]
         .as_array()
         .unwrap()
@@ -422,7 +430,10 @@ fn saved_report(path: &Path) {
 fn profile(path: &Path, language: &str, image: &str, entry: &str) {
     let build = if language == "python" {
         json!([
-            "python3", "-I", "-B", "-c",
+            "python3",
+            "-I",
+            "-B",
+            "-c",
             "__import__('ast').parse(open('/src/collector.py', encoding='utf-8').read())"
         ])
     } else {
@@ -558,7 +569,14 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
         draft_response(),
         json!({"language": language, "files": [{"path": entry, "content": code}]}),
     ]);
-    let output = implement(&input, &toolchain, &store, &first, &server.endpoint, language);
+    let output = implement(
+        &input,
+        &toolchain,
+        &store,
+        &first,
+        &server.endpoint,
+        language,
+    );
     successful(&output);
     assert_eq!(server.requests().len(), 2);
     let report_path = first.join("analysis.with-tools.json");
@@ -584,7 +602,12 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     ] {
         assert_eq!(receipt["runner"][field].as_str().unwrap().len(), 64);
     }
-    assert!(receipt["runner"]["image_id"].as_str().unwrap().starts_with("sha256:"));
+    assert!(
+        receipt["runner"]["image_id"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha256:")
+    );
 
     // A closed endpoint makes any accidental coding call fail this cached retry.
     let second = directory.path().join("second");
@@ -598,7 +621,8 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     );
     successful(&output);
     let repeated: Value =
-        serde_json::from_slice(&fs::read(second.join("analysis.with-tools.json")).unwrap()).unwrap();
+        serde_json::from_slice(&fs::read(second.join("analysis.with-tools.json")).unwrap())
+            .unwrap();
     assert_eq!(repeated["tooling"]["model_calls"], 0);
     assert!(
         repeated["tooling"]["packages"]
@@ -655,7 +679,10 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     let output = invoke(&manifest, &request);
     successful(&output);
     let envelope: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(envelope["value"], json!({"collected": true, "present": true}));
+    assert_eq!(
+        envelope["value"],
+        json!({"collected": true, "present": true})
+    );
     assert_eq!(envelope["context"], request["context"]);
     assert_eq!(
         envelope["request"],
@@ -698,7 +725,12 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
 #[test]
 #[ignore = "requires Docker and the preloaded python:3.13-slim image"]
 fn python_collector_is_tested_registered_and_reused_without_new_coding() {
-    exercise("python", "python:3.13-slim", "collector.py", PYTHON_COLLECTOR);
+    exercise(
+        "python",
+        "python:3.13-slim",
+        "collector.py",
+        PYTHON_COLLECTOR,
+    );
 }
 
 #[test]
@@ -718,11 +750,13 @@ fn coding_failure_preserves_the_original_analysis_output() {
     let directory = tempfile::tempdir().unwrap();
     let fixture_path = directory.path().join("fixture.json");
     saved_report(&fixture_path);
-    let fixture: Value =
-        serde_json::from_slice(&fs::read(&fixture_path).unwrap()).unwrap();
-    let planned: Value =
-        serde_json::from_str(fixture["transcript"][0]["response"]["content"].as_str().unwrap())
-            .unwrap();
+    let fixture: Value = serde_json::from_slice(&fs::read(&fixture_path).unwrap()).unwrap();
+    let planned: Value = serde_json::from_str(
+        fixture["transcript"][0]["response"]["content"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
     let request_path = directory.path().join("request.json");
     fs::write(
         &request_path,
@@ -792,8 +826,7 @@ fn coding_failure_preserves_the_original_analysis_output() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    let original: Value =
-        serde_json::from_slice(&fs::read(&normal_output).unwrap()).unwrap();
+    let original: Value = serde_json::from_slice(&fs::read(&normal_output).unwrap()).unwrap();
     assert_eq!(original["request"], fixture["request"]);
     assert_eq!(original["argument"], fixture["argument"]);
     assert_eq!(original["transcript"].as_array().unwrap().len(), 1);

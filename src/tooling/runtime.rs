@@ -60,7 +60,8 @@ pub fn execute_registered_with_cancellation(
     if cancellation.is_cancelled() || outcome.execution_error.is_some() || outcome.returncode != 0 {
         return Err(Error::Provider("verified collector did not produce a successful acquisition".into()));
     }
-    let envelope = validate_observation(verified.contract(), &request, &outcome.stdout)?;
+    let envelope = validate_observation(verified.contract(), &request, &outcome.stdout)
+        .map_err(|_| Error::InvalidOutput("collector returned an invalid or mismatched observation".into()))?;
     let value = serde_json::to_value(envelope)?;
     let secrets: Vec<String> = verified.profile().inherit_env.iter().map(|name| {
         match std::env::var(name) {

@@ -74,7 +74,8 @@ A later invocation can use the same store with a new output directory.
 Reuse checks the exact contract, supplied request, language, source, fixtures and runner identity.
 Changed or tampered packages cannot qualify through an old test receipt.
 Known collector plans bypass code generation.
-A saved verified catalogue can also be selected through `--collector-catalogue` in later argument runs.
+The stage writes the combined verified catalogue to `collectors.json` in its output directory.
+Select that file through `--collector-catalogue` in later argument runs.
 
 ## Contract and verification gates
 

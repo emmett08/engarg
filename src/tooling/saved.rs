@@ -9,6 +9,7 @@ use crate::{
     domain::{ArgumentCase, Request, validate_argument, validate_request},
     eal_export::EalExport,
     engine::RunReport,
+    provider::Role,
 };
 
 pub(super) struct SavedInput {
@@ -25,6 +26,7 @@ fn invalid(message: impl Into<String>) -> Error {
 fn empty_catalogue() -> CollectorCatalogue {
     CollectorCatalogue(eal_collector_contracts::Catalogue {
         schema: eal_collector_contracts::CATALOGUE_SCHEMA.into(),
+        acquisition_contract: eal_collector_contracts::ACQUISITION_CONTRACT.into(),
         collectors: Vec::new(),
     })
 }
@@ -61,17 +63,27 @@ pub(super) fn parse(source: &Value) -> Result<SavedInput, Error> {
         if !matches!(report.schema_version.as_str(), "engarg.run.v1" | "engarg.run.v2") {
             return Err(invalid("unsupported saved run schema"));
         }
-        let expected = serde_json::to_value(&report.argument)?;
         let mut plans = Vec::new();
-        for record in report.transcript.iter().rev() {
+        if let Some(record) = report.transcript.iter().rev()
+            .find(|record| matches!(record.role, Role::Single | Role::Adjudicator))
+        {
             if record.response_content_omitted {
-                continue;
+                return Err(invalid("authoritative final response content was omitted"));
             }
-            if let Ok(planned) = acquisition::parse_completion(&record.response.content)
-                && serde_json::to_value(&planned.argument)? == expected
-            {
+            let response = eal_collector_contracts::strict_json_exact(
+                record.response.content.as_bytes(), Default::default()
+            ).map_err(invalid)?;
+            if response.get("acquisition_plan").is_some() || response.get("argument").is_some() {
+                let planned: acquisition::PlannedArgument = serde_json::from_value(response)?;
+                if serde_json::to_value(&planned.argument)? != serde_json::to_value(&report.argument)? {
+                    return Err(invalid("retained acquisition plan belongs to a different canonical argument"));
+                }
                 plans = planned.acquisition_plan;
-                break;
+            } else {
+                let direct: ArgumentCase = serde_json::from_value(response)?;
+                if serde_json::to_value(direct)? != serde_json::to_value(&report.argument)? {
+                    return Err(invalid("retained final case differs from the canonical argument"));
+                }
             }
         }
         let selected = report.run_config.as_ref()
@@ -134,6 +146,50 @@ mod tests {
         let saved = parse(&source).unwrap();
         assert_eq!(serde_json::to_value(saved.plans).unwrap(), serde_json::to_value(plans).unwrap());
         assert_eq!(source["transcript"].as_array().unwrap().len(), 1);
+    }
+
+    fn record(role: &str, content: String) -> Value {
+        json!({
+            "role":role,"prompt":{"role":role,"system":"fixture","user":"{}","schema":{}},
+            "response":{"content":content,"model":"fixture","input_tokens":null,"output_tokens":null,"request_id":null},
+            "response_content_bytes":content.len(),"response_content_sha256":"fixture",
+            "response_content_omitted":false,"elapsed_ms":0
+        })
+    }
+
+    #[test]
+    fn specialist_plan_cannot_become_final_plan_authority() {
+        let mut source = report();
+        source["transcript"] = json!([
+            record("single", source["argument"].to_string()),
+            record("evidence_auditor", json!({"argument":source["argument"],"acquisition_plan":[{"invented":true}]}).to_string())
+        ]);
+        assert!(parse(&source).unwrap().plans.is_empty());
+    }
+
+    #[test]
+    fn bad_final_response_rejects_instead_of_falling_back() {
+        let mut source = report();
+        source["transcript"] = json!([
+            record("single", source["argument"].to_string()),
+            record("adjudicator", "{".into())
+        ]);
+        assert!(parse(&source).is_err());
+        source["transcript"][1] = record("adjudicator", source["argument"].to_string());
+        source["transcript"][1]["response_content_omitted"] = json!(true);
+        assert!(parse(&source).is_err());
+    }
+
+    #[test]
+    fn final_planned_case_must_match_canonical_argument() {
+        let mut source = report();
+        let mut changed = source["argument"].clone();
+        changed["adjudication"] = json!("A different final case");
+        source["transcript"] = json!([
+            record("single", source["argument"].to_string()),
+            record("adjudicator", json!({"argument":changed,"acquisition_plan":[]}).to_string())
+        ]);
+        assert!(parse(&source).is_err());
     }
 
     #[test]

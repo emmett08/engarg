@@ -269,8 +269,9 @@ fn container_script(profile: &ToolchainProfile) -> String {
     } else {
         format!("{} 1>&2 && exec {run}", argv_shell(&profile.build_argv))
     };
-    // PID1 keeps a signal handler. Its exit kills the complete PID namespace,
-    // including daemonised descendants, even if the host launcher is killed.
+    // A PID1 watchdog additionally bounds ordinary worker failures. Generated
+    // code shares its UID, so supervisor cancellation and forced daemon cleanup
+    // remain the authoritative boundary for untrusted execution.
     // Explicit stdin redirection is required for a POSIX background command.
     format!(
         "umask 077\ntrap 'exit 124' TERM\nparent=$$\nexec 3<&0\n(exec 3<&-; {worker}) <&3 &\nworker=$!\nexec 3<&-\n(sleep {}; kill -TERM \"$parent\") &\nwatchdog=$!\nwait \"$worker\"\nstatus=$?\nkill \"$watchdog\" 2>/dev/null || :\nexit \"$status\"\n",

@@ -69,7 +69,9 @@ impl Drop for CancelOnDrop {
 fn invalid(message: &str) -> Error { Error::InvalidInput(message.into()) }
 fn empty_catalogue() -> CollectorCatalogue {
     CollectorCatalogue(eal_collector_contracts::Catalogue {
-        schema: eal_collector_contracts::CATALOGUE_SCHEMA.into(), collectors: Vec::new(),
+        schema: eal_collector_contracts::CATALOGUE_SCHEMA.into(),
+        acquisition_contract: eal_collector_contracts::ACQUISITION_CONTRACT.into(),
+        collectors: Vec::new(),
     })
 }
 fn scope(input: &SavedInput) -> Result<String, Error> {
@@ -195,19 +197,19 @@ impl ToolingSession {
         write_new(&self.config.output_dir.join("argument.analysis.json"), report)?;
         let request_context = serde_json::to_string(&input.request)?;
         let identity = self.runner.identity().clone();
-        enum Work { Reuse(VerifiedPackage), Frozen(String, NeedContract), Fresh(String, EvidenceNeed) }
+        enum Work { Reuse(Box<VerifiedPackage>), Frozen(String, Box<NeedContract>), Fresh(String, Box<EvidenceNeed>) }
         let mut work = Vec::new();
         let mut required_calls = 0u32;
         for need in missing_needs(&input) {
             let key = PackageStore::key_for(&need, &request_context, &self.config.language, &identity)?;
             if let Some(package) = self.store.lookup(&key, &identity)? {
-                work.push(Work::Reuse(package));
+                work.push(Work::Reuse(Box::new(package)));
             } else if let Some(contract) = self.store.frozen_contract(&key, &identity)? {
                 required_calls += 1;
-                work.push(Work::Frozen(key, contract));
+                work.push(Work::Frozen(key, Box::new(contract)));
             } else {
                 required_calls += 2;
-                work.push(Work::Fresh(key, need));
+                work.push(Work::Fresh(key, Box::new(need)));
             }
         }
         if required_calls > self.config.max_calls {
@@ -222,11 +224,12 @@ impl ToolingSession {
         for item in work {
             if cancellation.is_cancelled() { return Err(Error::Provider("tool implementation cancelled".into())); }
             let (package, reused) = match item {
-                Work::Reuse(package) => (package, true),
+                Work::Reuse(package) => (*package, true),
                 Work::Frozen(key, contract) => (
-                    self.code_and_verify(model, &key, contract, &identity, &mut calls, cancellation).await?, false
+                    self.code_and_verify(model, &key, *contract, &identity, &mut calls, cancellation).await?, false
                 ),
                 Work::Fresh(key, need) => {
+                    let need = *need;
                     let response = self.complete(model, "contract", &need.id,
                         draft_request(&need, &input.request, &self.config.language, &description), &mut calls).await?;
                     let draft = parse_draft(response.content.as_bytes())?;

@@ -68,7 +68,9 @@ impl ToolOptions {
             return Ok(None);
         }
         if max_input_bytes == 0 || max_response_bytes == 0 {
-            return Err(Error::InvalidInput("resource limits must be positive".into()));
+            return Err(Error::InvalidInput(
+                "resource limits must be positive".into(),
+            ));
         }
         let language = self.tool_language.clone().ok_or_else(|| {
             Error::InvalidInput("tool implementation requires --tool-language".into())
@@ -146,16 +148,20 @@ pub async fn implement(args: ImplementArgs) -> Result<(), Error> {
         return Err(Error::InvalidInput("output file already exists".into()));
     }
     // Profile, image, runner and directory admission precede any provider call.
-    let session = args.tools.admit(
-        true,
-        args.provider.max_input_bytes,
-        args.provider.max_response_bytes,
-    )?.ok_or_else(|| Error::InvalidInput("implementation stage was not enabled".into()))?;
+    let session = args
+        .tools
+        .admit(
+            true,
+            args.provider.max_input_bytes,
+            args.provider.max_response_bytes,
+        )?
+        .ok_or_else(|| Error::InvalidInput("implementation stage was not enabled".into()))?;
     let model = args.provider.model()?;
     let report = run_stage(&session, &model, &original, args.tools.deadline()).await?;
     let bytes = serde_json::to_vec_pretty(&report)?;
     let mut file = super::private_file(&output)?;
-    if let Err(error) = file.write_all(&bytes)
+    if let Err(error) = file
+        .write_all(&bytes)
         .and_then(|()| file.write_all(b"\n"))
         .and_then(|()| file.sync_all())
     {
@@ -206,7 +212,10 @@ pub async fn tool_run(args: ToolRunArgs) -> Result<(), Error> {
     let worker_cancellation = cancellation.clone();
     let mut worker = tokio::task::spawn_blocking(move || {
         engarg::tooling::execute_registered_with_cancellation(
-            &args.package, &bytes, &supervisor, &worker_cancellation,
+            &args.package,
+            &bytes,
+            &supervisor,
+            &worker_cancellation,
         )
     });
     let joined = tokio::select! {
@@ -224,7 +233,8 @@ pub async fn tool_run(args: ToolRunArgs) -> Result<(), Error> {
             return Err(Error::Budget("collector terminated".into()));
         }
     };
-    let value = joined.map_err(|error| Error::Provider(format!("collector worker failed: {error}")))??;
+    let value =
+        joined.map_err(|error| Error::Provider(format!("collector worker failed: {error}")))??;
     let output = std::io::stdout();
     let mut lock = output.lock();
     serde_json::to_writer(&mut lock, &value)?;

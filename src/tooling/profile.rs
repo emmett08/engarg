@@ -52,11 +52,15 @@ impl ToolchainProfile {
             || self.image.chars().any(char::is_whitespace)
             || self.image.chars().any(char::is_control)
         {
-            return Err(invalid("toolchain requires bounded Docker and image settings"));
+            return Err(invalid(
+                "toolchain requires bounded Docker and image settings",
+            ));
         }
         for argv in [&self.build_argv, &self.run_argv] {
             if argv.len() > 64
-                || argv.iter().any(|part| part.len() > 8192 || part.chars().any(char::is_control))
+                || argv
+                    .iter()
+                    .any(|part| part.len() > 8192 || part.chars().any(char::is_control))
             {
                 return Err(invalid("toolchain command arguments exceed their limits"));
             }
@@ -74,15 +78,20 @@ impl ToolchainProfile {
             || !(16..=4096).contains(&self.memory_mb)
             || !(1024..=16_777_216).contains(&self.output_bytes)
         {
-            return Err(invalid("toolchain execution limits are outside the supported range"));
+            return Err(invalid(
+                "toolchain execution limits are outside the supported range",
+            ));
         }
         let mut names = BTreeSet::new();
         if self.inherit_env.len() > 48
-            || self.inherit_env.iter().any(|name| {
-                !eal_collector_contracts::environment_name(name) || !names.insert(name)
-            })
+            || self
+                .inherit_env
+                .iter()
+                .any(|name| !eal_collector_contracts::environment_name(name) || !names.insert(name))
         {
-            return Err(invalid("toolchain environment requires distinct valid names"));
+            return Err(invalid(
+                "toolchain environment requires distinct valid names",
+            ));
         }
         Ok(())
     }
@@ -117,7 +126,12 @@ mod tests {
             language: "python".into(),
             docker: "docker".into(),
             image: "python:3.13-slim".into(),
-            build_argv: vec!["python3".into(), "-m".into(), "compileall".into(), "/src".into()],
+            build_argv: vec![
+                "python3".into(),
+                "-m".into(),
+                "compileall".into(),
+                "/src".into(),
+            ],
             run_argv: vec!["python3".into(), "/src/collector.py".into()],
             inherit_env: vec!["SERVICE_TOKEN".into()],
             runtime_network: "none".into(),

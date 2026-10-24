@@ -95,9 +95,13 @@ pub(super) fn mount_path(path: &Path) -> Result<&str, Error> {
         .to_str()
         .ok_or_else(|| Error::InvalidInput("collector mount requires UTF-8".into()))?;
     if !path.is_absolute()
-        || text.chars().any(|character| character.is_control() || matches!(character, ',' | ':'))
+        || text
+            .chars()
+            .any(|character| character.is_control() || matches!(character, ',' | ':'))
     {
-        return Err(Error::InvalidInput("collector mount path is not supported".into()));
+        return Err(Error::InvalidInput(
+            "collector mount path is not supported".into(),
+        ));
     }
     Ok(text)
 }
@@ -105,9 +109,9 @@ pub(super) fn mount_path(path: &Path) -> Result<&str, Error> {
 fn safe_path(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 256
-        && !value.chars().any(|character| {
-            character.is_control() || matches!(character, '\\' | ':')
-        })
+        && !value
+            .chars()
+            .any(|character| character.is_control() || matches!(character, '\\' | ':'))
         && Path::new(value)
             .components()
             .all(|component| matches!(component, Component::Normal(_)))
@@ -117,7 +121,9 @@ fn write_files(root: &Path, files: &[SourceFile]) -> Result<(), Error> {
     let mut total = 0usize;
     let mut paths = std::collections::BTreeSet::new();
     if files.len() > 64 {
-        return Err(Error::Budget("collector snapshot contains too many files".into()));
+        return Err(Error::Budget(
+            "collector snapshot contains too many files".into(),
+        ));
     }
     for file in files {
         total = total.saturating_add(file.content.len());
@@ -126,7 +132,9 @@ fn write_files(root: &Path, files: &[SourceFile]) -> Result<(), Error> {
             || file.content.len() > 1_048_576
             || total > 2_097_152
         {
-            return Err(Error::InvalidInput("collector snapshot files exceed path or byte limits".into()));
+            return Err(Error::InvalidInput(
+                "collector snapshot files exceed path or byte limits".into(),
+            ));
         }
         let path = root.join(&file.path);
         let parent = path.parent().expect("relative file has parent");
@@ -142,7 +150,10 @@ fn write_files(root: &Path, files: &[SourceFile]) -> Result<(), Error> {
             }
             ancestor = directory.parent();
         }
-        let mut output = OpenOptions::new().write(true).create_new(true).open(&path)?;
+        let mut output = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)?;
         output.write_all(file.content.as_bytes())?;
         output.sync_all()?;
         #[cfg(unix)]
@@ -161,14 +172,36 @@ mod tests {
     #[test]
     fn snapshots_contain_exact_files_and_reject_traversal() {
         let snapshot = Snapshot::new(
-            &[SourceFile { path: "nested/collector.py".into(), content: "print(1)".into() }],
-            &[SourceFile { path: "response.json".into(), content: "{}".into() }],
-        ).unwrap();
+            &[SourceFile {
+                path: "nested/collector.py".into(),
+                content: "print(1)".into(),
+            }],
+            &[SourceFile {
+                path: "response.json".into(),
+                content: "{}".into(),
+            }],
+        )
+        .unwrap();
         let root = snapshot.root.clone();
-        assert_eq!(fs::read_to_string(snapshot.source.join("nested/collector.py")).unwrap(), "print(1)");
-        assert_eq!(fs::read_to_string(snapshot.fixtures.join("response.json")).unwrap(), "{}");
+        assert_eq!(
+            fs::read_to_string(snapshot.source.join("nested/collector.py")).unwrap(),
+            "print(1)"
+        );
+        assert_eq!(
+            fs::read_to_string(snapshot.fixtures.join("response.json")).unwrap(),
+            "{}"
+        );
         drop(snapshot);
         assert!(!root.exists());
-        assert!(Snapshot::new(&[SourceFile { path: "../escape".into(), content: "".into() }], &[]).is_err());
+        assert!(
+            Snapshot::new(
+                &[SourceFile {
+                    path: "../escape".into(),
+                    content: "".into()
+                }],
+                &[]
+            )
+            .is_err()
+        );
     }
 }

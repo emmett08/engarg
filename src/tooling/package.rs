@@ -67,6 +67,10 @@ fn hash(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+fn empty_digest() -> &'static str {
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
+
 fn identity_valid(identity: &RunnerIdentity) -> bool {
     [&identity.profile_sha256, &identity.docker_sha256, &identity.runner_sha256, &identity.supervisor_sha256]
         .into_iter().all(|value| hash(value))
@@ -352,7 +356,7 @@ fn validate_receipt(
             super::contracts::FixtureKind::AcquisitionError => "acquisition_error",
         };
         if result.name != fixture.name || result.kind != kind
-            || (kind == "acquisition_error" && result.returncode == 0)
+            || (kind == "acquisition_error" && (result.returncode == 0 || result.stdout_sha256 != empty_digest()))
             || (kind != "acquisition_error" && result.returncode != 0)
         {
             return Err(invalid("tool test receipt omits or changes a frozen fixture"));
@@ -361,7 +365,9 @@ fn validate_receipt(
     for (name, result) in ["malformed_json", "missing_identity", "invalid_context"].iter()
         .zip(&receipt.results[contract.draft.fixtures.len()..])
     {
-        if result.name != *name || result.kind != "protocol" || result.returncode == 0 {
+        if result.name != *name || result.kind != "protocol" || result.returncode == 0
+            || result.stdout_sha256 != empty_digest()
+        {
             return Err(invalid("tool test receipt omits a required protocol probe"));
         }
     }
@@ -456,6 +462,9 @@ impl VerifiedPackage {
 
     pub fn descriptor(&self, executable: &Path) -> Result<CollectorDescriptor, Error> {
         // Re-read the retained files immediately before emitting a registration.
+        if super::runner::executable_digest(executable)? != self.identity().runner_sha256 {
+            return Err(invalid("collector launcher differs from the verified runner executable"));
+        }
         let current = load_verified(&self.manifest_path)?;
         if digest_json(&current.manifest)? != digest_json(&self.manifest)? {
             return Err(invalid("verified tool package changed before descriptor registration"));
@@ -481,5 +490,66 @@ impl VerifiedPackage {
         };
         descriptor.validate_for(AuthoringProfile::RuntimeExportable).map_err(Error::InvalidInput)?;
         Ok(descriptor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tooling::verification::tests::{candidate, contract, identity};
+
+    fn profile() -> ToolchainProfile {
+        ToolchainProfile {
+            schema:super::super::profile::TOOLCHAIN_SCHEMA.into(),
+            language:"python".into(), docker:"docker".into(), image:"python:3.13-slim".into(),
+            build_argv:Vec::new(), run_argv:vec!["python3".into(), "/src/collector.py".into()],
+            inherit_env:Vec::new(), runtime_network:"none".into(), timeout_seconds:30,
+            memory_mb:128, output_bytes:1_048_576,
+        }
+    }
+
+    #[test]
+    fn a_failed_coding_retry_cannot_replace_frozen_expectations() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = PackageStore::new(directory.path()).unwrap();
+        let original = contract();
+        let runner = identity();
+        let key = PackageStore::key_for(&original.need, &original.request_context, &original.language, &runner).unwrap();
+        store.freeze_contract(&key, &original, &runner).unwrap();
+        let mut weakened = original.clone();
+        weakened.draft.fixtures[0].expected_value = original.draft.fixtures[1].expected_value.clone();
+        weakened.draft.fixtures[1].expected_value = original.draft.fixtures[0].expected_value.clone();
+        assert_ne!(contract_digest(&weakened).unwrap(), contract_digest(&original).unwrap());
+        let retained = store.freeze_contract(&key, &weakened, &runner).unwrap();
+        assert_eq!(contract_digest(&retained).unwrap(), contract_digest(&original).unwrap());
+    }
+
+    #[test]
+    fn asserted_success_without_observed_test_cases_cannot_enter_the_reuse_index() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = PackageStore::new(directory.path()).unwrap();
+        let contract = contract();
+        let candidate = candidate();
+        let profile = profile();
+        let mut identity = identity();
+        identity.profile_sha256 = digest_json(&profile).unwrap();
+        let key = PackageStore::key_for(&contract.need, &contract.request_context, &contract.language, &identity).unwrap();
+        store.freeze_contract(&key, &contract, &identity).unwrap();
+        for asserted_pass in [false, true] {
+            let attempt = store.new_attempt(&key).unwrap();
+            store.save_candidate(&attempt, &contract, &candidate, &profile, &identity).unwrap();
+            let receipt = VerificationReceipt {
+                schema:TEST_SCHEMA.into(), language:contract.language.clone(),
+                contract_sha256:contract_digest(&contract).unwrap(),
+                candidate_sha256:digest_json(&candidate).unwrap(),
+                source_sha256:digest_json(&candidate.files).unwrap(),
+                fixtures_sha256:digest_json(&contract.draft.fixtures).unwrap(),
+                runner:identity.clone(), passed:asserted_pass, results:Vec::new(),
+            };
+            assert!(store.commit_verified(&key, &attempt, contract.clone(), candidate.clone(),
+                profile.clone(), identity.clone(), receipt).is_err());
+            assert!(store.lookup(&key, &identity).unwrap().is_none());
+            assert!(!attempt.join("manifest.json").exists());
+        }
     }
 }

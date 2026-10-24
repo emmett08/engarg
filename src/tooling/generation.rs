@@ -63,7 +63,7 @@ pub fn draft_request(
             "Encode input_schema_json, result_schema_json, fixture input_json and non-null expected_value_json as exact JSON text strings. ",
             "Parameter names start with an ASCII letter and contain at most 64 ASCII letters, digits or underscores. Use at most 64 parameters and 3 to 64 fixtures. ",
             "Each fixture has at most 16 files, each at most 128 KiB, totaling at most 512 KiB; all encoded fixture data together is at most 1 MiB. ",
-            "Schema and individual JSON values are at most 256 KiB; purpose is at most 16 KiB and fixture names are unique and at most 128 characters. ",
+            "Schema and individual JSON values are at most 256 KiB; purpose is at most 8192 characters and 16 KiB and fixture names are unique and at most 128 characters. ",
             "Fixture files use safe relative paths without dot or dot-dot components, absolute paths, backslashes or case-fold aliases and may contain only synthetic local data. Return only the strict structured response."
         ).into(),
         user: json!({
