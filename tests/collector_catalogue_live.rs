@@ -24,7 +24,7 @@ fn scientific_collector_preserves_typed_inputs_and_measured_negative() {
     std::fs::set_permissions(&collector, std::fs::Permissions::from_mode(0o700)).unwrap();
     let catalogue = CollectorCatalogue::from_json(&serde_json::to_vec(&json!({
         "schema":"eal.collector-catalogue/1", "acquisition_contract":"eal.acquisition/1",
-        "collectors":[{"id":"laboratory_calibration","version":"7","purpose":"Measure calibration for selected laboratory channels",
+        "collectors":[{"id":"lab.calibration","version":"7","purpose":"Measure calibration for selected laboratory channels",
             "parameters":["samples","channels"],
             "input_schema":{"type":"object","additionalProperties":false,"required":["samples","channels"],
                 "properties":{"samples":{"type":"integer","minimum":1},"channels":{"type":"array","items":{"type":"integer"}}}},
@@ -43,7 +43,7 @@ fn scientific_collector_preserves_typed_inputs_and_measured_negative() {
             if index == 0 {
                 AcquisitionPlan {
                     need_id: need.id.clone(),
-                    tool_id: "laboratory_calibration".into(),
+                    tool_id: "lab.calibration".into(),
                     arguments: vec![
                         ToolArgument {
                             name: "samples".into(),
@@ -67,7 +67,24 @@ fn scientific_collector_preserves_typed_inputs_and_measured_negative() {
         })
         .collect::<Vec<_>>();
     let exported = export_with_catalogue(&request, &case, &plans, Some(&catalogue)).unwrap();
-    std::fs::write(directory.path().join("tools.toml"), exported.tools_toml).unwrap();
+    let tool = exported.bundle.source_map[&case.evidence_plan[0].id]
+        .declarations
+        .iter()
+        .find(|entry| entry.kind == "tool")
+        .unwrap()
+        .name
+        .clone();
+    let registry = eal_collector_contracts::CommandRegistry {
+        tools: std::collections::BTreeMap::from([(
+            tool.clone(),
+            exported.registry.tools[&tool].clone(),
+        )]),
+    };
+    std::fs::write(
+        directory.path().join("tools.toml"),
+        registry.to_toml().unwrap(),
+    )
+    .unwrap();
     let bundle = exported.bundle;
     let evidence = &bundle.source_map[&case.evidence_plan[0].id]
         .declarations

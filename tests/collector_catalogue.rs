@@ -315,7 +315,7 @@ fn default_planning_is_domain_neutral_and_selected_schemas_hide_execution_settin
 }
 
 #[test]
-fn v2_identity_binds_selected_contracts_and_preserves_producer_compatibility() {
+fn v3_identity_binds_selected_contracts_and_preserves_producer_compatibility() {
     let (request, case) = fixture();
     let selected = catalogue();
     let planned = plans(&case);
@@ -324,10 +324,10 @@ fn v2_identity_binds_selected_contracts_and_preserves_producer_compatibility() {
     changed.collectors[0].command.timeout_seconds += 1;
     let second = export_with_catalogue(&request, &case, &planned, Some(&changed)).unwrap();
     assert_ne!(first.bundle.revision, second.bundle.revision);
-    assert_eq!(first.bundle.schema_version, "engarg.eal-export/2");
+    assert_eq!(first.bundle.schema_version, "engarg.eal-export/3");
     assert_eq!(
         first.bundle.semantics_version.as_deref(),
-        Some("engarg.eal-projection/2")
+        Some("engarg.eal-projection/3")
     );
     assert_eq!(
         first.bundle.collector_catalogue,
@@ -345,10 +345,7 @@ fn v2_identity_binds_selected_contracts_and_preserves_producer_compatibility() {
     );
     let mut tampered = first.bundle;
     tampered.collector_catalogue = Some(serde_json::to_value(changed).unwrap());
-    assert_ne!(
-        reconstruct_bundle(&tampered).unwrap().revision,
-        tampered.revision
-    );
+    assert!(reconstruct_bundle(&tampered).is_err());
 }
 
 struct CaptureModel {

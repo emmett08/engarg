@@ -689,11 +689,19 @@ fn operator_native_override_reuses_saved_argument_without_a_model_call() {
     let need = report["argument"]["evidence_plan"][0]["id"].clone();
     let plan = directory.path().join("bindings.json");
     std::fs::write(&plan, json!([{"need_id":need,"tool_id":"kubernetes","arguments":[{"name":"kind","value":"Application"},{"name":"name","value":"pilot-sync"}],"unresolved_arguments":["inventory","resource","namespace"]}]).to_string()).unwrap();
+    let catalogue = directory.path().join("native.json");
+    std::fs::write(
+        &catalogue,
+        include_bytes!("../contracts/collectors/native.json"),
+    )
+    .unwrap();
     let source = directory.path().join("case.eal");
     let manifest = directory.path().join("case.json");
     let result = cli()
         .args(["eal", "export", "--input"])
         .arg(&report_path)
+        .arg("--collector-catalogue")
+        .arg(&catalogue)
         .arg("--acquisition-plan")
         .arg(&plan)
         .arg("--output")

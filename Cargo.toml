@@ -1,13 +1,21 @@
 [package]
 name = "engarg"
-version = "0.9.0"
+default-run = "engarg"
+version = "0.10.0"
 edition = "2024"
 rust-version = "1.99"
 description = "Claim-first engineering arguments and evidence plans using extended Toulmin models"
 license = "GPL-3.0-only"
 repository = "https://github.com/emmett08/engarg"
 
+[[bin]]
+name = "engarg-process-supervisor"
+path = "src/bin/process_supervisor.rs"
+
 [dependencies]
+eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "b081ef126bf231bf66be3523870efa39b362229c" }
+eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "b081ef126bf231bf66be3523870efa39b362229c" }
+eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "b081ef126bf231bf66be3523870efa39b362229c" }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 httpdate = "1.0.3"
 jsonschema = { version = "0.46.0", default-features = false, features = ["arbitrary-precision"] }

@@ -5,7 +5,7 @@ use crate::{
     acquisition::AcquisitionPlan,
     collector_catalogue::CollectorCatalogue,
     domain::{ArgumentCase, Request},
-    eal_acquisition::export_with_catalogue,
+    eal_acquisition::export_with_policy,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path};
@@ -90,6 +90,26 @@ pub fn prepare_with_catalogue(
     executable: &Path,
     catalogue: Option<&CollectorCatalogue>,
 ) -> Result<BTreeMap<String, Vec<u8>>, Error> {
+    prepare_with_policy(
+        request,
+        case,
+        retained,
+        directory,
+        executable,
+        catalogue,
+        &crate::export_policy::ExportPolicy::default(),
+    )
+}
+
+pub fn prepare_with_policy(
+    request: &Request,
+    case: &ArgumentCase,
+    retained: &[AcquisitionPlan],
+    directory: &Path,
+    executable: &Path,
+    catalogue: Option<&CollectorCatalogue>,
+    policy: &crate::export_policy::ExportPolicy,
+) -> Result<BTreeMap<String, Vec<u8>>, Error> {
     if !directory.is_absolute() || !executable.is_absolute() {
         return Err(Error::InvalidInput(
             "prepare requires absolute output and executable paths".into(),
@@ -98,7 +118,7 @@ pub fn prepare_with_catalogue(
     let executable = path_text(executable)?;
     let review_path = path_text(&directory.join("review-inputs.json"))?;
     let plans = complete_plans(case, retained)?;
-    let export = export_with_catalogue(request, case, &plans, catalogue)?;
+    let export = export_with_policy(request, case, &plans, catalogue, policy)?;
     let mut registry = export.registry;
     let review = registry
         .tools
@@ -126,7 +146,10 @@ pub fn prepare_with_catalogue(
     files.insert("argument.bundle.json".into(), bytes(&bundle)?);
     files.insert(
         "argument.tools.toml".into(),
-        registry.to_toml()?.into_bytes(),
+        registry
+            .to_toml()
+            .map_err(Error::InvalidInput)?
+            .into_bytes(),
     );
     files.insert("acquisition-inputs.json".into(), bytes(&plans)?);
     files.insert(

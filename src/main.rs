@@ -12,7 +12,7 @@ use serde_json::json;
 use std::{
     collections::HashMap,
     fs::{File, OpenOptions},
-    io::{Read, Write},
+    io::Write,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
@@ -190,14 +190,16 @@ struct Output {
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &Path, limit: usize) -> Result<T, Error> {
-    let mut bytes = Vec::new();
-    File::open(path)?
-        .take(limit.saturating_add(1) as u64)
-        .read_to_end(&mut bytes)?;
-    if bytes.len() > limit {
-        return Err(Error::Budget("input file exceeds byte limit".into()));
-    }
-    Ok(serde_json::from_slice(&bytes)?)
+    let bytes = engarg::bounded_file::read(path, limit, "input file")?;
+    let value = eal_collector_contracts::strict_json_exact(
+        &bytes,
+        eal_collector_contracts::JsonLimits {
+            max_bytes: limit,
+            ..Default::default()
+        },
+    )
+    .map_err(Error::InvalidInput)?;
+    Ok(serde_json::from_value(value)?)
 }
 
 fn private_file(path: &Path) -> Result<File, Error> {
@@ -234,6 +236,13 @@ fn emit(output: &Output, content: String) -> Result<(), Error> {
     Ok(())
 }
 
+fn render_error(error: presentations::RenderError) -> Error {
+    match error {
+        presentations::RenderError::InvalidStructure => Error::InvalidOutput(error.to_string()),
+        presentations::RenderError::ResourceLimit(_) => Error::Budget(error.to_string()),
+    }
+}
+
 fn report_content(
     output: &Output,
     request: &Request,
@@ -245,7 +254,7 @@ fn report_content(
     let mut content = match output.format {
         Format::Json => return Ok(serde_json::to_string_pretty(&value)?),
         Format::Markdown => {
-            let markdown = render::markdown(request, argument);
+            let markdown = render::markdown(request, argument).map_err(render_error)?;
             if output.no_audit_appendix {
                 markdown
             } else {
@@ -257,15 +266,19 @@ fn report_content(
             argument,
             usize::from(output.outline_depth),
             output.display_depth,
-        ),
-        Format::Prose => presentations::prose_with_depth(request, argument, output.display_depth),
+        )
+        .map_err(render_error)?,
+        Format::Prose => presentations::prose_with_depth(request, argument, output.display_depth)
+            .map_err(render_error)?,
         Format::Argument => presentations::plain_lines_with_depth(
             request,
             argument,
             usize::from(output.outline_depth),
             output.display_depth,
-        ),
-        Format::Html => presentations::html_with_depth(request, argument, output.display_depth),
+        )
+        .map_err(render_error)?,
+        Format::Html => presentations::html_with_depth(request, argument, output.display_depth)
+            .map_err(render_error)?,
     };
     if synthetic {
         let notice = "Synthetic demonstration. No model calls, source verification or experiments were performed.";
@@ -275,6 +288,11 @@ fn report_content(
         } else {
             content = format!("{notice}\n\n{content}");
         }
+    }
+    if content.len() > presentations::RenderLimits::default().max_output_bytes {
+        return Err(Error::Budget(
+            "render.resource_limit: final output budget exceeded".into(),
+        ));
     }
     Ok(content)
 }
@@ -303,6 +321,7 @@ fn audit_event(file: &Mutex<Option<File>>, event: &impl Serialize) -> Result<(),
 }
 
 async fn analyse(args: Analyse) -> Result<(), Error> {
+    let started = std::time::Instant::now();
     if args.max_input_bytes == 0 || args.max_response_bytes == 0 || args.timeout_secs == 0 {
         return Err(Error::InvalidInput(
             "resource limits must be positive".into(),
@@ -361,7 +380,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
             .collector_catalogue
             .as_deref()
             .map(|path| {
-                let bytes = std::fs::read(path)?;
+                let bytes = engarg::bounded_file::read(path, 1_048_576, "collector catalogue")?;
                 engarg::collector_catalogue::CollectorCatalogue::from_json(&bytes)
             })
             .transpose()?,
@@ -443,7 +462,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         }
     };
     let result = tokio::select! {
-        result=tokio::time::timeout(Duration::from_secs(args.timeout_secs),run)=> match result {Ok(result)=>result,Err(_)=>Err(Error::Budget("run deadline exceeded; provider cancellation does not guarantee billing cancellation".into()))},
+        result=tokio::time::timeout(Duration::from_secs(args.timeout_secs).checked_sub(started.elapsed()).ok_or_else(|| Error::Budget("run deadline exhausted during admission".into()))?,run)=> match result {Ok(result)=>result,Err(_)=>Err(Error::Budget("run deadline exceeded; provider cancellation does not guarantee billing cancellation".into()))},
         result=tokio::signal::ctrl_c()=>{result?; Err(Error::Budget("interrupted; provider cancellation does not guarantee billing cancellation".into()))},
     };
     match result {

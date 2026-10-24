@@ -5,6 +5,7 @@
 //! operator configuration; argument generation must never choose an executable.
 
 use crate::Error;
+use eal_process::{CommandRequest, ExecutionError};
 use serde_json::Value;
 use std::{
     collections::BTreeSet,
@@ -12,12 +13,7 @@ use std::{
     io::Write,
     net::IpAddr,
     path::{Path, PathBuf},
-    process::{ExitStatus, Stdio},
     time::Duration,
-};
-use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
-    process::{Child, Command},
 };
 
 const MAX_INPUT: usize = 2 * 1024 * 1024;
@@ -63,6 +59,8 @@ pub struct HostConfig {
     pub registry: Option<PathBuf>,
     /// Names of explicitly forwarded collector settings. Values never enter reports.
     pub collector_env: Vec<String>,
+    /// Explicitly public configuration, declared by the operator alone.
+    pub public_collector_env: Vec<String>,
     pub url: Option<String>,
     pub token_env: Option<String>,
     pub timeout: Duration,
@@ -74,6 +72,7 @@ struct Target {
     registry: Option<PathBuf>,
     collector_env: Vec<(String, OsString)>,
     token: Option<OsString>,
+    sensitivity: eal_collector_contracts::OperatorEnvironmentPolicy,
 }
 
 impl HostConfig {
@@ -114,6 +113,22 @@ impl HostConfig {
                 "a local tools registry cannot configure a remote EAL server",
             ));
         }
+        let sensitivity = eal_collector_contracts::OperatorEnvironmentPolicy {
+            schema: eal_collector_contracts::OPERATOR_ENVIRONMENT_POLICY.into(),
+            forward: self.collector_env.clone(),
+            public: self.public_collector_env.clone(),
+        };
+        sensitivity.validate().map_err(Error::InvalidInput)?;
+        if self
+            .token_env
+            .as_ref()
+            .is_some_and(|name| sensitivity.public.contains(name))
+        {
+            return Err(invalid("bearer token sensitivity cannot be downgraded"));
+        }
+        if let Some(registry) = &registry {
+            crate::bounded_file::read(registry, MAX_REGISTRY, "eal-host registry")?;
+        }
         let collector_env = collector_environment(&self.collector_env, registry.as_deref())?;
         if let Some(url) = &self.url {
             validate_url(url, self.token_env.is_some())?;
@@ -149,6 +164,7 @@ impl HostConfig {
             registry,
             collector_env,
             token,
+            sensitivity,
         })
     }
 }
@@ -199,38 +215,12 @@ fn registry_environment(path: &Path) -> Result<BTreeSet<String>, Error> {
     let bytes = crate::bounded_file::read(path, MAX_REGISTRY, "eal-host registry")?;
     let text = std::str::from_utf8(&bytes)
         .map_err(|_| invalid("eal-host registry must contain UTF-8 TOML"))?;
-    let table: toml::Table =
-        toml::from_str(text).map_err(|_| invalid("eal-host registry must contain valid TOML"))?;
+    let registry =
+        eal_collector_contracts::RegistryDocument::from_toml(text).map_err(Error::InvalidInput)?;
     let mut allowed = BTreeSet::new();
-    let Some(tools) = table.get("tools") else {
-        return Ok(allowed);
-    };
-    let tools = tools
-        .as_table()
-        .ok_or_else(|| invalid("eal-host registry tools must be a table"))?;
-    for binding in tools.values() {
-        let binding = binding
-            .as_table()
-            .ok_or_else(|| invalid("eal-host registry bindings must be tables"))?;
-        let Some(inherited) = binding.get("inherit_env") else {
-            continue;
-        };
-        let inherited = inherited
-            .as_array()
-            .filter(|names| {
-                binding.get("kind").and_then(toml::Value::as_str) == Some("command")
-                    && names.len() <= MAX_COLLECTOR_ENV
-            })
-            .ok_or_else(|| {
-                invalid("registry inherit_env requires bounded command variable names")
-            })?;
-        let mut names = BTreeSet::new();
-        for name in inherited {
-            let name = name
-                .as_str()
-                .filter(|name| environment_name(name) && names.insert(*name))
-                .ok_or_else(|| invalid("registry inherit_env requires distinct valid names"))?;
-            allowed.insert(name.to_owned());
+    for binding in registry.tools.values() {
+        if let Some(inherited) = &binding.inherit_env {
+            allowed.extend(inherited.iter().cloned());
         }
     }
     Ok(allowed)
@@ -254,12 +244,7 @@ fn absolute_path(path: &Path) -> Result<PathBuf, Error> {
 }
 
 fn environment_name(value: &str) -> bool {
-    let mut bytes = value.bytes();
-    value.len() <= 128
-        && bytes
-            .next()
-            .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
-        && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    eal_collector_contracts::environment_name(value)
 }
 
 fn validate_url(value: &str, authenticated: bool) -> Result<(), Error> {
@@ -293,11 +278,13 @@ fn validate_url(value: &str, authenticated: bool) -> Result<(), Error> {
     Ok(())
 }
 
-fn command(config: &HostConfig, target: &Target) -> Command {
-    let mut command = Command::new(&config.executable);
-    // The server must not inherit unrelated provider credentials or ambient
-    // EAL_MCP_* configuration. Keep only runtime and certificate locations.
-    command.env_clear();
+fn command(
+    config: &HostConfig,
+    target: &Target,
+    input: Vec<u8>,
+    timeout: Duration,
+) -> Result<CommandRequest, Error> {
+    let mut environment = std::collections::BTreeMap::new();
     for name in [
         "PATH",
         "HOME",
@@ -314,75 +301,58 @@ fn command(config: &HostConfig, target: &Target) -> Command {
         "WINDIR",
         "PATHEXT",
     ] {
-        if let Some(value) = std::env::var_os(name) {
-            command.env(name, value);
+        if let Ok(value) = std::env::var(name) {
+            environment.insert(name.into(), value);
         }
     }
     for (name, value) in &target.collector_env {
-        command.env(name, value);
+        environment.insert(
+            name.clone(),
+            value.to_str().expect("validated UTF-8").into(),
+        );
     }
-    command
-        .arg("--workspace")
-        .arg(&target.workspace)
-        .args([
-            "--exposure",
-            "operator",
-            "--methods",
-            "builtin",
-            "--timeout",
-        ])
-        .arg(config.timeout.as_secs_f64().to_string());
-    if let Some(database) = &target.database {
-        command.arg("--database").arg(database);
-    }
-    if let Some(registry) = &target.registry {
-        command.arg("--registry").arg(registry);
+    let mut argv = vec![
+        config.executable.to_str().expect("validated UTF-8").into(),
+        "--workspace".into(),
+        target.workspace.to_str().expect("validated UTF-8").into(),
+        "--exposure".into(),
+        "operator".into(),
+        "--methods".into(),
+        "builtin".into(),
+        "--timeout".into(),
+        timeout.as_secs_f64().to_string(),
+    ];
+    for (flag, path) in [
+        ("--database", target.database.as_ref()),
+        ("--registry", target.registry.as_ref()),
+    ] {
+        if let Some(path) = path {
+            argv.extend([
+                flag.into(),
+                path.to_str()
+                    .ok_or_else(|| invalid("host path requires UTF-8"))?
+                    .into(),
+            ]);
+        }
     }
     if let Some(url) = &config.url {
-        command.arg("--url").arg(url);
+        argv.extend(["--url".into(), url.clone()]);
     }
     if let (Some(name), Some(token)) = (&config.token_env, &target.token) {
-        command.arg("--token-env").arg(name).env(name, token);
+        argv.extend(["--token-env".into(), name.clone()]);
+        environment.insert(
+            name.clone(),
+            token.to_str().expect("validated UTF-8").into(),
+        );
     }
-    command
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    command
-}
-
-enum ExchangeError {
-    Io,
-    Limit(&'static str),
-}
-
-async fn read_limited(
-    mut reader: impl AsyncRead + Unpin,
-    limit: usize,
-    stream: &'static str,
-) -> Result<Vec<u8>, ExchangeError> {
-    let mut bytes = Vec::new();
-    let mut chunk = [0_u8; 8192];
-    loop {
-        let count = reader
-            .read(&mut chunk)
-            .await
-            .map_err(|_| ExchangeError::Io)?;
-        if count == 0 {
-            return Ok(bytes);
-        }
-        if count > limit.saturating_sub(bytes.len()) {
-            return Err(ExchangeError::Limit(stream));
-        }
-        bytes.extend_from_slice(&chunk[..count]);
-    }
-}
-
-async fn terminate(child: &mut Child) {
-    // Tokio's kill also waits, so a completed cancellation reaps the process.
-    // kill_on_drop remains a fallback if the OS cannot complete termination.
-    let _ = tokio::time::timeout(CLEANUP_GRACE, child.kill()).await;
+    Ok(CommandRequest {
+        argv,
+        environment,
+        cwd: target.workspace.clone(),
+        input,
+        timeout: timeout + CLEANUP_GRACE,
+        max_output_bytes: MAX_OUTPUT + MAX_STDERR,
+    })
 }
 
 /// Send one bounded request through the official host and retain its envelope.
@@ -393,6 +363,7 @@ async fn terminate(child: &mut Child) {
 /// inconsistent exit statuses are transport failures. Child stderr is never
 /// included in an error or returned to the caller.
 pub async fn invoke(config: &HostConfig, request: &Value) -> Result<Value, Error> {
+    let started = std::time::Instant::now();
     let target = config.validate()?;
     if request
         .as_object()
@@ -408,59 +379,55 @@ pub async fn invoke(config: &HostConfig, request: &Value) -> Result<Value, Error
         return Err(Error::Budget("eal-host request exceeds 2 MiB".to_owned()));
     }
     serialization?;
-    let input = buffer.bytes;
-    let mut child = command(config, &target).spawn().map_err(|_| {
-        Error::Provider("could not start eal-host; check its installation".to_owned())
+    let timeout = config
+        .timeout
+        .checked_sub(started.elapsed())
+        .filter(|duration| !duration.is_zero())
+        .ok_or_else(|| Error::Budget("eal-host deadline exhausted during admission".into()))?;
+    let outcome = eal_adapters::command::run_with_stream_limits(
+        command(config, &target, buffer.bytes, timeout)?,
+        eal_process::StreamLimits {
+            max_stdout_bytes: MAX_OUTPUT,
+            max_stderr_bytes: MAX_STDERR,
+        },
+    )
+    .await
+    .map_err(|_| {
+        Error::Provider(
+            "EAL_HOST_PROCESS: bounded host execution failed; check supervisor installation".into(),
+        )
     })?;
-    let mut stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| Error::Provider("eal-host stdin is unavailable".to_owned()))?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| Error::Provider("eal-host stdout is unavailable".to_owned()))?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| Error::Provider("eal-host stderr is unavailable".to_owned()))?;
-    let exchange = tokio::time::timeout(config.timeout + CLEANUP_GRACE, async {
-        let write = async {
-            stdin
-                .write_all(&input)
-                .await
-                .map_err(|_| ExchangeError::Io)?;
-            stdin.shutdown().await.map_err(|_| ExchangeError::Io)?;
-            // EOF is part of the host protocol: it reads one complete document.
-            drop(stdin);
-            Ok(())
-        };
-        let ((), stdout, _) = tokio::try_join!(
-            write,
-            read_limited(stdout, MAX_OUTPUT, "stdout"),
-            read_limited(stderr, MAX_STDERR, "stderr"),
-        )?;
-        let status = child.wait().await.map_err(|_| ExchangeError::Io)?;
-        Ok::<_, ExchangeError>((status, stdout))
-    })
-    .await;
-    let (status, stdout) = match exchange {
-        Ok(Ok(value)) => value,
-        failure => {
-            terminate(&mut child).await;
-            return Err(match failure {
-                Err(_) => {
-                    Error::Provider("eal-host exceeded its deadline and was terminated".to_owned())
-                }
-                Ok(Err(ExchangeError::Limit(stream))) => {
-                    Error::Budget(format!("eal-host {stream} exceeded its byte limit"))
-                }
-                _ => Error::Provider("eal-host process I/O failed".to_owned()),
-            });
-        }
-    };
-    let mut response: Value = serde_json::from_slice(&stdout)
-        .map_err(|_| Error::Provider("eal-host returned invalid JSON".to_owned()))?;
+    if outcome.stdout_bytes > MAX_OUTPUT {
+        return Err(Error::Budget(
+            "eal-host stdout exceeded its byte limit".into(),
+        ));
+    }
+    if outcome.stderr_bytes > MAX_STDERR {
+        return Err(Error::Budget(
+            "eal-host stderr exceeded its byte limit".into(),
+        ));
+    }
+    if outcome.execution_error.is_some() {
+        return Err(match outcome.execution_error {
+            Some(ExecutionError::OutputLimit) => {
+                Error::Budget("eal-host stdout or stderr exceeded its byte limit".into())
+            }
+            Some(ExecutionError::Timeout) => {
+                Error::Provider("eal-host exceeded its deadline and was terminated".into())
+            }
+            _ => Error::Provider("eal-host bounded process execution failed".into()),
+        });
+    }
+    let response = eal_collector_contracts::strict_json_exact(
+        &outcome.stdout,
+        eal_collector_contracts::JsonLimits {
+            max_bytes: MAX_OUTPUT,
+            max_depth: 128,
+            ..Default::default()
+        },
+    )
+    .map_err(|_| Error::Provider("eal-host returned invalid JSON".into()))?;
+    let status = outcome.returncode;
     validate_response(&response, request, status)?;
     let secrets: Vec<_> = target
         .token
@@ -470,23 +437,23 @@ pub async fn invoke(config: &HostConfig, request: &Value) -> Result<Value, Error
             target
                 .collector_env
                 .iter()
+                .filter(|(name, _)| target.sensitivity.sensitive(name))
                 .map(|(_, value)| value.as_os_str()),
         )
         .filter_map(|value| value.to_str())
         .collect();
-    for secret in &secrets {
-        redact(&mut response, secret)?;
-    }
     if secrets
         .iter()
         .any(|secret| contains_secret(&response, secret))
     {
-        return Err(Error::Provider("eal-host response redaction failed".into()));
+        return Err(Error::Provider(
+            "EAL_HOST_CREDENTIAL_LEAK: host response contains sensitive data".into(),
+        ));
     }
     Ok(response)
 }
 
-fn validate_response(response: &Value, request: &Value, status: ExitStatus) -> Result<(), Error> {
+fn validate_response(response: &Value, request: &Value, status: i32) -> Result<(), Error> {
     let invalid_response =
         || Error::Provider("eal-host returned an invalid response envelope".to_owned());
     let is_error = response
@@ -494,10 +461,7 @@ fn validate_response(response: &Value, request: &Value, status: ExitStatus) -> R
         .and_then(|object| object.get("is_error"))
         .and_then(Value::as_bool)
         .ok_or_else(invalid_response)?;
-    if !matches!(
-        (status.code(), is_error),
-        (Some(0), false) | (Some(1 | 2), true)
-    ) {
+    if !matches!((status, is_error), (0, false) | (1 | 2, true)) {
         return Err(Error::Provider(
             "eal-host exit status disagrees with its response".to_owned(),
         ));
@@ -517,29 +481,6 @@ fn validate_response(response: &Value, request: &Value, status: ExitStatus) -> R
     Ok(())
 }
 
-fn redact(value: &mut Value, token: &str) -> Result<(), Error> {
-    match value {
-        Value::String(text) => *text = text.replace(token, "[REDACTED]"),
-        Value::Array(values) => {
-            for value in values {
-                redact(value, token)?;
-            }
-        }
-        Value::Object(object) => {
-            if object.keys().any(|key| key.contains(token)) {
-                return Err(Error::Provider(
-                    "eal-host response contains a credential in a field name".to_owned(),
-                ));
-            }
-            for value in object.values_mut() {
-                redact(value, token)?;
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
 fn contains_secret(value: &Value, secret: &str) -> bool {
     match value {
         Value::String(text) => text.contains(secret),
@@ -547,6 +488,8 @@ fn contains_secret(value: &Value, secret: &str) -> bool {
         Value::Object(values) => values
             .iter()
             .any(|(key, value)| key.contains(secret) || contains_secret(value, secret)),
-        _ => false,
+        Value::Number(number) => number.to_string().contains(secret),
+        Value::Bool(value) => value.to_string().contains(secret),
+        Value::Null => "null".contains(secret),
     }
 }

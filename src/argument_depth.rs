@@ -1,7 +1,8 @@
 //! Claim levels in the canonical support graph, independent of presentation.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
+#[cfg(test)]
 use crate::domain::ArgumentCase;
 
 /// Roots are level one. A subclaim premise adds one level; grounds, warrants,
@@ -13,56 +14,14 @@ pub(crate) struct ClaimDepths<'a> {
 }
 
 impl<'a> ClaimDepths<'a> {
+    #[cfg(test)]
     pub(crate) fn new(case: &'a ArgumentCase) -> Self {
-        let mut incoming: HashMap<&str, usize> = ["current_claim", "stronger_target"]
-            .into_iter()
-            .chain(case.subclaims.iter().map(|claim| claim.id.as_str()))
-            .map(|id| (id, 0))
-            .collect();
-        let mut children: HashMap<&str, Vec<&str>> = HashMap::new();
-        for warrant in &case.warrants {
-            for premise in &warrant.premise_ids {
-                if let Some(count) = incoming.get_mut(premise.as_str()) {
-                    *count += 1;
-                    children
-                        .entry(&warrant.conclusion_id)
-                        .or_default()
-                        .push(premise);
-                }
-            }
-        }
-        let mut result = Self {
-            shortest: HashMap::from([("current_claim", 1), ("stronger_target", 1)]),
-            longest: HashMap::from([("current_claim", 1), ("stronger_target", 1)]),
-        };
-        let mut ready: VecDeque<_> = incoming
-            .iter()
-            .filter_map(|(id, count)| (*count == 0).then_some(*id))
-            .collect();
-        while let Some(parent) = ready.pop_front() {
-            for child in children.get(parent).into_iter().flatten() {
-                if let Some(depth) = result.shortest.get(parent).copied() {
-                    result
-                        .shortest
-                        .entry(child)
-                        .and_modify(|value| *value = (*value).min(depth + 1))
-                        .or_insert(depth + 1);
-                }
-                if let Some(depth) = result.longest.get(parent).copied() {
-                    result
-                        .longest
-                        .entry(child)
-                        .and_modify(|value| *value = (*value).max(depth + 1))
-                        .or_insert(depth + 1);
-                }
-                let count = incoming.get_mut(child).expect("declared claim");
-                *count -= 1;
-                if *count == 0 {
-                    ready.push_back(child);
-                }
-            }
-        }
-        result
+        Self::from_index(&crate::domain::ArgumentIndex::new(case))
+    }
+
+    pub(crate) fn from_index(index: &crate::domain::ArgumentIndex<'a>) -> Self {
+        let (shortest, longest, _) = index.claim_depth_maps();
+        Self { shortest, longest }
     }
 
     pub(crate) fn maximum(&self) -> usize {

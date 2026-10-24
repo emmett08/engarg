@@ -14,7 +14,7 @@ fn fixtures() -> (Request, ArgumentCase) {
 fn plain_argument_retains_graph_meaning_and_explains_shared_support_once() {
     let (request, case) = fixtures();
     let before = serde_json::to_value(&case).unwrap();
-    let output = presentations::plain_lines(&request, &case, 3);
+    let output = presentations::plain_lines(&request, &case, 3).unwrap();
     assert_eq!(output.matches(&case.subclaims[0].text).count(), 1);
     assert!(output.contains("See S1 for the shared argument."));
     assert!(output.contains("These supporting arguments are jointly required."));
@@ -44,7 +44,7 @@ fn plain_argument_distinguishes_composition_and_selection() {
         .unwrap();
     item.relationship = SupportRelationship::AlternativeRoutes;
     item.selected_warrant_ids.clear();
-    let output = presentations::plain_lines(&request, &case, 3);
+    let output = presentations::plain_lines(&request, &case, 3).unwrap();
     assert!(output.contains("These supporting arguments provide alternative routes."));
     assert!(output.contains("This route remains a candidate."));
     case.compositions
@@ -54,6 +54,7 @@ fn plain_argument_distinguishes_composition_and_selection() {
         .relationship = SupportRelationship::Cumulative;
     assert!(
         presentations::plain_lines(&request, &case, 3)
+            .unwrap()
             .contains("These supporting arguments contribute cumulative support.")
     );
 }
@@ -63,7 +64,7 @@ fn plain_argument_keeps_technical_syntax_and_authored_sentence_boundaries() {
     let (request, mut case) = fixtures();
     let literal = "TraceQL uses { span.duration > 1.25s && resource.service.name = \"pilot:sync\" }. See https://example.test/v1.2.";
     case.grounds[0].statement = literal.into();
-    let output = presentations::plain_lines(&request, &case, 3);
+    let output = presentations::plain_lines(&request, &case, 3).unwrap();
     assert!(output.contains(literal));
     assert!(!output.contains("Qualification:"));
     assert!(!output.contains("Premises jointly required:"));
@@ -78,7 +79,7 @@ fn plain_argument_display_depth_preserves_boundary_conditions() {
         .iter()
         .find(|item| item.conclusion_id == "S1")
         .unwrap();
-    let output = presentations::plain_lines_with_depth(&request, &case, 3, Some(1));
+    let output = presentations::plain_lines_with_depth(&request, &case, 3, Some(1)).unwrap();
     assert!(!output.contains(&format!("{} — {}", warrant.id, warrant.rule)));
     assert!(output.contains("The canonical JSON retains the deeper supporting detail."));
     assert!(output.contains(&case.current_claim.qualifier));
@@ -96,7 +97,7 @@ fn plain_argument_places_a_challenge_beside_its_assumption() {
     challenge.response =
         "A comparison with production workload records would assess this coverage.".into();
     case.defeaters.push(challenge.clone());
-    let output = presentations::plain_lines(&request, &case, 3);
+    let output = presentations::plain_lines(&request, &case, 3).unwrap();
     let assumption = output
         .find(&format!("The assumption {} is", case.assumptions[0].id))
         .unwrap();
@@ -110,7 +111,7 @@ fn plain_argument_places_a_challenge_beside_its_assumption() {
     condition.statement = "The workload audit preserves its sampling frame.".into();
     condition.applies_to = vec![challenge.id];
     case.assumptions.push(condition.clone());
-    let output = presentations::plain_lines(&request, &case, 3);
+    let output = presentations::plain_lines(&request, &case, 3).unwrap();
     assert!(output.contains(&format!(
         "The assumption {} is {}",
         condition.id, condition.statement
@@ -149,7 +150,7 @@ fn plain_argument_bounds_indentation_and_retains_deep_argument_records() {
         .find(|item| item.conclusion_id == "current_claim")
         .unwrap()
         .premise_ids = vec!["Deep49".into()];
-    let output = presentations::plain_lines(&request, &case, 2);
+    let output = presentations::plain_lines(&request, &case, 2).unwrap();
     assert!(output.contains("The following record develops the supporting argument for Deep49."));
     assert_eq!(output.matches("Deep claim 49.").count(), 1);
     assert_eq!(output.matches("Deep claim 0.").count(), 1);

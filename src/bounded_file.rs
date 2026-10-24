@@ -8,7 +8,9 @@ use std::{
 };
 
 fn invalid(label: &str) -> Error {
-    Error::InvalidInput(format!("{label} must be an unchanged regular file"))
+    Error::InvalidInput(format!(
+        "{label} must be a regular file with stable path identity"
+    ))
 }
 
 #[cfg(unix)]
@@ -71,7 +73,7 @@ fn same_file(before: &Metadata, after: &Metadata) -> bool {
 /// Canonicalise the parent, then open every resolved component without following
 /// links on POSIX. Validate the open file before reading and check path identity
 /// afterwards. Error messages contain the caller's label without file contents.
-pub(crate) fn read(path: &Path, limit: usize, label: &str) -> Result<Vec<u8>, Error> {
+pub fn read(path: &Path, limit: usize, label: &str) -> Result<Vec<u8>, Error> {
     let absolute = std::path::absolute(path).map_err(|_| invalid(label))?;
     let name = absolute.file_name().ok_or_else(|| invalid(label))?;
     let parent = absolute

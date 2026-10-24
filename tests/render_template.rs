@@ -11,7 +11,7 @@ fn fixtures() -> (Request, ArgumentCase) {
 #[test]
 fn every_inference_has_all_fourteen_template_components() {
     let (request, case) = fixtures();
-    let report = markdown(&request, &case);
+    let report = markdown(&request, &case).unwrap();
     let labels = [
         "1. Claim —",
         "2. Grounds —",
@@ -52,7 +52,7 @@ fn every_inference_has_all_fourteen_template_components() {
 #[test]
 fn shared_registers_keep_canonical_evidence_and_obligation_details() {
     let (request, case) = fixtures();
-    let report = markdown(&request, &case);
+    let report = markdown(&request, &case).unwrap();
     for section in [
         "## Argument context",
         "## Evidence register",
@@ -133,7 +133,7 @@ fn alternative_route_selection_is_preserved_as_an_assessment() {
         .clone();
     candidate.id = "W-unselected".into();
     case.warrants.push(candidate);
-    let report = markdown(&request, &case);
+    let report = markdown(&request, &case).unwrap();
     assert!(report.contains("Relationship: alternative_routes."));
     assert!(report.contains(&format!("Selected warrants: {chosen}.")));
     assert!(report.contains("a retained, unselected candidate"));
@@ -146,7 +146,7 @@ fn alternative_route_selection_is_preserved_as_an_assessment() {
 #[test]
 fn current_verdict_is_not_reused_as_a_subclaim_or_target_verdict() {
     let (request, case) = fixtures();
-    let report = markdown(&request, &case);
+    let report = markdown(&request, &case).unwrap();
     assert!(report.contains("Separate subclaim verdict not recorded"));
     assert!(report.contains("Conditional target. Its fulfilment has not been established"));
     assert!(report.contains("Current assessment: unsupported."));
@@ -162,7 +162,7 @@ fn evidence_pipes_newlines_and_markup_cannot_add_table_rows_or_columns() {
     let (mut request, case) = fixtures();
     let tick = char::from(96);
     request.evidence[0].excerpt = format!("A | B\n# injected heading\n{tick}quoted{tick} <script>");
-    let report = markdown(&request, &case);
+    let report = markdown(&request, &case).unwrap();
     assert!(report.contains("A \\| B<br># injected heading<br>"));
     assert!(!report.contains("\n# injected heading"));
     assert!(report.contains("&lt;script&gt;"));

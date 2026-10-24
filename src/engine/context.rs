@@ -66,6 +66,7 @@ pub(super) fn assessment(
         let id = format!("{prefix}-{}", index + 1);
         objection_ids.push(id.clone());
         retained.push(RetainedObjection {
+            identity: None,
             id,
             challenge,
             source_role: role,
@@ -152,6 +153,7 @@ mod tests {
                 "Exact objection {index}: {{\"x\":\"quoted\"}}\n∀c ∈ S: preserve scope, units and uncertainty."
             );
             retained.push(RetainedObjection {
+                identity: None,
                 id: defeater.id.clone(),
                 challenge: defeater.challenge.clone(),
                 source_role: Role::Sceptic,
@@ -174,6 +176,7 @@ mod tests {
             serde_json::from_str(include_str!("../../examples/case.json")).unwrap();
         case.original_claim = "An altered claim which validation must reject.".into();
         let retained = vec![RetainedObjection {
+            identity: None,
             id: case.defeaters[0].id.clone(),
             challenge: "Different challenge under the same ID.".into(),
             source_role: Role::Sceptic,
@@ -242,6 +245,7 @@ mod tests {
         case.original_claim = request.claim.clone();
         case.defeaters[0].challenge = "X".into();
         let retained = vec![RetainedObjection {
+            identity: None,
             id: case.defeaters[0].id.clone(),
             challenge: "X".into(),
             source_role: Role::Sceptic,

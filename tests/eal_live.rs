@@ -36,6 +36,7 @@ fn host() -> (TempDir, HostConfig) {
         database: Some(workspace.path().join("assessments.sqlite")),
         registry: None,
         collector_env: Vec::new(),
+        public_collector_env: Vec::new(),
         url: None,
         token_env: None,
         timeout: Duration::from_secs(15),

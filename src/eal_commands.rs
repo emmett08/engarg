@@ -7,7 +7,7 @@ use engarg::{
     Error,
     acquisition::{self, AcquisitionPlan},
     domain::{ArgumentCase, Request},
-    eal_acquisition::{export_with_catalogue, reconstruct_bundle},
+    eal_acquisition::{export_with_policy, reconstruct_bundle},
     eal_export::EalExport,
     eal_host::{HostConfig, invoke},
     engine::CallRecord,
@@ -60,6 +60,9 @@ pub struct PrepareArgs {
     /// Operator-selected collector catalogue. Otherwise use the saved run's catalogue.
     #[arg(long)]
     collector_catalogue: Option<PathBuf>,
+    /// JSON export freshness policy, resolved and retained in the v3 bundle.
+    #[arg(long)]
+    export_policy: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -79,6 +82,9 @@ pub struct ExportArgs {
     /// Operator-selected collector catalogue. Otherwise use the saved run's catalogue.
     #[arg(long)]
     collector_catalogue: Option<PathBuf>,
+    /// JSON export freshness policy, resolved and retained in the v3 bundle.
+    #[arg(long)]
+    export_policy: Option<PathBuf>,
     /// Companion tools registry. Defaults beside output, or beside input for stdout.
     #[arg(long)]
     tools_output: Option<PathBuf>,
@@ -111,6 +117,9 @@ pub struct HostOptions {
     /// The name must appear in inherit_env of the selected operator registry.
     #[arg(long, requires = "tools")]
     collector_env: Vec<String>,
+    /// Operator-declared public configuration among forwarded variable names.
+    #[arg(long, requires = "tools")]
+    public_collector_env: Vec<String>,
     /// Existing Streamable HTTP endpoint; omit to use the host's stdio transport.
     #[arg(long)]
     url: Option<String>,
@@ -129,6 +138,7 @@ impl HostOptions {
             database: self.database,
             registry: self.tools,
             collector_env: self.collector_env,
+            public_collector_env: self.public_collector_env,
             url: self.url,
             token_env: self.token_env,
             timeout: Duration::from_secs(self.timeout_secs),
@@ -262,13 +272,7 @@ struct SourceDocument {
 }
 
 fn read_text(path: &Path) -> Result<String, Error> {
-    let mut bytes = Vec::new();
-    File::open(path)?
-        .take((MAX_INPUT_BYTES + 1) as u64)
-        .read_to_end(&mut bytes)?;
-    if bytes.len() > MAX_INPUT_BYTES {
-        return Err(Error::Budget("EAL input exceeds 16 MiB".into()));
-    }
+    let bytes = engarg::bounded_file::read(path, MAX_INPUT_BYTES, "EAL input")?;
     String::from_utf8(bytes).map_err(|_| Error::InvalidInput("EAL input must be UTF-8".into()))
 }
 
@@ -282,7 +286,15 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
             bundle: None,
         });
     }
-    let bundle: EalExport = serde_json::from_str(&text).map_err(|_| {
+    let value = eal_collector_contracts::strict_json_exact(
+        text.as_bytes(),
+        eal_collector_contracts::JsonLimits {
+            max_bytes: MAX_INPUT_BYTES,
+            ..Default::default()
+        },
+    )
+    .map_err(Error::InvalidInput)?;
+    let bundle: EalExport = serde_json::from_value(value).map_err(|_| {
         Error::InvalidInput(
             "input is not a valid EAL export bundle; use --input-format eal for raw source".into(),
         )
@@ -396,7 +408,9 @@ fn selected_catalogue(
     report: &CanonicalReport,
 ) -> Result<Option<engarg::collector_catalogue::CollectorCatalogue>, Error> {
     if let Some(path) = path {
-        let text = read_text(path)?;
+        let bytes = engarg::bounded_file::read(path, 1_048_576, "collector catalogue")?;
+        let text = std::str::from_utf8(&bytes)
+            .map_err(|_| Error::InvalidInput("collector catalogue must be UTF-8".into()))?;
         return Ok(Some(
             engarg::collector_catalogue::CollectorCatalogue::from_json(text.as_bytes())?,
         ));
@@ -503,8 +517,17 @@ fn execute_export(args: ExportArgs) -> Result<(), Error> {
             catalogue.as_ref(),
         )?;
     }
-    let artifacts =
-        export_with_catalogue(&report.request, &report.argument, &plan, catalogue.as_ref())?;
+    let policy = match args.export_policy.as_deref() {
+        Some(path) => super::read_json(path, 1_048_576)?,
+        None => engarg::export_policy::ExportPolicy::default(),
+    };
+    let artifacts = export_with_policy(
+        &report.request,
+        &report.argument,
+        &plan,
+        catalogue.as_ref(),
+        &policy,
+    )?;
     let bundle = artifacts.bundle;
     let manifest_bytes = json_bytes(&bundle)?;
     let primary = match args.format {
@@ -600,13 +623,18 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             }
             let result = (|| {
                 let directory = args.output_dir.canonicalize()?;
-                let files = engarg::eal_prepare::prepare_with_catalogue(
+                let policy = match args.export_policy.as_deref() {
+                    Some(path) => super::read_json(path, 1_048_576)?,
+                    None => engarg::export_policy::ExportPolicy::default(),
+                };
+                let files = engarg::eal_prepare::prepare_with_policy(
                     &report.request,
                     &report.argument,
                     &plan,
                     &directory,
                     &std::env::current_exe()?,
                     catalogue.as_ref(),
+                    &policy,
                 )?;
                 for (name, bytes) in files {
                     let mut file = PendingFile::create(directory.join(name))?;
