@@ -19,6 +19,7 @@ use std::{
 };
 
 mod eal_commands;
+mod glossary_command;
 mod tooling_commands;
 
 #[derive(Parser)]
@@ -58,6 +59,14 @@ enum Command {
     },
     /// Print the original engineering Toulmin template used by Markdown reports.
     Template,
+    /// Explain argument roles without model calls, for example glossary W.
+    Glossary {
+        /// Role code or concept key. Omit to show the complete glossary.
+        code: Option<String>,
+        /// Print the shared definitions as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Export a machine-readable input or output schema.
     Schema {
         #[arg(value_enum, default_value = "case")]
@@ -160,12 +169,13 @@ struct Analyse {
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Format {
     Json,
-    #[value(alias = "template")]
+    /// Complete argument in Markdown. Use --no-audit-appendix for a reader copy.
+    #[value(alias = "template", alias = "md")]
     Markdown,
     Outline,
     Prose,
     /// One authored statement per indented line for inspecting the argument.
-    #[value(alias = "plain")]
+    #[value(alias = "plain", alias = "txt")]
     Argument,
     #[value(alias = "expandable")]
     Html,
@@ -598,6 +608,7 @@ async fn execute(cli: Cli) -> Result<(), Error> {
             print!("{}", include_str!("../templates/engineering-toulmin.md"));
             Ok(())
         }
+        Command::Glossary { code, json } => glossary_command::run(code.as_deref(), json),
         Command::Schema { kind } => {
             let schema = match kind {
                 SchemaKind::Request => serde_json::to_value(schemars::schema_for!(Request))?,

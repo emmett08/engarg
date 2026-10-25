@@ -178,9 +178,9 @@ Markdown is the default presentation and follows the supplied [Engineering Exten
 
 | Format | Reader task |
 | --- | --- |
-| `markdown` or `template` | Inspect every component of the attached template and the complete audit appendix |
+| `markdown`, `md` or `template` | Inspect every component of the attached template, with an optional audit appendix |
 | `outline` | Inspect one line per claim, indentation and explicit relationships between supporting arguments |
-| `argument` or `plain` | Inspect indented sentence lines with the qualified claims and their reasoning records |
+| `argument`, `plain` or `txt` | Inspect indented sentence lines with the qualified claims and their reasoning records |
 | `prose` | Read connected paragraphs, each performing a declared reasoning task |
 | `html` or `expandable` | Open a self-contained expandable argument view in a browser |
 | `json` | Save the canonical graph, reading paragraphs and run audit for further rendering |
@@ -193,7 +193,10 @@ engarg render --input run.json --format prose --output reading.md
 engarg render --input run.json --format argument --display-depth 2 --output argument.txt
 engarg render --input run.json --format html --output argument.html
 engarg render --input run.json --format markdown --output assessment.md
+engarg render --input run.json --format md --no-audit-appendix --output argument.md
 ```
+
+The authoring script writes `argument.md` alongside `analysis.json`, `argument.txt` and `argument.html`. It also retains `prose.md` for connected reading. The Markdown argument includes every record and omits the duplicate JSON audit appendix. Its source remains available in `analysis.json`. All presentations use that one saved analysis without additional model calls. Their paths are recorded in `run-summary.json`.
 
 Use `--display-depth N` (1–16) with argument, outline, prose or HTML to limit detailed claim levels from the same two roots. A shared claim remains detailed if any root reaches it within the limit. At the boundary, the outline keeps a claim summary, qualifier and consequential conditions while omitting its supporting detail. HTML retains the same information, with full condition statements behind its disclosure control. Prose retains the parent paragraphs and explicitly shows outstanding relied-upon conditions. The HTML investigation registers remain complete. JSON and the full 14-component template always retain the complete case; this option does not prune, reassess or change EAL export. Omit it to show every detailed record.
 
@@ -211,9 +214,25 @@ The outline states each claim with its qualifier and shows the composition relat
 
 In the expandable view, a collapsed claim retains its qualifier and a warning that counts its reliance conditions. Opening the claim reveals the full critical conditions, outstanding challenges and supporting argument. These condition statements remain expandable even when `--display-depth` omits deeper supporting arguments. Supporting findings and objections appear beside the nodes they affect. The HTML file contains no scripts or external assets, and dynamic text is escaped.
 
-The synthesiser authors the reading paragraphs as an explanatory view of the same graph. Each paragraph declares a single task: answer, finding, connection, complication or conclusion. The opening gives the qualified answer. Subsequent paragraphs explain the decisive finding, its inferential connection and the complication that limits the conclusion. Substantial child arguments receive one short section each. The final critic checks the prose against the graph for overstated claims, omitted conditions and invented support. Structural checks validate paragraph references and organisation. Semantic fidelity and reader comprehension remain assessment questions.
+The synthesiser authors the reading paragraphs as an explanatory view of the same graph. Each section opens with the qualified answer and its decisive reason. One paragraph is enough when it conveys the complete argument. Further paragraphs explain findings, inferential connections or consequential complications where needed. The final critic checks the prose against the graph for overstated claims, omitted conditions and invented support. Structural checks validate paragraph references and organisation. Semantic fidelity and reader comprehension remain assessment questions.
 
 The `0.2.0` case schema requires `compositions` and `reading`. Earlier `0.1.0` case files need those records before they can be validated or rendered. Presentation does not silently manufacture missing reasoning.
+
+## Concise writing and argument glossary
+
+Every analysis role receives the repository's [engineering-writing skill](skills/write-engineering-arguments/SKILL.md). It revises each prose field before returning its existing model response. The synthesiser and adjudicator also check the complete reading view against the argument graph. This adds no model call. The revision removes repetition while preserving scope, qualifications, material objections and evidence status. Original input, retained challenge wording, identifiers and tool configuration stay exact. A short reading section can use one answer paragraph. Existing longer sections remain valid.
+
+The [glossary skill](skills/explain-engineering-arguments/SKILL.md) explains each role and how it appears in the model. Its [role definitions](skills/explain-engineering-arguments/references/roles.json) supply the same vocabulary to model prompts, offline CLI help and one collapsed glossary in each HTML report. Use it during construction or rewriting to keep grounds, warrants and assumptions distinct. Open reader help when a code is unfamiliar. Definitions appear once in help rather than inside every argument part.
+
+```sh
+engarg glossary
+engarg glossary W
+engarg glossary N --json
+```
+
+`W` explains why the premises support the conclusion. `N` describes an evidence need and its proposed investigation. `D` identifies a defeater and `S` an intermediate subclaim. These are role labels and common example prefixes. The record type and references determine the role of an identifier such as `auditor-1`. Backing and qualifiers occupy fields rather than separate `B` and `Q` records. The glossary distinguishes the Toulmin core from engarg's engineering extensions.
+
+When using a coding agent in this checkout, ask it to load the relevant `skills/<name>/SKILL.md` by path. Where the skills are installed for discovery, invoke `$write-engineering-arguments` to revise a saved argument or `$explain-engineering-arguments` to explain a role in context. The CLI embeds the writing instructions and glossary definitions when it is built. Rebuild after changing them. Rendering a saved report preserves its authored text. A revision of an existing argument requires model-assisted editing and validation of the updated case.
 
 ## EAL/3 export and MCP assessment
 

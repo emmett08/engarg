@@ -16,9 +16,9 @@ pub(super) fn validate(case: &ArgumentCase, errors: &mut Vec<String>) {
             &format!("reading section {claim} title"),
             &section.title,
         );
-        if section.paragraphs.len() < 2 {
+        if section.paragraphs.is_empty() {
             errors.push(format!(
-                "reading section {claim:?} needs at least an answer and conclusion paragraph"
+                "reading section {claim:?} needs at least one answer paragraph"
             ));
         }
         if section
@@ -32,37 +32,12 @@ pub(super) fn validate(case: &ArgumentCase, errors: &mut Vec<String>) {
         }
         if section
             .paragraphs
-            .last()
-            .is_none_or(|p| p.purpose != ParagraphPurpose::Conclusion)
-        {
-            errors.push(format!(
-                "reading section {claim:?} must end with a conclusion paragraph"
-            ));
-        }
-        if section
-            .paragraphs
             .first()
             .is_none_or(|p| !p.reference_ids.contains(&section.claim_id))
         {
             errors.push(format!(
                 "reading section {claim:?} first answer must reference its own claim ID"
             ));
-        }
-        if claim == "current_claim" {
-            let purposes: HashSet<ParagraphPurpose> =
-                section.paragraphs.iter().map(|p| p.purpose).collect();
-            if [
-                ParagraphPurpose::Answer,
-                ParagraphPurpose::Finding,
-                ParagraphPurpose::Connection,
-                ParagraphPurpose::Complication,
-                ParagraphPurpose::Conclusion,
-            ]
-            .iter()
-            .any(|purpose| !purposes.contains(purpose))
-            {
-                errors.push("current_claim reading must include answer, finding, connection, complication and conclusion paragraphs".into());
-            }
         }
         for (index, paragraph) in section.paragraphs.iter().enumerate() {
             let label = format!("reading {claim} paragraph {}", index + 1);

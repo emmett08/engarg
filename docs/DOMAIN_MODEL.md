@@ -42,6 +42,13 @@ conclusion and attached conditions, while excluding sibling inference routes.
 Attachment traversal is iterative and supports cycles. Lists returned for a
 target preserve authored order.
 
+Reading sections require an opening answer paragraph that references their own
+claim ID. A section can use one paragraph when it carries the complete explanation.
+Additional paragraphs declare their dominant reasoning purpose as needed.
+Admission checks section coverage, paragraph shape and canonical references.
+The critic checks whether the prose preserves the graph's reasoning and conditions.
+Paragraph counts and purpose labels alone establish no semantic completeness.
+
 Claim levels use the same adjacency. Longest routes govern generation depth.
 Shortest routes govern display visibility. Evidence needs are grouped by their
 enabling claim so one dependency traversal serves all needs with the same root.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Engineering Argument Glossary"
+  short_description: "Explain the role of each engineering argument part"
+  default_prompt: "Use $explain-engineering-arguments to explain the selected argument roles and how they connect."
