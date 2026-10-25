@@ -15,6 +15,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[allow(dead_code)]
+#[path = "fixtures/tooling_collector.rs"]
+mod rust_collector_fixture;
 #[path = "common/support.rs"]
 mod support_fixture;
 
@@ -83,7 +86,7 @@ try:
     mode = request["input"]["mode"]
     if mode not in ["positive", "negative", "error"] or mode == "error":
         raise ValueError("synthetic acquisition error")
-    value = json.dumps({"collected": True, "present": mode == "positive"}, separators=(",", ":"))
+    value = json.dumps({"collected": True, "present": mode == "positive", "mode": mode}, separators=(",", ":"))
     acquisition = ",".join(
         json.dumps(name) + ":" + tokens[name]
         for name in ["tool", "tool_version", "input", "context"]
@@ -180,7 +183,7 @@ try {
   if (!["positive", "negative", "error"].includes(mode) || mode === "error") {
     throw new Error("synthetic acquisition error");
   }
-  const result = '{"value":' + JSON.stringify({collected: true, present: mode === "positive"}) +
+  const result = '{"value":' + JSON.stringify({collected: true, present: mode === "positive", mode}) +
     ',"context":' + raw.context + ',"request":{"tool":' + raw.tool +
     ',"tool_version":' + raw.tool_version + ',"input":' + raw.input +
     ',"context":' + raw.context + '}}';
@@ -190,101 +193,7 @@ try {
 }
 "###;
 
-const RUST_COLLECTOR: &str = r###"use serde::{Deserialize, Serialize};
-use serde_json::value::RawValue;
-use std::io::{Read, Write};
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Request {
-    evidence_id: String,
-    environment: String,
-    tool: String,
-    tool_version: String,
-    input: Box<RawValue>,
-    context: Box<RawValue>,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Input {
-    mode: Mode,
-}
-
-#[derive(Clone, Copy, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum Mode {
-    Positive,
-    Negative,
-    Error,
-}
-
-#[derive(Serialize)]
-struct Measurement { collected: bool, present: bool }
-
-#[derive(Serialize)]
-struct Echo<'a> {
-    tool: &'a str,
-    tool_version: &'a str,
-    input: &'a RawValue,
-    context: &'a RawValue,
-}
-
-#[derive(Serialize)]
-struct Envelope<'a> {
-    value: Measurement,
-    context: &'a RawValue,
-    request: Echo<'a>,
-}
-
-fn collect() -> Result<(), Box<dyn std::error::Error>> {
-    let mut raw = Vec::new();
-    std::io::stdin().lock().take(1_048_577).read_to_end(&mut raw)?;
-    if raw.len() > 1_048_576 {
-        return Err("request limit".into());
-    }
-    let request: Request = serde_json::from_slice(&raw)?;
-    if [
-        &request.evidence_id,
-        &request.environment,
-        &request.tool,
-        &request.tool_version,
-    ].iter().any(|identity| identity.is_empty()) {
-        return Err("request identity".into());
-    }
-    if !request.context.get().trim_start().starts_with('{') {
-        return Err("context object".into());
-    }
-    let input: Input = serde_json::from_str(request.input.get())?;
-    let present = match input.mode {
-        Mode::Positive => true,
-        Mode::Negative => false,
-        Mode::Error => return Err("synthetic acquisition error".into()),
-    };
-    // Stream raw metadata through typed structs. A Value/json! intermediate can
-    // confuse literal reserved-key objects with serde's private number markers.
-    let envelope = Envelope {
-        value: Measurement { collected: true, present },
-        context: &request.context,
-        request: Echo {
-            tool: &request.tool,
-            tool_version: &request.tool_version,
-            input: &request.input,
-            context: &request.context,
-        },
-    };
-    let mut output = std::io::stdout().lock();
-    serde_json::to_writer(&mut output, &envelope)?;
-    output.write_all(b"\n")?;
-    Ok(())
-}
-
-fn main() {
-    if collect().is_err() {
-        std::process::exit(2);
-    }
-}
-"###;
+const RUST_COLLECTOR: &str = include_str!("fixtures/tooling_collector.rs");
 
 struct MockServer {
     endpoint: String,
@@ -405,8 +314,8 @@ fn read_request(stream: &mut TcpStream) -> io::Result<Value> {
 }
 
 fn draft_response() -> Value {
-    let positive = json!({"collected": true, "present": true});
-    let negative = json!({"collected": true, "present": false});
+    let positive = json!({"collected": true, "present": true,"mode":"positive"});
+    let negative = json!({"collected": true, "present": false,"mode":"negative"});
     json!({
         "purpose": "Observe a synthetic local instrument while retaining protocol identity",
         "parameters": ["mode"],
@@ -419,8 +328,8 @@ fn draft_response() -> Value {
         "result_schema_json": json!({
             "type": "object",
             "additionalProperties": false,
-            "properties": {"collected": {"type": "boolean"}, "present": {"type": "boolean"}},
-            "required": ["collected", "present"]
+            "properties": {"collected": {"type": "boolean"}, "present": {"type": "boolean"},"mode":{"type":"string","enum":["positive","negative","error"]}},
+            "required": ["collected", "present","mode"]
         }).to_string(),
         "arguments": [{"name": "mode", "value": "positive"}],
         "unresolved_arguments": [],
@@ -865,7 +774,7 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
         eal_collector_contracts::strict_json_exact(&output.stdout, Default::default()).unwrap();
     assert_eq!(
         envelope["value"],
-        json!({"collected": true, "present": true})
+        json!({"collected": true, "present": true,"mode":"positive"})
     );
     assert_eq!(envelope["context"], request["context"]);
     assert_eq!(
@@ -1109,12 +1018,12 @@ fn generated_operation_fixture(
         serde_json::from_value(json!([{"name":"present","unit":"boolean"}])).unwrap();
     contract.time.require_original_observation_time = false;
     let input = json!({"type":"object","additionalProperties":false,"properties":{"mode":{"type":"string","enum":["positive","negative","error"]}},"required":["mode"]});
-    let output = json!({"type":"object","additionalProperties":false,"properties":{"present":{"type":"boolean"}},"required":["present"]});
+    let output = json!({"type":"object","additionalProperties":false,"properties":{"present":{"type":"boolean"},"mode":{"type":"string","enum":["positive","negative","error"]}},"required":["present","mode"]});
     elaboration.acquisitions[0].contract = contract.clone();
     elaboration.acquisitions[0].arguments = json!({"mode":"positive"});
     elaboration.acquisitions[0].operation_spec=Some(serde_json::from_value(json!({
         "schema":engarg::support_requirements::OPERATION_SPECIFICATION_SCHEMA,"definition":"Return present=true exactly when caller mode is positive; return false for negative and fail for error.",
-        "input_conditions":["mode is positive, negative or error"],"output_guarantees":["Do not infer or certify any real deployment state."],
+        "input_conditions":["mode is positive, negative or error"],"output_guarantees":["Retain the synthetic instrument mode in the measured result. Do not infer or certify any real deployment state."],
         "input_schema":input,"output_schema":output
     })).unwrap());
     for requirement in &mut elaboration.requirements {
@@ -1170,6 +1079,172 @@ fn generated_operation_fixture(
     )
 }
 
+fn synthetic_qualification() -> Value {
+    json!({"qualification_reference":"synthetic-operator-review/1","support_types":["observation"],"subject_kinds":["synthetic_flag"],"methods":["synthetic_flag/1"],"identity_dimensions":["mode"],"scope_constraints":{},"scope_bindings":{"mode":"/mode"},"quantities":[{"name":"present","unit":"boolean","output_pointer":"/present"}],"coverage":[{"strength":"existential_witness","population":null,"completeness_pointer":null}],"time":{"historical_intervals":false,"historical_input":null,"original_observation_time":true,"uncertainty_seconds":0},"provenance":{"authorities":["fixture"],"transformation_history":true},"limitations":["Synthetic operator fixture only, no private claim truth established."]})
+}
+
+#[test]
+#[ignore = "requires matching EAL_COLLECTOR; runs local synthetic evidence without Docker"]
+fn generated_interface_native_preflight_requires_original_time_then_executes_and_reuses_one_observation()
+ {
+    use eal_collector_contracts::capability::schema_identity;
+    let collector =
+        PathBuf::from(std::env::var_os("EAL_COLLECTOR").expect("EAL_COLLECTOR is required"))
+            .canonicalize()
+            .unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let source_program = compile_host_rust_collector(root);
+    let (report, config, _) = generated_operation_fixture(root, &collector);
+    let request = &report["evidence_planning"]["routes"]["gaps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|gap| !gap["implementation"].is_null())
+        .unwrap()["implementation"];
+    let mut descriptor = serde_json::to_value(support_fixture::descriptor()).unwrap();
+    descriptor["id"] = json!("synthetic_generated");
+    descriptor["provider"]["id"] = json!("synthetic_generated");
+    descriptor["input_schema"] = request["input_schema"].clone();
+    descriptor["input_schema_sha256"] =
+        json!(schema_identity(&descriptor["input_schema"]).unwrap());
+    descriptor["output_schema"] = request["output_schema"].clone();
+    descriptor["output_schema_sha256"] =
+        json!(schema_identity(&descriptor["output_schema"]).unwrap());
+    descriptor["semantics"] = synthetic_qualification();
+    let supervisor = collector.with_file_name("eal-process-supervisor");
+    let input = root.join("native.json");
+    let original = root.join("analysis.json");
+    fs::write(&original, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+    let mut native = json!({"capability":descriptor,"transport":{"kind":"command","program":source_program,"supervisor":supervisor,"arguments":[],"cwd":root,"inherit_env":[],"protocol":{"kind":"eal_acquisition","environment":"synthetic","tool":"synthetic_generated","tool_version":"1","context":{}}},"mapping":{"tool":"synthetic_generated","raw_output_schema_sha256":null,"response_format":{"kind":"structured"},"value_pointer":"/value","observation_time":{"kind":"pointer","pointer":"/observed_at"},"scope_pointers":{"mode":"/mode"}},"pinned_files":[],"credential_env":[]});
+    // Preparation/discovery/replanning make no source calls. The ready route is
+    // subsequently acquired through the same helper used by the Docker package.
+    for (name, original_time) in [("collection_time", false), ("original_time", true)] {
+        native["capability"]["semantics"]["time"]["original_observation_time"] =
+            json!(original_time);
+        native["mapping"]["observation_time"] = if original_time {
+            json!({"kind":"pointer","pointer":"/observed_at"})
+        } else {
+            json!({"kind":"collection_time"})
+        };
+        fs::write(&input, serde_json::to_vec_pretty(&native).unwrap()).unwrap();
+        let prepared = Command::new(&collector)
+            .args(["prepare-native-provider", "--input"])
+            .arg(&input)
+            .output()
+            .unwrap();
+        successful(&prepared);
+        let prepared: Value = serde_json::from_slice(&prepared.stdout).unwrap();
+        let connections = root.join(format!("{name}-connections.json"));
+        fs::write(&connections,json!({"schema":"eal.evidence-config/1","connections":[],"native_providers":[prepared],"local_catalogues":[],"approved_catalogues":[]}).to_string()).unwrap();
+        let mut planning = config.clone();
+        planning.connections = connections;
+        let planning_path = root.join(format!("{name}-planning.json"));
+        fs::write(
+            &planning_path,
+            serde_json::to_vec_pretty(&planning).unwrap(),
+        )
+        .unwrap();
+        let output = root.join(format!("{name}-replanned.json"));
+        successful(
+            &Command::new(env!("CARGO_BIN_EXE_engarg"))
+                .args(["eal", "replan", "--input"])
+                .arg(&original)
+                .arg("--evidence-config")
+                .arg(&planning_path)
+                .arg("--output")
+                .arg(&output)
+                .output()
+                .unwrap(),
+        );
+        let replanned: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+        let routes = &replanned["evidence_planning"]["routes"];
+        let route = &routes["routes"][0];
+        if original_time {
+            assert_eq!(route["selected"], "synthetic_generated", "{routes}");
+            assert!(
+                route["configuration_gaps"].as_array().unwrap().is_empty(),
+                "{routes}"
+            );
+        } else {
+            assert!(route["selected"].is_null(), "{routes}");
+            assert!(
+                serde_json::to_string(&route["candidates"])
+                    .unwrap()
+                    .contains("original_observation_time_unavailable"),
+                "{routes}"
+            );
+        }
+        assert_eq!(routes["discovery"]["metrics"]["requests"], 0, "{routes}");
+        assert_eq!(replanned["replanning"]["model_calls"], 0);
+        if original_time {
+            assert_native_acquisition_and_reuse(&collector, root, &replanned, &planning_path);
+        }
+    }
+}
+
+fn compile_host_rust_collector(root: &Path) -> PathBuf {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let target = repository.join("target/native-fixture");
+    // Cargo selects a coherent dependency graph even when the main target cache
+    // contains several incompatible serde/serde_json builds. This isolated target
+    // also avoids taking the outer cargo test invocation's build lock.
+    successful(
+        &Command::new(env!("CARGO"))
+            .args(["build", "--locked", "--offline", "--manifest-path"])
+            .arg(repository.join("tests/fixtures/native-collector/Cargo.toml"))
+            .arg("--target-dir")
+            .arg(&target)
+            .env("CARGO_INCREMENTAL", "0")
+            .env("CARGO_PROFILE_DEV_DEBUG", "line-tables-only")
+            .output()
+            .unwrap(),
+    );
+    let name = format!(
+        "engarg-native-collector-fixture{}",
+        std::env::consts::EXE_SUFFIX
+    );
+    let output = root.join(format!(
+        "host-rust-collector{}",
+        std::env::consts::EXE_SUFFIX
+    ));
+    fs::copy(target.join("debug").join(name), &output).unwrap();
+    output
+}
+
+#[test]
+fn native_fixture_lock_is_a_registry_subset_of_the_main_locked_build() {
+    let packages = |source: &str| {
+        let lock: toml::Value = toml::from_str(source).unwrap();
+        lock["package"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|package| {
+                package
+                    .get("source")
+                    .and_then(toml::Value::as_str)
+                    .is_some_and(|source| source.starts_with("registry+"))
+            })
+            .map(|package| {
+                (
+                    package["name"].as_str().unwrap().to_owned(),
+                    package["version"].as_str().unwrap().to_owned(),
+                    package["source"].as_str().unwrap().to_owned(),
+                    package["checksum"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let root = packages(include_str!("../Cargo.lock"));
+    let fixture = packages(include_str!("fixtures/native-collector/Cargo.lock"));
+    assert!(
+        fixture.is_subset(&root),
+        "offline fixture dependencies absent from the main locked build: {:?}",
+        fixture.difference(&root).collect::<Vec<_>>()
+    );
+}
+
 #[test]
 fn generated_operation_fixture_keeps_an_explicit_parameterized_algorithm_and_units() {
     let directory = tempfile::tempdir().unwrap();
@@ -1194,6 +1269,117 @@ fn generated_operation_fixture_keeps_an_explicit_parameterized_algorithm_and_uni
             .iter()
             .any(|gap| gap["kind"] == "operation_implementation")
     );
+}
+
+#[test]
+fn rust_fixture_original_observation_clock_matches_utc_calendar_boundaries() {
+    for seconds in [
+        0,
+        951_782_399,
+        951_782_400,
+        1_704_067_200,
+        1_740_787_199,
+        1_740_787_200,
+        1_792_886_400,
+    ] {
+        let clock = std::time::UNIX_EPOCH + Duration::from_secs(seconds);
+        assert_eq!(
+            rust_collector_fixture::observation_time(clock).unwrap(),
+            chrono::DateTime::from_timestamp(seconds as i64, 0)
+                .unwrap()
+                .format("%Y-%m-%dT%H:%M:%SZ")
+                .to_string()
+        );
+    }
+}
+
+fn assert_native_acquisition_and_reuse(
+    collector: &Path,
+    root: &Path,
+    selected: &Value,
+    registered: &Path,
+) {
+    // Exercise the registered command through the ordinary EAL support graph
+    // path. Replanning itself above performed no evidence calls.
+    let execution_path = root.join("execution.json");
+    let execution: eal_collector_contracts::execution::EvidenceExecutionPlan =
+        serde_json::from_value(selected["evidence_planning"]["routes"]["execution"].clone())
+            .unwrap();
+    fs::write(
+        &execution_path,
+        serde_json::to_vec_pretty(&execution).unwrap(),
+    )
+    .unwrap();
+    let planning: Value = serde_json::from_slice(&fs::read(registered).unwrap()).unwrap();
+    let evidence_store = root.join("acquired-observations");
+    let case_digest =
+        eal_collector_contracts::execution::canonical_digest(&selected["argument"]).unwrap();
+    let plan_digest = eal_collector_contracts::execution::canonical_digest(&execution).unwrap();
+    let context = json!({"engarg_export_digest":case_digest,"engarg_execution_plan_sha256":plan_digest,"opaque":engarg::tooling::verification::protocol_precision_context().unwrap()});
+    let acquisition = json!({"evidence_id":"synthetic_requirement","environment":"synthetic","tool":"support_graph","tool_version":"1","input":{"schema":"engarg.support-acquisition/1","case_digest":case_digest,"execution_plan_sha256":plan_digest,"requirement_id":"shared_requirement_0"},"context":context});
+    let acquire = || {
+        let mut child = Command::new(collector)
+            .args(["support-graph", "--plan"])
+            .arg(&execution_path)
+            .arg("--config")
+            .arg(planning["connections"].as_str().unwrap())
+            .arg("--store")
+            .arg(&evidence_store)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(&serde_json::to_vec(&acquisition).unwrap())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        successful(&output);
+        eal_collector_contracts::strict_json_exact(&output.stdout, Default::default()).unwrap()
+    };
+    let observed = acquire();
+    assert_eq!(observed["value"]["criterion_satisfied"], true, "{observed}");
+    assert_eq!(
+        observed["details"]["metrics"]["source_requests"], 1,
+        "{observed}"
+    );
+    assert_eq!(observed["context"], context);
+    let original_time =
+        chrono::DateTime::parse_from_rfc3339(observed["observed_at"].as_str().unwrap()).unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let age = now - original_time.timestamp();
+    assert!((0..300).contains(&age), "{observed}");
+    let snapshot = evidence_store.join(
+        observed["details"]["observations"][0]["snapshot"]
+            .as_str()
+            .unwrap(),
+    );
+    let retained = fs::read(&snapshot).unwrap();
+    let reused_observation = acquire();
+    assert_eq!(
+        reused_observation["value"]["criterion_satisfied"], true,
+        "{reused_observation}"
+    );
+    assert_eq!(
+        reused_observation["details"]["metrics"]["source_requests"], 0,
+        "{reused_observation}"
+    );
+    assert_eq!(
+        reused_observation["details"]["metrics"]["reused_sources"], 1,
+        "{reused_observation}"
+    );
+    assert_eq!(reused_observation["observed_at"], observed["observed_at"]);
+    assert_eq!(
+        reused_observation["value"]["observation_ids"],
+        observed["value"]["observation_ids"]
+    );
+    assert_eq!(fs::read(snapshot).unwrap(), retained);
 }
 
 /// This exercises normal commands and the authoritative native config loader;
@@ -1271,9 +1457,8 @@ fn generated_package_can_be_qualified_registered_and_replanned_without_reanalysi
     // This is an explicit independent synthetic operator qualification, not a
     // scientific conclusion inferred from contract tests.
     let provider = &mut pending["native_providers"][0];
-    provider["capability"]["semantics"] = json!({"qualification_reference":"synthetic-operator-review/1","support_types":["observation"],"subject_kinds":["synthetic_flag"],"methods":["synthetic_flag/1"],"identity_dimensions":["mode"],"scope_constraints":{},"scope_bindings":{"mode":"/mode"},"quantities":[{"name":"present","unit":"boolean","output_pointer":"/present"}],"coverage":[{"strength":"existential_witness","population":null,"completeness_pointer":null}],"time":{"historical_intervals":false,"historical_input":null,"original_observation_time":false,"uncertainty_seconds":0},"provenance":{"authorities":["fixture"],"transformation_history":true},"limitations":["Synthetic operator fixture only, no private claim truth established."]});
-    provider["mapping"]["observation_time"] = json!({"kind":"collection_time"});
-    provider["mapping"]["scope_pointers"] = json!({"mode":"/request/input/mode"});
+    provider["capability"]["semantics"] = synthetic_qualification();
+    provider["mapping"]["scope_pointers"] = json!({"mode":"/mode"});
     let qualified = root.join("qualified.json");
     fs::write(&qualified, serde_json::to_vec_pretty(&pending).unwrap()).unwrap();
     let registered = root.join("registered-planning.json");
@@ -1309,13 +1494,22 @@ fn generated_package_can_be_qualified_registered_and_replanned_without_reanalysi
         .iter()
         .find(|route| route["acquisition_id"] == "shared_source")
         .unwrap();
-    assert_eq!(route["selected"], id);
-    assert!(route["configuration_gaps"].as_array().unwrap().is_empty());
+    assert_eq!(
+        route["selected"],
+        id,
+        "{}",
+        serde_json::to_string_pretty(&selected["evidence_planning"]["routes"]).unwrap()
+    );
+    assert!(
+        route["configuration_gaps"].as_array().unwrap().is_empty(),
+        "{route}"
+    );
     assert_eq!(
         selected["evidence_planning"]["elaboration"],
         generated["evidence_planning"]["elaboration"]
     );
     assert_eq!(selected["replanning"]["model_calls"], 0);
+    assert_native_acquisition_and_reuse(&collector, root, &selected, &registered);
     let second = root.join("second-attempt");
     successful(&implement(
         &analysis,

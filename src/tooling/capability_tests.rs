@@ -339,6 +339,97 @@ async fn generated_registration_keeps_source_interface_and_requires_separate_qua
 }
 
 #[tokio::test]
+async fn new_records_use_schema_admission_and_legacy_records_revalidate_before_zero_call_rehydration()
+ {
+    let directory = tempfile::tempdir().unwrap();
+    let request = operation();
+    let mut selected = config(directory.path());
+    selected.profile.inherit_env = vec!["SYNTHETIC_CREDENTIAL".into()];
+    let runner = Arc::new(FakeRunner::new(&selected));
+    let model = Model::new(vec![draft_response(&request), code_response("correct")]);
+    let new = implement_with_runner(
+        &request,
+        ImplementationGapKind::Operation,
+        selected.clone(),
+        &model,
+        runner.clone(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(new.schema, CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA);
+    assert_eq!(new.capability.configuration_requirements.len(), 1);
+    assert_eq!(
+        new.capability.configuration_requirements[0].id,
+        "credential_SYNTHETIC_CREDENTIAL"
+    );
+    let package = super::super::package::load_verified(&new.package_manifest).unwrap();
+    let legacy = registration(
+        &request,
+        &selected,
+        &package,
+        false,
+        2,
+        CAPABILITY_IMPLEMENTATION_SCHEMA,
+    )
+    .unwrap();
+    assert!(
+        legacy
+            .capability
+            .configuration_requirements
+            .iter()
+            .any(|prerequisite| prerequisite.id == "mode" && prerequisite.required)
+    );
+    let executable = std::env::current_exe().unwrap();
+    assert_eq!(
+        digest_json(&revalidate_implemented_capability(&legacy, &executable).unwrap()).unwrap(),
+        digest_json(&legacy).unwrap()
+    );
+    revalidate_implemented_capability(&new, &executable).unwrap();
+    let mut missing_credential = new.clone();
+    missing_credential
+        .capability
+        .configuration_requirements
+        .clear();
+    assert!(revalidate_implemented_capability(&missing_credential, &executable).is_err());
+    for schema in [
+        CAPABILITY_IMPLEMENTATION_SCHEMA,
+        CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA,
+    ] {
+        let mut changed = legacy.clone();
+        changed.schema = schema.into();
+        changed.capability.configuration_requirements[0].required = false;
+        assert!(revalidate_implemented_capability(&changed, &executable).is_err());
+    }
+    let mut changed = legacy.clone();
+    changed.schema = "engarg.capability-implementation/3".into();
+    assert!(revalidate_implemented_capability(&changed, &executable).is_err());
+    selected.max_calls = 0;
+    let reused = implement_with_runner(
+        &request,
+        ImplementationGapKind::Operation,
+        selected,
+        &model,
+        runner,
+    )
+    .await
+    .unwrap();
+    assert!(reused.reused);
+    assert_eq!(reused.model_calls, 0);
+    assert_eq!(reused.schema, CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA);
+    assert_eq!(reused.package_manifest, legacy.package_manifest);
+    assert_eq!(reused.manifest_sha256, legacy.manifest_sha256);
+    assert_eq!(request.identity().unwrap(), legacy.capability_sha256);
+    assert_eq!(model.calls.load(Ordering::SeqCst), 2);
+    assert!(
+        !reused
+            .capability
+            .configuration_requirements
+            .iter()
+            .any(|prerequisite| prerequisite.id == "mode")
+    );
+}
+
+#[tokio::test]
 async fn different_claims_reuse_one_parameterised_package_without_model_calls() {
     let directory = tempfile::tempdir().unwrap();
     let operation = operation();
