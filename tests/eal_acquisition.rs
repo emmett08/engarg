@@ -25,6 +25,7 @@ fn custom_plans(case: &ArgumentCase) -> Vec<AcquisitionPlan> {
     case.evidence_plan
         .iter()
         .map(|need| AcquisitionPlan {
+            input_preparation: None,
             need_id: need.id.clone(),
             tool_id: "custom".into(),
             arguments: Vec::new(),
@@ -114,6 +115,7 @@ fn resolved_known_inputs_use_fixed_adapters_and_unknown_inputs_remain_stubs() {
     let (request, case) = fixtures();
     let mut plans = custom_plans(&case);
     plans[0] = AcquisitionPlan {
+        input_preparation: None,
         need_id: case.evidence_plan[0].id.clone(),
         tool_id: "kubectl_get".into(),
         arguments: vec![
@@ -475,6 +477,7 @@ fn upstream_refuses_prepared_stubs_and_missing_bindings_supply_no_evidence() {
     ] {
         let mut plans = custom_plans(&case);
         plans[0] = AcquisitionPlan {
+            input_preparation: None,
             need_id: case.evidence_plan[0].id.clone(),
             tool_id: tool_id.into(),
             arguments: arguments
@@ -534,6 +537,7 @@ fn compatibility_binding_metadata_comes_from_the_adapter_owner() {
             &case,
             &[],
             vec![AcquisitionPlan {
+                input_preparation: None,
                 need_id: case.evidence_plan[0].id.clone(),
                 tool_id: profile.id.into(),
                 arguments: Vec::new(),

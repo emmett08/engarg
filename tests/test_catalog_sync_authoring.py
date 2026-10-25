@@ -178,10 +178,18 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                     write(directory / 'tooling.audit.jsonl', {'event': 'finished', 'passed': not failed})
                     if not failed:
                         write(directory / 'collectors.json', {'schema': 'eal.collector-catalogue/1'})
+                        no_calls = os.environ.get('TOOLING_NO_CALLS') == '1'
                         report['tooling'] = {
                             'schema': 'engarg.tooling/1', 'language': option('--tool-language'),
-                            'model_calls': 2, 'packages': [{'need_id': 'E1', 'reused': False}],
-                            'audit_path': str(directory / 'tooling.audit.jsonl')}
+                            'model_calls': 0 if no_calls else 2,
+                            'packages': [] if no_calls else [{'need_id': 'E1', 'reused': False}],
+                            'overrides': [], 'audit_path': str(directory / 'tooling.audit.jsonl')}
+                        if no_calls:
+                            report['tooling']['coverage'] = {
+                                'implementation_gap_needs': 0, 'existing_adapter_needs': 42,
+                                'existing_adapters_with_unresolved_inputs': 41,
+                                'artifact_reader_needs': 34, 'outcome': 'no_implementation_required',
+                                'note': 'Adapter selection and zero coding calls do not establish configured inputs or available evidence.'}
                     write(option('--output'), report)
                     if failed:
                         raise SystemExit(3)
@@ -193,11 +201,47 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                 pathlib.Path(option('--output')).write_text('offline rendered fixture\n')
             elif args[:2] == ['eal', 'export']:
                 report = json.loads(pathlib.Path(option('--input')).read_text())
-                tool_id = 'generated_fixture' if report.get('tooling') else 'http_json_get'
+                tool_id = 'generated_fixture' if report.get('tooling', {}).get('packages') else 'http_json_get'
+                revision = 'a' * 64
+                entries = [{'need_id': 'E1', 'tool_id': tool_id, 'unresolved_arguments': []}]
+                readiness = [{
+                    'need_id': 'E1', 'tool_id': tool_id, 'implementation': 'available',
+                    'configuration': 'bound', 'evidence': 'not_collected', 'gaps': []}]
+                if os.environ.get('PREPARATION_GAPS') == '1':
+                    entries = [{'need_id': 'K1', 'tool_id': 'kubectl_get', 'unresolved_arguments': []}]
+                    readiness = [{
+                        'need_id': 'K1', 'tool_id': 'kubectl_get', 'implementation': 'available',
+                        'configuration': 'bound', 'evidence': 'not_collected', 'gaps': []}]
+                    for adapter, count, evidence, gap in [
+                        ('scoped_json', 7, 'not_collected', 'trace_ids_missing'),
+                        ('artifact_json', 34, 'unavailable', 'artifact_producer_unidentified')]:
+                        for number in range(count):
+                            need = adapter + str(number)
+                            entries.append({'need_id': need, 'tool_id': adapter, 'unresolved_arguments': ['inputs']})
+                            readiness.append({
+                                'need_id': need, 'tool_id': adapter, 'implementation': 'available',
+                                'configuration': 'unresolved', 'evidence': evidence, 'gaps': [gap]})
+                preparation = pathlib.Path(option('--preparation-output-dir'))
+                preparation.mkdir()
+                operator = json.loads(pathlib.Path(option('--operator-inputs')).read_text())
+                prepared = {
+                    'schema': 'engarg.collector-preparation/1', 'case_digest': revision,
+                    'inputs_prepared': True, 'evidence_collected': False,
+                    'ignored_legacy_binding_fields': [name for name in ['case_digest', 'needs'] if name in operator],
+                    'entries': readiness,
+                    'summary': {
+                        'bound': sum(entry['configuration'] == 'bound' for entry in readiness),
+                        'unresolved': sum(entry['configuration'] == 'unresolved' for entry in readiness),
+                        'retained_artifacts_verified': 0}}
+                if os.environ.get('PREPARATION_STALE_DIGEST') == '1':
+                    prepared['case_digest'] = 'b' * 64
+                if os.environ.get('PREPARATION_CLAIMS_EVIDENCE') == '1':
+                    prepared['evidence_collected'] = True
+                if os.environ.get('PREPARATION_MISSING') != '1':
+                    write(preparation / 'collector-preparation.json', prepared)
                 pathlib.Path(option('--output')).write_text('offline EAL fixture\n')
                 pathlib.Path(option('--tools-output')).write_text('offline registry fixture\n')
-                write(option('--manifest'), {'acquisition_plan': {'entries': [
-                    {'tool_id': tool_id, 'unresolved_arguments': []}]}, 'obligations': []})
+                write(option('--manifest'), {'revision': revision, 'acquisition_plan': {'entries': entries}, 'obligations': []})
             elif args[:2] == ['eal', 'validate']:
                 write(option('--output'), {'is_error': False, 'result': {'valid': True}})
             elif args[:2] == ['eal', 'plan']:
@@ -262,6 +306,39 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(directory.stat().st_mode), 0o700)
         for artifact in directory.iterdir():
             self.assertEqual(stat.S_IMODE(artifact.stat().st_mode), 0o600, artifact.name)
+
+    def test_preflight_exposes_artifact_aliases_without_private_pins_or_stale_bindings(self):
+        self.configuration.update(
+            case_digest='OLD_CASE_DIGEST_MUST_NOT_ENTER_REQUEST',
+            needs={'OLD_NEED_MUST_NOT_ENTER_REQUEST': 'grafana_search'},
+            artifacts={
+                'trace_capture': {'artifacts': [{
+                    'path': '/private/DO_NOT_SEND_ARTIFACT_PATH.json',
+                    'sha256': 'b' * 64, 'observed_at': '2026-01-01T00:00:00Z',
+                    'source': 'DO_NOT_SEND_ARTIFACT_PROVENANCE'}]},
+                'inventory': {'artifacts': []},
+            },
+        )
+        self.write_inputs()
+        directory = self.successful_run_directory(self.run_script('--check-only', self.inputs))
+        request_text = (directory / 'request.json').read_text()
+        context = json.loads(json.loads(request_text)['context'])
+        self.assertEqual(context['retained_artifact_references'], ['inventory', 'trace_capture'])
+        self.assertIn('input_preparation.kind scoped', context['collector_preparation'])
+        for private in ['DO_NOT_SEND_ARTIFACT_PATH', 'DO_NOT_SEND_ARTIFACT_PROVENANCE',
+                        'OLD_CASE_DIGEST_MUST_NOT_ENTER_REQUEST', 'OLD_NEED_MUST_NOT_ENTER_REQUEST']:
+            self.assertNotIn(private, request_text)
+        self.assertEqual((directory / 'collector-inputs.snapshot.json').read_bytes(), self.inputs.read_bytes())
+
+    def test_invalid_artifact_reference_fails_input_preflight(self):
+        for value in [{'invalid/reference': {}}, ['not-a-reference-map']]:
+            with self.subTest(value=value):
+                self.configuration['artifacts'] = value
+                self.write_inputs()
+                result = self.run_script('--check-only', self.inputs)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Input preflight failed', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
 
     def test_explicit_catalogue_retains_exact_bytes_and_identity(self):
         catalogue = self.inputs.with_name("selected.collectors.json")
@@ -439,6 +516,11 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(argument('--timeout-secs'), '10800')
         export = next(call for call in calls if call[:2] == ['eal', 'export'])
         self.assertEqual(export[export.index('--input') + 1], str(directory / 'analysis.json'))
+        self.assertEqual(export[export.index('--operator-inputs') + 1],
+                         str(directory / 'collector-inputs.snapshot.json'))
+        self.assertTrue(Path(export[export.index('--operator-input-base') + 1]).samefile(self.inputs.parent))
+        self.assertEqual(export[export.index('--preparation-output-dir') + 1],
+                         str(directory / 'collector-inputs'))
         report = json.loads((directory / 'analysis.json').read_text())
         self.assertEqual(report['tooling']['schema'], 'engarg.tooling/1')
         summary = json.loads((directory / 'run-summary.json').read_text())
@@ -447,6 +529,11 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(summary['tool_implementation']['model_calls'], 2)
         self.assertEqual(summary['tool_implementation']['verified_packages'], 1)
         self.assertEqual(summary['tool_implementation']['reused_packages'], 0)
+        preparation = summary['collector_preparation']
+        bundle = json.loads((directory / 'argument.bundle.json').read_text())
+        self.assertEqual(preparation['case_digest'], bundle['revision'])
+        self.assertFalse(preparation['evidence_collected'])
+        self.assertEqual(preparation['entries'][0]['evidence'], 'not_collected')
         settings = json.loads((directory / 'run-settings.json').read_text())
         self.assertEqual(settings['tool_implementation']['max_calls'], 4)
         self.assertEqual(settings['tool_implementation']['toolchain_sha256'],
@@ -462,6 +549,49 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         summary = json.loads((directory / 'run-summary.json').read_text())
         self.assertEqual(summary['tool_implementation'], {'enabled': False})
         self.assertFalse((directory / 'tooling').exists())
+        self.assertIn('collector_preparation', summary)
+
+    def test_zero_coding_calls_keep_existing_adapter_configuration_and_evidence_gaps(self):
+        self.configuration.update(case_digest='old-export', needs={'OLD_E1': 'grafana_search'})
+        self.write_inputs()
+        profile = self.write_toolchain()
+        self.install_pipeline_stubs()
+        result = self.run_script(
+            '--implement-tools', '--toolchain', profile, self.inputs,
+            env=dict(self.env, TOOLING_NO_CALLS='1', PREPARATION_GAPS='1'),
+        )
+        directory = self.pipeline_directory(result)
+        summary = json.loads((directory / 'run-summary.json').read_text())
+        report = json.loads((directory / 'analysis.json').read_text())
+        self.assertEqual(report['tooling']['model_calls'], 0)
+        self.assertEqual(report['tooling']['packages'], [])
+        self.assertEqual(report['tooling']['overrides'], [])
+        coverage = summary['tool_implementation']['coverage']
+        self.assertEqual(coverage['outcome'], 'no_implementation_required')
+        self.assertEqual(coverage['existing_adapters_with_unresolved_inputs'], 41)
+        self.assertEqual(summary['tool_implementation']['verified_packages'], 0)
+        self.assertEqual(summary['tool_implementation']['reused_packages'], 0)
+        preparation = summary['collector_preparation']
+        self.assertEqual(preparation['summary'], {
+            'bound': 1, 'unresolved': 41, 'retained_artifacts_verified': 0})
+        self.assertEqual(preparation['ignored_legacy_binding_fields'], ['case_digest', 'needs'])
+        self.assertEqual(len(summary['unresolved_arguments']), 41)
+        self.assertEqual(sum(entry['evidence'] == 'unavailable' for entry in preparation['entries']), 34)
+        self.assertFalse(summary['evidence_collected'])
+        self.assertIn('1 bound; 41 unresolved; 0 retained-artifact inputs verified', result.stdout)
+        self.assertIn('Resolve each reported configuration or evidence gap', summary['next_step'])
+
+    def test_preparation_report_must_match_export_and_separate_collection(self):
+        self.install_pipeline_stubs()
+        for variable in ['PREPARATION_STALE_DIGEST', 'PREPARATION_CLAIMS_EVIDENCE']:
+            with self.subTest(variable=variable):
+                before = set((self.repo / 'engarg-runs').glob('*'))
+                result = self.run_script(self.inputs, env=dict(self.env, **{variable: '1'}))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Collector preparation must describe this exact export without claiming collection', result.stderr)
+                self.assertNotIn('Authoring, rendering, export and EAL planning passed', result.stdout)
+                directory, = set((self.repo / 'engarg-runs').glob('*')) - before
+                self.assertFalse((directory / 'run-summary.json').exists())
 
     def test_implementation_failure_preserves_analysis_and_stops_before_export(self):
         profile = self.write_toolchain()

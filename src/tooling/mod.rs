@@ -12,4 +12,7 @@ pub mod verification;
 
 pub use profile::ToolchainProfile;
 pub use runtime::{execute_registered, execute_registered_with_cancellation};
-pub use stage::{Registration, ToolingConfig, ToolingReport, ToolingSession, registration};
+pub use stage::{
+    ImplementationOutcome, Registration, ToolingConfig, ToolingCoverage, ToolingReport,
+    ToolingSession, registration,
+};

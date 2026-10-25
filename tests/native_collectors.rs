@@ -28,6 +28,7 @@ fn selected(
     unknown: &[&str],
 ) -> AcquisitionPlan {
     AcquisitionPlan {
+        input_preparation: None,
         need_id: case.evidence_plan[0].id.clone(),
         tool_id: id.into(),
         arguments: args
@@ -127,6 +128,7 @@ fn native_ids_require_explicit_catalogue_selection_in_current_exports() {
     let (request, case) = fixture();
     for descriptor in catalogue().0.collectors {
         let plan = AcquisitionPlan {
+            input_preparation: None,
             need_id: case.evidence_plan[0].id.clone(),
             tool_id: descriptor.id.clone(),
             arguments: Vec::new(),

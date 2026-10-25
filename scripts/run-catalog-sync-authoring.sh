@@ -197,6 +197,19 @@ try:
         'query_contract': 'The literal query is retained in the claim. Native Tempo generates a different query contract. Exact-query execution requires a compatible Grafana/scoped/custom HTTP route.',
         'correspondence_obligation': 'Search matches require full trace and Kubernetes identity review for cluster, namespace, UID, resource identity and time correspondence. Missing attributes remain unresolved.'
     }
+    artifacts = inputs.get('artifacts', {})
+    if (not isinstance(artifacts, dict) or any(
+            not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', reference)
+            for reference in artifacts)):
+        raise ValueError('Retained artifacts require named references')
+    context['retained_artifact_references'] = sorted(artifacts)
+    context['collector_preparation'] = (
+        'Current-case input files are prepared after argument generation. '
+        'For scoped_json declare input_preparation.kind scoped and its explicit operation '
+        'kubernetes, grafana_search or grafana_trace. Full traces require actual supplied trace IDs. '
+        'For artifact_json reference only a supplied retained_artifact_reference. '
+        'Unavailable independent reviews remain evidence gaps. Unsupported producing operations select custom.'
+    )
     request = dict(claim=claim, context=json.dumps(context, ensure_ascii=False), evidence=[])
     ages = {name: int(os.environ.get(variable, '86400')) for name, variable in [
         ('review_max_age_seconds', 'ENGARG_REVIEW_MAX_AGE_SECONDS'),
@@ -371,9 +384,12 @@ stage='argument rendering'
 "$engarg_bin" render --input "$run_dir/analysis.json" --format argument --outline-depth 3 --display-depth 2 --output "$run_dir/argument.txt"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format prose --display-depth 2 --output "$run_dir/prose.md"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format html --display-depth 2 --output "$run_dir/argument.html"
-stage='EAL export'
+stage='current-case collector preparation and EAL export'
 with_catalogue eal export --input "$run_dir/analysis.json" \
   --export-policy "$run_dir/export-policy.json" \
+  --operator-inputs "$run_dir/collector-inputs.snapshot.json" \
+  --operator-input-base "$(dirname "$inputs")" \
+  --preparation-output-dir "$run_dir/collector-inputs" \
   --output "$run_dir/argument.eal" --tools-output "$run_dir/argument.tools.toml" --manifest "$run_dir/argument.bundle.json"
 # Prepared stubs are intentionally not passed as an executable registry to the host.
 stage='EAL validation'
@@ -412,6 +428,23 @@ summary = {
     'pending_review_obligations': len(bundle.get('obligations', [])),
     'next_step': 'Review exact-query compatibility and operator bindings before explicit collection and assessment.'
 }
+preparation_path = directory/'collector-inputs/collector-preparation.json'
+try:
+    preparation = json.loads(preparation_path.read_text())
+except (OSError, ValueError):
+    raise SystemExit('Current-case collector preparation report is missing or invalid: '+str(preparation_path))
+if (not isinstance(preparation, dict)
+        or preparation.get('schema') != 'engarg.collector-preparation/1'
+        or not isinstance(bundle.get('revision'), str)
+        or len(bundle['revision']) != 64
+        or any(character not in '0123456789abcdef' for character in bundle['revision'])
+        or preparation.get('case_digest') != bundle.get('revision')
+        or preparation.get('evidence_collected') is not False):
+    raise SystemExit('Collector preparation must describe this exact export without claiming collection')
+summary['collector_preparation'] = preparation
+summary['next_step'] = (
+    'Resolve each reported configuration or evidence gap before explicit collection and independent assessment.'
+)
 implementation = json.loads((directory/'input-identity.json').read_text())['tool_implementation']
 summary['tool_implementation'] = {'enabled': implementation['enabled']}
 if implementation['enabled']:
@@ -423,7 +456,17 @@ if implementation['enabled']:
         verified_packages=len(tooling['packages']),
         reused_packages=sum(package['reused'] for package in tooling['packages']),
         audit_path=tooling['audit_path'], catalogue_path=str(directory/'tooling/collectors.json'))
+    if tooling.get('coverage') is not None:
+        summary['tool_implementation']['coverage'] = tooling['coverage']
 (directory/'run-summary.json').write_text(json.dumps(summary, indent=2)+'\n')
 PY
 printf 'Authoring, rendering, export and EAL planning passed. Artifacts: %s\n' "$run_dir"
 printf 'Review per-need bindings and independent review obligations before collection and assessment.\n'
+python3 - "$run_dir/collector-inputs/collector-preparation.json" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as source:
+    preparation = json.load(source)
+summary = preparation['summary']
+print('Collector preparation: %s bound; %s unresolved; %s retained-artifact inputs verified. Evidence acquisition remains a separate step.' % (
+    summary['bound'], summary['unresolved'], summary['retained_artifacts_verified']))
+PY

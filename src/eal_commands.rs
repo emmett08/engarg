@@ -62,6 +62,11 @@ pub struct PrepareArgs {
     /// New private directory, normally under .engarg-local/ or engarg-runs/.
     #[arg(long)]
     output_dir: PathBuf,
+    /// Current per-need preparation declarations overriding saved acquisition plans.
+    #[arg(long)]
+    acquisition_plan: Option<PathBuf>,
+    #[command(flatten)]
+    operator: OperatorInputsArgs,
     /// Operator-selected collector catalogue. Otherwise use the saved run's catalogue.
     #[arg(long)]
     collector_catalogue: Option<PathBuf>,
@@ -84,6 +89,11 @@ pub struct ExportArgs {
     /// JSON acquisition-plan entries overriding retained bindings by evidence need ID.
     #[arg(long)]
     acquisition_plan: Option<PathBuf>,
+    #[command(flatten)]
+    operator: OperatorInputsArgs,
+    /// New private directory for current-case input files and the preparation report.
+    #[arg(long, requires = "operator_inputs")]
+    preparation_output_dir: Option<PathBuf>,
     /// Operator-selected collector catalogue. Otherwise use the saved run's catalogue.
     #[arg(long)]
     collector_catalogue: Option<PathBuf>,
@@ -98,6 +108,38 @@ pub struct ExportArgs {
     source_output: Option<PathBuf>,
     #[arg(long, value_enum, default_value = "eal")]
     format: ExportFormat,
+}
+
+#[derive(Args)]
+pub struct OperatorInputsArgs {
+    /// Operator scope and retained artifact references, read without collecting evidence.
+    #[arg(long)]
+    operator_inputs: Option<PathBuf>,
+    /// Base for relative artifact paths when operator-inputs is an exact retained snapshot.
+    #[arg(long, requires = "operator_inputs")]
+    operator_input_base: Option<PathBuf>,
+}
+
+impl OperatorInputsArgs {
+    fn load(&self) -> Result<Option<(Value, PathBuf)>, Error> {
+        let Some(path) = &self.operator_inputs else {
+            return Ok(None);
+        };
+        let value = super::read_json(path, 1_048_576)?;
+        let base = match &self.operator_input_base {
+            Some(base) => base.canonicalize()?,
+            None => std::path::absolute(path)?
+                .parent()
+                .ok_or_else(|| Error::InvalidInput("operator inputs require a parent".into()))?
+                .canonicalize()?,
+        };
+        if !base.is_dir() {
+            return Err(Error::InvalidInput(
+                "operator input base must be a directory".into(),
+            ));
+        }
+        Ok(Some((value, base)))
+    }
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -396,6 +438,34 @@ impl Drop for PendingFile {
     }
 }
 
+/// Own only a newly created private directory, removing incomplete preparation.
+struct PreparationDirectory {
+    path: PathBuf,
+    keep: bool,
+}
+
+impl PreparationDirectory {
+    fn create(path: &Path) -> Result<Self, Error> {
+        let path = new_path(path)?;
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(&path)?;
+        Ok(Self { path, keep: false })
+    }
+}
+
+impl Drop for PreparationDirectory {
+    fn drop(&mut self) {
+        if !self.keep {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+}
+
 fn stdout(bytes: &[u8]) -> Result<(), Error> {
     let out = std::io::stdout();
     out.lock().write_all(bytes)?;
@@ -585,6 +655,11 @@ fn export_destinations(args: &ExportArgs) -> Result<Vec<(PathBuf, ExportArtifact
 }
 
 fn execute_export(args: ExportArgs) -> Result<(), Error> {
+    if args.operator.operator_inputs.is_some() != args.preparation_output_dir.is_some() {
+        return Err(Error::InvalidInput(
+            "export requires both --operator-inputs and --preparation-output-dir for current-case preparation".into(),
+        ));
+    }
     let destinations = export_destinations(&args)?;
     let (report, mut plan, catalogue) =
         export_inputs(&args.input, args.collector_catalogue.as_deref())?;
@@ -601,40 +676,93 @@ fn execute_export(args: ExportArgs) -> Result<(), Error> {
         Some(path) => super::read_json(path, 1_048_576)?,
         None => engarg::export_policy::ExportPolicy::default(),
     };
-    let artifacts = export_with_policy(
-        &report.request,
-        &report.argument,
-        &plan,
-        catalogue.as_ref(),
-        &policy,
-    )?;
-    let bundle = artifacts.bundle;
+    let operator = args.operator.load()?;
+    let mut preparation = args
+        .preparation_output_dir
+        .as_deref()
+        .map(PreparationDirectory::create)
+        .transpose()?;
+    let (bundle, tools_toml, ancillary) =
+        if let (Some((inputs, base)), Some(directory)) = (&operator, &preparation) {
+            let mut prepared = engarg::eal_prepare::prepare_with_operator_inputs(
+                &report.request,
+                &report.argument,
+                &plan,
+                &directory.path,
+                &std::env::current_exe()?,
+                catalogue.as_ref(),
+                &policy,
+                Some((inputs, base)),
+            )?;
+            let bundle: EalExport = serde_json::from_slice(
+                &prepared
+                    .remove("argument.bundle.json")
+                    .expect("prepared bundle"),
+            )?;
+            prepared.remove("argument.eal");
+            let tools = String::from_utf8(
+                prepared
+                    .remove("argument.tools.toml")
+                    .expect("prepared registry"),
+            )
+            .map_err(|_| Error::InvalidOutput("prepared registry requires UTF-8".into()))?;
+            (bundle, tools, prepared)
+        } else {
+            let artifacts = export_with_policy(
+                &report.request,
+                &report.argument,
+                &plan,
+                catalogue.as_ref(),
+                &policy,
+            )?;
+            (artifacts.bundle, artifacts.tools_toml, Default::default())
+        };
     let manifest_bytes = json_bytes(&bundle)?;
     let primary = match args.format {
         ExportFormat::Eal => bundle.source.as_bytes(),
         ExportFormat::Json => &manifest_bytes,
     };
     // Reserve every destination before writing, so a partial create is cleaned up.
-    let mut files = destinations
+    let mut outputs = destinations
         .into_iter()
         .map(|(path, artifact)| {
             let bytes = match artifact {
                 ExportArtifact::Primary => primary,
                 ExportArtifact::Manifest => manifest_bytes.as_slice(),
-                ExportArtifact::Tools => artifacts.tools_toml.as_bytes(),
+                ExportArtifact::Tools => tools_toml.as_bytes(),
                 ExportArtifact::Source => bundle.source.as_bytes(),
             };
-            PendingFile::create(path).map(|file| (file, bytes))
+            (path, bytes.to_vec())
         })
+        .collect::<Vec<_>>();
+    if let Some(directory) = &preparation {
+        for (name, bytes) in ancillary {
+            if Path::new(&name).components().count() != 1
+                || !matches!(
+                    Path::new(&name).components().next(),
+                    Some(std::path::Component::Normal(_))
+                )
+            {
+                return Err(Error::InvalidOutput("invalid prepared file name".into()));
+            }
+            outputs.push((directory.path.join(name), bytes));
+        }
+    }
+    let mut files = outputs
+        .into_iter()
+        .map(|(path, bytes)| PendingFile::create(path).map(|file| (file, bytes)))
         .collect::<Result<Vec<_>, _>>()?;
     for (file, bytes) in &mut files {
         file.write(bytes)?;
     }
+    if args.output.is_none() {
+        stdout(primary)?;
+    }
     for (file, _) in &mut files {
         file.keep = true;
     }
-    if args.output.is_none() {
-        stdout(primary)?;
+    if let Some(directory) = &mut preparation {
+        directory.keep = true;
     }
     Ok(())
 }
@@ -701,8 +829,17 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
         EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
         EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
         EalCommand::Prepare(args) => {
-            let (report, plan, catalogue) =
+            let (report, mut plan, catalogue) =
                 export_inputs(&args.input, args.collector_catalogue.as_deref())?;
+            if let Some(path) = args.acquisition_plan.as_deref() {
+                plan = acquisition::override_plans_with_catalogue(
+                    &report.argument,
+                    &plan,
+                    super::read_json(path, MAX_INPUT_BYTES)?,
+                    catalogue.as_ref(),
+                )?;
+            }
+            let operator = args.operator.load()?;
             if args.output_dir.exists() {
                 return Err(Error::InvalidInput(
                     "prepare output directory already exists".into(),
@@ -723,7 +860,7 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
                     Some(path) => super::read_json(path, 1_048_576)?,
                     None => engarg::export_policy::ExportPolicy::default(),
                 };
-                let files = engarg::eal_prepare::prepare_with_policy(
+                let files = engarg::eal_prepare::prepare_with_operator_inputs(
                     &report.request,
                     &report.argument,
                     &plan,
@@ -731,6 +868,9 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
                     &std::env::current_exe()?,
                     catalogue.as_ref(),
                     &policy,
+                    operator
+                        .as_ref()
+                        .map(|(inputs, base)| (inputs, base.as_path())),
                 )?;
                 for (name, bytes) in files {
                     let mut file = PendingFile::create(directory.join(name))?;

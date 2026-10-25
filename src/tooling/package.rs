@@ -625,6 +625,7 @@ impl VerifiedPackage {
 
     pub fn acquisition_plan(&self) -> AcquisitionPlan {
         AcquisitionPlan {
+            input_preparation: None,
             need_id: self.contract.need.id.clone(),
             tool_id: self.collector_id(),
             arguments: self.contract.draft.arguments.clone(),

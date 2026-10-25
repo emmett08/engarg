@@ -280,6 +280,7 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
         .map_err(invalid)?;
     crate::collector_catalogue::CollectorDescriptor(&descriptor).input(
         &crate::acquisition::AcquisitionPlan {
+            input_preparation: None,
             need_id: contract.need.id.clone(),
             tool_id: descriptor.id.clone(),
             arguments: draft.arguments.clone(),

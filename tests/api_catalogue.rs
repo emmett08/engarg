@@ -22,6 +22,7 @@ fn plans(case: &ArgumentCase, first: AcquisitionPlan) -> Vec<AcquisitionPlan> {
                 first.clone()
             } else {
                 AcquisitionPlan {
+                    input_preparation: None,
                     need_id: need.id.clone(),
                     tool_id: "custom".into(),
                     arguments: vec![],
@@ -55,6 +56,7 @@ fn optional_inputs_remain_absent_and_command_parameters_remain_required() {
     let (_, case) = case();
     let catalogue = openapi_catalogue();
     let first = AcquisitionPlan {
+        input_preparation: None,
         need_id: case.evidence_plan[0].id.clone(),
         tool_id: "openapi.fixture".into(),
         arguments: vec![arg("path", "{\"id\":7}"), arg("scope", "production")],
@@ -86,6 +88,7 @@ fn explicit_null_and_unresolved_optional_values_preserve_saved_v3_reconstruction
         let planned = plans(
             &case,
             AcquisitionPlan {
+                input_preparation: None,
                 need_id: case.evidence_plan[0].id.clone(),
                 tool_id: "openapi.fixture".into(),
                 arguments,
@@ -161,6 +164,7 @@ fn third_native_catalogue_preserves_typed_telemetry_and_delivery_plans() {
         ),
     ] {
         let plan = AcquisitionPlan {
+            input_preparation: None,
             need_id: case.evidence_plan[0].id.clone(),
             tool_id: id.into(),
             arguments,

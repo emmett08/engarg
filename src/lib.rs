@@ -5,6 +5,7 @@
 
 pub mod acquisition;
 pub mod collector_catalogue;
+pub mod collector_preparation;
 pub mod domain;
 pub mod eal_acquisition;
 pub mod eal_export;

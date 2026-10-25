@@ -56,11 +56,11 @@ Keep credentials in environment variables rather than the input file.
 No `approved.collectors.json` file is needed by default. Omit the optional second
 argument to use EngArg's implemented `artifact_json`, `scoped_json`, `kubectl_get`,
 `gh_api_get` and `http_json_get` adapters alongside unresolved `custom` bindings.
-These describe prospective acquisition. Reading settings into a claim does not
-create executable bindings. The direct Kubernetes adapter can use the supplied
-context and resource selectors. Scoped Grafana operations still need a matching
-operator-owned input file and trace IDs for full-trace reads. Review each generated
-binding and unresolved parameter before collection.
+These describe prospective acquisition. The preparation stage uses explicit per-need
+operations to create current-case input bindings. The direct Kubernetes adapter
+can use the supplied context and resource selectors. Full-trace reads also need
+actual trace IDs. The preparation report identifies remaining configuration and
+evidence gaps before collection.
 
 To admit additional collector capabilities, pass an existing operator-selected
 catalogue as the second argument:
@@ -90,6 +90,67 @@ in this claim requires a compatible HTTP/custom route or an explicitly retained
 Neither selecting a catalogue nor finding a nonempty search establishes resource
 attribution. Full traces, Kubernetes identity, cluster, namespace, resource UID
 and time correspondence require independent review.
+
+## Prepare inputs for the current argument
+
+Every full script run prepares collector inputs during the normal EAL export.
+The output remains `argument.eal`, `argument.tools.toml` and
+`argument.bundle.json` in the run directory. Its `collector-inputs/` directory
+contains the input documents, final acquisition plans, pending review files and
+`collector-preparation.json`. The report identifies the exact export digest and
+records implementation availability, configuration state and evidence state for
+each current need.
+
+New planning records carry explicit preparation metadata. A `scoped_json` plan
+declares `input_preparation` as
+`{"kind":"scoped","operation":"grafana_search"}` or selects
+`kubernetes` or `grafana_trace`. Preparation uses that operation and the supplied
+scope settings. It preserves the literal query, endpoint, datasource and window.
+The exporter fixes input paths before computing the final digest, then stamps
+that digest into the input documents. Old `case_digest` and `needs` fields in an
+operator file are reported as ignored. Their mappings belong to their earlier
+argument.
+
+A full-trace operation stays unresolved until the operator supplies actual
+`grafana.trace_ids`. Preparation performs no search and chooses no trace IDs.
+A historical plan without typed operation metadata also stays unresolved. Use
+explicit current-need overrides when preparing that saved analysis, as described
+in [private collector inputs](PRIVATE_COLLECTORS.md#prepare-current-case-bindings).
+
+Retained artifacts use stable named references in the operator file:
+
+```json
+{
+  "artifacts": {
+    "trace_capture": {
+      "artifacts": [{
+        "path": "observations/trace.json",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "observed_at": "2026-01-01T12:00:00Z",
+        "source": "Retained trace response with its original provenance"
+      }]
+    }
+  }
+}
+```
+
+Add this object alongside the Kubernetes and Grafana settings and replace the
+illustrative pins with an existing JSON artifact's exact hash and provenance.
+Only reference names enter the model request. Paths and private provenance stay
+in the operator snapshot. An `artifact_json` plan selects
+`{"kind":"artifact","reference":"trace_capture"}` in its
+`input_preparation`. Preparation verifies the retained bytes against the supplied
+hash and validates the provenance and observation-time fields. It resolves relative paths against the original
+operator file's directory. Missing files or references leave the binding
+unresolved. `retained_artifacts_verified` records this input check. Independent
+acceptance remains a separate review obligation.
+
+The summary retains the preparation report and prints bound and unresolved
+counts. A bound configuration has sufficient declared input values. Credentials,
+runtime access and collection outcomes are established by their subsequent
+operations. An unavailable independent review remains an evidence gap until an
+authored decision exists. A genuinely unsupported producing operation selects
+`custom` for implementation.
 
 ## Implement missing collectors
 
@@ -152,6 +213,15 @@ verified reuse. Use the same store across worktrees to reuse packages whose
 identities match. A unique `tooling/` directory within each run retains the
 original analysis, implementation audit and combined `collectors.json`. The
 script also retains an exact private profile snapshot and its digest.
+
+The coding stage handles absent acquisition plans and `custom` operations.
+`required_calls: 0` with `model_calls: 0`, `packages: []` and `overrides: []`
+means no implementation was generated or reused. Existing adapters can still
+have missing input bindings or unavailable evidence. Tooling coverage reports
+those selections separately from the current-case preparation report. An
+`artifact_json` reader requires its retained record or an identified producer
+for the acquisition operation. Missing independent reviews remain evidence
+obligations.
 
 The successful `analysis.json` carries the verified tooling metadata. The normal
 export verifies registrations and writes matching EAL, TOML and bundle bindings.
@@ -216,7 +286,9 @@ and overall analysis deadlines do not change this host deadline.
 
 Each run retains request and input identity, build and binary provenance, the
 analysis audit, all renders, the EAL bundle, validation result, evidence plan and
-`run-summary.json` in a unique private directory. Failures preserve existing run
+`run-summary.json` in a unique private directory. Collector preparation also
+retains the final input documents and their per-need readiness report. Failures
+preserve existing run
 artifacts. A passing run means authoring and deterministic planning succeeded;
 `evidence_collected` remains `false`.
 When tooling is enabled, the summary also records its model calls and verified

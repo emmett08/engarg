@@ -16,6 +16,23 @@ pub struct ToolArgument {
     pub value: String,
 }
 
+/// The exact source operation an operator can configure for a scoped reader.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopedOperation {
+    Kubernetes,
+    GrafanaSearch,
+    GrafanaTrace,
+}
+
+/// Preparation instructions select supplied configuration, never observations.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum InputPreparation {
+    Scoped { operation: ScopedOperation },
+    Artifact { reference: String },
+}
+
 /// One unperformed acquisition proposal for one exact canonical evidence need.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -24,6 +41,9 @@ pub struct AcquisitionPlan {
     pub tool_id: String,
     pub arguments: Vec<ToolArgument>,
     pub unresolved_arguments: Vec<String>,
+    /// Historical plans omit this field and preserve their exact serialisation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_preparation: Option<InputPreparation>,
 }
 
 /// Internal provider response whose argument is retained in the unchanged public report.
@@ -60,7 +80,7 @@ pub fn catalogue_with(selected: Option<&CollectorCatalogue>) -> Value {
         .iter()
         .map(|profile| profile.planning_view())
         .collect();
-    tools.push(json!({"id":"custom","purpose":"A custom collection or independent review adapter","arguments":CUSTOM_ARGUMENTS}));
+    tools.push(json!({"id":"custom","purpose":"An acquisition operation unsupported by selected collectors. Missing independent review records remain unresolved evidence gaps.","arguments":CUSTOM_ARGUMENTS}));
     if let Some(selected) = selected {
         tools.extend(
             selected
@@ -90,7 +110,40 @@ pub fn planned_case_schema_with(selected: Option<&CollectorCatalogue>) -> Value 
             .map(|tool| tool["id"].clone())
             .collect::<Vec<_>>()
     );
+    // Structured-output providers require all object properties, with null for
+    // an unavailable optional value. Deserialisation still admits saved plans
+    // that predate preparation metadata.
+    let required = schema["$defs"]["AcquisitionPlan"]["required"]
+        .as_array_mut()
+        .expect("plan required fields");
+    if !required.iter().any(|field| field == "input_preparation") {
+        required.push(json!("input_preparation"));
+    }
+    schema["$defs"]["AcquisitionPlan"]["properties"]["input_preparation"] = json!({
+        "anyOf": [{"$ref":"#/$defs/InputPreparation"}, {"type":"null"}]
+    });
+    // The tagged variants are disjoint, so anyOf preserves the Rust wire
+    // contract while avoiding unsupported oneOf/const provider keywords.
+    schema["$defs"]["InputPreparation"] = json!({"anyOf":[
+        {"type":"object", "additionalProperties":false,
+         "properties":{"kind":{"type":"string","enum":["scoped"]},
+                       "operation":{"$ref":"#/$defs/ScopedOperation"}},
+         "required":["kind","operation"]},
+        {"type":"object", "additionalProperties":false,
+         "properties":{"kind":{"type":"string","enum":["artifact"]},
+                       "reference":{"type":"string"}},
+         "required":["kind","reference"]}
+    ]});
     schema
+}
+
+/// References name operator-supplied retained records rather than filesystem paths.
+pub fn valid_artifact_reference(reference: &str) -> bool {
+    (1..=128).contains(&reference.len())
+        && reference.as_bytes()[0].is_ascii_alphanumeric()
+        && reference
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
 }
 
 /// Decode new provider envelopes and historical direct cases without changing either format.
@@ -135,6 +188,29 @@ pub fn validate_with_catalogue(
                 "acquisition plan names unknown evidence need {}",
                 plan.need_id
             ));
+        }
+        match &plan.input_preparation {
+            Some(InputPreparation::Scoped { .. }) if plan.tool_id != "scoped_json" => {
+                errors.push(format!(
+                    "acquisition plan {} scoped preparation requires scoped_json",
+                    plan.need_id
+                ));
+            }
+            Some(InputPreparation::Artifact { reference }) => {
+                if plan.tool_id != "artifact_json" {
+                    errors.push(format!(
+                        "acquisition plan {} artifact preparation requires artifact_json",
+                        plan.need_id
+                    ));
+                }
+                if !valid_artifact_reference(reference) {
+                    errors.push(format!(
+                        "acquisition plan {} artifact reference must be a bounded identifier",
+                        plan.need_id
+                    ));
+                }
+            }
+            _ => {}
         }
         let descriptor = selected.and_then(|catalogue| catalogue.get(&plan.tool_id));
         let required = descriptor
@@ -255,6 +331,7 @@ pub fn override_plans_with_catalogue(
             (
                 need.id.clone(),
                 AcquisitionPlan {
+                    input_preparation: None,
                     need_id: need.id.clone(),
                     tool_id: "custom".into(),
                     arguments: vec![],
@@ -307,9 +384,27 @@ pub fn validate_selected(
     errors
 }
 
-pub(crate) const PLANNING_INSTRUCTIONS: &str = "ACQUISITION PLANNING: acquisition_tools is the complete selected collector catalogue. Select by the measurement needed for this argument. Prefer an implemented collector whose actual operation supplies the required observation. Missing observations, credentials or input values do not require a custom implementation. Keep missing named inputs in unresolved_arguments while retaining the fitting implemented collector. Each collector describes its admitted inputs and measurement results. required_arguments names unconditional input and command requirements. Optional input properties may be omitted. Preserve supplied null separately from an omitted property. Respect declared time-window constraints. Keep empty search results and incomplete coverage separate from demonstrated absence. For a string property supply the literal string. For another JSON type encode the value as JSON in the named string value. Use custom only when no selected collector performs the required operation. Derive values only from supplied claim, context or evidence. Reuse a compatible acquisition for shared investigations while retaining a separate plan for every targeted evidence need. An existing independently authored review can be acquired as a retained artifact, but a generated judgement or successful acquisition cannot supply independent acceptance. Keep unavailable review records and their inputs unresolved. A proposed collector is an unperformed plan. Successful acquisition establishes the recorded measurement, and independent review establishes applicability and sufficiency.";
+pub(crate) const PLANNING_INSTRUCTIONS: &str = concat!(
+    "ACQUISITION PLANNING: acquisition_tools is the complete selected collector catalogue. ",
+    "Select by the measurement needed for this argument. Prefer an implemented collector whose actual operation supplies the required observation. ",
+    "Missing observations, credentials or input values do not require a custom implementation. Keep missing named inputs in unresolved_arguments while retaining the fitting implemented collector. ",
+    "For scoped_json set input_preparation to {kind:scoped,operation:kubernetes|grafana_search|grafana_trace} according to the actual required operation. ",
+    "A full trace requires supplied actual trace IDs. Scope settings alone do not supply trace IDs or establish observations. ",
+    "artifact_json imports existing retained records and never creates missing measurements, experiments, derivations or independent reviews. ",
+    "Use input_preparation {kind:artifact,reference:ALIAS} only for an identified operator-supplied retained source reference. ",
+    "References are 1 to 128 ASCII characters, starting with a letter or digit and continuing with letters, digits, dot, underscore or hyphen. Never invent an alias, path, hash, provenance or observation. ",
+    "If a producing acquisition operation is required, choose an implemented collector performing that operation, or custom when none performs it. Selecting an artifact reader does not identify or implement its producer. ",
+    "An unavailable independent review remains an unresolved evidence gap with null input_preparation and unresolved inputs. Generated code and generated judgements cannot manufacture that independent review. ",
+    "Use null input_preparation for other adapters. Each collector describes its admitted inputs and measurement results. required_arguments names unconditional input and command requirements. ",
+    "Optional input properties may be omitted. Preserve supplied null separately from an omitted property. Respect declared time-window constraints. Keep empty search results and incomplete coverage separate from demonstrated absence. ",
+    "For a string property supply the literal string. For another JSON type encode the value as JSON in the named string value. Use custom only when no selected collector performs the required operation. ",
+    "Derive values only from supplied claim, context or evidence. Reuse a compatible acquisition for shared investigations while retaining a separate plan for every targeted evidence need. ",
+    "An existing independently authored review can be acquired as a retained artifact, but a generated judgement or successful acquisition cannot supply independent acceptance. Keep unavailable review records and their inputs unresolved. ",
+    "A proposed collector is an unperformed plan. Adapter selection and a zero-call implementation stage establish neither configured inputs nor available evidence. ",
+    "Successful acquisition establishes the recorded measurement, and independent review establishes applicability and sufficiency."
+);
 
-pub(crate) const ENVELOPE_INSTRUCTIONS: &str = "PLANNED RESPONSE: Return the supplied envelope with argument holding the complete unchanged ArgumentCase and acquisition_plan holding exactly one record for every argument.evidence_plan ID. Each record names need_id and one acquisition_tools ID. Put each required named input either in arguments as {name,value} string entries or in unresolved_arguments, never both. Use only the catalogue's input names. For custom, arguments is empty and unresolved_arguments is [\"adapter\"]. Revise the argument and its acquisition bindings together. The plan is separate from the canonical case and must preserve its target, enabled claim, question, measurement, comparator and acceptance criterion.";
+pub(crate) const ENVELOPE_INSTRUCTIONS: &str = "PLANNED RESPONSE: Return the supplied envelope with argument holding the complete unchanged ArgumentCase and acquisition_plan holding exactly one record for every argument.evidence_plan ID. Each record names need_id and one acquisition_tools ID and supplies input_preparation as its typed preparation instruction or null. Put each required named input either in arguments as {name,value} string entries or in unresolved_arguments, never both. Use only the catalogue's input names. For custom, arguments is empty and unresolved_arguments is [\"adapter\"], with null input_preparation. Revise the argument and its acquisition bindings together. The plan is separate from the canonical case and must preserve its target, enabled claim, question, measurement, comparator and acceptance criterion.";
 
 #[cfg(test)]
 mod tests {
@@ -323,6 +418,7 @@ mod tests {
         case.evidence_plan
             .iter()
             .map(|need| AcquisitionPlan {
+                input_preparation: None,
                 need_id: need.id.clone(),
                 tool_id: "custom".into(),
                 arguments: vec![],
@@ -401,5 +497,99 @@ mod tests {
             planned_case_schema()["properties"]["argument"]["$ref"],
             "#/$defs/ArgumentCase"
         );
+    }
+
+    #[test]
+    fn preparation_metadata_preserves_legacy_plan_bytes_and_is_explicit_when_supplied() {
+        let source = r#"{"need_id":"E1","tool_id":"scoped_json","arguments":[],"unresolved_arguments":["inputs"]}"#;
+        let mut plan: AcquisitionPlan = serde_json::from_str(source).unwrap();
+        assert!(plan.input_preparation.is_none());
+        assert_eq!(serde_json::to_string(&plan).unwrap(), source);
+        plan.input_preparation = Some(InputPreparation::Scoped {
+            operation: ScopedOperation::GrafanaTrace,
+        });
+        assert_eq!(
+            serde_json::to_value(&plan).unwrap()["input_preparation"],
+            json!({"kind":"scoped","operation":"grafana_trace"})
+        );
+        let malformed = json!({"need_id":"E1","tool_id":"scoped_json","arguments":[],
+            "unresolved_arguments":["inputs"],
+            "input_preparation":{"kind":"scoped","operation":"grafana_query"}});
+        assert!(serde_json::from_value::<AcquisitionPlan>(malformed).is_err());
+    }
+
+    #[test]
+    fn preparation_validates_adapter_roles_and_retained_reference_identifiers() {
+        let case = case();
+        let mut plans = custom_plans(&case);
+        plans[0].tool_id = "scoped_json".into();
+        plans[0].unresolved_arguments = vec!["inputs".into()];
+        plans[0].input_preparation = Some(InputPreparation::Scoped {
+            operation: ScopedOperation::GrafanaSearch,
+        });
+        assert!(validate(&case, &plans).is_empty());
+        plans[0].input_preparation = Some(InputPreparation::Artifact {
+            reference: "existing-record_1.json".into(),
+        });
+        assert!(
+            validate(&case, &plans)
+                .iter()
+                .any(|error| error.contains("requires artifact_json"))
+        );
+        plans[0].tool_id = "artifact_json".into();
+        assert!(validate(&case, &plans).is_empty());
+        for reference in [
+            "",
+            "../old-case.json",
+            "/operator/capture.json",
+            "has space",
+            "a:b",
+        ] {
+            plans[0].input_preparation = Some(InputPreparation::Artifact {
+                reference: reference.into(),
+            });
+            assert!(
+                validate(&case, &plans)
+                    .iter()
+                    .any(|error| error.contains("bounded identifier"))
+            );
+        }
+        assert!(!valid_artifact_reference(&"a".repeat(129)));
+        plans[0].input_preparation = None;
+        assert!(validate(&case, &plans).is_empty());
+    }
+
+    #[test]
+    fn provider_preparation_schema_requires_nullable_closed_tagged_variants() {
+        let planned = planned_case_schema();
+        let schema = json!({"$ref":"#/$defs/AcquisitionPlan","$defs":planned["$defs"]});
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        let mut plan = json!({"need_id":"E1","tool_id":"scoped_json","arguments":[],
+            "unresolved_arguments":["inputs"],"input_preparation":null});
+        assert!(validator.is_valid(&plan));
+        for operation in ["kubernetes", "grafana_search", "grafana_trace"] {
+            plan["input_preparation"] = json!({"kind":"scoped","operation":operation});
+            assert!(validator.is_valid(&plan));
+        }
+        plan["input_preparation"] = json!({"kind":"artifact","reference":"capture_1"});
+        assert!(validator.is_valid(&plan));
+        plan["input_preparation"]["operation"] = json!("grafana_search");
+        assert!(!validator.is_valid(&plan));
+        plan["input_preparation"] = json!({"kind":"scoped","operation":"other"});
+        assert!(!validator.is_valid(&plan));
+        plan.as_object_mut().unwrap().remove("input_preparation");
+        assert!(!validator.is_valid(&plan));
+        fn forbidden(value: &Value) -> bool {
+            match value {
+                Value::Object(fields) => {
+                    fields.contains_key("oneOf")
+                        || fields.contains_key("const")
+                        || fields.values().any(forbidden)
+                }
+                Value::Array(values) => values.iter().any(forbidden),
+                _ => false,
+            }
+        }
+        assert!(!forbidden(&schema));
     }
 }
