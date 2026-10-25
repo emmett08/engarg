@@ -286,6 +286,7 @@ fn assert_checkpoint(exchange: &Exchange, fixture: &Fixture) {
     assert!(!prompt["retained_acquisition_designs"].is_null());
     assert_eq!(exchange.body["instructions"], request["request"]["system"]);
     assert_eq!(exchange.body["input"], request["request"]["user"]);
+    assert_eq!(exchange.body["max_output_tokens"], 65_536);
     assert_eq!(
         exchange.body["text"]["format"]["schema"],
         request["request"]["schema"]

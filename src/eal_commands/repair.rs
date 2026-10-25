@@ -8,6 +8,8 @@ use engarg::{
 use std::sync::Mutex;
 
 #[derive(Args)]
+#[command(mut_arg("max_output_tokens", |arg| arg.default_value("65536")))]
+#[command(mut_arg("request_timeout_secs", |arg| arg.default_value("1800")))]
 pub struct RepairArgs {
     /// Completed graph analysis with retained authoring responses.
     #[arg(long)]
@@ -67,6 +69,7 @@ async fn execute_inner(
     args: RepairArgs,
     progress: &crate::progress::Progress,
 ) -> Result<(), Error> {
+    let started = std::time::Instant::now();
     progress.phase("validating saved analysis and recovery provenance");
     let raw: Value = crate::read_json(&args.input, MAX_INPUT_BYTES)?;
     let executable = std::env::current_exe()?;
@@ -183,8 +186,13 @@ async fn execute_inner(
         output.keep = true;
         Ok(())
     };
+    let remaining = Duration::from_secs(args.timeout_secs)
+        .checked_sub(started.elapsed())
+        .ok_or_else(|| {
+            Error::Budget("support recovery deadline exhausted during admission".into())
+        })?;
     let result = tokio::select! {
-        result = tokio::time::timeout(Duration::from_secs(args.timeout_secs), recovery) => match result {
+        result = tokio::time::timeout(remaining, recovery) => match result {
             Ok(result) => result,
             Err(_) => Err(Error::Budget("support recovery deadline exhausted; completed exchanges remain in repair audit".into())),
         },

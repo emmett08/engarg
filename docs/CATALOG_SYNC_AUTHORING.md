@@ -81,6 +81,7 @@ engarg eal repair \
   --input engarg-runs/PREVIOUS-RUN/analysis.json \
   --evidence-config operator-planning.json \
   --model gpt-6.1-sol --max-repairs 1 --timeout-secs 3600 --progress \
+  --request-timeout-secs 1800 --max-output-tokens 65536 \
   --audit repaired-support.audit.jsonl --output repaired-analysis.json
 ```
 
@@ -92,6 +93,9 @@ historical blueprint remains outside execution until its repaired form passes
 validation. Repair does not generate tools or collect evidence. Review the result,
 then use the implementation and registration workflow for genuine missing
 operations. Existing capabilities can be selected through ordinary replanning.
+Support recovery defaults to a 1,800-second request deadline and 65,536 output
+tokens so the complete frozen argument and repaired graph can be returned.
+Both settings can be overridden for the selected provider.
 
 After correcting connection bindings or approving a catalogue, reuse the saved
 argument and support requirements rather than paying for authoring again:
