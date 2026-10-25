@@ -178,9 +178,9 @@ Markdown is the default presentation and follows the supplied [Engineering Exten
 
 | Format | Reader task |
 | --- | --- |
-| `markdown` or `template` | Inspect every component of the attached template and the complete audit appendix |
+| `markdown`, `md` or `template` | Inspect every component of the attached template, with an optional audit appendix |
 | `outline` | Inspect one line per claim, indentation and explicit relationships between supporting arguments |
-| `argument` or `plain` | Inspect indented sentence lines with the qualified claims and their reasoning records |
+| `argument`, `plain` or `txt` | Inspect indented sentence lines with the qualified claims and their reasoning records |
 | `prose` | Read connected paragraphs, each performing a declared reasoning task |
 | `html` or `expandable` | Open a self-contained expandable argument view in a browser |
 | `json` | Save the canonical graph, reading paragraphs and run audit for further rendering |
@@ -193,7 +193,10 @@ engarg render --input run.json --format prose --output reading.md
 engarg render --input run.json --format argument --display-depth 2 --output argument.txt
 engarg render --input run.json --format html --output argument.html
 engarg render --input run.json --format markdown --output assessment.md
+engarg render --input run.json --format md --no-audit-appendix --output argument.md
 ```
+
+The authoring script writes `argument.md` alongside `analysis.json`, `argument.txt` and `argument.html`. It also retains `prose.md` for connected reading. The Markdown argument includes every record and omits the duplicate JSON audit appendix. Its source remains available in `analysis.json`. All presentations use that one saved analysis without additional model calls. Their paths are recorded in `run-summary.json`.
 
 Use `--display-depth N` (1–16) with argument, outline, prose or HTML to limit detailed claim levels from the same two roots. A shared claim remains detailed if any root reaches it within the limit. At the boundary, the outline keeps a claim summary, qualifier and consequential conditions while omitting its supporting detail. HTML retains the same information, with full condition statements behind its disclosure control. Prose retains the parent paragraphs and explicitly shows outstanding relied-upon conditions. The HTML investigation registers remain complete. JSON and the full 14-component template always retain the complete case; this option does not prune, reassess or change EAL export. Omit it to show every detailed record.
 

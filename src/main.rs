@@ -169,12 +169,13 @@ struct Analyse {
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Format {
     Json,
-    #[value(alias = "template")]
+    /// Complete argument in Markdown. Use --no-audit-appendix for a reader copy.
+    #[value(alias = "template", alias = "md")]
     Markdown,
     Outline,
     Prose,
     /// One authored statement per indented line for inspecting the argument.
-    #[value(alias = "plain")]
+    #[value(alias = "plain", alias = "txt")]
     Argument,
     #[value(alias = "expandable")]
     Html,

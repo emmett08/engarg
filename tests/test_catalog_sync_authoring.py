@@ -463,6 +463,35 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(summary['tool_implementation'], {'enabled': False})
         self.assertFalse((directory / 'tooling').exists())
 
+    def test_pipeline_retains_all_presentations_from_one_analysis(self):
+        self.install_pipeline_stubs()
+        directory = self.pipeline_directory(self.run_script(self.inputs))
+        calls = self.invocations()
+        self.assertEqual(sum(call[0] == 'analyse' for call in calls), 1)
+        presentations = {
+            'json': 'analysis.json', 'markdown': 'argument.md', 'text': 'argument.txt',
+            'html': 'argument.html', 'prose': 'prose.md',
+        }
+        summary = json.loads((directory / 'run-summary.json').read_text())
+        self.assertEqual(summary['presentations'], {
+            name: str(directory / filename) for name, filename in presentations.items()
+        })
+        for filename in presentations.values():
+            self.assertTrue((directory / filename).is_file(), filename)
+        renders = [call for call in calls if call[0] == 'render']
+        by_format = {call[call.index('--format') + 1]: call for call in renders}
+        self.assertEqual(set(by_format), {'markdown', 'argument', 'html', 'prose'})
+        for format_name, filename in [
+            ('markdown', 'argument.md'), ('argument', 'argument.txt'),
+            ('html', 'argument.html'), ('prose', 'prose.md'),
+        ]:
+            call = by_format[format_name]
+            self.assertEqual(call[call.index('--input') + 1], str(directory / 'analysis.json'))
+            self.assertEqual(call[call.index('--output') + 1], str(directory / filename))
+        markdown = by_format['markdown']
+        self.assertIn('--no-audit-appendix', markdown)
+        self.assertNotIn('--display-depth', markdown)
+
     def test_implementation_failure_preserves_analysis_and_stops_before_export(self):
         profile = self.write_toolchain()
         self.install_pipeline_stubs()
