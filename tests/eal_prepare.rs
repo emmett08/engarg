@@ -65,6 +65,7 @@ fn preparation_preserves_distinct_http_queries_and_exact_review_requests() {
     case.evidence_plan[1].method = "Read the full database export query".into();
     let retained = vec![
         AcquisitionPlan {
+            input_preparation: None,
             need_id: case.evidence_plan[0].id.clone(),
             tool_id: "http_json_get".into(),
             arguments: vec![argument(
@@ -74,6 +75,7 @@ fn preparation_preserves_distinct_http_queries_and_exact_review_requests() {
             unresolved_arguments: vec![],
         },
         AcquisitionPlan {
+            input_preparation: None,
             need_id: case.evidence_plan[1].id.clone(),
             tool_id: "http_json_get".into(),
             arguments: vec![argument("url", "https://archive.example/second?query=full")],
@@ -176,6 +178,7 @@ fn preparation_preserves_selected_native_contract_and_inputs() {
     let (request, case) = fixture();
     let catalogue = native_catalogue();
     let retained = vec![AcquisitionPlan {
+        input_preparation: None,
         need_id: case.evidence_plan[0].id.clone(),
         tool_id: "github".into(),
         arguments: vec![
@@ -229,6 +232,7 @@ fn preparation_keeps_operator_artifact_paths_and_rejects_ambiguous_bindings() {
     let artifact = directory.path().join("operator-artifacts.json");
     std::fs::write(&artifact, b"operator-owned original").unwrap();
     let plan = AcquisitionPlan {
+        input_preparation: None,
         need_id: case.evidence_plan[0].id.clone(),
         tool_id: "artifact_json".into(),
         arguments: vec![argument("inputs", artifact.to_str().unwrap())],

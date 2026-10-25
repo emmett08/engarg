@@ -184,3 +184,178 @@ rejects unsupported special files. It cannot pre-empt every operating-system
 filesystem stall. Path-identity checks also do not establish immutable contents
 during a concurrent in-place write. Observation pins and correspondence checks
 remain separate requirements.
+
+## Workflow and retry performance
+
+The 25 October 2026 inventory found one workflow in each repository and no
+existing local actions or reusable workflows. EngArg's `ci.yml` checks each PR
+merge revision and each main push, with independent Ubuntu/macOS `checks` jobs
+and `EAL producer and consumer contracts`. Its dependencies are the pinned
+checkout action, the Rust Docker toolchain image, both authoring scripts and the
+pinned EAL workspace. EAL's `rust.yml` remains manually dispatched, with
+independent Rust/application/coordination, context-experiment and parser
+regeneration jobs. Regeneration uses the existing hash-checked ANTLR generator.
+The pinned checkout and cache actions run Node 24 and call no reusable workflow.
+Job names, events, platform coverage, read-only permissions and test selections
+are retained. Administrative required-check settings were unavailable.
+
+The complete cold baseline is [run 40189894069](https://github.com/emmett08/engarg/actions/runs/40189894069)
+at `95d2b263a626329afafbd67fa7a3ee4ecb925c99`, Rust 1.99.1 for EngArg and
+1.90.0 for the pinned EAL runtime. All three jobs succeeded. GitHub job/step
+timestamps give these observations; they are one run, not independent repeated
+performance trials:
+
+| Workload | Elapsed seconds |
+| --- | ---: |
+| Ubuntu job 121158447679 | 1207 |
+| Ubuntu isolated toolchains | 434 |
+| Ubuntu release build | 125 |
+| Ubuntu cold runtime install, cache-hit startup and probe | 403 |
+| macOS job 121158447673 | 694 |
+| macOS runtime installation and verification | 312 |
+| EAL contract job 121158447480 | 140 |
+
+The jobs total 2041 unweighted runner-seconds. Workflow wall time was 1210
+seconds, including about two seconds before the first jobs started. Runner
+classes differ, so the sum is capacity usage rather than an invoice estimate.
+Earlier same-implementation runs 40188241422 and 40188244465 executed both push
+and PR jobs for `ff6e5a9`; both Ubuntu jobs reached the former 20-minute limit.
+The existing main-only push filter removes that duplicate PR invocation while
+preserving accepted-main verification. Superseded revisions of the same PR now
+cancel together; main pushes keep independent concurrency groups.
+
+Runtime logs show four package builds taking 10.47, 121, 237 and 24.58 seconds.
+Within those installs, `serde` compiled three times and `libc` twice because the
+selected dependency features differed. The installer now verifies a temporary
+checkout of the same admitted URL and exact revision, builds only the four
+runtime packages together, and stages exactly the same six executable names.
+It retains Rust 1.90.0, `--locked`, private ownership, inherited process locking,
+binary hashes and the success receipt. A valid receipt still avoids compilation.
+No installed prefix or runtime target is restored by the workflow cache, so the
+real cold-install and subsequent cache-hit checks remain exercised.
+
+EngArg shares one cache action between the platform and compatibility workloads.
+Keys separate OS, architecture, workload, toolchains, compiler/runner image and
+build configuration; Cargo still executes every required check. EAL retains its
+workspace cache, adds an isolated experiment cache, and builds the release
+workspace and coordination worker together. Its last measured manual dispatch,
+40105751849 at `7bd9948`, took 365 seconds for Rust and 44 for the experiment;
+the former separate worker build rounded to zero seconds. Consolidating that
+invocation is a maintenance reduction, not a demonstrated speed-up.
+
+The implementation verifies four installer compiler invocations become one,
+and a script replanning attempt invokes no authoring command or provider key.
+Focused failures cover the source revision, missing/outside build artifacts,
+interrupted locks, tampered companions, changed requests and failed replanning.
+The source-level shell/Python suite and unique-key YAML/event coverage checks
+pass. A Rust 1.90 temporary-workspace probe confirms combined library, binary
+and named-example selection. `actionlint` was unavailable.
+
+Hosted candidate cache-hit rates, cache transfer overhead, hosted elapsed-time
+improvement and billed savings remain unmeasured hypotheses. Docker toolchain
+execution remains the largest observed hosted stage; no test was removed or
+sharded. The checks matrix now uses the same line-table debug information and
+disabled incremental compilation as the compatibility and EAL jobs. This keeps
+filename/line backtraces while dropping variable/parameter debugger detail and
+incremental-session cache growth. A tiny Rust 1.99.1 contract probe retained
+`opt_level=0`, debug assertions and overflow checks, passed a caught-overflow
+test, and created no incremental files. No hosted cache-size reduction is claimed.
+
+### Controlled local runtime installation
+
+Verified local improvement: the final installer took 126.511 seconds against
+216.755 seconds for the original, a 90.245-second reduction (41.63%, 1.71 times
+as fast). Both arms used EAL `cb5013c37ef79331e79ee0337862aec58d1ee5cb`, Rust
+1.90.0, the same Linux container and shared warm Cargo downloads, with separate
+empty owned installation prefixes and compiler targets. EngArg code was frozen
+at `f86103ca57c7bb9e2c42b20d32a3a3eabd422ecc`. This exceeds the predeclared 10%
+elapsed-time threshold for this workload.
+
+| Observation | Original installer | Combined build |
+| --- | ---: | ---: |
+| Cold-prefix installation, seconds | 216.755 | 126.511 |
+| Cargo compilation commands | 4 | 1 |
+| Non-version/print rustc invocations | 382 | 292 |
+| Included `<unattributed>` compiler calls | 13 | 10 |
+| Cached startup, seconds | 0.145 | 0.127 |
+| New compilations on cached startup | 0 | 0 |
+| Real EAL describe, seconds | 0.044 | 0.052 |
+
+The compiler count fell by 90 (23.56%). An identical forwarding wrapper counted
+both arms, retained unattributed calls explicitly, and separated version/print
+probes. `serde` compiled three times in the original and once in the candidate.
+Both installations retained the same six executable names, passed their own
+revision-bound binary-hash receipts, and advertised EAL/3 and `structured/1`
+through the real installed host. Each task-owned compiler target was removed
+only after retaining binaries, receipts, logs and metrics.
+
+The original source is from `6e9f9f7`, SHA-256
+`35ff6e34ef7afe12fecae3a3ca9611d77392b1d2408fadd1909355a8c7655afc`.
+The measured candidate SHA-256 is
+`2d4360a9ca0ad7f0dc7a6265094eb441384d760e079c453c0afb35576cca4bef`.
+Only the temporary runners' source-path argument changed so both inferred the
+same final EngArg Cargo pin. The self-contained counts, phase times, source and
+input hashes, binary hashes and raw-log checksums are retained in
+[`benchmarks/installer_profile.json`](benchmarks/installer_profile.json).
+
+This is one baseline-first pair, not an estimate of variation or tail latency.
+The later arm may benefit from warmer download and OS caches, and both elapsed
+times include wrapper overhead. A reporting error after the completed baseline
+checks paused bookkeeping for 173.743 seconds before the candidate; no baseline
+was repeated or calls discarded. Millisecond cache/startup differences do not
+establish speed changes. Hosted CI timing and invoice effects remain unmeasured.
+
+## Route selection kernel
+
+The 25 October 2026 selection check isolates beam expansion and sorting from
+capability validation, schema compilation, argument materialisation, discovery,
+provider execution and model calls. It compares the previous string/prefix-copy
+loop with the production backpointer/interned-ID beam on the same synthetic
+workload: 64 adequate candidates per acquisition, distinct request groups on
+each row, three cost dimensions and a 32-state frontier. Both modes assert the
+same selected path, cost vector, source-group count and pruning flag.
+
+| Acquisitions | Previous kernel, ms | Current kernel, ms |
+| ---: | ---: | ---: |
+| 64 | 592.884 | 17.266 |
+| 128 | 2475.757 | 31.340 |
+| 256 | 11299.975 | 79.993 |
+| 4096 | Not run | 3113.388 |
+
+These are single local observations using Rust 1.99.1 and `-O`; they do not
+measure complete planning latency, model token use or comparative argument
+quality. Raw output, compiler identity and measured source hashes are retained
+in `benchmarks/selection_profile.json`. Reproduce from the repository root:
+
+```sh
+rustc --edition 2024 -O benchmarks/selection_profile.rs -o /tmp/engarg-selection-profile
+/tmp/engarg-selection-profile previous 256 64
+/tmp/engarg-selection-profile current 256 64
+```
+
+The focused `cargo test --locked --lib route_planning` check passed 29 tests.
+An independent exhaustive small-plan definition checks unpruned cost minima
+and lexical ties; other tests preserve sharing, bounded-search reporting,
+arithmetic bounds and explicit configuration preference. Dynamic fan-out costs
+remain unknown rather than charging one invocation for an unknown number of
+IDs. Per-step source-operation invocation bounds exclude transport admission and
+provider-internal requests. They do not assume reuse, since changing freshness
+or a later assessment can require a refresh. Actual runtime metrics remain the
+source of measured requests, bytes and elapsed time.
+
+## Integrated closure checks
+
+EAL `cb5013c37ef79331e79ee0337862aec58d1ee5cb`, using Rust 1.90.0, passed
+formatting, workspace/all-target Clippy, 584 reported workspace tests and the
+installed application and coordination smoke checks. EngArg code
+`f86103ca57c7bb9e2c42b20d32a3a3eabd422ecc`, using Rust 1.99.1, passed formatting,
+all-target Clippy, 514 default Rust tests, 64 native/cross-repository tests with
+`--include-ignored` including batch/replanning, and 86 Python tests. The
+workflow profile change above has its separate small contract probe; the full
+hosted checks remain the verification of that runner configuration.
+
+Local Docker was unavailable, so the integrated generated-tool Docker test
+remains pending hosted CI. No live OpenAI key was available. Live domain-harness
+execution, comparative argument quality and live token-cost comparison remain
+unmeasured. These checks do not establish globally optimal model topology or
+universal planning, runtime or monetary-cost improvement.

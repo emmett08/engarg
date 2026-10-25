@@ -1,0 +1,478 @@
+{
+  "comparison": {
+    "compiler_count_changes_by_crate": {
+      "<unattributed>": {
+        "baseline": 13,
+        "candidate": 10
+      },
+      "ahash": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "aho_corasick": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "antlr4rust": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "autocfg_1e1a50ba80b596a9_0": {
+        "baseline": 1,
+        "candidate": 0
+      },
+      "autocfg_1e1a50ba80b596a9_1": {
+        "baseline": 1,
+        "candidate": 0
+      },
+      "autocfg_c4006023d273137f_0": {
+        "baseline": 0,
+        "candidate": 1
+      },
+      "autocfg_c4006023d273137f_1": {
+        "baseline": 0,
+        "candidate": 1
+      },
+      "build_script_build": {
+        "baseline": 39,
+        "candidate": 30
+      },
+      "cc": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "chrono": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "digest": {
+        "baseline": 3,
+        "candidate": 2
+      },
+      "displaydoc": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "eal_aspic": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "eal_collector_contracts": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "eal_core": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "eal_parser": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "eal_process": {
+        "baseline": 3,
+        "candidate": 1
+      },
+      "eal_runtime": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "email_address": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "errno": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "fancy_regex": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "fluent_uri": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "fraction": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "getrandom": {
+        "baseline": 4,
+        "candidate": 2
+      },
+      "icu_collections": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "icu_locale_core": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "icu_normalizer": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "icu_properties": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "icu_provider": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "idna": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "idna_adapter": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "indexmap": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "jsonschema": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "libc": {
+        "baseline": 3,
+        "candidate": 2
+      },
+      "libsqlite3_sys": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "memchr": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "num": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "num_bigint": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "num_rational": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "parking_lot": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "parking_lot_core": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "potential_utf": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "proc_macro2": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "quote": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "ref_cast": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "ref_cast_impl": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "referencing": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "regex": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "regex_automata": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "rusqlite": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "schemars": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "schemars_derive": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "serde": {
+        "baseline": 3,
+        "candidate": 1
+      },
+      "serde_core": {
+        "baseline": 3,
+        "candidate": 1
+      },
+      "serde_derive": {
+        "baseline": 3,
+        "candidate": 1
+      },
+      "serde_derive_internals": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "serde_json": {
+        "baseline": 3,
+        "candidate": 1
+      },
+      "serde_spanned": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "sha2": {
+        "baseline": 3,
+        "candidate": 2
+      },
+      "signal_hook": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "signal_hook_registry": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "smallvec": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "syn": {
+        "baseline": 5,
+        "candidate": 2
+      },
+      "synstructure": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "tinystr": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "toml": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "toml_datetime": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "uuid": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "yoke": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "yoke_derive": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "zerofrom": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "zerofrom_derive": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "zerotrie": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "zerovec": {
+        "baseline": 2,
+        "candidate": 1
+      },
+      "zerovec_derive": {
+        "baseline": 2,
+        "candidate": 1
+      }
+    },
+    "compiler_invocations_reduction": 90,
+    "compiler_invocations_relative_reduction_percent": 23.560209,
+    "install_absolute_reduction_seconds": 90.244762,
+    "install_relative_reduction_percent": 41.634398,
+    "install_speedup_ratio": 1.713338
+  },
+  "decision": "retain: one local cold-prefix pair exceeded the predeclared 10% installer elapsed-time threshold with both receipt/cache/real-startup checks preserved",
+  "design": {
+    "cache_treatment": "existing Cargo downloads shared; empty disjoint installed prefixes and compiler targets; baseline first warms download/OS caches",
+    "compiler_count_definition": "Forwarded rustc processes excluding explicit --print*, -vV and --version probes; unattributed calls remain counted, without inferring their purpose.",
+    "independent_unit": "one installer process with follow-up cache and live-describe checks",
+    "instrumentation": "same append-only Python RUSTC_WRAPPER in both arms; elapsed includes wrapper overhead",
+    "order": [
+      "baseline",
+      "candidate"
+    ],
+    "pause_between_arms_seconds": 173.743175,
+    "repetitions_per_arm": 1,
+    "target_cleanup": "each task-owned target deleted after its six binaries, receipts, raw logs and phase metrics were retained; both prefixes remain separate"
+  },
+  "environment": {
+    "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+    "cpu_max": "800000 100000",
+    "logical_cpus_reported": 9,
+    "memory_max": "8589934592",
+    "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+    "profile_overrides": {},
+    "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)\nbinary: rustc\ncommit-hash: 1159e78c4747b02ef996e55082b704c09b970588\ncommit-date: 2025-09-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.90.0\nLLVM version: 20.1.8"
+  },
+  "limitations": [
+    "Baseline installation/cache/real-describe succeeded. JSON sort of an unattributed compiler bucket paused bookkeeping before target cleanup; baseline was not repeated.",
+    "Unattributed non-version/print compiler calls are retained as <unattributed>, never discarded or inferred to be probes.",
+    "Baseline compiler phase is separated from cache probes using the installer metrics file completion timestamp and raw wrapper timestamps.",
+    "One baseline-first local pair does not estimate dispersion, tail latency or a universal speed-up. Shared download and OS caches may favour the later candidate.",
+    "The measured elapsed times include identical Python wrapper overhead; no production or hosted CI elapsed-time, cache-hit-rate or invoice saving is established.",
+    "Cached-startup and describe durations are single correctness observations, not statistically supported speed comparisons.",
+    "The workflow line-table/incremental settings were evaluated separately after this installer experiment; they did not change either arm environment."
+  ],
+  "observations": {
+    "baseline": {
+      "binaries_sha256": {
+        "eal-collector": "0cee598d5dcb0df4b5e14cff85c10b743282d7e374a7a09d773c863d124a5a7f",
+        "eal-command-supervisor": "f311a1c8909b18b1755a317cb59a382bc3559f21ac78e33509a8369c52ea3b76",
+        "eal-host": "36cea0e83bf3cae158b502da9f50146fbc303d4a5d7f09543ce072013ae15c07",
+        "eal-mcp": "1940181aa8e448fa58cd09d935b93f262a6522acf286894cc1a3d8e62c9db68f",
+        "eal-method-worker": "e627c0ad3a1e13c8860f2811418f29eeb85326aca54a0f3c072ad8ca5fded419",
+        "eal-process-supervisor": "725a5854f11fdd5a76039a16147893e916ccc429f4c5b4f235371d03c3d39f96"
+      },
+      "cached_startup_compilation_invocations": 0,
+      "cached_startup_seconds": 0.145244,
+      "cargo_compilation_commands": 4,
+      "describe_advertised_collection_evidence": 128,
+      "describe_seconds": 0.044273,
+      "install_seconds": 216.755297,
+      "receipt_source_revision": "cb5013c37ef79331e79ee0337862aec58d1ee5cb",
+      "rustc_compilation_invocations": 382,
+      "rustc_unattributed_compilation_invocations": 13,
+      "rustc_version_print_probes": 13
+    },
+    "candidate": {
+      "binaries_sha256": {
+        "eal-collector": "89467b9092595d4bbe95fc644936940527f5e53e55dd28f8180efd875a3da470",
+        "eal-command-supervisor": "84266736bec1b55a57c27c5d17b3f802098438211278ed09d3fe8f56ec333841",
+        "eal-host": "1417ecdad2dadffa56df436bb5ed7ae73b5af0abbb82cd5e2b45034944ef22b9",
+        "eal-mcp": "561c88c485a235361382281d6c4a4abd8e44a18a8f311e527480edd881503de2",
+        "eal-method-worker": "cd64a275418de043427317112d6f9f00aae3f9b2e0829fa960837ce8367c8d32",
+        "eal-process-supervisor": "bf41f62cd4e5f1f7e1f0cdab0a6258f257d605ca76cc509367a25a118926764f"
+      },
+      "cached_startup_compilation_invocations": 0,
+      "cached_startup_seconds": 0.126823,
+      "cargo_compilation_commands": 1,
+      "describe_advertised_collection_evidence": 128,
+      "describe_seconds": 0.0517,
+      "install_seconds": 126.510534,
+      "receipt_source_revision": "cb5013c37ef79331e79ee0337862aec58d1ee5cb",
+      "rustc_compilation_invocations": 292,
+      "rustc_unattributed_compilation_invocations": 10,
+      "rustc_version_print_probes": 6
+    }
+  },
+  "raw_evidence": {
+    "arms": {
+      "baseline": {
+        "cached-startup.metrics.json": "3e4e489f2df71b909c7c6c27f2be56fc2ce417b1c20d16fefc890126b9aafe14",
+        "describe.metrics.json": "262f65dd0f1b232bbd157349f258289544eb8ebd3615d4c138533551902c27c4",
+        "install.metrics.json": "a8289c1a993ae007fdad2da23626b05848d4548dcdc5f2567b596ec4649c91b2",
+        "install.stderr.log": "c013bd5a7dab36bc7b583bc031a89b2eef16fda9e2386900bba5f6a3f88010a3",
+        "prefix/.engarg-eal-runtime.json": "e45cc7e2a82d7a5191cafdf9ea1cfbec75d5aa1048fc0e7217468484ee5aad61",
+        "probe/describe.json": "b367d8cd78ec2b3ad829cccf864a65e204bce2bc8909fc95dd06f6f2c0f95902",
+        "rustc.jsonl": "4772db16b90ea045de45b5754d11393a5ae7ade0d8239dd84570bbf472d95d6d"
+      },
+      "candidate": {
+        "cached-startup.metrics.json": "1ff3f8dc1c2d71c185f3c23b6afdf1da3eef938277513c54df7150f52616ec60",
+        "describe.metrics.json": "65b4c686182ae8ec2e0f20c4c43e49988a672c7630315603e32fdf8851dd2875",
+        "install.metrics.json": "5719f769be852fa945e1ad461d3bf306f77438f2a201ad6bd94072fad8a5a80e",
+        "install.stderr.log": "a06480b5ee09b87d7cf7b7d0e1734253f0d14be8c44b7879faaad0180adc1c3c",
+        "prefix/.engarg-eal-runtime.json": "845e5ca2d77978fbf43c48c213fdf4c66d82e7dd5a7fd08da113ebefb83766a8",
+        "probe/describe.json": "b367d8cd78ec2b3ad829cccf864a65e204bce2bc8909fc95dd06f6f2c0f95902",
+        "rustc.jsonl": "3bc36de5fe4f5f0197e8ed8d5f3e901d86a4ecd970692ba4c272a39905b13784"
+      }
+    },
+    "comparison_json_sha256": "3bbecba994574e3d4a02365053c9a9f819cc7b86065007a6c25de415de16256a",
+    "workspace_directory": "/workspace/scratch/42717f0095ba/installer-comparison/run-20261025T132709Z"
+  },
+  "schema": "engarg.installer-profile/1",
+  "source_identity": {
+    "baseline_git_blob": "cf06100f46d0e98436fb4f76717927b30e374e1c",
+    "baseline_original_sha256": "35ff6e34ef7afe12fecae3a3ca9611d77392b1d2408fadd1909355a8c7655afc",
+    "baseline_revision": "6e9f9f7ca66150b16a5d5763cd5654f1574ad4e1",
+    "baseline_runner_sha256": "3d5b537d33515ad876222f37b79a872b9de4b5c0f16534be21cc4b0353d3f0b8",
+    "candidate_original_sha256": "2d4360a9ca0ad7f0dc7a6265094eb441384d760e079c453c0afb35576cca4bef",
+    "runner_adjustment": "replace argv source-path argument with actual EngArg installer path so both arms read the final Cargo pin",
+    "rustc_counter_sha256": "1cb0b73fdb5f6eaa215c2b959f0ec3e8d5bd61f2af82190c4953f02ec6b314e5"
+  },
+  "verification": {
+    "cached_startup_new_compilations_each_arm": 0,
+    "empty_disjoint_prefixes_and_compiler_targets": true,
+    "owned_target_cleanup_each_arm": true,
+    "real_eal_describe_each_arm": "is_error=false; source_syntax=EAL/3; structured/1 advertised",
+    "same_admitted_pin": true,
+    "six_binary_hash_receipts_each_arm": true
+  },
+  "workflow_profile_contract": {
+    "incremental_files": 0,
+    "profiles": [
+      {
+        "debug_assertions": true,
+        "debuginfo": "line-tables-only",
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": false
+      },
+      {
+        "debug_assertions": true,
+        "debuginfo": "line-tables-only",
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      }
+    ],
+    "runtime_debug_assertion_and_overflow_test": "passed",
+    "status": "passed",
+    "toolchain": "1.99.1"
+  },
+  "workload": {
+    "eal_git": "https://github.com/emmett08/eal-mcp",
+    "eal_revision": "cb5013c37ef79331e79ee0337862aec58d1ee5cb",
+    "engarg_binary_sha256": "bb22f086a337bf1c0f23c12a54571c5679cf1d99cef59a0e68cfaa03875fbae5",
+    "engarg_code_revision": "f86103ca57c7bb9e2c42b20d32a3a3eabd422ecc",
+    "expected_executables": [
+      "eal-collector",
+      "eal-command-supervisor",
+      "eal-host",
+      "eal-mcp",
+      "eal-method-worker",
+      "eal-process-supervisor"
+    ],
+    "input_files_sha256": {
+      "Cargo.lock": "723f3919b330bb1ae93a8bd0946245c18465153d1a424a6c0df777542378f42c",
+      "Cargo.toml": "3760fb7bd296e296314db8564d4862fcf0a2464eb49a027f5cff5a23c2ff7fea",
+      "rust-toolchain.toml": "35d83b6333e752741900ba4935be885bbbf6bf883e7b1383d8d0f14f72843e0b"
+    },
+    "packages": [
+      "eal-process",
+      "eal-runtime",
+      "eal-mcp",
+      "eal-collectors"
+    ]
+  }
+}

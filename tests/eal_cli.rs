@@ -77,6 +77,54 @@ fn export_uses_the_final_retained_plan_and_rejects_a_different_argument() {
 }
 
 #[test]
+fn null_optional_graph_metadata_preserves_flat_collectors_in_export_and_prepare() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("planned.json");
+    planned_report(&input, false);
+    let mut report: Value = serde_json::from_slice(&std::fs::read(&input).unwrap()).unwrap();
+    report["evidence_planning"] = Value::Null;
+    std::fs::write(&input, serde_json::to_vec(&report).unwrap()).unwrap();
+    let bundle = directory.path().join("argument.json");
+    let result = cli()
+        .args(["eal", "export", "--format", "json", "--input"])
+        .arg(&input)
+        .arg("--output")
+        .arg(&bundle)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let exported: Value = serde_json::from_slice(&std::fs::read(bundle).unwrap()).unwrap();
+    assert_eq!(
+        exported["acquisition_plan"]["entries"][0]["tool_id"],
+        "http_json_get"
+    );
+    let prepared = directory.path().join("prepared");
+    let result = cli()
+        .args(["eal", "prepare", "--input"])
+        .arg(&input)
+        .arg("--output-dir")
+        .arg(&prepared)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let prepared: Value =
+        serde_json::from_slice(&std::fs::read(prepared.join("argument.bundle.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        prepared["acquisition_plan"]["entries"][0]["tool_id"],
+        "http_json_get"
+    );
+}
+
+#[test]
 fn export_keeps_exact_source_and_loss_preserving_manifest() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("report.json");

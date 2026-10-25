@@ -49,6 +49,7 @@ fn complete_plans(
                 .get(need.id.as_str())
                 .map(|plan| (**plan).clone())
                 .unwrap_or_else(|| AcquisitionPlan {
+                    input_preparation: None,
                     need_id: need.id.clone(),
                     tool_id: "custom".into(),
                     arguments: Vec::new(),
@@ -110,6 +111,24 @@ pub fn prepare_with_policy(
     catalogue: Option<&CollectorCatalogue>,
     policy: &crate::export_policy::ExportPolicy,
 ) -> Result<BTreeMap<String, Vec<u8>>, Error> {
+    prepare_with_operator_inputs(
+        request, case, retained, directory, executable, catalogue, policy, None,
+    )
+}
+
+/// Prepare current-case inputs from declared operations and operator-owned scope.
+/// Paths are fixed before export so every generated input uses the final revision.
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_with_operator_inputs(
+    request: &Request,
+    case: &ArgumentCase,
+    retained: &[AcquisitionPlan],
+    directory: &Path,
+    executable: &Path,
+    catalogue: Option<&CollectorCatalogue>,
+    policy: &crate::export_policy::ExportPolicy,
+    operator: Option<(&serde_json::Value, &Path)>,
+) -> Result<BTreeMap<String, Vec<u8>>, Error> {
     if !directory.is_absolute() || !executable.is_absolute() {
         return Err(Error::InvalidInput(
             "prepare requires absolute output and executable paths".into(),
@@ -118,7 +137,13 @@ pub fn prepare_with_policy(
     let executable = path_text(executable)?;
     let review_path = path_text(&directory.join("review-inputs.json"))?;
     let plans = complete_plans(case, retained)?;
-    let export = export_with_policy(request, case, &plans, catalogue, policy)?;
+    let prepared = operator
+        .map(|(inputs, base)| {
+            crate::collector_preparation::prepare_plans(case, &plans, inputs, base, directory)
+        })
+        .transpose()?;
+    let plans = prepared.as_ref().map_or(&plans, |prepared| &prepared.plans);
+    let export = export_with_policy(request, case, plans, catalogue, policy)?;
     let mut registry = export.registry;
     let review = registry
         .tools
@@ -151,7 +176,7 @@ pub fn prepare_with_policy(
             .map_err(Error::InvalidInput)?
             .into_bytes(),
     );
-    files.insert("acquisition-inputs.json".into(), bytes(&plans)?);
+    files.insert("acquisition-inputs.json".into(), bytes(plans)?);
     files.insert(
         "review-inputs.json".into(),
         bytes(&json!({"schema": "engarg.review-inputs/1", "reviews": []}))?,
@@ -161,5 +186,8 @@ pub fn prepare_with_policy(
         bytes(&export.review_requests)?,
     );
     files.insert("context.json".into(), bytes(&bundle.context)?);
+    if let Some(prepared) = prepared {
+        files.extend(prepared.finish(&bundle.revision)?);
+    }
     Ok(files)
 }

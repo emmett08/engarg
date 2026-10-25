@@ -1,7 +1,8 @@
 # Private collector inputs
 
-`eal prepare` turns a saved EngArg analysis into seven private EAL files. Each
-evidence need keeps its chosen collector and inputs. Preparation retains every
+`eal prepare` turns a saved EngArg analysis into seven private EAL files. Its
+optional operator-input preparation adds current-case input documents and a
+readiness report. Each evidence need keeps its chosen collector. Preparation retains every
 independent review obligation. Collection runs through a separate explicit command.
 
 Run from the repository root with a new output directory:
@@ -23,7 +24,7 @@ receives a custom adapter stub.
 | `argument.eal` | EAL/3 source with per-need acquisition bindings and review gates |
 | `argument.bundle.json` | Matching source and canonical argument with identity and selected contracts |
 | `argument.tools.toml` | Typed collector bindings and the retained-review importer |
-| `acquisition-inputs.json` | Saved acquisition-plan records with original inputs and unresolved parameters |
+| `acquisition-inputs.json` | Final acquisition-plan records with prepared inputs and unresolved parameters |
 | `review-inputs.json` | Initially empty independently authored review decisions |
 | `review-requests.json` | Exact pending six-field EAL review requests |
 | `context.json` | Matching `engarg_export_digest` environment context |
@@ -67,11 +68,10 @@ HTTP read when its plan selects `http_json_get`. Separate needs retain separate
 URLs and selectors. Existing operator-owned artifact files stay at their chosen
 paths. Kubernetes and Grafana settings belong to explicitly selected bindings.
 
-V2 export identity binds the projection semantics to the canonical case and
-acquisition plan with its selected descriptors. Producer package updates preserve
-that identity when semantics remain compatible. V1 bundles use their recorded
-producer identity during verification. A changed request or source requires its
-own matching observation. Copying an old digest into a new input file cannot
+V3 export identity binds the projection semantics to the canonical case and
+acquisition plan with its selected descriptors. Historical bundles retain their
+recorded projection and producer identity during verification. A changed request
+or source requires its own matching observation. Copying an old digest into a new input file cannot
 establish that correspondence.
 
 `.gitignore` excludes `engarg-runs/`, `.engarg-local/`, `*.local.json` and
@@ -79,22 +79,132 @@ establish that correspondence.
 private directories. Tracked documentation and test fixtures use sanitised
 examples. Ignore rules apply to future additions.
 
+## Prepare current-case bindings
+
+Use supplied scope settings and retained artifact references to prepare inputs
+for the saved argument:
+
+```sh
+engarg eal prepare \
+  --input path/to/analysis.json \
+  --operator-inputs .engarg-local/operator-inputs.json \
+  --output-dir .engarg-local/current-case
+```
+
+This operation requires no model call or evidence collection. It preserves the
+canonical analysis and verified tooling metadata. `tooling.original_plans`
+retains the implementation stage's original proposals. Preparation writes its
+current bindings to `acquisition-inputs.json` and the final bundle, with their
+configuration and evidence gaps in `collector-preparation.json`.
+Acquisition plans declare the
+preparation operation through an optional `input_preparation` field. Supported
+values are:
+
+| Selected adapter | Preparation declaration |
+| --- | --- |
+| `scoped_json` | `{"kind":"scoped","operation":"kubernetes"}` |
+| `scoped_json` | `{"kind":"scoped","operation":"grafana_search"}` |
+| `scoped_json` | `{"kind":"scoped","operation":"grafana_trace"}` |
+| `artifact_json` | `{"kind":"artifact","reference":"trace_capture"}` |
+
+The operator input file supplies `kubernetes` and `grafana` scope settings using
+the format below. Preparation writes a fresh `needs` map for the current need IDs
+and uses the final bundle revision as `case_digest`. It preserves the exact
+TraceQL expression and declared window. Full-trace operations require supplied
+trace IDs. It reports old `case_digest` and `needs` fields as ignored rather than
+reassigning their earlier mappings.
+
+Historical plans can receive explicit preparation declarations through a JSON
+acquisition override. Replace these illustrative IDs with IDs from the saved
+argument's evidence plan:
+
+```json
+[
+  {
+    "need_id": "E_search",
+    "tool_id": "scoped_json",
+    "arguments": [],
+    "unresolved_arguments": ["inputs"],
+    "input_preparation": {"kind":"scoped","operation":"grafana_search"}
+  },
+  {
+    "need_id": "E_capture",
+    "tool_id": "artifact_json",
+    "arguments": [],
+    "unresolved_arguments": ["inputs"],
+    "input_preparation": {"kind":"artifact","reference":"trace_capture"}
+  }
+]
+```
+
+```sh
+engarg eal prepare \
+  --input path/to/analysis.json \
+  --acquisition-plan .engarg-local/current-need-overrides.json \
+  --operator-inputs .engarg-local/operator-inputs.json \
+  --output-dir .engarg-local/current-case
+```
+
+An older `scoped_json` plan without an explicit operation remains unresolved.
+Operation selection belongs to the acquisition declaration. English method text
+and old need IDs provide no deterministic mapping between a search and a full
+trace read.
+
+To export source and registry files at separately chosen paths, pair
+`--operator-inputs` with a new `--preparation-output-dir`:
+
+```sh
+engarg eal export \
+  --input path/to/analysis.json \
+  --acquisition-plan .engarg-local/current-need-overrides.json \
+  --operator-inputs .engarg-local/operator-inputs.json \
+  --preparation-output-dir .engarg-local/current-inputs \
+  --output .engarg-local/argument.eal \
+  --tools-output .engarg-local/argument.tools.toml \
+  --manifest .engarg-local/argument.bundle.json
+```
+
+The exporter fixes input paths before calculating the revision, then stamps that
+revision into the input documents. It writes EAL, TOML and bundle files through
+the same checked export path. Use `--operator-input-base DIR` when the input file
+is a retained snapshot and relative artifact paths belong to its original
+directory. The authoring script supplies this base automatically.
+
+Prepared files include `scoped-inputs.json` or `artifact-inputs.json` when those
+adapters are selected. Empty or incomplete entries expose the remaining inputs
+while their acquisition plans stay unresolved. `collector-preparation.json`
+records these separate properties for every need:
+
+| Property | Meaning |
+| --- | --- |
+| `implementation` | A selected adapter is available or an implementation is missing |
+| `configuration` | Declared inputs are bound or remain unresolved |
+| `evidence` | Collection is pending, retained artifact pins were verified, or evidence is unavailable |
+| `gaps` | Exact remaining operation, configuration or retained-record requirements |
+
+A bound configuration establishes static input completeness. Runtime access and
+observation outcomes remain subsequent checks. `evidence_collected` stays false.
+The tooling report separately records code generation and package reuse.
+`required_calls: 0` and empty package records establish that no implementation
+was generated or reused. They leave configuration and evidence status to the
+preparation report.
+
 ## Existing scoped adapter profile
 
 Existing saved analyses can gain implemented bindings without another model call.
-Supply exact need IDs in an acquisition override file and re-export the retained
-`analysis.json` using `--acquisition-plan`. Bind a direct Kubernetes read to
+Use [current-case preparation](#prepare-current-case-bindings) to supply exact
+need IDs and typed operations in an acquisition override. Bind a direct Kubernetes read to
 `kubectl_get` when its context, resource, namespace and name are supplied. Bind
 literal Grafana operations to `scoped_json` with an operator-owned inputs path.
-Its `needs` map must explicitly select `grafana_search` or `grafana_trace` for each
-new need ID. The exporter preserves that path and does not infer operation
-assignments from prose. After re-export, use the new bundle's case digest in the
-scoped inputs. Existing source, context and tools files must retain matching
-export identity; editing only a registry cannot establish that correspondence.
+Its `needs` map explicitly selects `grafana_search` or `grafana_trace` for each
+current need ID. Current-case preparation obtains those operations from the
+typed plan and writes the final digest into the new scoped inputs. Source,
+context and tools files share that export identity.
 
 The existing `scoped_json` adapter remains available for explicitly retained
 infrastructure bindings. Choose it per evidence need and supply its operator-owned
-`inputs` path. Preparation preserves that path. Each scoped file contains one
+`inputs` path. Preparation without `--operator-inputs` preserves that path.
+Each scoped file contains one
 Kubernetes configuration and one Grafana configuration, so needs with different
 scopes require different input files. The default preparation path preserves
 other adapters directly.
@@ -181,7 +291,8 @@ establish that it is a kubeconfig. The selected context is always explicit.
 ## Explicit retained artifact inputs
 
 For an evidence need selecting `artifact_json`, provide the operator-owned file
-named by that plan's `inputs` argument. Preparation preserves the selected path
+named by that plan's `inputs` argument. Preparation without `--operator-inputs`
+preserves the selected path
 and existing bytes. An illustrative `artifact-inputs.json` is:
 
 ```json
@@ -210,6 +321,34 @@ Duplicate JSON keys, missing provenance, changed bytes and invalid timestamps
 fail acquisition. `observed_at` must retain the original UTC RFC3339 instant,
 with `Z` and optional fractional seconds. The aggregate envelope keeps the oldest
 artifact time; importing a file never refreshes its measurement age.
+
+Current-case preparation can construct that input document from stable named
+references in the operator file:
+
+```json
+{
+  "artifacts": {
+    "trace_capture": {
+      "artifacts": [{
+        "path": "observations/trace.json",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "observed_at": "2026-01-01T12:00:00Z",
+        "source": "Retained trace response with its original provenance"
+      }]
+    }
+  }
+}
+```
+
+The plan's artifact reference selects this group. Preparation verifies actual
+bytes against the supplied hashes and validates JSON shape, timestamps and
+provenance fields against the original input directory. It retains canonical
+paths in the current-case document.
+Missing references or changed files leave `inputs` unresolved. An identified
+artifact producer and an existing retained record are separate requirements.
+An unsupported producing operation belongs in a `custom` acquisition plan.
+Unavailable independent reviews remain explicit evidence gaps until their
+authored decisions exist.
 
 ## Independently retained reviews
 

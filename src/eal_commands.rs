@@ -10,8 +10,10 @@ use engarg::{
     eal_acquisition::{export_with_policy, reconstruct_bundle},
     eal_export::EalExport,
     eal_host::{HostConfig, invoke},
-    engine::CallRecord,
+    engine::{CallRecord, RouteResolver},
     provider::Role,
+    report::{self, EvidencePlanningReport},
+    support_export::{self, SupportExport, SupportExportLocations},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -26,6 +28,10 @@ const MAX_INPUT_BYTES: usize = 16 * 1_048_576;
 
 #[derive(Subcommand)]
 pub enum EalCommand {
+    /// Admit operator-qualified verified tools into a new connection configuration.
+    RegisterTools(super::tooling_commands::registration::RegisterToolsArgs),
+    /// Rebuild evidence routes from a saved graph report without model calls.
+    Replan(ReplanArgs),
     /// Implement missing collectors from a saved analysis using frozen fixtures.
     Implement(super::tooling_commands::ImplementArgs),
     /// Internal launcher for a verified generated collector package.
@@ -55,6 +61,19 @@ pub enum EalCommand {
 }
 
 #[derive(Args)]
+pub struct ReplanArgs {
+    /// Saved graph analysis; its request, argument and requirements are preserved.
+    #[arg(long)]
+    input: PathBuf,
+    /// Current operator capability planning configuration.
+    #[arg(long)]
+    evidence_config: PathBuf,
+    /// New report retaining the prior planning and tooling provenance.
+    #[arg(short, long)]
+    output: PathBuf,
+}
+
+#[derive(Args)]
 pub struct PrepareArgs {
     /// Saved canonical report containing request, argument and acquisition proposals.
     #[arg(long)]
@@ -62,6 +81,11 @@ pub struct PrepareArgs {
     /// New private directory, normally under .engarg-local/ or engarg-runs/.
     #[arg(long)]
     output_dir: PathBuf,
+    /// Current per-need preparation declarations overriding saved acquisition plans.
+    #[arg(long)]
+    acquisition_plan: Option<PathBuf>,
+    #[command(flatten)]
+    operator: OperatorInputsArgs,
     /// Operator-selected collector catalogue. Otherwise use the saved run's catalogue.
     #[arg(long)]
     collector_catalogue: Option<PathBuf>,
@@ -84,6 +108,11 @@ pub struct ExportArgs {
     /// JSON acquisition-plan entries overriding retained bindings by evidence need ID.
     #[arg(long)]
     acquisition_plan: Option<PathBuf>,
+    #[command(flatten)]
+    operator: OperatorInputsArgs,
+    /// New private directory for current-case input files and the preparation report.
+    #[arg(long, requires = "operator_inputs")]
+    preparation_output_dir: Option<PathBuf>,
     /// Operator-selected collector catalogue. Otherwise use the saved run's catalogue.
     #[arg(long)]
     collector_catalogue: Option<PathBuf>,
@@ -98,6 +127,38 @@ pub struct ExportArgs {
     source_output: Option<PathBuf>,
     #[arg(long, value_enum, default_value = "eal")]
     format: ExportFormat,
+}
+
+#[derive(Args)]
+pub struct OperatorInputsArgs {
+    /// Operator scope and retained artifact references, read without collecting evidence.
+    #[arg(long)]
+    operator_inputs: Option<PathBuf>,
+    /// Base for relative artifact paths when operator-inputs is an exact retained snapshot.
+    #[arg(long, requires = "operator_inputs")]
+    operator_input_base: Option<PathBuf>,
+}
+
+impl OperatorInputsArgs {
+    fn load(&self) -> Result<Option<(Value, PathBuf)>, Error> {
+        let Some(path) = &self.operator_inputs else {
+            return Ok(None);
+        };
+        let value = super::read_json(path, 1_048_576)?;
+        let base = match &self.operator_input_base {
+            Some(base) => base.canonicalize()?,
+            None => std::path::absolute(path)?
+                .parent()
+                .ok_or_else(|| Error::InvalidInput("operator inputs require a parent".into()))?
+                .canonicalize()?,
+        };
+        if !base.is_dir() {
+            return Err(Error::InvalidInput(
+                "operator input base must be a directory".into(),
+            ));
+        }
+        Ok(Some((value, base)))
+    }
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -269,11 +330,24 @@ struct CanonicalReport {
     transcript: Vec<CallRecord>,
     #[serde(default)]
     run_config: Option<engarg::engine::RunConfig>,
+    #[serde(default)]
+    evidence_planning: Option<engarg::engine::SupportPlanning<engarg::route_planning::RoutePlan>>,
 }
 
 struct SourceDocument {
     source: String,
     bundle: Option<EalExport>,
+    support: Option<SupportExport>,
+}
+
+impl SourceDocument {
+    fn context(&self) -> Value {
+        self.support
+            .as_ref()
+            .map(|bundle| bundle.context.clone())
+            .or_else(|| self.bundle.as_ref().map(|bundle| bundle.context.clone()))
+            .unwrap_or_else(|| json!({}))
+    }
 }
 
 fn read_text(path: &Path) -> Result<String, Error> {
@@ -289,6 +363,7 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
         return Ok(SourceDocument {
             source: text,
             bundle: None,
+            support: None,
         });
     }
     let value = eal_collector_contracts::strict_json_exact(
@@ -299,6 +374,18 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
         },
     )
     .map_err(Error::InvalidInput)?;
+    if value["schema_version"]
+        .as_str()
+        .is_some_and(|schema| schema.starts_with("engarg.support-export/"))
+    {
+        let bundle: SupportExport = serde_json::from_value(value)?;
+        let rebuilt = support_export::reconstruct_bundle(&bundle)?;
+        return Ok(SourceDocument {
+            source: rebuilt.source.clone(),
+            bundle: None,
+            support: Some(rebuilt),
+        });
+    }
     let bundle: EalExport = serde_json::from_value(value).map_err(|_| {
         Error::InvalidInput(
             "input is not a valid EAL export bundle; use --input-format eal for raw source".into(),
@@ -314,6 +401,7 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
     Ok(SourceDocument {
         source: bundle.source.clone(),
         bundle: Some(bundle),
+        support: None,
     })
 }
 
@@ -326,6 +414,24 @@ fn require_text(label: &str, text: &str) -> Result<(), Error> {
 
 fn mapped_claim(document: &SourceDocument, requested: &str) -> Result<String, Error> {
     require_text("claim", requested)?;
+    if let Some(bundle) = &document.support {
+        return bundle
+            .claim_names
+            .get(requested)
+            .cloned()
+            .or_else(|| {
+                bundle
+                    .claim_names
+                    .values()
+                    .any(|name| name == requested)
+                    .then(|| requested.into())
+            })
+            .ok_or_else(|| {
+                Error::InvalidInput(
+                    "claim is absent from the support bundle's canonical mapping".into(),
+                )
+            });
+    }
     match &document.bundle {
         None => Ok(requested.into()),
         Some(bundle) => {
@@ -392,6 +498,34 @@ impl Drop for PendingFile {
         drop(self.file.take());
         if !self.keep {
             let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+/// Own only a newly created private directory, removing incomplete preparation.
+struct PreparationDirectory {
+    path: PathBuf,
+    keep: bool,
+}
+
+impl PreparationDirectory {
+    fn create(path: &Path) -> Result<Self, Error> {
+        let path = new_path(path)?;
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(&path)?;
+        Ok(Self { path, keep: false })
+    }
+}
+
+impl Drop for PreparationDirectory {
+    fn drop(&mut self) {
+        if !self.keep {
+            let _ = std::fs::remove_dir_all(&self.path);
         }
     }
 }
@@ -498,6 +632,15 @@ fn export_inputs(
     Error,
 > {
     let raw: Value = super::read_json(input, MAX_INPUT_BYTES)?;
+    report::validate_replanning(&raw, &std::env::current_exe()?)?;
+    if matches!(
+        report::classify_evidence_planning(&raw)?,
+        EvidencePlanningReport::Graph(_)
+    ) {
+        engarg::tooling::capability::revalidate_report(&raw, &std::env::current_exe()?)?;
+        let report: CanonicalReport = serde_json::from_value(raw)?;
+        return Ok((report, Vec::new(), None));
+    }
     let registration = engarg::tooling::registration(&raw)?;
     let canonical = if raw.get("request").is_some() {
         raw.clone()
@@ -585,9 +728,17 @@ fn export_destinations(args: &ExportArgs) -> Result<Vec<(PathBuf, ExportArtifact
 }
 
 fn execute_export(args: ExportArgs) -> Result<(), Error> {
+    if args.operator.operator_inputs.is_some() != args.preparation_output_dir.is_some() {
+        return Err(Error::InvalidInput(
+            "export requires both --operator-inputs and --preparation-output-dir for current-case preparation".into(),
+        ));
+    }
     let destinations = export_destinations(&args)?;
     let (report, mut plan, catalogue) =
         export_inputs(&args.input, args.collector_catalogue.as_deref())?;
+    if report.evidence_planning.is_some() {
+        return execute_support_export(args, destinations, &report);
+    }
     if let Some(path) = args.acquisition_plan {
         let overrides: Vec<AcquisitionPlan> = super::read_json(&path, MAX_INPUT_BYTES)?;
         plan = acquisition::override_plans_with_catalogue(
@@ -601,42 +752,346 @@ fn execute_export(args: ExportArgs) -> Result<(), Error> {
         Some(path) => super::read_json(path, 1_048_576)?,
         None => engarg::export_policy::ExportPolicy::default(),
     };
-    let artifacts = export_with_policy(
-        &report.request,
-        &report.argument,
-        &plan,
-        catalogue.as_ref(),
-        &policy,
-    )?;
-    let bundle = artifacts.bundle;
+    let operator = args.operator.load()?;
+    let mut preparation = args
+        .preparation_output_dir
+        .as_deref()
+        .map(PreparationDirectory::create)
+        .transpose()?;
+    let (bundle, tools_toml, ancillary) =
+        if let (Some((inputs, base)), Some(directory)) = (&operator, &preparation) {
+            let mut prepared = engarg::eal_prepare::prepare_with_operator_inputs(
+                &report.request,
+                &report.argument,
+                &plan,
+                &directory.path,
+                &std::env::current_exe()?,
+                catalogue.as_ref(),
+                &policy,
+                Some((inputs, base)),
+            )?;
+            let bundle: EalExport = serde_json::from_slice(
+                &prepared
+                    .remove("argument.bundle.json")
+                    .expect("prepared bundle"),
+            )?;
+            prepared.remove("argument.eal");
+            let tools = String::from_utf8(
+                prepared
+                    .remove("argument.tools.toml")
+                    .expect("prepared registry"),
+            )
+            .map_err(|_| Error::InvalidOutput("prepared registry requires UTF-8".into()))?;
+            (bundle, tools, prepared)
+        } else {
+            let artifacts = export_with_policy(
+                &report.request,
+                &report.argument,
+                &plan,
+                catalogue.as_ref(),
+                &policy,
+            )?;
+            (artifacts.bundle, artifacts.tools_toml, Default::default())
+        };
     let manifest_bytes = json_bytes(&bundle)?;
     let primary = match args.format {
         ExportFormat::Eal => bundle.source.as_bytes(),
         ExportFormat::Json => &manifest_bytes,
     };
     // Reserve every destination before writing, so a partial create is cleaned up.
-    let mut files = destinations
+    let mut outputs = destinations
         .into_iter()
         .map(|(path, artifact)| {
             let bytes = match artifact {
                 ExportArtifact::Primary => primary,
                 ExportArtifact::Manifest => manifest_bytes.as_slice(),
-                ExportArtifact::Tools => artifacts.tools_toml.as_bytes(),
+                ExportArtifact::Tools => tools_toml.as_bytes(),
                 ExportArtifact::Source => bundle.source.as_bytes(),
             };
-            PendingFile::create(path).map(|file| (file, bytes))
+            (path, bytes.to_vec())
         })
+        .collect::<Vec<_>>();
+    if let Some(directory) = &preparation {
+        for (name, bytes) in ancillary {
+            if Path::new(&name).components().count() != 1
+                || !matches!(
+                    Path::new(&name).components().next(),
+                    Some(std::path::Component::Normal(_))
+                )
+            {
+                return Err(Error::InvalidOutput("invalid prepared file name".into()));
+            }
+            outputs.push((directory.path.join(name), bytes));
+        }
+    }
+    let mut files = outputs
+        .into_iter()
+        .map(|(path, bytes)| PendingFile::create(path).map(|file| (file, bytes)))
         .collect::<Result<Vec<_>, _>>()?;
     for (file, bytes) in &mut files {
         file.write(bytes)?;
     }
+    if args.output.is_none() {
+        stdout(primary)?;
+    }
     for (file, _) in &mut files {
         file.keep = true;
+    }
+    if let Some(directory) = &mut preparation {
+        directory.keep = true;
+    }
+    Ok(())
+}
+
+fn support_artifacts(
+    report: &CanonicalReport,
+    execution_path: &Path,
+    review_binding: Option<eal_collector_contracts::CommandBinding>,
+    policy: &engarg::export_policy::ExportPolicy,
+) -> Result<engarg::support_export::SupportExportArtifacts, Error> {
+    let planning = report
+        .evidence_planning
+        .as_ref()
+        .expect("support path selected");
+    if planning.schema != "engarg.support-planning/1"
+        || planning.routes.schema != engarg::route_planning::ROUTE_PLAN_SCHEMA
+    {
+        return Err(Error::InvalidInput(
+            "unsupported saved support planning schema".into(),
+        ));
+    }
+    let configuration = &planning.routes.configuration;
+    configuration.validate()?;
+    support_export::export(
+        &report.request,
+        &report.argument,
+        &planning.elaboration,
+        &planning.routes.execution,
+        &planning.routes.projections,
+        &SupportExportLocations {
+            collector: configuration.collector.clone(),
+            execution_plan: execution_path.into(),
+            connections: configuration.connections.clone(),
+            store: configuration.store.clone(),
+            environment: configuration.environment.clone(),
+            review_binding,
+        },
+        policy,
+    )
+}
+
+async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
+    let raw: Value = super::read_json(&args.input, MAX_INPUT_BYTES)?;
+    let EvidencePlanningReport::Graph(previous) = report::classify_evidence_planning(&raw)? else {
+        return Err(Error::InvalidInput(
+            "eal replan requires a saved graph analysis with unchanged support requirements".into(),
+        ));
+    };
+    let executable = std::env::current_exe()?;
+    report::validate_replanning(&raw, &executable)?;
+    engarg::tooling::capability::revalidate_report(&raw, &executable)?;
+    let canonical: CanonicalReport = serde_json::from_value(raw.clone())?;
+    engarg::domain::validate_request(&canonical.request)
+        .map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
+    engarg::domain::validate_argument(&canonical.request, &canonical.argument).map_err(
+        |errors| {
+            Error::InvalidInput(
+                errors
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            )
+        },
+    )?;
+    let errors = engarg::support_requirements::validate_elaboration(
+        &canonical.argument,
+        &previous.elaboration,
+    );
+    if !errors.is_empty() {
+        return Err(Error::InvalidInput(errors.join("; ")));
+    }
+    let mut output = PendingFile::create(new_path(&args.output)?)?;
+    let planner = super::support_commands::admit(&args.evidence_config).await?;
+    let routes = planner
+        .resolve(&canonical.argument, &previous.elaboration)
+        .await?;
+    let mut updated = raw.clone();
+    updated["evidence_planning"]["routes"] = serde_json::to_value(routes)?;
+    report::retain_replanning(&raw, &mut updated)?;
+    report::validate_replanning(&updated, &executable)?;
+    let bytes = json_bytes(&updated)?;
+    if bytes.len() > MAX_INPUT_BYTES {
+        return Err(Error::Budget(
+            "replanned report exceeds its 16 MiB retained-input allowance".into(),
+        ));
+    }
+    output.write(&bytes)?;
+    output.keep = true;
+    Ok(())
+}
+
+fn support_evidence_plan(
+    report: &CanonicalReport,
+    artifacts: &engarg::support_export::SupportExportArtifacts,
+) -> Value {
+    json!({"schema":"engarg.support-evidence-plan/1","case_digest":artifacts.bundle.authored.revision,
+        "execution_plan_sha256":artifacts.bundle.execution_plan_sha256,"evidence_needs":report.argument.evidence_plan,
+        "support_elaboration":artifacts.bundle.support_elaboration,"routes":report.evidence_planning.as_ref().expect("support path selected").routes,
+        "pending":artifacts.bundle.pending,"independent_review_obligations":artifacts.bundle.authored.obligations,
+        "alternative_projection":artifacts.bundle.alternative_projection,
+        "collection_budget":engarg::support_export::collection_budget(&artifacts.bundle)})
+}
+
+fn execute_support_export(
+    args: ExportArgs,
+    destinations: Vec<(PathBuf, ExportArtifact)>,
+    report: &CanonicalReport,
+) -> Result<(), Error> {
+    if args.acquisition_plan.is_some()
+        || args.collector_catalogue.is_some()
+        || args.operator.operator_inputs.is_some()
+        || args.preparation_output_dir.is_some()
+    {
+        return Err(Error::InvalidInput("support graphs retain qualified routes and operator configuration; flat acquisition plans, catalogues and operator-inputs cannot override them".into()));
+    }
+    let stem = args.output.as_ref().unwrap_or(&args.input);
+    let execution_path = new_path(&stem.with_extension("execution-plan.json"))?;
+    let evidence_path = new_path(&stem.with_extension("evidence-plan.json"))?;
+    let acquisition_requests_path = new_path(&stem.with_extension("acquisition-requests.json"))?;
+    let review_requests_path = new_path(&stem.with_extension("review-requests.json"))?;
+    let policy = match args.export_policy.as_deref() {
+        Some(path) => super::read_json(path, 1_048_576)?,
+        None => Default::default(),
+    };
+    let artifacts = support_artifacts(report, &execution_path, None, &policy)?;
+    let manifest = json_bytes(&artifacts.bundle)?;
+    let primary = match args.format {
+        ExportFormat::Eal => artifacts.bundle.source.as_bytes(),
+        ExportFormat::Json => &manifest,
+    };
+    let mut outputs = destinations
+        .into_iter()
+        .map(|(path, kind)| {
+            let bytes = match kind {
+                ExportArtifact::Primary => primary,
+                ExportArtifact::Manifest => manifest.as_slice(),
+                ExportArtifact::Tools => artifacts.tools_toml.as_bytes(),
+                ExportArtifact::Source => artifacts.bundle.source.as_bytes(),
+            };
+            (path, bytes.to_vec())
+        })
+        .collect::<Vec<_>>();
+    outputs.extend([
+        (execution_path, json_bytes(&artifacts.execution_plan)?),
+        (
+            evidence_path,
+            json_bytes(&support_evidence_plan(report, &artifacts))?,
+        ),
+        (
+            acquisition_requests_path,
+            json_bytes(&artifacts.acquisition_requests)?,
+        ),
+        (
+            review_requests_path,
+            json_bytes(&artifacts.review_requests)?,
+        ),
+    ]);
+    let mut unique = std::collections::BTreeSet::new();
+    if outputs.iter().any(|(path, _)| !unique.insert(path.clone())) {
+        return Err(Error::InvalidInput(
+            "all support export outputs require different paths".into(),
+        ));
+    }
+    let mut files = outputs
+        .into_iter()
+        .map(|(path, bytes)| PendingFile::create(path).map(|file| (file, bytes)))
+        .collect::<Result<Vec<_>, _>>()?;
+    for (file, bytes) in &mut files {
+        file.write(bytes)?;
     }
     if args.output.is_none() {
         stdout(primary)?;
     }
+    for (file, _) in &mut files {
+        file.keep = true;
+    }
     Ok(())
+}
+
+fn prepare_support_files(
+    report: &CanonicalReport,
+    directory: &Path,
+    policy: &engarg::export_policy::ExportPolicy,
+) -> Result<std::collections::BTreeMap<String, Vec<u8>>, Error> {
+    let executable = std::env::current_exe()?.canonicalize()?;
+    let review_inputs = directory.join("review-inputs.json");
+    let text = |path: &Path| {
+        path.to_str()
+            .map(str::to_owned)
+            .ok_or_else(|| Error::InvalidInput("support preparation paths require UTF-8".into()))
+    };
+    let review_binding = eal_collector_contracts::CommandBinding {
+        kind: eal_collector_contracts::ToolKind::Command,
+        version: "1".into(),
+        argv: vec![
+            text(&executable)?,
+            "eal".into(),
+            "observe".into(),
+            "--tool".into(),
+            "review_json".into(),
+            "--inputs".into(),
+            text(&review_inputs)?,
+        ],
+        timeout_seconds: 60,
+        max_output_bytes: 1_048_576,
+        inherit_env: Vec::new(),
+        parallel_safe: false,
+    };
+    let artifacts = support_artifacts(
+        report,
+        &directory.join("argument.execution-plan.json"),
+        Some(review_binding),
+        policy,
+    )?;
+    Ok(std::collections::BTreeMap::from([
+        (
+            "argument.eal".into(),
+            artifacts.bundle.source.as_bytes().to_vec(),
+        ),
+        (
+            "argument.bundle.json".into(),
+            json_bytes(&artifacts.bundle)?,
+        ),
+        (
+            "argument.tools.toml".into(),
+            artifacts.tools_toml.as_bytes().to_vec(),
+        ),
+        (
+            "argument.execution-plan.json".into(),
+            json_bytes(&artifacts.execution_plan)?,
+        ),
+        (
+            "evidence-plan.json".into(),
+            json_bytes(&support_evidence_plan(report, &artifacts))?,
+        ),
+        (
+            "acquisition-requests.json".into(),
+            json_bytes(&artifacts.acquisition_requests)?,
+        ),
+        (
+            "review-requests.json".into(),
+            json_bytes(&artifacts.review_requests)?,
+        ),
+        (
+            "review-inputs.json".into(),
+            json_bytes(&json!({"schema":"engarg.review-inputs/1","reviews":[]}))?,
+        ),
+        (
+            "context.json".into(),
+            json_bytes(&artifacts.bundle.context)?,
+        ),
+    ]))
 }
 
 fn semantic_failure(envelope: &Value) -> bool {
@@ -698,11 +1153,31 @@ async fn host_operation(destination: HostOutput, request: Value) -> Result<(), E
 
 pub async fn execute(command: EalCommand) -> Result<(), Error> {
     match command {
+        EalCommand::RegisterTools(args) => {
+            super::tooling_commands::registration::register_tools(args).await
+        }
+        EalCommand::Replan(args) => execute_replan(args).await,
         EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
         EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
         EalCommand::Prepare(args) => {
-            let (report, plan, catalogue) =
+            let (report, mut plan, catalogue) =
                 export_inputs(&args.input, args.collector_catalogue.as_deref())?;
+            if report.evidence_planning.is_some()
+                && (args.acquisition_plan.is_some()
+                    || args.collector_catalogue.is_some()
+                    || args.operator.operator_inputs.is_some())
+            {
+                return Err(Error::InvalidInput("support graphs retain qualified routes and operator configuration; flat acquisition plans, catalogues and operator-inputs cannot override them".into()));
+            }
+            if let Some(path) = args.acquisition_plan.as_deref() {
+                plan = acquisition::override_plans_with_catalogue(
+                    &report.argument,
+                    &plan,
+                    super::read_json(path, MAX_INPUT_BYTES)?,
+                    catalogue.as_ref(),
+                )?;
+            }
+            let operator = args.operator.load()?;
             if args.output_dir.exists() {
                 return Err(Error::InvalidInput(
                     "prepare output directory already exists".into(),
@@ -723,15 +1198,22 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
                     Some(path) => super::read_json(path, 1_048_576)?,
                     None => engarg::export_policy::ExportPolicy::default(),
                 };
-                let files = engarg::eal_prepare::prepare_with_policy(
-                    &report.request,
-                    &report.argument,
-                    &plan,
-                    &directory,
-                    &std::env::current_exe()?,
-                    catalogue.as_ref(),
-                    &policy,
-                )?;
+                let files = if report.evidence_planning.is_some() {
+                    prepare_support_files(&report, &directory, &policy)?
+                } else {
+                    engarg::eal_prepare::prepare_with_operator_inputs(
+                        &report.request,
+                        &report.argument,
+                        &plan,
+                        &directory,
+                        &std::env::current_exe()?,
+                        catalogue.as_ref(),
+                        &policy,
+                        operator
+                            .as_ref()
+                            .map(|(inputs, base)| (inputs, base.as_path())),
+                    )?
+                };
                 for (name, bytes) in files {
                     let mut file = PendingFile::create(directory.join(name))?;
                     file.write(&bytes)?;
@@ -772,10 +1254,7 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             let claim = mapped_claim(&document, &args.claim)?;
             let context = match args.context {
                 Some(path) => super::read_json::<Value>(&path, MAX_INPUT_BYTES)?,
-                None => document
-                    .bundle
-                    .as_ref()
-                    .map_or_else(|| json!({}), |bundle| bundle.context.clone()),
+                None => document.context(),
             };
             if !context.is_object() {
                 return Err(Error::InvalidInput(
@@ -792,10 +1271,7 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             let document = source_document(&args.source)?;
             let context = match args.context {
                 Some(path) => super::read_json::<Value>(&path, MAX_INPUT_BYTES)?,
-                None => document
-                    .bundle
-                    .as_ref()
-                    .map_or_else(|| json!({}), |b| b.context.clone()),
+                None => document.context(),
             };
             if !context.is_object() {
                 return Err(Error::InvalidInput(

@@ -12,7 +12,10 @@ use std::{
     time::Duration,
 };
 
+pub mod capability;
+mod native_provider;
 pub mod provider;
+pub mod registration;
 
 #[derive(Args, Default)]
 pub struct ToolOptions {
@@ -53,6 +56,41 @@ impl ToolOptions {
         max_input_bytes: usize,
         max_response_bytes: usize,
     ) -> Result<Option<ToolingSession>, Error> {
+        self.config(enabled, max_input_bytes, max_response_bytes)?
+            .map(ToolingSession::admit)
+            .transpose()
+    }
+
+    /// Reuse operator-owned options while keeping capability coding separate from
+    /// legacy per-need overrides. Calling this method does not admit Docker or a model.
+    pub fn capability_config(
+        &self,
+        enabled: bool,
+        max_input_bytes: usize,
+        max_response_bytes: usize,
+    ) -> Result<Option<engarg::tooling::capability::CapabilityImplementationConfig>, Error> {
+        Ok(self
+            .config(enabled, max_input_bytes, max_response_bytes)?
+            .map(
+                |config| engarg::tooling::capability::CapabilityImplementationConfig {
+                    language: config.language,
+                    profile: config.profile,
+                    store: config.store,
+                    max_calls: config.max_calls,
+                    max_input_bytes: config.max_input_bytes,
+                    max_response_bytes: config.max_response_bytes,
+                    supervisor: config.supervisor,
+                    engarg_executable: config.engarg_executable,
+                },
+            ))
+    }
+
+    fn config(
+        &self,
+        enabled: bool,
+        max_input_bytes: usize,
+        max_response_bytes: usize,
+    ) -> Result<Option<ToolingConfig>, Error> {
         let requested = self.tool_language.is_some()
             || self.toolchain.is_some()
             || self.tool_store.is_some()
@@ -78,6 +116,12 @@ impl ToolOptions {
         let profile = ToolchainProfile::load(self.toolchain.as_deref().ok_or_else(|| {
             Error::InvalidInput("tool implementation requires --toolchain".into())
         })?)?;
+        engarg::tooling::contracts::validate_language(&language)?;
+        if profile.language != language {
+            return Err(Error::InvalidInput(
+                "tool language differs from the operator toolchain profile".into(),
+            ));
+        }
         let store = self.tool_store.clone().ok_or_else(|| {
             Error::InvalidInput("tool implementation requires --tool-store".into())
         })?;
@@ -92,7 +136,7 @@ impl ToolOptions {
             supervisor: supervisor()?,
             engarg_executable: std::env::current_exe()?,
         };
-        ToolingSession::admit(config).map(Some)
+        Ok(Some(config))
     }
 }
 
@@ -147,17 +191,43 @@ pub async fn implement(args: ImplementArgs) -> Result<(), Error> {
     if output.exists() {
         return Err(Error::InvalidInput("output file already exists".into()));
     }
-    // Profile, image, runner and directory admission precede any provider call.
-    let session = args
-        .tools
-        .admit(
+    engarg::report::validate_replanning(&original, &std::env::current_exe()?)?;
+    let graph = matches!(
+        engarg::report::classify_evidence_planning(&original)?,
+        engarg::report::EvidencePlanningReport::Graph(_)
+    );
+    // Graph routes classify genuine implementation gaps before admitting Docker.
+    // The flat stage retains its existing image/runner/directory preflight.
+    let session = if graph {
+        args.tools.capability_config(
+            true,
+            args.provider.max_input_bytes,
+            args.provider.max_response_bytes,
+        )?;
+        None
+    } else {
+        args.tools.admit(
             true,
             args.provider.max_input_bytes,
             args.provider.max_response_bytes,
         )?
-        .ok_or_else(|| Error::InvalidInput("implementation stage was not enabled".into()))?;
+    };
     let model = args.provider.model()?;
-    let report = run_stage(&session, &model, &original, args.tools.deadline()).await?;
+    let report = if graph {
+        capability::run_capability_fallback(
+            &model,
+            &original,
+            &args.tools,
+            args.provider.max_input_bytes,
+            args.provider.max_response_bytes,
+        )
+        .await?
+    } else {
+        let session = session
+            .as_ref()
+            .ok_or_else(|| Error::InvalidInput("implementation stage was not enabled".into()))?;
+        run_stage(session, &model, &original, args.tools.deadline()).await?
+    };
     let bytes = serde_json::to_vec_pretty(&report)?;
     let mut file = super::private_file(&output)?;
     if let Err(error) = file

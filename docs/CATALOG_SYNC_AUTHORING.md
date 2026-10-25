@@ -2,16 +2,67 @@
 
 [`scripts/run-catalog-sync-authoring.sh`](../scripts/run-catalog-sync-authoring.sh)
 authors a claim about one Kubernetes resource in context `dev` and one literal
-Grafana TraceQL query. It renders three views, exports an EAL bundle, validates
+Grafana TraceQL query. It renders the argument presentations, exports an EAL bundle, validates
 the domain case and EAL source, and obtains an evidence plan. Collection and
 assessment remain separate operator actions.
+
+The script now defaults to graph planning and requires an operator evidence
+configuration. Start with the [support-planning guide](support-planning.md):
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh --check-only \
+  --evidence-config operator-planning.json .engarg-local/collector-inputs.json
+
+bash scripts/run-catalog-sync-authoring.sh --implement-tools \
+  --evidence-config operator-planning.json .engarg-local/collector-inputs.json
+```
+
+Graph implementation first retains `analysis.original.json` and inspects its
+typed gaps. It prepares the default Rust image only for a genuine unsupported
+operation or transformation. Configuration-only runs need no Docker or coding
+calls. Graph evidence plans, native/MCP configuration, scoped reviews and the
+function-test qualification boundary are documented in that guide.
+
+Graph readiness retains the exporter's complete collection-budget metadata,
+including its assumed default of 128 evidence declarations and per-claim counts.
+Default collection selects all emitted declarations. The readiness check uses
+the selected host's advertised `execution_limits.collection_evidence` when
+available, accepts `budgets.collection_evidence` as a compatibility alias, and
+otherwise labels the exporter default as an assumption. A larger actual host
+limit can admit a graph whose conservative default-limit pending record remains
+visible; a smaller actual limit can block collection below 128 declarations.
+Independent review obligations remain visible and do not themselves block
+acquiring the source evidence.
+
+After correcting connection bindings or approving a catalogue, reuse the saved
+argument and support requirements rather than paying for authoring again:
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh \
+  --replan-analysis engarg-runs/PREVIOUS-RUN/analysis.json \
+  --evidence-config operator-planning.json .engarg-local/collector-inputs.json
+```
+
+The operator inputs must produce the same request as the retained report. A
+changed claim or scope requires fresh authoring. Replanning reads a private,
+bounded snapshot and invokes `engarg eal replan` with the current configuration.
+It preserves the argument, support requirements and prior transcript, then
+renders and exports the refreshed plan into a new run directory. It makes no
+authoring model calls and needs no API key unless `--implement-tools` is also
+requested. `run-summary.json` distinguishes retained `recorded_model_calls` from
+`model_calls_this_run` and records the reused report's source and SHA-256.
+Replanning refreshes discovery and route selection; it does not collect evidence
+or turn missing independent judgements into observations.
+
+The catalogue and per-need preparation workflow below remains available through
+the explicit `--legacy-flat` switch. Its examples select that compatibility mode.
 
 ## Check operator inputs
 
 From any directory within the EngArg checkout:
 
 ```sh
-bash scripts/run-catalog-sync-authoring.sh --check-only \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat --check-only \
   .engarg-local/catalog-sync-operator-20261024T120522Z/collector-inputs.json
 ```
 
@@ -56,17 +107,17 @@ Keep credentials in environment variables rather than the input file.
 No `approved.collectors.json` file is needed by default. Omit the optional second
 argument to use EngArg's implemented `artifact_json`, `scoped_json`, `kubectl_get`,
 `gh_api_get` and `http_json_get` adapters alongside unresolved `custom` bindings.
-These describe prospective acquisition. Reading settings into a claim does not
-create executable bindings. The direct Kubernetes adapter can use the supplied
-context and resource selectors. Scoped Grafana operations still need a matching
-operator-owned input file and trace IDs for full-trace reads. Review each generated
-binding and unresolved parameter before collection.
+These describe prospective acquisition. The preparation stage uses explicit per-need
+operations to create current-case input bindings. The direct Kubernetes adapter
+can use the supplied context and resource selectors. Full-trace reads also need
+actual trace IDs. The preparation report identifies remaining configuration and
+evidence gaps before collection.
 
 To admit additional collector capabilities, pass an existing operator-selected
 catalogue as the second argument:
 
 ```sh
-bash scripts/run-catalog-sync-authoring.sh --check-only \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat --check-only \
   .engarg-local/collector-inputs.json \
   .engarg-local/infrastructure.collectors.json
 ```
@@ -91,12 +142,73 @@ Neither selecting a catalogue nor finding a nonempty search establishes resource
 attribution. Full traces, Kubernetes identity, cluster, namespace, resource UID
 and time correspondence require independent review.
 
-## Implement missing collectors
+## Prepare inputs for the current argument
+
+Every legacy flat-mode script run prepares collector inputs during the normal EAL export.
+The output remains `argument.eal`, `argument.tools.toml` and
+`argument.bundle.json` in the run directory. Its `collector-inputs/` directory
+contains the input documents, final acquisition plans, pending review files and
+`collector-preparation.json`. The report identifies the exact export digest and
+records implementation availability, configuration state and evidence state for
+each current need.
+
+New planning records carry explicit preparation metadata. A `scoped_json` plan
+declares `input_preparation` as
+`{"kind":"scoped","operation":"grafana_search"}` or selects
+`kubernetes` or `grafana_trace`. Preparation uses that operation and the supplied
+scope settings. It preserves the literal query, endpoint, datasource and window.
+The exporter fixes input paths before computing the final digest, then stamps
+that digest into the input documents. Old `case_digest` and `needs` fields in an
+operator file are reported as ignored. Their mappings belong to their earlier
+argument.
+
+A full-trace operation stays unresolved until the operator supplies actual
+`grafana.trace_ids`. Preparation performs no search and chooses no trace IDs.
+A historical plan without typed operation metadata also stays unresolved. Use
+explicit current-need overrides when preparing that saved analysis, as described
+in [private collector inputs](PRIVATE_COLLECTORS.md#prepare-current-case-bindings).
+
+Retained artifacts use stable named references in the operator file:
+
+```json
+{
+  "artifacts": {
+    "trace_capture": {
+      "artifacts": [{
+        "path": "observations/trace.json",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "observed_at": "2026-01-01T12:00:00Z",
+        "source": "Retained trace response with its original provenance"
+      }]
+    }
+  }
+}
+```
+
+Add this object alongside the Kubernetes and Grafana settings and replace the
+illustrative pins with an existing JSON artifact's exact hash and provenance.
+Only reference names enter the model request. Paths and private provenance stay
+in the operator snapshot. An `artifact_json` plan selects
+`{"kind":"artifact","reference":"trace_capture"}` in its
+`input_preparation`. Preparation verifies the retained bytes against the supplied
+hash and validates the provenance and observation-time fields. It resolves relative paths against the original
+operator file's directory. Missing files or references leave the binding
+unresolved. `retained_artifacts_verified` records this input check. Independent
+acceptance remains a separate review obligation.
+
+The summary retains the preparation report and prints bound and unresolved
+counts. A bound configuration has sufficient declared input values. Credentials,
+runtime access and collection outcomes are established by their subsequent
+operations. An unavailable independent review remains an evidence gap until an
+authored decision exists. A genuinely unsupported producing operation selects
+`custom` for implementation.
+
+## Implement missing flat-mode collectors
 
 Add `--implement-tools` to generate missing collectors in Rust during analysis:
 
 ```sh
-bash scripts/run-catalog-sync-authoring.sh --implement-tools \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat --implement-tools \
   .engarg-local/collector-inputs.json
 ```
 
@@ -114,7 +226,7 @@ image preparation. The operator must prepare that profile's image. Other
 implementation languages require an explicit matching language and profile:
 
 ```sh
-bash scripts/run-catalog-sync-authoring.sh \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat \
   --implement-tools --tool-language python \
   --toolchain examples/toolchains/python.json \
   --tool-store .engarg-local/tool-store \
@@ -153,6 +265,15 @@ identities match. A unique `tooling/` directory within each run retains the
 original analysis, implementation audit and combined `collectors.json`. The
 script also retains an exact private profile snapshot and its digest.
 
+The coding stage handles absent acquisition plans and `custom` operations.
+`required_calls: 0` with `model_calls: 0`, `packages: []` and `overrides: []`
+means no implementation was generated or reused. Existing adapters can still
+have missing input bindings or unavailable evidence. Tooling coverage reports
+those selections separately from the current-case preparation report. An
+`artifact_json` reader requires its retained record or an identified producer
+for the acquisition operation. Missing independent reviews remain evidence
+obligations.
+
 The successful `analysis.json` carries the verified tooling metadata. The normal
 export verifies registrations and writes matching EAL, TOML and bundle bindings.
 `run-settings.json` and `run-summary.json` record `tool_implementation`; the
@@ -176,7 +297,7 @@ The standard full run selects the managed installation automatically:
 
 ```sh
 # Export OPENAI_API_KEY through your normal secret-management mechanism.
-bash scripts/run-catalog-sync-authoring.sh \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat \
   .engarg-local/catalog-sync-operator-20261024T120522Z/collector-inputs.json
 ```
 
@@ -216,7 +337,9 @@ and overall analysis deadlines do not change this host deadline.
 
 Each run retains request and input identity, build and binary provenance, the
 analysis audit, all renders, the EAL bundle, validation result, evidence plan and
-`run-summary.json` in a unique private directory. Failures preserve existing run
+`run-summary.json` in a unique private directory. Collector preparation also
+retains the final input documents and their per-need readiness report. Failures
+preserve existing run
 artifacts. A passing run means authoring and deterministic planning succeeded;
 `evidence_collected` remains `false`.
 When tooling is enabled, the summary also records its model calls and verified
@@ -224,7 +347,8 @@ and reused package counts. Synthetic fixture results remain separate from live
 engineering observations.
 
 The script renders each presentation from the same saved analysis without further
-model calls. The `presentations` map in `run-summary.json` records their paths.
+model calls. The shared `presentations` map in `run-summary.json` records their
+paths in graph and legacy modes, including replanning runs.
 
 | File | Presentation |
 | --- | --- |

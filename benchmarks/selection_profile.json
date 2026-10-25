@@ -1,0 +1,61 @@
+{
+  "scope": "Synthetic beam expansion and sorting only; excludes requirement validation, capability matching, schema compilation, argument materialization, discovery, provider IO, and LLM calls. One run per case; no general speedup or topology-optimality claim. Both modes assert equal incumbent choices, cost vector, source-group count and pruning flag.",
+  "compiler": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "optimization": "-O --edition 2024",
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "source_sha256": {
+    "benchmarks/selection_profile.rs": "0b300805a74e92244b3808bd831053a4755795464838decd0f3b1fb775247212",
+    "src/route_planning/selection/beam.rs": "696597411e1a42e4279a5c26632a2864ee6e35abcc24c831382c8679500318e7"
+  },
+  "runs": [
+    {
+      "mode": "previous",
+      "acquisitions": 64,
+      "candidates_per_acquisition": 64,
+      "wall_seconds": 0.594991,
+      "output": "mode=previous rows=64 options=64 elapsed_ms=592.884 incumbent=all_zero costs=[(0, 1), (0, 64), (0, 64)] sources=64 search_complete=false"
+    },
+    {
+      "mode": "current",
+      "acquisitions": 64,
+      "candidates_per_acquisition": 64,
+      "wall_seconds": 0.018887,
+      "output": "mode=current rows=64 options=64 elapsed_ms=17.266 incumbent=all_zero costs=[(0, 1), (0, 64), (0, 64)] sources=64 search_complete=false"
+    },
+    {
+      "mode": "previous",
+      "acquisitions": 128,
+      "candidates_per_acquisition": 64,
+      "wall_seconds": 2.479447,
+      "output": "mode=previous rows=128 options=64 elapsed_ms=2475.757 incumbent=all_zero costs=[(0, 1), (0, 128), (0, 128)] sources=128 search_complete=false"
+    },
+    {
+      "mode": "current",
+      "acquisitions": 128,
+      "candidates_per_acquisition": 64,
+      "wall_seconds": 0.035072,
+      "output": "mode=current rows=128 options=64 elapsed_ms=31.340 incumbent=all_zero costs=[(0, 1), (0, 128), (0, 128)] sources=128 search_complete=false"
+    },
+    {
+      "mode": "previous",
+      "acquisitions": 256,
+      "candidates_per_acquisition": 64,
+      "wall_seconds": 11.307703,
+      "output": "mode=previous rows=256 options=64 elapsed_ms=11299.975 incumbent=all_zero costs=[(0, 1), (0, 256), (0, 256)] sources=256 search_complete=false"
+    },
+    {
+      "mode": "current",
+      "acquisitions": 256,
+      "candidates_per_acquisition": 64,
+      "wall_seconds": 0.081835,
+      "output": "mode=current rows=256 options=64 elapsed_ms=79.993 incumbent=all_zero costs=[(0, 1), (0, 256), (0, 256)] sources=256 search_complete=false"
+    },
+    {
+      "mode": "current",
+      "acquisitions": 4096,
+      "candidates_per_acquisition": 64,
+      "wall_seconds": 3.116159,
+      "output": "mode=current rows=4096 options=64 elapsed_ms=3113.388 incumbent=all_zero costs=[(0, 1), (0, 4096), (0, 4096)] sources=4096 search_complete=false"
+    }
+  ]
+}

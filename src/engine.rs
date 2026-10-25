@@ -17,6 +17,8 @@ use crate::{
 
 mod context;
 mod repair;
+pub mod support;
+pub use support::{RouteResolver, SupportPlanning, SupportRunReport, run_with_support};
 
 /// Architecture selected for a run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

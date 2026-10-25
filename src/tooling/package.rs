@@ -5,6 +5,7 @@ use super::{
         validate_contract,
     },
     profile::ToolchainProfile,
+    protocol::{REJECTION_CASES, rejected},
     runner::{DOCKER_ENVIRONMENT, RunnerIdentity},
     verification::{TEST_SCHEMA, VerificationReceipt},
 };
@@ -438,7 +439,7 @@ fn validate_receipt(
         || receipt.candidate_sha256 != digest_json(candidate)?
         || receipt.source_sha256 != digest_json(&candidate.files)?
         || receipt.fixtures_sha256 != digest_json(&contract.draft.fixtures)?
-        || receipt.results.len() != contract.draft.fixtures.len() + 3
+        || receipt.results.len() != contract.draft.fixtures.len() + REJECTION_CASES.len()
         || receipt.results.iter().any(|result| {
             !result.passed || !hash(&result.stdout_sha256) || !hash(&result.stderr_sha256)
         })
@@ -448,15 +449,11 @@ fn validate_receipt(
         ));
     }
     for (fixture, result) in contract.draft.fixtures.iter().zip(&receipt.results) {
-        let kind = match &fixture.kind {
-            super::contracts::FixtureKind::Positive => "positive",
-            super::contracts::FixtureKind::Negative => "negative",
-            super::contracts::FixtureKind::AcquisitionError => "acquisition_error",
-        };
+        let kind = fixture.kind.label();
         if result.name != fixture.name
             || result.kind != kind
             || (kind == "acquisition_error"
-                && (result.returncode == 0 || result.stdout_sha256 != empty_digest()))
+                && !rejected(result.returncode, result.stdout_sha256 == empty_digest()))
             || (kind != "acquisition_error" && result.returncode != 0)
         {
             return Err(invalid(
@@ -464,14 +461,13 @@ fn validate_receipt(
             ));
         }
     }
-    for (name, result) in ["malformed_json", "missing_identity", "invalid_context"]
+    for (probe, result) in REJECTION_CASES
         .iter()
         .zip(&receipt.results[contract.draft.fixtures.len()..])
     {
-        if result.name != *name
+        if result.name != probe.name()
             || result.kind != "protocol"
-            || result.returncode == 0
-            || result.stdout_sha256 != empty_digest()
+            || !rejected(result.returncode, result.stdout_sha256 == empty_digest())
         {
             return Err(invalid("tool test receipt omits a required protocol probe"));
         }
@@ -625,6 +621,7 @@ impl VerifiedPackage {
 
     pub fn acquisition_plan(&self) -> AcquisitionPlan {
         AcquisitionPlan {
+            input_preparation: None,
             need_id: self.contract.need.id.clone(),
             tool_id: self.collector_id(),
             arguments: self.contract.draft.arguments.clone(),
@@ -785,5 +782,68 @@ mod tests {
             assert!(store.lookup(&key, &identity).unwrap().is_none());
             assert!(!attempt.join("manifest.json").exists());
         }
+    }
+
+    #[test]
+    fn old_receipts_cannot_register_without_the_new_opaque_protocol_probe() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = PackageStore::new(directory.path()).unwrap();
+        let contract = contract();
+        let candidate = candidate();
+        let profile = profile();
+        let mut identity = identity();
+        identity.profile_sha256 = digest_json(&profile).unwrap();
+        let key = PackageStore::key_for(
+            &contract.need,
+            &contract.request_context,
+            &contract.language,
+            &identity,
+        )
+        .unwrap();
+        let attempt = store.new_attempt(&key).unwrap();
+        store
+            .save_candidate(&attempt, &contract, &candidate, &profile, &identity)
+            .unwrap();
+        let receipt = super::super::verification::tests::passing_receipt(identity.clone());
+        assert!(receipt.passed);
+        let mut old = receipt.clone();
+        old.schema = "engarg.tool-tests/1".into();
+        std::fs::write(
+            attempt.join("test-results.json"),
+            serde_json::to_vec(&old).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            store
+                .commit_verified(
+                    &key,
+                    &attempt,
+                    contract.clone(),
+                    candidate.clone(),
+                    profile.clone(),
+                    identity.clone(),
+                    old
+                )
+                .is_err()
+        );
+        assert!(store.lookup(&key, &identity).unwrap().is_none());
+        assert!(!attempt.join("manifest.json").exists());
+        std::fs::write(
+            attempt.join("test-results.json"),
+            serde_json::to_vec(&receipt).unwrap(),
+        )
+        .unwrap();
+        store
+            .commit_verified(
+                &key,
+                &attempt,
+                contract,
+                candidate,
+                profile,
+                identity.clone(),
+                receipt,
+            )
+            .unwrap();
+        assert!(store.lookup(&key, &identity).unwrap().is_some());
     }
 }

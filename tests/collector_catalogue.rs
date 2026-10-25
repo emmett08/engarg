@@ -61,6 +61,7 @@ fn plans(case: &ArgumentCase) -> Vec<AcquisitionPlan> {
         .evidence_plan
         .iter()
         .map(|need| AcquisitionPlan {
+            input_preparation: None,
             need_id: need.id.clone(),
             tool_id: "custom".into(),
             arguments: vec![],
@@ -68,6 +69,7 @@ fn plans(case: &ArgumentCase) -> Vec<AcquisitionPlan> {
         })
         .collect();
     plans[0] = AcquisitionPlan {
+        input_preparation: None,
         need_id: case.evidence_plan[0].id.clone(),
         tool_id: "lab_capture".into(),
         arguments: vec![
@@ -348,6 +350,7 @@ fn known_collectors_keep_real_implementations_while_missing_inputs_remain_unreso
     ] {
         let mut planned = plans(&case);
         planned[0] = AcquisitionPlan {
+            input_preparation: None,
             need_id: case.evidence_plan[0].id.clone(),
             tool_id: id.into(),
             arguments: vec![],

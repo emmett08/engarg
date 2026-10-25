@@ -42,6 +42,7 @@ fn scientific_collector_preserves_typed_inputs_and_measured_negative() {
         .map(|(index, need)| {
             if index == 0 {
                 AcquisitionPlan {
+                    input_preparation: None,
                     need_id: need.id.clone(),
                     tool_id: "lab.calibration".into(),
                     arguments: vec![
@@ -58,6 +59,7 @@ fn scientific_collector_preserves_typed_inputs_and_measured_negative() {
                 }
             } else {
                 AcquisitionPlan {
+                    input_preparation: None,
                     need_id: need.id.clone(),
                     tool_id: "custom".into(),
                     arguments: vec![],
@@ -208,6 +210,7 @@ fn openapi_descriptor_exports_and_collects_a_measured_negative_through_eal() {
         .iter()
         .enumerate()
         .map(|(index, need)| AcquisitionPlan {
+            input_preparation: None,
             need_id: need.id.clone(),
             tool_id: if index == 0 {
                 descriptor.id.clone()

@@ -1,0 +1,64 @@
+//! Tool-independent support obligations and logical source operations for an argument.
+mod alternatives;
+mod lineage;
+mod operation_spec;
+mod schema;
+mod semantics;
+mod types;
+mod validation;
+
+pub use alternatives::{
+    AlternativeObligation, alternative_obligations, alternative_requirement_gates,
+    legacy_alternative_gaps,
+};
+pub use lineage::{logical_output_schema, logical_quantity_pointer};
+pub use schema::{elaboration_schema, envelope_schema, parse_supported_argument};
+pub use semantics::validate_semantic_flow;
+pub use types::*;
+pub use validation::{material_targets, validate_elaboration, validate_revision};
+
+pub const LEGACY_SUPPORT_ELABORATION_SCHEMA: &str = "engarg.support-elaboration/1";
+pub const SUPPORT_ELABORATION_SCHEMA: &str = "engarg.support-elaboration/2";
+pub const OPERATION_SPECIFICATION_SCHEMA: &str = "engarg.operation-specification/1";
+
+pub fn supported_schema(schema: &str) -> bool {
+    matches!(
+        schema,
+        LEGACY_SUPPORT_ELABORATION_SCHEMA | SUPPORT_ELABORATION_SCHEMA
+    )
+}
+
+#[cfg(test)]
+mod alternative_tests;
+#[cfg(test)]
+mod lineage_tests;
+#[cfg(test)]
+pub(crate) mod tests;
+
+pub const ASSESSMENT_INSTRUCTIONS: &str = concat!(
+    "INDEPENDENT SUPPORT ASSESSMENT: identify the observation, source retrieval, calculation, experiment, proof check, clarification or judgement needed for material premises, warrant backing, critical assumptions and challenges. ",
+    "Derive those needs from the supplied claim and source material without choosing tools or consulting a capability catalogue. Distinguish a witness, complete enumeration and statistical estimate; retain scope, units, methods, population, time, provenance and discriminating evidence. ",
+    "Unknown sources, historical records or accepted reviews remain explicit gaps. Return only the supplied findings, objections and evidence_gaps assessment schema."
+);
+
+pub const EXTRACTION_INSTRUCTIONS: &str = concat!(
+    "SUPPORT REQUIREMENTS: derive support independently of available tools. For every material ground, warrant backing obligation, critical assumption, material challenge and existing evidence need, identify the observation, source retrieval, calculation, experiment, proof check, clarification or judgement needed. ",
+    "Preserve the canonical target and evidence-need identifiers. Copy each linked evidence need's acceptance_criterion verbatim into original_acceptance_criteria. Define the exact subject, scope identities, population, time interval, freshness, uncertainty, quantities, units, qualified measurement method, provenance and logical strength. ",
+    "A positive witness, a complete enumeration and a statistical estimate impose different coverage contracts. List discriminating evidence against material alternatives. Define an executable acceptance criterion where justified, otherwise a pending judgement or explicit unavailable criterion. ",
+    "Unknown methods, units, scope or source availability require explicit gaps and, when no valid contract can be stated, a null contract. Never invent measurements, historical records, method qualification, provenance or accepted reviews. ",
+    "Create shared logical acquisition blueprints and typed derivations, with dependencies and one separate evaluation per requirement. Several requirements may consume the same acquisition while retaining distinct thresholds and judgements. Arguments are logical data slots, never provider selection or execution authority. Use explicit output references and bounded fan-out for identifier discovery followed by detailed reads. A witness predicate selects a whole logical quantity and has exactly one comparison: equals for a literal or equals_output for an upstream scalar quantity with the same unit. Reference comparisons are control dependencies with retained source age/provenance; they do not turn the comparison source into the selected population. ",
+    "An acquisition blueprint states the required operation contract without selecting a provider, tool, executable, connection or credential. Logical acquisition outputs are objects with each contract quantity available at /quantity_name; use these logical pointers rather than guessing a provider's response layout. Extract and Project preserve quantity identities. Closed aggregates use names sum_<quantity>, mean_<quantity>, minimum_<quantity>, maximum_<quantity> and count_<quantity> (unit 1). IdentityEqual requires matching scalar/collection shapes and produces identity_equal (unit boolean). AnyIdentityEqual takes one scalar identity followed by an identity collection and produces any_identity_equal (unit boolean), using exact equality without coercion. Explicit supported unit scaling preserves the quantity name. Arithmetic does not qualify a new statistical method, scope, population or coverage guarantee. The route resolver performs capability selection and output projection after requirement extraction. Unavailable records and independent judgements remain their corresponding gaps. ",
+    "For a for_each acquisition each logical /quantity_name is an array of that quantity across selected records. Its selector ancestors retain their original scope, population, coverage, age and provenance. A prod search cannot establish a dev population by relabelling the detailed reads. ",
+    "Pure Sum, Mean, Count, Minimum, Maximum, IdentityEqual and AnyIdentityEqual results use Calculation with ExactCalculation and their explicit methods engarg.sum/1, engarg.mean/1, engarg.count/1, engarg.minimum/1, engarg.maximum/1, engarg.identity-equal/1 or engarg.any-identity-equal/1. Calculation after Scale can use engarg.scale/1. Preserve original measured source contracts and qualified methods; additional method IDs beyond these built-ins constrain the calculated requirement's input measurement protocols. A mean cannot become a p99 or population estimator. ",
+    "A numeric calculation over retained samples preserves the exact input scope selectors and adds sample_sources listing its logical measurement source IDs in lexical order; population remains null. A population total also requires evaluation required_coverage complete_enumeration, declares the exact population and requires complete enumeration of that same population and selectors through every source and selector ancestor. For cross-kind identity comparison use scope.kind identity_relation and scope.selectors.operands mapping each logical measurement source ID to its exact original SubjectScope (kind, subject, selectors, identity_dimensions); any additional common selectors must match every operand. Both identity operations also require scope.selectors.operand_times mapping every measurement and selector-ancestor source ID to its exact original TimeRequirement. Different historical windows remain visible; an immutable-ID detail lookup may omit its own requested historical interval while retaining the selector ancestor's interval, but an explicit detail interval must match. time.historical_interval constrains the original observation or measurement clock; a current query over historical events expresses its subject/event window in explicit scope selectors and input bindings instead of relabelling the query observation time. Equal identifiers alone do not establish lifecycle, applicability or temporal causation. AnyIdentityEqual evaluations require witness coverage, so an unmatched incomplete collection stays unresolved. Every source retains its own freshness bound, while the result declares its separate maximum accepted age for the oldest combined lineage. ",
+    "A pending Judgement criterion has scope null and remains unresolved. To consume an existing independently authored judgement record, its criterion scope must exactly equal the typed requirement's Judgement contract scope, with identified reviewer, verdict, reasons, provenance and original review time. Plan retrieval only when the reviewer/record producer and source actually exist; code generation cannot create the missing independent judgement. ",
+    "Every case alternative is a serious distinguishing obligation. Name alternatives alternative_1, alternative_2 and so on in their authored case order. Add one alternative_support record for each: copy distinguishing_test exactly, include both current_claim and stronger_target in claim_ids (the source case alternatives have no independently established narrower scope), and link requirement_ids whose discriminating_evidence copies that exact test. Reuse a real study where justified; unavailable discriminating work remains an explicit pending requirement and claim gate. Do not leave an alternative as unbound prose. ",
+    "When a logical operation needs a new implementation, provide operation_spec using engarg.operation-specification/1: a parameterised definition, input_conditions, output_guarantees and complete input_schema/output_schema JSON schemas. Declare input units explicitly with x-engarg-unit; output_schema is the logical object with all contract quantities required. Preserve formulas and protocols in the definition, independent of this case's literals, evidence need IDs and credentials. A method name alone is not an implementation specification. Existing qualified operations need no new implementation specification. ",
+    "Return the supplied argument plus support_elaboration_json containing a complete JSON-encoded engarg.support-elaboration/2 object. The supplied elaboration schema describes that string's decoded value. Every requirement needs exactly one evaluation with the same acceptance criterion. ",
+    "When revising an existing requirement's contract, scope, quantifier, units or acceptance, retain its identifier and add a revision naming the previous requirement SHA-256 from the supplied identity map and the source-grounded reason. Changing an alternative hypothesis, distinguishing test or linked claim scope also requires the affected requirement's prior-digest revision even if its measured contract stays unchanged. A requirement for a retained target cannot disappear. If the revised case removes a target, retain a previous-only revision record with that requirement's exact prior digest and reason for retirement. Initial extraction has no prior revisions. Preserve source acceptance clauses. Capability availability cannot justify weakening an obligation."
+);
+
+pub const CRITIC_INSTRUCTIONS: &str = concat!(
+    "SUPPORT ROUTE REVIEW: examine the separately derived requirements and compiled route preview. Challenge omitted upstream sources, partial coverage used for absence or universal claims, incompatible units or methods, stale/historical observations, unqualified tool descriptions, missing configuration, fabricated independent judgement, unnecessary implementation and repeated equivalent source acquisitions. ",
+    "Distinguish requirement defects from capability, configuration and source-availability gaps. Shared source identifiers represent one empirical source, even when several requirements evaluate it. Examine qualified batch interfaces and reusable multi-quantity sources, including adequate alternatives to the selected route. A whole-collection DependencyBinding can pass all discovered IDs to an existing batch operation; for_each is only needed for a per-item interface. Propose recomposition of logical acquisitions/bindings when it preserves every support requirement, quantity, unit, method, scope, coverage and original acceptance criterion; never invent a batch transformation. Preserve each requirement's original acceptance criterion and material challenges."
+);

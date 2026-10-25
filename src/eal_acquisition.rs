@@ -152,6 +152,7 @@ impl AcquisitionProjection {
             case.evidence_plan
                 .iter()
                 .map(|need| AcquisitionPlan {
+                    input_preparation: None,
                     need_id: need.id.clone(),
                     tool_id: "custom".into(),
                     arguments: Vec::new(),

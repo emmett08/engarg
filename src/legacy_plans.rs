@@ -80,6 +80,12 @@ pub fn validate_with_catalogue(
     let mut seen = BTreeSet::new();
     let mut errors = Vec::new();
     for plan in plans {
+        if plan.input_preparation.is_some() {
+            errors.push(
+                "historical acquisition plans do not admit current-case preparation metadata"
+                    .into(),
+            );
+        }
         if !seen.insert(plan.need_id.as_str()) {
             errors.push(format!("duplicate acquisition plan for {}", plan.need_id));
         }
@@ -175,4 +181,38 @@ pub fn validate_with_catalogue(
         errors.push(format!("evidence need {id} requires an acquisition plan"));
     }
     errors
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::acquisition::{InputPreparation, ScopedOperation};
+
+    #[test]
+    fn historical_admission_preserves_its_original_plan_contract() {
+        let case: ArgumentCase =
+            serde_json::from_str(include_str!("../examples/case.json")).unwrap();
+        let mut plans: Vec<_> = case
+            .evidence_plan
+            .iter()
+            .map(|need| AcquisitionPlan {
+                need_id: need.id.clone(),
+                tool_id: "custom".into(),
+                arguments: vec![],
+                unresolved_arguments: vec!["adapter".into()],
+                input_preparation: None,
+            })
+            .collect();
+        assert!(validate(&case, &plans).is_empty());
+        plans[0].tool_id = "scoped_json".into();
+        plans[0].unresolved_arguments = vec!["inputs".into()];
+        plans[0].input_preparation = Some(InputPreparation::Scoped {
+            operation: ScopedOperation::GrafanaSearch,
+        });
+        assert!(
+            validate(&case, &plans)
+                .iter()
+                .any(|error| error.contains("historical acquisition plans"))
+        );
+    }
 }

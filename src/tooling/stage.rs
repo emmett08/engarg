@@ -1,15 +1,13 @@
 //! Generate collectors without changing argument authorship or registering untested code.
 use super::{
-    contracts::{
-        CONTRACT_SCHEMA, CodeCandidate, NeedContract, digest_json, validate_candidate,
-        validate_contract, validate_language,
-    },
-    generation::{code_request, draft_request, parse_candidate, parse_draft},
+    completion::{CompletionBudget, CompletionLimits},
+    contracts::{CONTRACT_SCHEMA, NeedContract, digest_json, validate_contract, validate_language},
+    generation::{code_request, draft_request, parse_draft},
     package::{PackageStore, VerifiedPackage, load_verified},
     profile::ToolchainProfile,
-    runner::{DockerRunner, RunnerIdentity},
+    runner::DockerRunner,
     saved::{self, SavedInput},
-    verification,
+    verified_build::VerifiedBuild,
 };
 use crate::{
     Error,
@@ -28,7 +26,6 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Instant,
 };
 
 const TOOLING_SCHEMA: &str = "engarg.tooling/1";
@@ -52,6 +49,58 @@ pub struct ToolPackageRecord {
     pub manifest_sha256: String,
     pub reused: bool,
 }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImplementationOutcome {
+    NoImplementationRequired,
+    Generated,
+    Reused,
+    GeneratedAndReused,
+}
+/// Describe coding coverage independently of configuration and collected evidence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToolingCoverage {
+    /// Needs selecting custom or lacking a plan before this implementation stage.
+    pub implementation_gap_needs: usize,
+    pub existing_adapter_needs: usize,
+    pub existing_adapters_with_unresolved_inputs: usize,
+    pub artifact_reader_needs: usize,
+    pub outcome: ImplementationOutcome,
+    pub note: String,
+}
+
+impl ToolingCoverage {
+    fn derived(input: &SavedInput, packages: &[ToolPackageRecord]) -> Self {
+        let generated = packages.iter().any(|package| !package.reused);
+        let reused = packages.iter().any(|package| package.reused);
+        Self {
+            implementation_gap_needs: missing_needs(input).len(),
+            existing_adapter_needs: input
+                .plans
+                .iter()
+                .filter(|plan| plan.tool_id != "custom")
+                .count(),
+            existing_adapters_with_unresolved_inputs: input
+                .plans
+                .iter()
+                .filter(|plan| plan.tool_id != "custom" && !plan.unresolved_arguments.is_empty())
+                .count(),
+            artifact_reader_needs: input
+                .plans
+                .iter()
+                .filter(|plan| plan.tool_id == "artifact_json")
+                .count(),
+            outcome: match (generated, reused) {
+                (false, false) => ImplementationOutcome::NoImplementationRequired,
+                (true, false) => ImplementationOutcome::Generated,
+                (false, true) => ImplementationOutcome::Reused,
+                (true, true) => ImplementationOutcome::GeneratedAndReused,
+            },
+            note: "Adapter selection and zero coding calls do not establish configured inputs or available evidence. Artifact readers require retained records from identified producers; independent reviews remain separate evidence obligations.".into(),
+        }
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ToolingReport {
@@ -65,6 +114,8 @@ pub struct ToolingReport {
     pub packages: Vec<ToolPackageRecord>,
     pub model_calls: u32,
     pub audit_path: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<ToolingCoverage>,
 }
 pub struct Registration {
     pub catalogue: CollectorCatalogue,
@@ -262,34 +313,16 @@ impl ToolingSession {
         phase: &str,
         need: &str,
         request: CompletionRequest,
-        calls: &mut u32,
+        calls: &CompletionBudget,
     ) -> Result<Completion, Error> {
-        if *calls >= self.config.max_calls {
-            return Err(Error::Budget("tooling model call budget exhausted".into()));
-        }
-        if serde_json::to_vec(&request)?.len() > self.config.max_input_bytes {
-            return Err(Error::Budget(
-                "tooling model request exceeds its input byte budget".into(),
-            ));
-        }
-        self.audit(&json!({"event":"request","phase":phase,"need_id":need,"request":request}))?;
-        *calls += 1;
-        let started = Instant::now();
-        let completion = match model.complete(request).await {
-            Ok(completion) => completion,
-            Err(error) => {
-                self.audit(&json!({"event":"provider_failure","phase":phase,"need_id":need,"elapsed_ms":started.elapsed().as_millis()}))?;
-                return Err(error);
-            }
-        };
-        if completion.content.len() > self.config.max_response_bytes {
-            self.audit(&json!({"event":"response_limit","phase":phase,"need_id":need,"response_bytes":completion.content.len()}))?;
-            return Err(Error::Budget(
-                "tooling model response exceeds its byte budget".into(),
-            ));
-        }
-        self.audit(&json!({"event":"completion","phase":phase,"need_id":need,"completion":completion,"elapsed_ms":started.elapsed().as_millis()}))?;
-        Ok(completion)
+        calls
+            .complete(model, request, |event| {
+                let mut record = event.record();
+                record["phase"] = json!(phase);
+                record["need_id"] = json!(need);
+                self.audit(&record)
+            })
+            .await
     }
     pub async fn implement<M: LanguageModel>(
         &self,
@@ -347,12 +380,23 @@ impl ToolingSession {
                 self.config.max_calls
             )));
         }
-        self.audit(&json!({"event":"budget","required_calls":required_calls,"max_calls":self.config.max_calls}))?;
+        let selection = ToolingCoverage::derived(&input, &[]);
+        self.audit(&json!({
+            "event":"budget", "required_calls":required_calls, "max_calls":self.config.max_calls,
+            "implementation_gap_needs":selection.implementation_gap_needs,
+            "existing_adapter_needs":selection.existing_adapter_needs,
+            "existing_adapters_with_unresolved_inputs":selection.existing_adapters_with_unresolved_inputs,
+            "artifact_reader_needs":selection.artifact_reader_needs
+        }))?;
         let description = self.config.profile.description()?;
         let mut generated = empty_catalogue();
         let mut overrides = Vec::new();
         let mut packages = Vec::new();
-        let mut calls = 0;
+        let calls = CompletionBudget::new(CompletionLimits {
+            max_calls: self.config.max_calls,
+            max_input_bytes: self.config.max_input_bytes,
+            max_response_bytes: self.config.max_response_bytes,
+        })?;
         for item in work {
             if cancellation.is_cancelled() {
                 return Err(Error::Provider("tool implementation cancelled".into()));
@@ -360,15 +404,8 @@ impl ToolingSession {
             let (package, reused) = match item {
                 Work::Reuse(package) => (*package, true),
                 Work::Frozen(key, contract) => (
-                    self.code_and_verify(
-                        model,
-                        &key,
-                        *contract,
-                        &identity,
-                        &mut calls,
-                        cancellation,
-                    )
-                    .await?,
+                    self.code_and_verify(model, &key, *contract, &calls, cancellation)
+                        .await?,
                     false,
                 ),
                 Work::Fresh(key, need) => {
@@ -384,7 +421,7 @@ impl ToolingSession {
                                 &self.config.language,
                                 &description,
                             ),
-                            &mut calls,
+                            &calls,
                         )
                         .await?;
                     let draft = parse_draft(response.content.as_bytes())?;
@@ -399,15 +436,8 @@ impl ToolingSession {
                     validate_contract(&contract)?;
                     let contract = self.store.freeze_contract(&key, &contract, &identity)?;
                     (
-                        self.code_and_verify(
-                            model,
-                            &key,
-                            contract,
-                            &identity,
-                            &mut calls,
-                            cancellation,
-                        )
-                        .await?,
+                        self.code_and_verify(model, &key, contract, &calls, cancellation)
+                            .await?,
                         false,
                     )
                 }
@@ -441,6 +471,9 @@ impl ToolingSession {
                 errors.join("; ")
             )));
         }
+        let coverage = ToolingCoverage::derived(&input, &packages);
+        let model_calls = calls.calls()?;
+        self.audit(&json!({"event":"coverage", "model_calls":model_calls, "coverage":coverage}))?;
         let metadata = ToolingReport {
             schema: TOOLING_SCHEMA.into(),
             language: self.config.language.clone(),
@@ -450,8 +483,9 @@ impl ToolingSession {
             catalogue: generated,
             overrides,
             packages,
-            model_calls: calls,
+            model_calls,
             audit_path: self.config.output_dir.join("tooling.audit.jsonl"),
+            coverage: Some(coverage),
         };
         write_new(&self.config.output_dir.join("collectors.json"), &combined)?;
         write_new(&self.config.output_dir.join("tooling.json"), &metadata)?;
@@ -462,11 +496,9 @@ impl ToolingSession {
         model: &M,
         key: &str,
         contract: NeedContract,
-        identity: &RunnerIdentity,
-        calls: &mut u32,
+        calls: &CompletionBudget,
         cancellation: &CancellationToken,
     ) -> Result<VerifiedPackage, Error> {
-        let attempt = self.store.new_attempt(key)?;
         let response = self
             .complete(
                 model,
@@ -476,50 +508,8 @@ impl ToolingSession {
                 calls,
             )
             .await?;
-        let candidate: CodeCandidate = parse_candidate(response.content.as_bytes())?;
-        validate_candidate(&contract, &candidate)?;
-        self.store.save_candidate(
-            &attempt,
-            &contract,
-            &candidate,
-            &self.config.profile,
-            identity,
-        )?;
-        let runner = Arc::clone(&self.runner);
-        let task_contract = contract.clone();
-        let task_candidate = candidate.clone();
-        let task_attempt = attempt.clone();
-        let task_cancel = cancellation.clone();
-        let receipt = tokio::task::spawn_blocking(move || {
-            verification::verify(
-                runner.as_ref(),
-                &task_contract,
-                &task_candidate,
-                &task_attempt,
-                &task_cancel,
-            )
-        })
-        .await
-        .map_err(|_| Error::Provider("tool fixture worker failed".into()))??;
-        if cancellation.is_cancelled() {
-            return Err(Error::Provider("tool implementation cancelled".into()));
-        }
-        self.audit(&json!({"event":"verification","need_id":contract.need.id,"passed":receipt.passed,"attempt":attempt}))?;
-        if !receipt.passed {
-            return Err(Error::InvalidOutput(format!(
-                "generated collector failed contract fixtures; inspect {}",
-                attempt.join("test-results.json").display()
-            )));
-        }
-        self.store.commit_verified(
-            key,
-            &attempt,
-            contract,
-            candidate,
-            self.config.profile.clone(),
-            identity.clone(),
-            receipt,
-        )
+        VerifiedBuild{store:&self.store,key,profile:&self.config.profile,runner:self.runner.clone(),cancellation}
+            .commit(contract,response.content.as_bytes(),|event| self.audit(&json!({"event":"verification","need_id":event.need_id,"passed":event.passed,"attempt":event.attempt}))).await
     }
 }
 impl ToolingReport {
@@ -549,6 +539,15 @@ pub fn registration(report: &Value) -> Result<Option<Registration>, Error> {
     {
         return Err(invalid(
             "tooling metadata does not match the original analysis scope",
+        ));
+    }
+    if metadata
+        .coverage
+        .as_ref()
+        .is_some_and(|coverage| coverage != &ToolingCoverage::derived(&input, &metadata.packages))
+    {
+        return Err(invalid(
+            "tooling coverage differs from the original plans and verified package records",
         ));
     }
     let expected: BTreeSet<_> = missing_needs(&input)
@@ -618,6 +617,149 @@ pub fn registration(report: &Value) -> Result<Option<Registration>, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn reader_input() -> SavedInput {
+        let request = serde_json::from_str(include_str!("../../examples/request.json")).unwrap();
+        let mut argument: crate::domain::ArgumentCase =
+            serde_json::from_str(include_str!("../../examples/case.json")).unwrap();
+        let original = argument.evidence_plan.clone();
+        argument.evidence_plan = (0..42)
+            .map(|index| {
+                let mut need = original[index % original.len()].clone();
+                if index >= original.len() {
+                    need.id = format!("current-need-{index}");
+                }
+                need
+            })
+            .collect();
+        let plans = argument
+            .evidence_plan
+            .iter()
+            .enumerate()
+            .map(|(index, need)| AcquisitionPlan {
+                need_id: need.id.clone(),
+                tool_id: match index {
+                    0 => "kubectl_get",
+                    1..=7 => "scoped_json",
+                    _ => "artifact_json",
+                }
+                .into(),
+                arguments: if index == 0 {
+                    ["context", "namespace", "resource", "name"]
+                        .into_iter()
+                        .map(|name| crate::acquisition::ToolArgument {
+                            name: name.into(),
+                            value: "operator-supplied".into(),
+                        })
+                        .collect()
+                } else {
+                    vec![]
+                },
+                unresolved_arguments: if index == 0 {
+                    vec![]
+                } else {
+                    vec!["inputs".into()]
+                },
+                input_preparation: None,
+            })
+            .collect();
+        SavedInput {
+            request,
+            argument,
+            plans,
+            catalogue: empty_catalogue(),
+        }
+    }
+
+    #[test]
+    fn zero_coding_calls_distinguish_existing_readers_from_configured_inputs_or_evidence() {
+        let input = reader_input();
+        assert!(missing_needs(&input).is_empty());
+        let coverage = ToolingCoverage::derived(&input, &[]);
+        assert_eq!(coverage.implementation_gap_needs, 0);
+        assert_eq!(coverage.existing_adapter_needs, 42);
+        assert_eq!(coverage.existing_adapters_with_unresolved_inputs, 41);
+        assert_eq!(coverage.artifact_reader_needs, 34);
+        assert_eq!(
+            coverage.outcome,
+            ImplementationOutcome::NoImplementationRequired
+        );
+        assert!(
+            coverage
+                .note
+                .contains("do not establish configured inputs or available evidence")
+        );
+    }
+
+    #[test]
+    fn custom_operations_require_implementation_while_package_reuse_has_a_distinct_outcome() {
+        let mut input = reader_input();
+        input.plans[1].tool_id = "custom".into();
+        input.plans[1].unresolved_arguments = vec!["adapter".into()];
+        assert_eq!(missing_needs(&input)[0].id, input.plans[1].need_id);
+        let record = ToolPackageRecord {
+            need_id: input.plans[1].need_id.clone(),
+            manifest: PathBuf::from("/synthetic/package.json"),
+            manifest_sha256: "synthetic".into(),
+            reused: true,
+        };
+        let coverage = ToolingCoverage::derived(&input, std::slice::from_ref(&record));
+        assert_eq!(coverage.implementation_gap_needs, 1);
+        assert_eq!(coverage.existing_adapter_needs, 41);
+        assert_eq!(coverage.existing_adapters_with_unresolved_inputs, 40);
+        assert_eq!(coverage.outcome, ImplementationOutcome::Reused);
+        let mut generated = record.clone();
+        generated.reused = false;
+        assert_eq!(
+            ToolingCoverage::derived(&input, &[generated.clone()]).outcome,
+            ImplementationOutcome::Generated
+        );
+        assert_eq!(
+            ToolingCoverage::derived(&input, &[generated, record]).outcome,
+            ImplementationOutcome::GeneratedAndReused
+        );
+    }
+
+    #[test]
+    fn registration_rejects_forged_coverage_and_accepts_legacy_metadata_without_coverage() {
+        let request = serde_json::from_str(include_str!("../../examples/request.json")).unwrap();
+        let argument: crate::domain::ArgumentCase =
+            serde_json::from_str(include_str!("../../examples/case.json")).unwrap();
+        let plans: Vec<_> = argument
+            .evidence_plan
+            .iter()
+            .map(|need| AcquisitionPlan {
+                need_id: need.id.clone(),
+                tool_id: "artifact_json".into(),
+                arguments: vec![],
+                unresolved_arguments: vec!["inputs".into()],
+                input_preparation: None,
+            })
+            .collect();
+        let bundle = crate::eal_acquisition::export_with_plan(&request, &argument, &plans)
+            .unwrap()
+            .bundle;
+        let original = serde_json::to_value(bundle).unwrap();
+        let input = saved::parse(&original).unwrap();
+        let mut metadata = ToolingReport {
+            schema: TOOLING_SCHEMA.into(),
+            language: "rust".into(),
+            scope_sha256: scope(&input).unwrap(),
+            original_plans: input.plans.clone(),
+            original_catalogue: input.catalogue.clone(),
+            catalogue: empty_catalogue(),
+            overrides: vec![],
+            packages: vec![],
+            model_calls: 0,
+            audit_path: PathBuf::from("/synthetic/tooling.audit.jsonl"),
+            coverage: Some(ToolingCoverage::derived(&input, &[])),
+        };
+        metadata.coverage.as_mut().unwrap().artifact_reader_needs = 0;
+        let error = metadata.with_tooling(&original).unwrap_err().to_string();
+        assert!(error.contains("tooling coverage differs"), "{error}");
+        metadata.coverage = None;
+        assert!(metadata.with_tooling(&original).is_ok());
+    }
 
     #[test]
     fn dropped_implementation_records_cancellation_and_cancels_the_worker() {

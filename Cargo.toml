@@ -13,10 +13,11 @@ name = "engarg-process-supervisor"
 path = "src/bin/process_supervisor.rs"
 
 [dependencies]
-eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "9179dafbe234d802e5ccac9dea9add524e66bb09" }
-eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "9179dafbe234d802e5ccac9dea9add524e66bb09" }
-eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "9179dafbe234d802e5ccac9dea9add524e66bb09" }
+eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "cb5013c37ef79331e79ee0337862aec58d1ee5cb" }
+eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "cb5013c37ef79331e79ee0337862aec58d1ee5cb" }
+eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "cb5013c37ef79331e79ee0337862aec58d1ee5cb" }
 clap = { version = "4.6.7", features = ["derive", "env"] }
+chrono = { version = "0.4.42", default-features = false, features = ["std"] }
 httpdate = "1.0.3"
 jsonschema = { version = "0.46.0", default-features = false, features = ["arbitrary-precision"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }

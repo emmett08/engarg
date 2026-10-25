@@ -29,13 +29,27 @@ pub enum FixtureKind {
     Negative,
     AcquisitionError,
 }
+impl FixtureKind {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Positive => "positive",
+            Self::Negative => "negative",
+            Self::AcquisitionError => "acquisition_error",
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContractFixture {
     pub name: String,
     pub kind: FixtureKind,
+    #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_exact")]
     pub input: Value,
+    #[serde(
+        default,
+        deserialize_with = "eal_collector_contracts::deserialize_optional_value_exact"
+    )]
     pub expected_value: Option<Value>,
     pub files: Vec<SourceFile>,
 }
@@ -45,7 +59,9 @@ pub struct ContractFixture {
 pub struct ContractDraft {
     pub purpose: String,
     pub parameters: Vec<String>,
+    #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_exact")]
     pub input_schema: Value,
+    #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_exact")]
     pub result_schema: Value,
     pub arguments: Vec<ToolArgument>,
     pub unresolved_arguments: Vec<String>,
@@ -280,6 +296,7 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
         .map_err(invalid)?;
     crate::collector_catalogue::CollectorDescriptor(&descriptor).input(
         &crate::acquisition::AcquisitionPlan {
+            input_preparation: None,
             need_id: contract.need.id.clone(),
             tool_id: descriptor.id.clone(),
             arguments: draft.arguments.clone(),

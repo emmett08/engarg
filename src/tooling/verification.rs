@@ -11,11 +11,12 @@ use super::{
         CodeCandidate, FixtureKind, NeedContract, contract_digest, digest_json, validate_candidate,
         validate_contract,
     },
+    protocol::{REJECTION_CASES, rejected},
     runner::{ExecutionMode, FixtureRunner, RunOutcome, RunnerIdentity},
 };
 use crate::Error;
 
-pub const TEST_SCHEMA: &str = "engarg.tool-tests/1";
+pub use super::protocol::{TEST_SCHEMA, protocol_precision_context};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -206,9 +207,7 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         passed: false,
         results: Vec::new(),
     };
-    let precision: Value = serde_json::from_str(
-        r#"{"integer":90071992547409931234567890,"decimal":1.234567890123456789,"escaped":"quote \" slash \\ CRLF\r\n\u2028"}"#,
-    )?;
+    let precision = protocol_precision_context()?;
     for fixture in &contract.draft.fixtures {
         if cancellation.is_cancelled() {
             receipt.results.push(failed_run(&fixture.name, "cancelled"));
@@ -231,16 +230,12 @@ pub fn verify<R: FixtureRunner + ?Sized>(
             ExecutionMode::Fixture,
             cancellation,
         );
-        let kind = match &fixture.kind {
-            FixtureKind::Positive => "positive",
-            FixtureKind::Negative => "negative",
-            FixtureKind::AcquisitionError => "acquisition_error",
-        };
+        let kind = fixture.kind.label();
         let record = match outcome {
             Err(_) => failed_run(&fixture.name, kind),
             Ok(outcome) => {
                 let passed = if matches!(&fixture.kind, FixtureKind::AcquisitionError) {
-                    outcome.returncode != 0 && outcome.stdout.is_empty()
+                    rejected(outcome.returncode, outcome.stdout.is_empty())
                 } else if outcome.returncode == 0 {
                     validate_observation(contract, &request, &outcome.stdout)
                         .is_ok_and(|envelope| Some(envelope.value) == fixture.expected_value)
@@ -265,19 +260,9 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         "tool":"engarg_generated_fixture","tool_version":"1",
         "input":first.input,"context":{"precision":precision}
     });
-    let mut missing_identity = valid_request.clone();
-    missing_identity
-        .as_object_mut()
-        .expect("object")
-        .remove("evidence_id");
-    let mut invalid_context = valid_request.clone();
-    invalid_context["context"] = json!("invalid");
-    let probes = [
-        ("malformed_json", b"{".to_vec()),
-        ("missing_identity", serde_json::to_vec(&missing_identity)?),
-        ("invalid_context", serde_json::to_vec(&invalid_context)?),
-    ];
-    for (name, input) in probes {
+    for probe in REJECTION_CASES {
+        let name = probe.name();
+        let input = probe.request(&valid_request)?;
         if cancellation.is_cancelled() {
             receipt.results.push(failed_run(name, "cancelled"));
             break;
@@ -292,7 +277,7 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         ) {
             Err(_) => failed_run(name, "protocol"),
             Ok(outcome) => {
-                let passed = outcome.returncode != 0 && outcome.stdout.is_empty();
+                let passed = rejected(outcome.returncode, outcome.stdout.is_empty());
                 result(
                     name,
                     "protocol",
@@ -305,7 +290,7 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         receipt.results.push(record);
     }
     receipt.passed = !cancellation.is_cancelled()
-        && receipt.results.len() == contract.draft.fixtures.len() + 3
+        && receipt.results.len() == contract.draft.fixtures.len() + REJECTION_CASES.len()
         && receipt.results.iter().all(|entry| entry.passed);
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
@@ -406,6 +391,8 @@ pub(crate) mod tests {
         None,
         Negative,
         Context,
+        OpaqueNumber,
+        OpaqueRawValue,
         Timeout,
     }
 
@@ -455,6 +442,12 @@ pub(crate) mod tests {
             if matches!(self.fault, Fault::Context) {
                 context["precision"]["integer"] = json!(1);
             }
+            if matches!(self.fault, Fault::OpaqueNumber) {
+                context["precision"]["opaque_numeric_number"] = json!(123);
+            }
+            if matches!(self.fault, Fault::OpaqueRawValue) {
+                context["precision"]["opaque_raw_value"] = json!({"literal":true});
+            }
             let envelope = json!({
                 "value":{"collected":true,"present":mode == "positive" || matches!(self.fault, Fault::Negative)},
                 "context":context,"request":request.acquisition()
@@ -477,6 +470,21 @@ pub(crate) mod tests {
         };
         verify(
             &runner,
+            &contract(),
+            &candidate(),
+            directory.path(),
+            &CancellationToken::default(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn passing_receipt(identity: RunnerIdentity) -> VerificationReceipt {
+        let directory = tempfile::tempdir().unwrap();
+        verify(
+            &FakeRunner {
+                identity,
+                fault: Fault::None,
+            },
             &contract(),
             &candidate(),
             directory.path(),
@@ -512,6 +520,25 @@ pub(crate) mod tests {
         let receipt = tested(Fault::Context);
         assert!(!receipt.passed);
         assert!(!receipt.results[0].passed);
+    }
+
+    #[test]
+    fn opaque_reserved_keys_are_objects_and_cannot_be_reinterpreted() {
+        let precision = protocol_precision_context().unwrap();
+        assert_eq!(
+            precision["opaque_number"]["$serde_json::private::Number"],
+            "literal object"
+        );
+        assert_eq!(
+            precision["opaque_raw_value"]["$serde_json::private::RawValue"],
+            r#"{"literal":true}"#
+        );
+        for fault in [Fault::OpaqueNumber, Fault::OpaqueRawValue] {
+            let receipt = tested(fault);
+            assert_eq!(receipt.schema, "engarg.tool-tests/2");
+            assert!(!receipt.passed);
+            assert!(!receipt.results[0].passed);
+        }
     }
 
     #[test]
