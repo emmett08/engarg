@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Engineering Arguments"
+  short_description: "Shorten argument prose without weakening its reasoning"
+  default_prompt: "Use $write-engineering-arguments to rewrite every argument part in clear, concise British English while preserving its reasoning and evidential limits."

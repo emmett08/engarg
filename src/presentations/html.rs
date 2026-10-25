@@ -3,7 +3,10 @@ use super::{
     Attachment, BoundedText, PresentationView, RenderError, RenderLimits, anchor, claim,
     composition, conditions, label, relationship, selection,
 };
-use crate::domain::{ArgumentCase, Request};
+use crate::{
+    domain::{ArgumentCase, Request},
+    glossary,
+};
 use std::{collections::HashSet, fmt::Write};
 
 const DOCUMENT_START: &str = r##"<!doctype html>
@@ -91,6 +94,22 @@ fn html_reference(id: &str) -> String {
     format!("<a href=\"#{}\">{}</a>", anchor(id), escape_html(id))
 }
 
+fn html_glossary(output: &mut BoundedText) {
+    output.push_str("<details id=\"glossary\"><summary>Argument glossary — role codes and definitions</summary><p>Codes describe argument roles. A record's type and references establish its role. The model extends Toulmin's claim, grounds, warrant, backing, qualifier and rebuttal with engineering records.</p><dl>");
+    for entry in glossary::entries() {
+        write!(
+            output,
+            "<dt><strong>{} — {}</strong></dt><dd><p>{}</p><p><em>{}</em></p></dd>",
+            escape_html(&entry.code),
+            escape_html(&entry.name),
+            escape_html(&entry.definition),
+            escape_html(&entry.question)
+        )
+        .unwrap();
+    }
+    output.push_str("</dl></details>");
+}
+
 fn html_notes(output: &mut BoundedText, view: &PresentationView<'_>, id: &str) {
     let Some(id) = view.canonical_id(id) else {
         return;
@@ -152,7 +171,8 @@ pub fn html_with_limits(
         )
         .unwrap();
     }
-    write!(output, "<div class=\"assessment\"><strong>Current assessment: {}.</strong><p>{}</p></div><h2>Requested claim</h2><p class=\"requested-claim\">{}</p><dl class=\"scope-grid\"><dt>Scope</dt><dd>{}</dd><dt>Configuration</dt><dd>{}</dd><dt>Operating conditions</dt><dd>{}</dd><dt>Time horizon</dt><dd>{}</dd></dl><nav aria-label=\"Report sections\"><a href=\"#argument-view\">Argument</a><a href=\"#reading-view\">Connected reading</a><a href=\"#sources\">Sources</a><a href=\"#investigations\">Investigation register</a></nav><p class=\"browser-note\">Open this file in a web browser for its styling and disclosure controls. Document previews may simplify the page.</p><section id=\"argument-view\"><h2>Expandable argument view</h2><p class=\"disclosure-help\">Select a heading or focus it and press Enter or Space to show supporting detail and full reliance conditions. Qualifications and a count of reliance conditions stay visible when a claim is closed.</p>", escape_html(&label(&case.status)), escape_html(&case.adjudication), escape_html(&request.claim), escape_html(&case.scope.system_boundary), escape_html(&case.scope.configuration), escape_html(&case.scope.operating_conditions), escape_html(&case.scope.time_horizon)).unwrap();
+    write!(output, "<div class=\"assessment\"><strong>Current assessment: {}.</strong><p>{}</p></div><h2>Requested claim</h2><p class=\"requested-claim\">{}</p><dl class=\"scope-grid\"><dt>Scope</dt><dd>{}</dd><dt>Configuration</dt><dd>{}</dd><dt>Operating conditions</dt><dd>{}</dd><dt>Time horizon</dt><dd>{}</dd></dl><nav aria-label=\"Report sections\"><a href=\"#argument-view\">Argument</a><a href=\"#reading-view\">Connected reading</a><a href=\"#sources\">Sources</a><a href=\"#investigations\">Investigation register</a><a href=\"#glossary\">Glossary</a></nav><p class=\"browser-note\">Open this file in a web browser for its styling and disclosure controls. Document previews may simplify the page.</p><section id=\"argument-view\"><h2>Expandable argument view</h2><p class=\"disclosure-help\">Select a heading or focus it and press Enter or Space to show supporting detail and full reliance conditions. Qualifications and a count of reliance conditions stay visible when a claim is closed.</p>", escape_html(&label(&case.status)), escape_html(&case.adjudication), escape_html(&request.claim), escape_html(&case.scope.system_boundary), escape_html(&case.scope.configuration), escape_html(&case.scope.operating_conditions), escape_html(&case.scope.time_horizon)).unwrap();
+    html_glossary(&mut output);
     if let Some(depth) = display_depth {
         write!(output, "<p>Detailed claim levels: {depth}. Deeper supporting arguments and reading sections are omitted from this view. Claim summaries and complete investigation registers remain available. Reliance conditions remain expandable. The canonical JSON retains the complete graph.</p>").unwrap();
     }

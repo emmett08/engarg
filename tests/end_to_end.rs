@@ -140,6 +140,10 @@ fn run_configured(
             assert_eq!(body["service_tier"], "ultrafast");
             assert_eq!(body["reasoning"], json!({"effort":"high"}));
             assert!(body.get("reasoning_effort").is_none());
+            let instructions = body["instructions"].as_str().unwrap();
+            assert!(instructions.contains("ENGINEERING WRITING SKILL"));
+            assert!(instructions.contains("ARGUMENT ROLE GLOSSARY"));
+            assert!(instructions.contains(&engarg::glossary::find("W").unwrap().definition));
             let envelope: Value = serde_json::from_str(body["input"].as_str().unwrap()).unwrap();
             assert_eq!(envelope["request"]["claim"], expected_claim);
             if claim_only {

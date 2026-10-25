@@ -1,0 +1,209 @@
+[
+  {
+    "code": "C",
+    "name": "Claim",
+    "definition": "States the proposition the argument seeks to justify within its scope.",
+    "question": "What should the reader accept?",
+    "example": "For configuration v4, the controller rejects unsigned releases.",
+    "origin": "Toulmin core",
+    "field": "current_claim.text, stronger_target.text"
+  },
+  {
+    "code": "S",
+    "name": "Subclaim",
+    "definition": "States an intermediate conclusion whose support contributes to another claim.",
+    "question": "Which intermediate proposition needs its own argument?",
+    "example": "Every release path in configuration v4 passes through signature verification.",
+    "origin": "Engineering extension",
+    "field": "subclaims"
+  },
+  {
+    "code": "G",
+    "name": "Ground",
+    "definition": "States a premise used by an inference and records its evidence and support status.",
+    "question": "What premise supports this conclusion, and what supports that premise?",
+    "example": "The supplied test log reports rejection of all 40 unsigned test releases.",
+    "origin": "Toulmin core",
+    "field": "grounds"
+  },
+  {
+    "code": "E",
+    "name": "Evidence",
+    "definition": "Records supplied source material used to assess a premise, assumption, warrant or challenge.",
+    "question": "Which retained source can a reviewer inspect?",
+    "example": "The test log for commit abc123 records the input and result of each release attempt.",
+    "origin": "Engineering extension",
+    "field": "Request.evidence"
+  },
+  {
+    "code": "W",
+    "name": "Warrant",
+    "definition": "States the rule or reasoning that connects specified premises to a conclusion under stated conditions.",
+    "question": "Why do these premises justify this conclusion?",
+    "example": "If every release path verifies signatures and rejects failed verification, unsigned releases are rejected.",
+    "origin": "Toulmin core",
+    "field": "warrants"
+  },
+  {
+    "code": "B",
+    "name": "Backing",
+    "definition": "Provides support for the rule or reasoning used by a warrant.",
+    "question": "Why should the reader accept this warrant in this setting?",
+    "example": "The verified control-flow model establishes that every release path enforces the rejection rule.",
+    "origin": "Toulmin core",
+    "field": "warrants.backing_evidence_ids"
+  },
+  {
+    "code": "Q",
+    "name": "Qualifier",
+    "definition": "States the justified force or uncertainty of a claim.",
+    "question": "How strongly does the available support justify the claim?",
+    "example": "Provisionally supported by the tested cases, subject to the path-coverage assumption.",
+    "origin": "Toulmin core",
+    "field": "current_claim.qualifier, stronger_target.qualifier, subclaims.qualifier"
+  },
+  {
+    "code": "R",
+    "name": "Rebuttal conditions",
+    "definition": "Identifies an exception or boundary condition that would defeat or restrict the inference.",
+    "question": "When would this inference cease to justify its conclusion?",
+    "example": "An emergency release path that bypasses verification would defeat the inference.",
+    "origin": "Toulmin core adapted for engineering",
+    "field": "warrants.applicability, defeaters"
+  },
+  {
+    "code": "A",
+    "name": "Assumption",
+    "definition": "States a condition relied upon by specified parts of the argument, with its support status and proposed validation.",
+    "question": "What condition must hold for this reasoning to apply?",
+    "example": "The deployed routing configuration matches the configuration inspected by the coverage check.",
+    "origin": "Engineering extension",
+    "field": "assumptions"
+  },
+  {
+    "code": "D",
+    "name": "Defeater",
+    "definition": "Records a challenge to a premise, inference or conclusion, together with its basis, response and disposition.",
+    "question": "What could undermine this premise, undercut this inference or rebut this conclusion?",
+    "example": "The test configuration may omit the emergency release path, limiting the claimed coverage.",
+    "origin": "Engineering extension",
+    "field": "defeaters"
+  },
+  {
+    "code": "N",
+    "name": "Evidence need",
+    "definition": "Specifies an investigation that could resolve missing support or a challenge and identifies the claim it would strengthen.",
+    "question": "What should be checked, how will its result be judged, and which claim could it strengthen?",
+    "example": "Enumerate release paths in configuration v4 and compare each with the signature-verification coverage map.",
+    "origin": "Engineering extension",
+    "field": "evidence_plan"
+  },
+  {
+    "code": "ARG",
+    "name": "Argument record",
+    "definition": "Presents one warrant with its premises, conclusion, support and applicable conditions.",
+    "question": "Which complete inference route is being assessed?",
+    "example": "ARG-W1 groups W1 with its release-path premises and the deployment-match assumption.",
+    "origin": "Presentation label",
+    "field": "warrants and their referenced records"
+  },
+  {
+    "code": "current_claim",
+    "name": "Current claim",
+    "definition": "States the present conclusion being assessed, with its recorded qualification and assessment status.",
+    "question": "What conclusion is the argument currently asking the reader to accept?",
+    "example": "The supplied tests support rejection of the unsigned releases exercised in configuration v4.",
+    "origin": "Engineering extension",
+    "field": "current_claim, status"
+  },
+  {
+    "code": "stronger_target",
+    "name": "Stronger target",
+    "definition": "States a stronger candidate claim whose support depends on further evidence or reasoning.",
+    "question": "What stronger conclusion could further investigation justify?",
+    "example": "Every unsigned release is rejected on every enabled release path in configuration v4.",
+    "origin": "Engineering extension",
+    "field": "stronger_target"
+  },
+  {
+    "code": "scope",
+    "name": "Scope",
+    "definition": "Defines the system boundary and the configurations, operating conditions and period covered by the argument.",
+    "question": "Exactly which cases does the claim cover?",
+    "example": "The production release controller at commit abc123 with routing configuration v4 during the recorded test period.",
+    "origin": "Engineering extension",
+    "field": "scope"
+  },
+  {
+    "code": "criterion",
+    "name": "Assessment criterion",
+    "definition": "States the condition used to judge a proposed check's result, with a justification appropriate to the claim.",
+    "question": "What result would count as adequate support?",
+    "example": "Every enabled release path must appear in the inspected verification-coverage map.",
+    "origin": "Engineering extension",
+    "field": "evidence_plan.acceptance_criterion"
+  },
+  {
+    "code": "composition",
+    "name": "Support composition",
+    "definition": "Records how inference routes combine to support a conclusion and which routes the assessment relies upon.",
+    "question": "Must these routes hold together, contribute cumulatively or provide alternatives?",
+    "example": "The rejection claim requires both complete path coverage and correct verification behaviour.",
+    "origin": "Engineering extension",
+    "field": "compositions"
+  },
+  {
+    "code": "alternative",
+    "name": "Competing explanation or option",
+    "definition": "States another explanation or option and a check that could distinguish it from the proposed account.",
+    "question": "What other account fits the observations, and how could it be distinguished?",
+    "example": "The release may have been rejected by an unrelated policy. Compare the recorded rejection reason with the signature check result.",
+    "origin": "Engineering extension",
+    "field": "alternatives"
+  },
+  {
+    "code": "assessment",
+    "name": "Current assessment",
+    "definition": "States the support status of the current claim and explains the decisive reasoning and remaining limitations.",
+    "question": "What does the assessed argument justify now, and why?",
+    "example": "The claim remains conditional because release-path coverage depends on an untested deployment-match assumption.",
+    "origin": "Engineering extension",
+    "field": "status, adjudication"
+  },
+  {
+    "code": "revision_trigger",
+    "name": "Revision trigger",
+    "definition": "Identifies a change or investigation result that requires reassessing a claim or inference.",
+    "question": "What event should cause the assessment to be revisited?",
+    "example": "Reassess the rejection claim when routing configuration changes or a coverage check finds an additional path.",
+    "origin": "Engineering extension",
+    "field": "evidence_plan.if_failed, assumptions.validation, decision_limits"
+  },
+  {
+    "code": "residual_risk",
+    "name": "Residual risk",
+    "definition": "States a consequential uncertainty or failure possibility that remains after the recorded assessment and controls.",
+    "question": "What consequential possibility remains unresolved?",
+    "example": "A configuration change between inspection and deployment could introduce an unchecked release path.",
+    "origin": "Engineering extension",
+    "field": "residual_risks"
+  },
+  {
+    "code": "decision_limit",
+    "name": "Decision limit",
+    "definition": "States a restriction on the actions or decisions justified by the current argument.",
+    "question": "Which decisions remain outside the support established here?",
+    "example": "Approval for configuration v4 requires a new assessment before enabling an additional release path.",
+    "origin": "Engineering extension",
+    "field": "decision_limits"
+  },
+  {
+    "code": "decision_basis",
+    "name": "Decision basis",
+    "definition": "Explains why a proposed action meets the stated objective and acceptance criterion, considering feasible alternatives and the consequences of error.",
+    "question": "Why is this action justified under the stated constraints?",
+    "example": "Enable configuration v4 after the coverage and rejection checks pass, retaining rollback while deployment-match uncertainty remains.",
+    "origin": "Engineering extension",
+    "field": "scope.consequences, alternatives, adjudication, decision_limits"
+  }
+]

@@ -211,9 +211,25 @@ The outline states each claim with its qualifier and shows the composition relat
 
 In the expandable view, a collapsed claim retains its qualifier and a warning that counts its reliance conditions. Opening the claim reveals the full critical conditions, outstanding challenges and supporting argument. These condition statements remain expandable even when `--display-depth` omits deeper supporting arguments. Supporting findings and objections appear beside the nodes they affect. The HTML file contains no scripts or external assets, and dynamic text is escaped.
 
-The synthesiser authors the reading paragraphs as an explanatory view of the same graph. Each paragraph declares a single task: answer, finding, connection, complication or conclusion. The opening gives the qualified answer. Subsequent paragraphs explain the decisive finding, its inferential connection and the complication that limits the conclusion. Substantial child arguments receive one short section each. The final critic checks the prose against the graph for overstated claims, omitted conditions and invented support. Structural checks validate paragraph references and organisation. Semantic fidelity and reader comprehension remain assessment questions.
+The synthesiser authors the reading paragraphs as an explanatory view of the same graph. Each section opens with the qualified answer and its decisive reason. One paragraph is enough when it conveys the complete argument. Further paragraphs explain findings, inferential connections or consequential complications where needed. The final critic checks the prose against the graph for overstated claims, omitted conditions and invented support. Structural checks validate paragraph references and organisation. Semantic fidelity and reader comprehension remain assessment questions.
 
 The `0.2.0` case schema requires `compositions` and `reading`. Earlier `0.1.0` case files need those records before they can be validated or rendered. Presentation does not silently manufacture missing reasoning.
+
+## Concise writing and argument glossary
+
+Every analysis role receives the repository's [engineering-writing skill](skills/write-engineering-arguments/SKILL.md). It revises each prose field before returning its existing model response. The synthesiser and adjudicator also check the complete reading view against the argument graph. This adds no model call. The revision removes repetition while preserving scope, qualifications, material objections and evidence status. Original input, retained challenge wording, identifiers and tool configuration stay exact. A short reading section can use one answer paragraph. Existing longer sections remain valid.
+
+The [glossary skill](skills/explain-engineering-arguments/SKILL.md) explains each role and how it appears in the model. Its [role definitions](skills/explain-engineering-arguments/references/roles.json) supply the same vocabulary to model prompts, offline CLI help and one collapsed glossary in each HTML report. Use it during construction or rewriting to keep grounds, warrants and assumptions distinct. Open reader help when a code is unfamiliar. Definitions appear once in help rather than inside every argument part.
+
+```sh
+engarg glossary
+engarg glossary W
+engarg glossary N --json
+```
+
+`W` explains why the premises support the conclusion. `N` describes an evidence need and its proposed investigation. `D` identifies a defeater and `S` an intermediate subclaim. These are role labels and common example prefixes. The record type and references determine the role of an identifier such as `auditor-1`. Backing and qualifiers occupy fields rather than separate `B` and `Q` records. The glossary distinguishes the Toulmin core from engarg's engineering extensions.
+
+When using a coding agent in this checkout, ask it to load the relevant `skills/<name>/SKILL.md` by path. Where the skills are installed for discovery, invoke `$write-engineering-arguments` to revise a saved argument or `$explain-engineering-arguments` to explain a role in context. The CLI embeds the writing instructions and glossary definitions when it is built. Rebuild after changing them. Rendering a saved report preserves its authored text. A revision of an existing argument requires model-assisted editing and validation of the updated case.
 
 ## EAL/3 export and MCP assessment
 
