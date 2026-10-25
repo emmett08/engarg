@@ -66,7 +66,7 @@ directory = prefix / 'bin'
 directory.mkdir(exist_ok=True)
 names = {'eal-process': ['eal-process-supervisor'],
          'eal-runtime': ['eal-method-worker', 'eal-command-supervisor'],
-         'eal-mcp': ['eal-host', 'eal-mcp'], 'eal-collector': ['eal-collector']}[package]
+         'eal-mcp': ['eal-host', 'eal-mcp'], 'eal-collectors': ['eal-collector']}[package]
 for name in names:
     binary = directory / name
     binary.write_text('#!/bin/sh\\n# Pinned fixture ' + name + '\\nexit 0\\n')
@@ -140,7 +140,7 @@ print('Synthetic toolchain progress on stdout')
         self.assertEqual([call["args"] for call in self.installs()], [
             ["+1.90.0", "install", "--git", URL, "--rev", REVISION, "--locked",
              "--root", str(prefix), "--force", package]
-            for package in ("eal-process", "eal-runtime", "eal-mcp", "eal-collector")])
+            for package in ("eal-process", "eal-runtime", "eal-mcp", "eal-collectors")])
         self.assertEqual({call["target"] for call in self.installs()}, {str(prefix / "target")})
 
     def test_valid_cache_checks_binaries_without_reinstalling_or_requiring_rustup(self):
@@ -161,7 +161,7 @@ print('Synthetic toolchain progress on stdout')
         self.assert_success(self.run_script("--root", prefix), prefix)
         self.assertEqual(len(self.installs()), 8)
         self.assertEqual([call["args"][-1] for call in self.installs()[-4:]],
-                         ["eal-process", "eal-runtime", "eal-mcp", "eal-collector"])
+                         ["eal-process", "eal-runtime", "eal-mcp", "eal-collectors"])
 
     def test_partial_install_has_no_success_receipt_and_can_be_retried(self):
         prefix = self.default_prefix()
@@ -179,7 +179,7 @@ print('Synthetic toolchain progress on stdout')
         self.assert_success(self.run_script(), prefix)
         self.assertEqual(len(self.installs()), 8)
         self.assertEqual([call['args'][-1] for call in self.installs()[-4:]],
-                         ['eal-process', 'eal-runtime', 'eal-mcp', 'eal-collector'])
+                         ['eal-process', 'eal-runtime', 'eal-mcp', 'eal-collectors'])
 
     def test_failed_repair_invalidates_the_old_receipt(self):
         prefix = self.default_prefix()
