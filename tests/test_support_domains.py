@@ -119,6 +119,9 @@ class FullWorkflowStudyTests(unittest.TestCase):
             if name == 'qualify':
                 phase['argv'] = ['{qualifier}', 'qualify', '--output', path]
                 phase['qualification_reference'] = 'qualification'
+                phase['deterministic_attestation'] = {
+                    'reviewer':'fixture-author', 'reason':'The hashed fixture emits local JSON without model calls.',
+                    'reference':'qualification'}
             if name == 'collect':
                 phase['captures'] = {'collection_id': {'file':path,'pointer':'/result/collection_id'}}
                 phase['counters'] = {'source_requests': {'file':path,'pointer':'/metrics/source_requests'}}
@@ -200,6 +203,102 @@ class FullWorkflowStudyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'protocol digest mismatch'):
             STUDY.verify_protocol(protocol)
 
+    def test_review_recomputes_protocol_digest_without_runtime_assets(self):
+        protocol = self.freeze()
+        output = self.root/'runs'; output.mkdir()
+        result = STUDY.run_workflow(protocol, output, 'STUDY_FIXTURE_KEY')
+        reviews = STUDY.review_template(result)
+        reviews['reviews'] = []
+        tampered = copy.deepcopy(result)
+        tampered['protocol']['cases'][0]['reference']['obligations'].pop()
+        with self.assertRaisesRegex(ValueError, 'protocol digest mismatch'):
+            STUDY.score_reviews(tampered, reviews)
+        self.binary.unlink()
+        self.config.unlink()
+        self.reference.unlink()
+        self.assertEqual(STUDY.score_reviews(result, reviews)['attempted_runs'], 2)
+
+    def test_captures_cannot_replace_reserved_or_pinned_bindings(self):
+        for name in ['binary', 'config', 'model', 'api_key_env', 'analysis', 'work', 'now', 'qualifier']:
+            with self.subTest(name=name):
+                def change(config):
+                    config['cases']['specified_algorithm']['graph']['phases'][0]['captures'] = {
+                        name: {'file':'{work}/anything.json', 'pointer':'/value'}}
+                with self.assertRaisesRegex(ValueError, 'capture name collides'):
+                    self.freeze(change)
+                phase = {'name':'collect','captures':{name:{'file':'unused','pointer':'/value'}}}
+                bindings = {'binary':str(self.binary),'qualifier':str(self.binary),'api_key_env':'KEY'}
+                with patch.object(STUDY, 'run_command') as command:
+                    with self.assertRaisesRegex(ValueError, 'capture name collides'):
+                        STUDY.execute_phase(phase, bindings, os.environ, self.root)
+                    command.assert_not_called()
+
+    def test_qualification_executable_must_select_a_hashed_asset(self):
+        def unpin(config):
+            config['cases']['specified_algorithm']['graph']['phases'][1]['argv'][0] = str(self.binary)
+        with self.assertRaisesRegex(ValueError, 'qualification executable must select a hashed study asset'):
+            self.freeze(unpin)
+        protocol = self.freeze()
+        self.assertEqual(protocol['cases'][0]['graph']['phases'][1]['argv'][0], '{qualifier}')
+        self.assertEqual(protocol['assets']['qualifier']['sha256'], STUDY.file_digest(self.binary))
+        self.binary.write_text(FIXTURE+'\n# changed helper\n')
+        with self.assertRaisesRegex(ValueError, 'input bytes changed'):
+            STUDY.verify_protocol(protocol)
+
+    def test_qualification_usage_is_unknown_without_attestation_or_receipt(self):
+        def remove(config):
+            for mode in ['flat','graph']:
+                config['cases']['specified_algorithm'][mode]['phases'][1].pop('deterministic_attestation')
+        protocol = self.freeze(remove)
+        self.assertIn('EngArg analyse and implement only', protocol['declared_model_call_bound_scope'])
+        output = self.root/'runs'; output.mkdir()
+        result = STUDY.run_workflow(protocol, output, 'STUDY_FIXTURE_KEY')
+        for row in result['rows']:
+            self.assertTrue(row['workflow_accepted'])
+            self.assertIsNone(row['calls'])
+            self.assertIsNone(row['input_tokens'])
+            self.assertEqual(row['known_input_tokens'],105)
+            qualify = row['phases'][2]
+            self.assertEqual(qualify['model_usage_basis']['kind'], 'unavailable')
+        receipt = self.root/'usage.json'
+        receipt.write_text(json.dumps({'calls':2,'input_tokens':17,'output_tokens':9}))
+        usage, basis = STUDY.qualification_usage({'model_usage_receipt':{'file':str(receipt),'pointer':''}})
+        self.assertEqual((usage['calls'],usage['input_tokens'],usage['output_tokens']),(2,17,9))
+        self.assertEqual(basis['kind'],'reported_usage')
+        receipt.write_text(json.dumps({'calls':2,'input_tokens':17,'output_tokens':9,'unknown_usage_attempts':1}))
+        usage, _ = STUDY.qualification_usage({'model_usage_receipt':{'file':str(receipt),'pointer':''}})
+        self.assertIsNone(usage['input_tokens'])
+        self.assertIsNone(usage['output_tokens'])
+        self.assertEqual((usage['known_input_tokens'],usage['known_output_tokens']),(17,9))
+
+    def test_frozen_asset_change_keeps_paid_phase_before_stopping(self):
+        protocol = self.freeze()
+        output = self.root/'runs'; output.mkdir()
+        execute = STUDY.execute_phase
+        def change_after_analysis(phase, *args):
+            measured = execute(phase, *args)
+            if phase['name'] == 'analyse':
+                self.config.write_text('{"changed_after_paid_phase":true}')
+            return measured
+        with patch.object(STUDY, 'execute_phase', side_effect=change_after_analysis):
+            result = STUDY.run_workflow(protocol, output, 'STUDY_FIXTURE_KEY')
+        saved = json.loads((output/'results.json').read_text())
+        self.assertEqual(saved,result)
+        self.assertEqual(result['study_stopped'],'frozen phase preflight failed')
+        self.assertEqual(len(result['rows']),1)
+        row = result['rows'][0]
+        self.assertEqual([phase['phase'] for phase in row['phases']],['analyse'])
+        self.assertEqual(row['failed_phase'],'implement')
+        self.assertEqual(row['input_tokens'],100)
+        self.assertEqual(result['comparisons']['all_attempt_resources']['input_tokens'],100)
+
+    def test_collection_byte_metrics_use_retained_provider_fields(self):
+        example = json.loads((Path(__file__).resolve().parents[1]/'experiments/support-domains/workflow.example.json').read_text())
+        collect = next(p for p in example['cases']['specified_algorithm']['graph']['phases'] if p['name']=='collect')
+        value = {'result':{'records':{'one':{'details':{'metrics':{
+            'reported_request_bytes':123,'reported_response_bytes':456}}}}}}
+        self.assertEqual(STUDY.pointer(value,collect['counters']['request_bytes']['pointer']),[123])
+        self.assertEqual(STUDY.pointer(value,collect['counters']['response_bytes']['pointer']),[456])
     def test_unrepresentable_arm_is_a_capability_difference(self):
         protocol = self.freeze(lambda c: c['cases']['specified_algorithm'].update(
             flat={'unrepresentable':True,'reason':'fixture declared capability gap'}))

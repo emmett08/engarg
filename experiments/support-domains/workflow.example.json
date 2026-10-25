@@ -200,6 +200,10 @@
               "{work}/assessment.sqlite",
               "--tools",
               "{work}/tools.toml",
+              "--collector-env",
+              "PATH",
+              "--collector-env",
+              "HOME",
               "--output",
               "{work}/collection.json"
             ],
@@ -225,11 +229,11 @@
               },
               "request_bytes": {
                 "file": "{work}/collection.json",
-                "pointer": "/result/records/*/details/metrics/request_bytes"
+                "pointer": "/result/records/*/details/metrics/reported_request_bytes"
               },
               "response_bytes": {
                 "file": "{work}/collection.json",
-                "pointer": "/result/records/*/details/metrics/response_bytes"
+                "pointer": "/result/records/*/details/metrics/reported_response_bytes"
               },
               "generated_code_count": {
                 "file": "{work}/collection.json",

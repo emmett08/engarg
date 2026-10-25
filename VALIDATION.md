@@ -25,7 +25,7 @@ from this change.
 | Locked EngArg default all-target tests | 531 passed, 27 external tests ignored by the default command |
 | EngArg/EAL native and producer/consumer test selection | 65 passed, zero ignored |
 | Native qualification preparation and generated-interface lifecycle | 4 passed, zero ignored |
-| Python/script checks | 95 passed, shell syntax passed |
+| Python/script checks | 101 passed, including 18 support-study checks; shell syntax passed |
 | EAL, Rust 1.90.0, workspace formatting and all-target Clippy | Passed |
 | Locked EAL workspace tests | 605 passed, zero ignored |
 | EAL installed-boundary smoke | All 10 application groups and coordination/recovery scenarios passed |
@@ -36,28 +36,37 @@ Both retained normal debug assertions and overflow checks. A first EAL workspace
 link attempt exhausted this container's disk. Clearing disposable build outputs
 allowed the unchanged source to complete all checks. The final standalone EAL
 workflow remains manually triggered. Local equivalents above identify the exact
-producer source used. Docker generation and macOS require the proposed EngArg
-revision's hosted checks, while local native tests exercise the same final
-registration/export/collection/assessment helper.
+producer source used.
+
+Hosted run [40211635686](https://github.com/emmett08/engarg/actions/runs/40211635686)
+on `e762b1c` passed the producer/consumer job, every macOS check, and Linux
+formatting, Clippy, default tests, release build and installed-runtime checks.
+Ten of eleven Docker tests passed. The newly extended collection test omitted
+explicit forwarding of the generated provider's admitted environment names.
+A local native fixture reproduces the same failed observation and stderr digest
+when a declared variable is absent from the host's default environment. The
+revised helper selects those names through `--collector-env`; it preserves the
+production forwarding policy and adds a source-level failure diagnostic. Final
+hosted results belong to the checks on [PR #15](https://github.com/emmett08/engarg/pull/15).
 
 | Finding | Disposition and decisive evidence |
 | --- | --- |
-| F01, calculation provenance lost by scaling | Present on the reviewed default branch. `src/support_requirements/lineage_tests.rs` rejects mean → scale promotion and preserves exact unit conversion. |
-| F02, export correspondence incomplete | Present on the reviewed default branch. `tests/support_export.rs` rejects changed history, static arguments, operator projections and source bindings. The new batch proof follows the same replay boundary. |
+| F01, calculation provenance lost by scaling | Repair verified on the reviewed default branch. `src/support_requirements/lineage_tests.rs` rejects mean → scale promotion and preserves exact unit conversion. |
+| F02, export correspondence incomplete | Repair verified on the reviewed default branch. `tests/support_export.rs` rejects changed history, static arguments, operator projections and source bindings. The new batch proof follows the same replay boundary. |
 | F03, blocking locks defeat deadlines | Extended here. EAL shares an absolute deadline across preparation, key-lock initialisation and execution. Explicit expired-request admission checks precede provider work. Final criterion results retain a separate budget outcome. See EAL `tests/deadlines.rs` and collector `tests/evidence.rs`. |
-| F04, saved configuration cannot recover | Present on the reviewed default branch. Separate `tests/replan_cli.rs` cases now verify complete planning recovery from a sole missing credential and recovery with independent blockers retained. Both preserve authored content and make zero model calls. A seventeenth transition now fails before discovery. |
-| F05, null extension discards flat collectors | Present on the reviewed default branch. Typed report decoding treats null and absent graph extensions consistently. Flat preparation and export regressions preserve their selected collector. |
+| F04, saved configuration cannot recover | Repair verified on the reviewed default branch. Separate `tests/replan_cli.rs` cases now verify complete planning recovery from a sole missing credential and recovery with independent blockers retained. Both preserve authored content and make zero model calls. A seventeenth transition now fails before discovery. |
+| F05, null extension discards flat collectors | Repair verified on the reviewed default branch. Typed report decoding treats null and absent graph extensions consistently. Flat preparation and export regressions preserve their selected collector. |
 | F06, freshness uses run-start time | Live lookup and same-run age checks are present. New EAL cases cover exact age, explicit assessment time and source-lock delay. Future observations are now rejected even without a maximum age, preventing an older lineage timestamp from masking them. |
-| F07, oversized completions enter audit content | Present on the reviewed default branch. `src/tooling/completion.rs` tests admission before body retention and keeps reported usage. |
+| F07, oversized completions enter audit content | Repair verified on the reviewed default branch. `src/tooling/completion.rs` tests admission before body retention and keeps reported usage. |
 | F08, formatting fails | The reviewed default-branch hosted formatting steps passed. Formatting remains a required check of each proposed revision. |
-| F09, graph summaries omit presentations | Present on the reviewed default branch. The common script summary and Python regressions cover both planning modes. |
+| F09, graph summaries omit presentations | Repair verified on the reviewed default branch. The common script summary and Python regressions cover both planning modes. |
 | F10, SQLite sidecar metadata race | Narrow retry is present. New EAL tests cover real concurrent checkpoint/connection cleanup and hostile symlink/hard-link replacement after unlink. Foreign-owner fixture construction is unavailable in this container's UID namespace and is explicitly reported. |
 | F11, generated-tool workflow incomplete | The old native-default failure is repaired on main. The new acceptance path uses public export → collect → assess after registration/replanning, preserving source identity and unresolved independent obligations. Native execution passes locally. Docker generation uses the same lifecycle helper and requires hosted Docker verification. |
 | F12, selection only compares fixed acquisitions | Extended with bounded, qualified fan-out/batch alternatives and retained rejection/pruning records. Existing joint selection still shares multi-quantity source operations. `src/route_planning/graphs/tests.rs` and `tests/support_batch.rs` exercise selection and exported execution. |
 | F13, readiness overrides declared cost order | Explicit `prefer_configured` is present. Documentation now states its fallback, the `(unknown count, known sum)` objective and per-capability/per-request charging. |
 | F14, dynamic identity and mixed coverage | Dynamic operands are present. EAL now continues shared acquisition for complete/statistical consumers and retains completed observations when continuation fails. Recovery after expiry is bounded separately. |
 | F15, semantic-quality acceptance evidence absent | Obligation references, an output-bound review rubric and frozen study machinery are implemented. Live reviewed model outputs remain unavailable because this session has no provider credential. The structural and fixture tests establish harness behaviour only. |
-| F16, complete-workflow token/cost evidence absent | The study now orchestrates the declared phases and accounts for failures and unknown usage. Live paired outcomes remain unmeasured. Model topology and monetary-saving claims remain unestablished. |
+| F16, complete-workflow token/cost evidence absent | The study orchestrates the declared phases, pins the qualification executable and prevents captured values from replacing frozen bindings. Each completed phase and its known resource use are retained before the next admission check. External qualification usage stays unknown unless a retained receipt or explicit deterministic attestation supplies it. Failed-call token totals remain unknown while known subtotals are retained. The declared call bound covers EngArg authoring and implementation only. Live paired outcomes remain unmeasured. Model topology and monetary-saving claims remain unestablished. |
 
 All six original refactorings remain in place: completion admission, verified
 package construction, typed report decoding, typed calculation lineage,

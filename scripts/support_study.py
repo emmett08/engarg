@@ -20,6 +20,7 @@ COUNTERS = ("source_requests", "discovery_requests", "request_bytes", "response_
             "generated_code_count", "reused_sources")
 ERRORS = ("critical_omission", "false_readiness", "unit", "method", "scope", "time",
           "lost_challenge", "unjustified_generation")
+RESERVED_BINDINGS = {"binary", "config", "model", "api_key_env", "analysis", "work", "now"}
 
 
 def digest(value):
@@ -142,6 +143,15 @@ def validate_recipe(recipe, generated):
     return phases
 
 
+def validate_captures(phase, existing):
+    names = set(phase.get("captures", {}))
+    if any(not isinstance(name, str) or not name.isidentifier() for name in names):
+        raise ValueError("capture names must be identifiers")
+    if names.intersection(RESERVED_BINDINGS | set(existing)):
+        raise ValueError("capture name collides with a reserved or existing binding")
+    return names
+
+
 def freeze_study(args, cases):
     config = json.loads(args.workflow.read_text())
     if config.get("schema") != "engarg.support-workflow-study/1":
@@ -162,6 +172,8 @@ def freeze_study(args, cases):
         raise ValueError("declare a finite positive aggregate max_model_calls budget")
     assets = {}
     for name, filename in config.get("assets", {}).items():
+        if name in RESERVED_BINDINGS:
+            raise ValueError("study asset name collides with a reserved binding")
         path = (args.workflow.parent / filename).resolve(strict=True)
         assets[name] = {"path": str(path), "sha256": file_digest(path)}
     for name, path in (("binary", args.binary), ("config", args.evidence_config)):
@@ -190,9 +202,20 @@ def freeze_study(args, cases):
                     raise ValueError("capability differences require a frozen reason")
                 continue
             phases = validate_recipe(recipe, generated)
+            bindings = set(assets)
             for phase in phases:
+                bindings.update(validate_captures(phase, bindings))
                 if phase["name"] == "qualify" and phase["qualification_reference"] not in assets:
                     raise ValueError("qualification reference must name a hashed study asset")
+                if phase["name"] == "qualify":
+                    if phase["argv"][0] not in {"{" + name + "}" for name in assets}:
+                        raise ValueError("qualification executable must select a hashed study asset")
+                    attestation = phase.get("deterministic_attestation")
+                    if attestation is not None and (
+                        not isinstance(attestation, dict) or not attestation.get("reviewer")
+                        or not attestation.get("reason") or attestation.get("reference") not in assets
+                    ):
+                        raise ValueError("deterministic qualification attestation requires a reviewer, reason and hashed reference")
             bound += args.repetitions * (7 + sum(
                 int(p["argv"][p["argv"].index("--tool-max-calls") + 1])
                 for p in phases if p["name"] == "implement"))
@@ -205,6 +228,7 @@ def freeze_study(args, cases):
     protocol = {"schema": "engarg.frozen-support-study/1", "design": config,
                 "repetitions": args.repetitions, "model_requested": args.model,
                 "declared_model_call_bound": bound, "assets": assets, "cases": rows,
+                "declared_model_call_bound_scope": "EngArg analyse and implement only; external qualification calls require separate accounting",
                 "reference_sha256": file_digest(REFERENCE), "engarg_source": git_identity(REFERENCE.parents[2]),
                 "harness_sha256": file_digest(__file__),
                 "driver_sha256": file_digest(Path(__file__).with_name("check-support-domains.py")),
@@ -214,11 +238,16 @@ def freeze_study(args, cases):
     return protocol
 
 
-def verify_protocol(protocol):
+def verify_protocol_content(protocol):
+    """Validate the retained definition without requiring original executables."""
     raw = dict(protocol)
     expected = raw.pop("sha256", None)
     if expected != digest(raw):
         raise ValueError("frozen protocol digest mismatch")
+
+
+def verify_protocol(protocol):
+    verify_protocol_content(protocol)
     for asset in protocol["assets"].values():
         if file_digest(asset["path"]) != asset["sha256"]:
             raise ValueError("frozen input bytes changed")
@@ -337,7 +366,41 @@ def check_assertion(spec):
     raise ValueError("assertion requires equals, any_equals, nonempty or exists")
 
 
+def qualification_usage(phase):
+    """An external helper has no implicit zero-model-call contract."""
+    unknown = {"calls": None, "input_tokens": None, "output_tokens": None,
+               "known_input_tokens": 0, "known_output_tokens": 0,
+               "unknown_usage_attempts": None}
+    receipt = phase.get("model_usage_receipt")
+    if receipt:
+        try:
+            values = read_selection(receipt)
+            if len(values) != 1 or not isinstance(values[0], dict):
+                raise ValueError("qualification usage receipt requires one object")
+            value = values[0]
+            if "unknown_usage_attempts" in value and not integer(value["unknown_usage_attempts"]):
+                raise ValueError("unknown usage attempt count must be a nonnegative integer")
+            for field in ("calls", "input_tokens", "output_tokens"):
+                unknown[field] = value.get(field) if integer(value.get(field)) else None
+            for field in ("input_tokens", "output_tokens"):
+                subtotal = value.get("known_" + field)
+                unknown["known_" + field] = unknown[field] if unknown[field] is not None else subtotal if integer(subtotal) else 0
+            missing = value.get("unknown_usage_attempts")
+            unknown["unknown_usage_attempts"] = missing if integer(missing) else 0 if all(unknown[k] is not None for k in ("calls", "input_tokens", "output_tokens")) else None
+            if integer(missing) and missing > 0:
+                unknown["input_tokens"] = None
+                unknown["output_tokens"] = None
+            return unknown, {"kind": "reported_usage", "receipt": receipt}
+        except (ValueError, KeyError, OSError) as error:
+            return unknown, {"kind": "unavailable_receipt", "error": str(error)}
+    attestation = phase.get("deterministic_attestation")
+    if isinstance(attestation, dict) and all(attestation.get(k) for k in ("reviewer", "reason", "reference")):
+        return {key: 0 for key in unknown}, {"kind": "operator_deterministic_attestation", **attestation}
+    return unknown, {"kind": "unavailable", "reason": "external qualification model usage was not measured or attested"}
+
+
 def execute_phase(phase, bindings, environment, work):
+    validate_captures(phase, bindings)
     phase = substitute(phase, bindings)
     name = phase["name"]
     env = dict(environment)
@@ -387,12 +450,17 @@ def execute_phase(phase, bindings, environment, work):
         result["resources"].update(model_usage(read_events(phase.get("audit")), report,
                                                failed=result["returncode"] != 0,
                                                implementation=name == "implement"))
+    elif name == "qualify":
+        usage, basis = qualification_usage(phase)
+        result["resources"].update(usage)
+        result["model_usage_basis"] = basis
     else:
         result["resources"].update({"calls": 0, "input_tokens": 0, "output_tokens": 0,
                                     "known_input_tokens": 0, "known_output_tokens": 0,
                                     "unknown_usage_attempts": 0})
     result["artefacts"] = {}
-    for path in [phase.get("report"), phase.get("audit"), *phase.get("artefacts", [])]:
+    receipt = phase.get("model_usage_receipt", {})
+    for path in [phase.get("report"), phase.get("audit"), receipt.get("file"), *phase.get("artefacts", [])]:
         if path and Path(path).is_file():
             result["artefacts"][path] = {"sha256": file_digest(path), "bytes": Path(path).stat().st_size}
     return result
@@ -436,6 +504,17 @@ def run_workflow(protocol, output, key_env):
     verify_protocol(protocol)
     rows = []
     result = {"schema": "engarg.support-domain-experiment/2", "protocol": protocol, "rows": rows}
+
+    def retain(row, started=None):
+        if started is not None:
+            row["elapsed_seconds"] = time.monotonic() - started
+        row.update(aggregate_resources(row["phases"]))
+        if row.get("analysis") and Path(row["analysis"]).exists():
+            row["analysis_sha256"] = file_digest(row["analysis"])
+        row["workflow_sha256"] = digest(row["phases"])
+        result["comparisons"] = workflow_comparisons(rows)
+        write_json(output / "results.json", result)
+
     initial = {name: asset["path"] for name, asset in protocol["assets"].items()}
     initial.update(model=protocol["model_requested"], api_key_env=key_env)
     for case in protocol["cases"]:
@@ -444,12 +523,14 @@ def run_workflow(protocol, output, key_env):
                 recipe = case[mode]
                 row = {"case": case["name"], "mode": mode, "repetition": repetition,
                        "partition": case["partition"], "phases": [], "workflow_accepted": False}
+                rows.append(row)
                 if recipe.get("unrepresentable"):
                     row.update(capability_difference=True, reason=recipe["reason"], elapsed_seconds=0)
                 else:
                     work = (output / f"{case['name']}-{repetition}-{mode}").resolve()
                     work.mkdir(mode=0o700)
                     bindings = {**initial, "work": str(work), "analysis": str(work / "analysis.json")}
+                    row["analysis"] = bindings["analysis"]
                     command = ["{binary}", "analyse", "--claim", case["claim"], "--model", "{model}",
                                "--api-key-env", key_env, "--api", "responses", "--mode", "hybrid",
                                "--evidence-planning", mode, "--max-calls", "7", "--max-repairs", "1",
@@ -462,23 +543,25 @@ def run_workflow(protocol, output, key_env):
                                 "assertions": [{"file": "{analysis}", "pointer": "/argument", "nonempty": True}]}
                     started = time.monotonic()
                     for phase in [analysis, *recipe["phases"]]:
-                        verify_protocol(protocol)
+                        try:
+                            verify_protocol(protocol)
+                            validate_captures(phase, bindings)
+                        except (ValueError, OSError) as error:
+                            row["failed_phase"] = phase["name"]
+                            row["preflight_failure"] = str(error)
+                            result["study_stopped"] = "frozen phase preflight failed"
+                            retain(row, started)
+                            return result
                         bindings["now"] = datetime.now(timezone.utc).isoformat()
                         measured = execute_phase(phase, bindings, os.environ, work)
                         row["phases"].append(measured)
+                        retain(row, started)
                         if not measured["accepted"]:
                             row["failed_phase"] = phase["name"]
                             break
                     row["workflow_accepted"] = len(row["phases"]) == 1 + len(recipe["phases"]) and all(p["accepted"] for p in row["phases"])
-                    row["elapsed_seconds"] = time.monotonic() - started
-                    row.update(aggregate_resources(row["phases"]))
-                    row["analysis"] = bindings["analysis"]
-                    if Path(bindings["analysis"]).exists():
-                        row["analysis_sha256"] = file_digest(bindings["analysis"])
-                rows.append(row)
-                row["workflow_sha256"] = digest(row["phases"])
-                result["comparisons"] = workflow_comparisons(rows)
-                write_json(output / "results.json", result)
+                    retain(row, started)
+                retain(row)
     return result
 
 
@@ -495,6 +578,7 @@ def review_template(result):
 
 
 def score_reviews(result, document):
+    verify_protocol_content(result["protocol"])
     if document.get("schema") != "engarg.support-domain-reviews/1" or document.get("protocol_sha256") != result["protocol"]["sha256"]:
         raise ValueError("reviews must identify the frozen protocol")
     reference = {case["name"]: case["reference"] for case in result["protocol"]["cases"]}

@@ -1127,6 +1127,11 @@ fn generated_interface_native_preflight_requires_original_time_then_executes_and
     let original = root.join("analysis.json");
     fs::write(&original, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
     let mut native = json!({"capability":descriptor,"transport":{"kind":"command","program":source_program,"supervisor":supervisor,"arguments":[],"cwd":root,"inherit_env":[],"protocol":{"kind":"eal_acquisition","environment":"synthetic","tool":"synthetic_generated","tool_version":"1","context":{}}},"mapping":{"tool":"synthetic_generated","raw_output_schema_sha256":null,"response_format":{"kind":"structured"},"value_pointer":"/value","observation_time":{"kind":"pointer","pointer":"/observed_at"},"scope_pointers":{"mode":"/mode"}},"pinned_files":[],"credential_env":[]});
+    // Require an already-present, non-secret reference that the host does not
+    // inherit by default. Native admission checks every declared reference even
+    // when the synthetic executable itself does not read it. This reproduces
+    // the Docker provider's environment boundary without requiring Docker.
+    native["transport"]["inherit_env"] = json!(["EAL_COLLECTOR"]);
     // Preparation/discovery/replanning make no source calls. The ready route is
     // subsequently acquired through the same helper used by the Docker package.
     for (name, original_time) in [("collection_time", false), ("original_time", true)] {
@@ -1149,6 +1154,7 @@ fn generated_interface_native_preflight_requires_original_time_then_executes_and
         fs::write(&connections,json!({"schema":"eal.evidence-config/1","connections":[],"native_providers":[prepared],"local_catalogues":[],"approved_catalogues":[]}).to_string()).unwrap();
         let mut planning = config.clone();
         planning.connections = connections;
+        planning.environment = vec!["EAL_COLLECTOR".into()];
         let planning_path = root.join(format!("{name}-planning.json"));
         fs::write(
             &planning_path,
@@ -1480,6 +1486,12 @@ fn assert_export_collection_and_assessment(
             .args(["--timeout-secs", "120"])
             .env_remove("OPENAI_API_KEY")
             .env_remove("ENGARG_API_KEY");
+        // The registry declares permitted references; the caller must separately
+        // grant forwarding through the host. In particular, Docker-specific
+        // settings are not part of the host's default process environment.
+        for name in &bundle.locations.environment {
+            command.arg("--collector-env").arg(name);
+        }
         command
     };
     let collected = run("collect")
@@ -1504,7 +1516,28 @@ fn assert_export_collection_and_assessment(
     let mut source_ids = None;
     for requirement in &shared {
         let record = &collection["records"][&requirement.eal_evidence_name];
-        assert_eq!(record["status"], "ok", "{record}");
+        if record["status"] != "ok" {
+            // Probe the exact registered source and the export's store, rather
+            // than the separate store used by direct acquisition above. This
+            // is diagnostic only: successful probing cannot replace a failed
+            // public collection or turn this assertion into a pass.
+            let mut diagnostic = native_failure_diagnostic(
+                &json!({"connections": bundle.locations.connections}),
+                execution,
+                &bundle.locations.store,
+            );
+            diagnostic["collection_record"] = record.clone();
+            diagnostic["forwarded_environment_names"] = json!(bundle.locations.environment);
+            fs::write(
+                root.join("selected-collection.failure.json"),
+                serde_json::to_vec_pretty(&diagnostic).unwrap(),
+            )
+            .unwrap();
+            panic!(
+                "public collection failed; native command diagnostic (environment values omitted): {}",
+                serde_json::to_string_pretty(&diagnostic).unwrap()
+            );
+        }
         assert_eq!(record["value"]["criterion_satisfied"], true, "{record}");
         assert_eq!(record["value"]["source_ids"].as_array().unwrap().len(), 1);
         let current = record["value"]["source_ids"].clone();
