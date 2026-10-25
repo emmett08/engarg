@@ -134,6 +134,14 @@ pub fn planned_case_schema_with(selected: Option<&CollectorCatalogue>) -> Value 
                        "reference":{"type":"string"}},
          "required":["kind","reference"]}
     ]});
+    // Share the same provider-facing warrant contract with plain and graph
+    // authoring. Saved flat plans remain admitted by their serde defaults.
+    for (name, definition) in crate::domain::case_schema()["$defs"]
+        .as_object()
+        .expect("case definitions")
+    {
+        schema["$defs"][name] = definition.clone();
+    }
     schema
 }
 

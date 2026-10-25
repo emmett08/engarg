@@ -2,6 +2,7 @@
 
 mod evidence;
 mod narrative;
+mod reasoning;
 mod status;
 mod structure;
 
@@ -158,6 +159,7 @@ pub fn validate_argument<'a>(
     }
     let mut structural = Vec::new();
     structure::routes(case, &context, &index, &mut structural);
+    reasoning::validate(case, &mut structural);
     diagnostics.extend(record(
         DiagnosticCode::InvalidStructure,
         "argument.support",

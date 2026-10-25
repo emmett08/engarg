@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# Author a dev-cluster/Grafana claim from operator inputs. Bash 3.2+ and Python 3.
+# Run the local catalogue evidence example, or a scoped operator claim.
+# Bash 3.2+ and Python 3.
 # Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOGUE.json]
 # Defaults to independent support requirements and qualified capability planning.
 # Preflight accepts tracked changes and needs no Rust tools, host or API key.
 # Full runs need a clean checkout and Rustup; the pinned EAL runtime is cached locally.
-# Authoring, rendering, export and planning do not collect or assess evidence.
+# The no-input example collects and assesses. Positional runs do so only with
+# --collect-and-assess; authoring, rendering, export and planning remain separate.
 set -euo pipefail
 umask 077
+
+# With no operator input, run the bounded local MCP catalogue example. The
+# positional-input workflow below remains available for existing deployments.
+if [[ $# -eq 0 || $1 == --simple-example ]]; then
+  if [[ $# -gt 0 ]]; then shift; fi
+  exec python3 "${BASH_SOURCE[0]%/*}/catalogue_evidence_example.py" "$@"
+fi
 
 progress_started=$SECONDS
 set_stage() {
@@ -18,7 +27,9 @@ fail() { printf '%s\n' "$*" >&2; exit 2; }
 usage() {
   cat <<'HELP'
 Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOGUE.json]
+       bash scripts/run-catalog-sync-authoring.sh --simple-example [--check-only]
   --check-only                 Check inputs without build, Docker, host or inference.
+  --collect-and-assess         Collect the selected claim and run EAL/3 assessment.
   --evidence-config JSON        Required graph planning configuration (collector may be "managed").
   --replan-analysis JSON        Reuse a saved graph analysis and refresh routes without authoring calls.
   --legacy-flat                 Use the earlier flat collector-planning workflow.
@@ -31,6 +42,7 @@ Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOG
 HELP
 }
 check_only=0
+collect_and_assess=0
 evidence_planning='graph'
 evidence_config=${ENGARG_EVIDENCE_CONFIG:-}
 evidence_config_explicit=0
@@ -45,6 +57,7 @@ tool_timeout=${ENGARG_TOOL_TIMEOUT_SECS:-3600}
 while [[ $# -gt 0 ]]; do
   case $1 in
     --check-only) check_only=1; shift ;;
+    --collect-and-assess) collect_and_assess=1; shift ;;
     --legacy-flat) evidence_planning='flat'; shift ;;
     --evidence-config)
       [[ $# -ge 2 && -n $2 ]] || fail 'Missing value for --evidence-config'
@@ -233,30 +246,6 @@ try:
         planning.update(operator_config=str(config_path), config_sha256=hashlib.sha256(config_raw).hexdigest(),
                         connections_sha256=hashlib.sha256(connection_raw).hexdigest(),
                         collector_selection='managed' if config['collector'] == 'managed' else 'operator')
-    kube, grafana = inputs['kubernetes'], inputs['grafana']
-    if not isinstance(kube, dict) or not isinstance(grafana, dict):
-        raise ValueError('Kubernetes and Grafana scope require JSON objects')
-    if kube.get('context') != 'dev':
-        raise ValueError('This run is restricted to kubectl context dev')
-    selectors = {key: text(kube, key) for key in ['resource', 'kind', 'namespace', 'name']}
-    origin, uid, query = [text(grafana, key) for key in ['origin', 'datasource_uid', 'query']]
-    url = urllib.parse.urlsplit(origin)
-    _ = url.port
-    if (url.scheme != 'https' or not url.hostname or url.username or url.password
-            or url.path not in ['', '/'] or url.query or url.fragment
-            or any(character.isspace() for character in origin)):
-        raise ValueError('Grafana requires an HTTPS origin without credentials, path, query or fragment')
-    if len(query.encode()) > 65_536:
-        raise ValueError('TraceQL query exceeds 64 KiB')
-    start, end = grafana.get('start_unix'), grafana.get('end_unix')
-    if type(start) is not int or type(end) is not int or not 0 < start < end:
-        raise ValueError('Configure ordered integer grafana.start_unix and grafana.end_unix')
-    window = [datetime.datetime.fromtimestamp(value, datetime.timezone.utc).isoformat() for value in [start, end]]
-    for key, expected in [('rollout_kind', selectors['kind']), ('rollout_name', selectors['name'])]:
-        if grafana.get(key) is not None and grafana[key] != expected:
-            raise ValueError('Grafana and Kubernetes selectors disagree: ' + key)
-    if catalogue is not None and (catalogue.get('schema') != 'eal.collector-catalogue/1' or not catalogue.get('collectors')):
-        raise ValueError('Select a nonempty versioned collector catalogue')
     implementation = {'enabled': sys.argv[4] == '1'}
     profile_raw = None
     if implementation['enabled']:
@@ -270,42 +259,79 @@ try:
         implementation.update(language=language, operator_toolchain=profile_path,
                               toolchain_sha256=hashlib.sha256(profile_raw).hexdigest(),
                               store=store, max_calls=int(calls), timeout_seconds=int(timeout))
-    quote = lambda value: json.dumps(value, ensure_ascii=False)
-    claim = (
-        f'The Kubernetes resource of kind {quote(selectors["kind"])} named {quote(selectors["name"])} '
-        f'(resource {quote(selectors["resource"])}) exists in namespace {quote(selectors["namespace"])} '
-        'in the single development cluster selected by kubectl context "dev". '
-        f'The exact TraceQL query below returns at least one trace in the search window {window[0]} to {window[1]} '
-        f'through Grafana origin {quote(origin)} and Tempo datasource UID {quote(uid)}, '
-        'and at least one retrieved trace can be attributed to that same resource in that same cluster.\n'
-        + query
-    )
-    context = {
-        'kubernetes_scope': dict(context='dev', **selectors),
-        'grafana_scope': dict(origin=origin, datasource_uid=uid, start_unix=start, end_unix=end),
-        'observations_supplied': False,
-        'binding_state': 'Operator settings describe scope. Each evidence need still requires an explicit compatible binding.',
-        'query_contract': 'The literal query is retained in the claim. Native Tempo generates a different query contract. Exact-query execution requires a compatible Grafana/scoped/custom HTTP route.',
-        'correspondence_obligation': 'Search matches require full trace and Kubernetes identity review for cluster, namespace, UID, resource identity and time correspondence. Missing attributes remain unresolved.'
-    }
-    artifacts = inputs.get('artifacts', {})
-    if (not isinstance(artifacts, dict) or any(
-            not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', reference)
-            for reference in artifacts)):
-        raise ValueError('Retained artifacts require named references')
-    context['retained_artifact_references'] = sorted(artifacts)
-    context['collector_preparation'] = (
-        'Current-case input files are prepared after argument generation. '
-        'For scoped_json declare input_preparation.kind scoped and its explicit operation '
-        'kubernetes, grafana_search or grafana_trace. Full traces require actual supplied trace IDs. '
-        'For artifact_json reference only a supplied retained_artifact_reference. '
-        'Unavailable independent reviews remain evidence gaps. Unsupported producing operations select custom.'
-    ) if planning['mode'] == 'flat' else (
-        'Derive tool-independent support contracts and shared logical acquisition operations from this claim. '
-        'The operator connection configuration is separate from these requirements. '
-        'Discover identifiers before detailed reads; preserve incomplete historical access and independent judgements as gaps.'
-    )
-    request = dict(claim=claim, context=json.dumps(context, ensure_ascii=False), evidence=[])
+    simple_example = inputs.get('schema') == 'engarg.catalogue-evidence-example/1'
+    example_probes_sha256 = None
+    if simple_example:
+        if planning['mode'] != 'graph' or not implementation['enabled']:
+            raise ValueError('The catalogue example requires graph planning and custom tool implementation')
+        sys.path.insert(0, str(directory.parent.parent / 'scripts'))
+        from catalogue_evidence_example import request_for
+        request = request_for(inputs)
+        probe_raw, _ = read(inputs_path.parent/'qualification-probes.json')
+        (directory/'catalogue-probes.snapshot.json').write_bytes(probe_raw)
+        example_probes_sha256 = hashlib.sha256(probe_raw).hexdigest()
+        window = []
+    else:
+        kube, grafana = inputs['kubernetes'], inputs['grafana']
+        if not isinstance(kube, dict) or not isinstance(grafana, dict):
+            raise ValueError('Kubernetes and Grafana scope require JSON objects')
+        if kube.get('context') != 'dev':
+            raise ValueError('This run is restricted to kubectl context dev')
+        selectors = {key: text(kube, key) for key in ['resource', 'kind', 'namespace', 'name']}
+        origin, uid, query = [text(grafana, key) for key in ['origin', 'datasource_uid', 'query']]
+        url = urllib.parse.urlsplit(origin)
+        _ = url.port
+        if (url.scheme != 'https' or not url.hostname or url.username or url.password
+                or url.path not in ['', '/'] or url.query or url.fragment
+                or any(character.isspace() for character in origin)):
+            raise ValueError('Grafana requires an HTTPS origin without credentials, path, query or fragment')
+        if len(query.encode()) > 65_536:
+            raise ValueError('TraceQL query exceeds 64 KiB')
+        start, end = grafana.get('start_unix'), grafana.get('end_unix')
+        if type(start) is not int or type(end) is not int or not 0 < start < end:
+            raise ValueError('Configure ordered integer grafana.start_unix and grafana.end_unix')
+        window = [datetime.datetime.fromtimestamp(value, datetime.timezone.utc).isoformat() for value in [start, end]]
+        for key, expected in [('rollout_kind', selectors['kind']), ('rollout_name', selectors['name'])]:
+            if grafana.get(key) is not None and grafana[key] != expected:
+                raise ValueError('Grafana and Kubernetes selectors disagree: ' + key)
+        if catalogue is not None and (catalogue.get('schema') != 'eal.collector-catalogue/1' or not catalogue.get('collectors')):
+            raise ValueError('Select a nonempty versioned collector catalogue')
+        quote = lambda value: json.dumps(value, ensure_ascii=False)
+        claim = (
+            f'The Kubernetes resource of kind {quote(selectors["kind"])} named {quote(selectors["name"])} '
+            f'(resource {quote(selectors["resource"])}) exists in namespace {quote(selectors["namespace"])} '
+            'in the single development cluster selected by kubectl context "dev". '
+            f'The exact TraceQL query below returns at least one trace in the search window {window[0]} to {window[1]} '
+            f'through Grafana origin {quote(origin)} and Tempo datasource UID {quote(uid)}, '
+            'and at least one retrieved trace can be attributed to that same resource in that same cluster.\n'
+            + query
+        )
+        context = {
+            'kubernetes_scope': dict(context='dev', **selectors),
+            'grafana_scope': dict(origin=origin, datasource_uid=uid, start_unix=start, end_unix=end),
+            'observations_supplied': False,
+            'binding_state': 'Operator settings describe scope. Each evidence need still requires an explicit compatible binding.',
+            'query_contract': 'The literal query is retained in the claim. Native Tempo generates a different query contract. Exact-query execution requires a compatible Grafana/scoped/custom HTTP route.',
+            'correspondence_obligation': 'Search matches require full trace and Kubernetes identity review for cluster, namespace, UID, resource identity and time correspondence. Missing attributes remain unresolved.'
+        }
+        artifacts = inputs.get('artifacts', {})
+        if (not isinstance(artifacts, dict) or any(
+                not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', reference)
+                for reference in artifacts)):
+            raise ValueError('Retained artifacts require named references')
+        context['retained_artifact_references'] = sorted(artifacts)
+        context['collector_preparation'] = (
+            'Current-case input files are prepared after argument generation. '
+            'For scoped_json declare input_preparation.kind scoped and its explicit operation '
+            'kubernetes, grafana_search or grafana_trace. Full traces require actual supplied trace IDs. '
+            'For artifact_json reference only a supplied retained_artifact_reference. '
+            'Unavailable independent reviews remain evidence gaps. Unsupported producing operations select custom.'
+        ) if planning['mode'] == 'flat' else (
+            'Derive tool-independent support contracts and shared logical acquisition operations from this claim. '
+            'The operator connection configuration is separate from these requirements. '
+            'Discover identifiers before detailed reads; preserve incomplete historical access and independent judgements as gaps.'
+        )
+        request = dict(claim=claim, context=json.dumps(context, ensure_ascii=False), evidence=[])
     reuse = None
     if sys.argv[12]:
         retained_path = pathlib.Path(sys.argv[12])
@@ -336,7 +362,9 @@ try:
         'catalogue_selection': 'external' if catalogue_raw is not None else 'engarg built-in',
         'search_window_utc': window,
         'operator_inputs': str(inputs_path), 'operator_catalogue': str(catalogue_path) if catalogue_raw is not None else None,
-        'tool_implementation': implementation, 'evidence_planning': planning, 'analysis_reuse': reuse
+        'tool_implementation': implementation, 'evidence_planning': planning, 'analysis_reuse': reuse,
+        'simple_example': simple_example,
+        'example_qualification_probes_sha256': example_probes_sha256
     })
 except (KeyError, TypeError, ValueError, OSError, OverflowError):
     raise SystemExit('Input preflight failed. Check scope fields, exact query, time window, evidence planning configuration and connections, catalogue, toolchain, implementation budgets and freshness ages.')
@@ -359,10 +387,31 @@ max_calls=$((6 + repairs))
 request_timeout=${ENGARG_REQUEST_TIMEOUT_SECS:-1800}
 run_timeout=${ENGARG_TIMEOUT_SECS:-10800}
 input_bytes=${ENGARG_MAX_INPUT_BYTES:-1048576}
-response_bytes=${ENGARG_MAX_RESPONSE_BYTES:-1048576}
-output_tokens=${ENGARG_MAX_OUTPUT_TOKENS:-65536}
+response_bytes=${ENGARG_MAX_RESPONSE_BYTES:-16777216}
+if [[ -n ${ENGARG_MAX_OUTPUT_TOKENS:-} ]]; then
+  output_tokens=$ENGARG_MAX_OUTPUT_TOKENS
+elif [[ $model == gpt-6.1-sol ]]; then
+  # Published model limit, checked 2026-10-25. Deployment aliases and other
+  # models need their own explicit limit rather than a guessed family match.
+  output_tokens=128000
+else
+  fail 'Set ENGARG_MAX_OUTPUT_TOKENS to the supported maximum for the selected ENGARG_MODEL. The built-in maximum applies only to gpt-6.1-sol.'
+fi
+[[ $output_tokens =~ ^[1-9][0-9]{0,9}$ && $output_tokens -le 4294967295 ]] ||
+  fail 'ENGARG_MAX_OUTPUT_TOKENS must be a positive 32-bit integer within the selected provider model limit.'
+if [[ $model == gpt-6.1-sol && $output_tokens -gt 128000 ]]; then
+  fail 'gpt-6.1-sol supports at most 128000 output tokens per request.'
+fi
+argument_depth=${ENGARG_ARGUMENT_DEPTH:-}
+if [[ -n $argument_depth ]]; then
+  [[ $argument_depth =~ ^[1-9][0-9]?$ && $argument_depth -le 16 ]] ||
+    fail 'ENGARG_ARGUMENT_DEPTH must be an integer from 1 through 16, or unset for automatic depth.'
+fi
 concurrent=${ENGARG_MAX_CONCURRENT_REQUESTS:-3}
 eal_timeout=${ENGARG_EAL_TIMEOUT_SECS:-30}
+eal_collection_timeout=${ENGARG_EAL_COLLECTION_TIMEOUT_SECS:-600}
+[[ $eal_collection_timeout =~ ^[1-9][0-9]{0,3}$ && $eal_collection_timeout -le 3600 ]] ||
+  fail 'ENGARG_EAL_COLLECTION_TIMEOUT_SECS must be an integer from 1 through 3600.'
 # Set concurrency to 1 to pace the specialists. Request deadlines include queue waits.
 # Three retries permit up to four HTTP attempts per logical call, at most 28 with defaults.
 
@@ -433,13 +482,14 @@ engarg_bin="$target_dir/release/engarg"
 [[ -x $engarg_bin && -x $target_dir/release/engarg-process-supervisor ]] || fail 'Release companion binaries are missing.'
 
 python3 - "$run_dir" "$engarg_bin" "$eal_host" "$eal_host_selection" "$model" "$service_tier" "$reasoning_effort" \
-  "$max_calls" "$repairs" "$request_timeout" "$run_timeout" "$input_bytes" "$response_bytes" "$output_tokens" "$concurrent" "$eal_timeout" <<'PY'
+  "$max_calls" "$repairs" "$request_timeout" "$run_timeout" "$input_bytes" "$response_bytes" "$output_tokens" "$concurrent" "$eal_timeout" "$argument_depth" "$eal_collection_timeout" <<'PY'
 import hashlib, json, pathlib, subprocess, sys
 directory, executable, host = map(pathlib.Path, sys.argv[1:4])
 def output(*args): return subprocess.check_output(args, text=True).strip()
 record = dict(zip(['model','service_tier','reasoning_effort','max_calls','max_repairs',
     'request_timeout_seconds','run_timeout_seconds','max_input_bytes','max_response_bytes',
-    'max_output_tokens','max_concurrent_requests','eal_timeout_seconds'], sys.argv[5:]))
+    'max_output_tokens','max_concurrent_requests','eal_timeout_seconds','argument_depth','eal_collection_timeout_seconds'], sys.argv[5:]))
+record['argument_depth'] = int(record['argument_depth']) if record['argument_depth'] else None
 record.update(git_commit=output('git','rev-parse','HEAD'), rustc=output('rustc','-vV'),
     eal_host_selection=sys.argv[4], eal_host_path=str(host),
     eal_mcp_path=str(host.with_name('eal-mcp').resolve()),
@@ -513,6 +563,9 @@ run_analysis() {
   if [[ $evidence_planning == graph ]]; then
     set -- "$@" --evidence-planning graph --evidence-config "$run_dir/evidence-config.json"
   fi
+  if [[ -n $argument_depth ]]; then
+    set -- "$@" --argument-depth "$argument_depth"
+  fi
   if [[ $implement_tools -eq 1 && $evidence_planning == flat ]]; then
     set -- "$@" --implement-tools --tool-language "$tool_language" \
       --toolchain "$run_dir/toolchain.snapshot.json" --tool-store "$tool_store" \
@@ -527,7 +580,7 @@ if [[ $implement_tools -eq 1 && $evidence_planning == flat ]]; then set_stage 'm
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then analysis_output="$run_dir/analysis.original.json"; fi
 run_analysis --progress --input "$run_dir/request.json" \
   --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
-  --api responses --api-key-env OPENAI_API_KEY --mode hybrid --argument-depth 2 \
+  --api responses --api-key-env OPENAI_API_KEY --mode hybrid \
   --max-calls "$max_calls" --max-repairs "$repairs" \
   --http-retries 3 --retry-max-delay-secs 120 --max-concurrent-requests "$concurrent" \
   --request-timeout-secs "$request_timeout" --timeout-secs "$run_timeout" \
@@ -601,6 +654,25 @@ with final.open('xb') as output:
 PY
 fi
 
+simple_example=$(python3 - "$run_dir/input-identity.json" <<'PY'
+import json, pathlib, sys
+print(1 if json.loads(pathlib.Path(sys.argv[1]).read_text()).get('simple_example') else 0)
+PY
+)
+if [[ $simple_example -eq 1 ]]; then
+  set_stage 'bounded catalogue operation qualification'
+  qualifications=$(python3 "$repo/scripts/catalogue_evidence_example.py" qualify "$run_dir" "$engarg_bin")
+  set_stage 'generated catalogue tool registration'
+  "$engarg_bin" eal register-tools --input "$run_dir/analysis.json" \
+    --qualifications "$qualifications" --evidence-config "$run_dir/evidence-config.json" \
+    --output "$run_dir/registered-planning.json"
+  set_stage 'qualified catalogue route replanning'
+  "$engarg_bin" eal replan --input "$run_dir/analysis.json" \
+    --evidence-config "$run_dir/registered-planning.json" --output "$run_dir/analysis.qualified.json"
+  mv "$run_dir/analysis.json" "$run_dir/analysis.with-tools.json"
+  mv "$run_dir/analysis.qualified.json" "$run_dir/analysis.json"
+fi
+
 python3 - "$run_dir" <<'PY'
 import json, pathlib, sys
 directory = pathlib.Path(sys.argv[1])
@@ -640,6 +712,71 @@ host_report="$run_dir/evidence-plan.json"
 "$engarg_bin" eal plan --input "$run_dir/argument.bundle.json" --input-format json --claim current_claim \
   --eal-host "$eal_host" --workspace "$run_dir" --timeout-secs "$eal_timeout" --output "$host_report"
 host_report=''
+if [[ $collect_and_assess -eq 1 ]]; then
+  set_stage 'EAL evidence collection'
+  host_report="$run_dir/evidence-collection.json"
+  "$engarg_bin" eal collect --input "$run_dir/argument.bundle.json" --input-format json --claim current_claim \
+    --eal-host "$eal_host" --workspace "$run_dir" --database "$run_dir/eal.sqlite" \
+    --tools "$run_dir/argument.tools.toml" --timeout-secs "$eal_collection_timeout" --output "$host_report"
+  collection_id=$(python3 - "$host_report" <<'PY'
+import json, pathlib, sys
+result = json.loads(pathlib.Path(sys.argv[1]).read_text())
+identifier = result.get('result', {}).get('collection_id')
+if result.get('is_error') is not False or not isinstance(identifier, str) or not identifier:
+    raise SystemExit('EAL collection did not return a collection identifier. Inspect evidence-collection.json.')
+print(identifier)
+PY
+)
+  set_stage 'EAL argument assessment'
+  host_report="$run_dir/eal-assessment.json"
+  assessed_at=$(python3 -c 'import datetime; print(datetime.datetime.now(datetime.timezone.utc).isoformat())')
+  "$engarg_bin" eal assess --input "$run_dir/argument.bundle.json" --input-format json \
+    --eal-host "$eal_host" --workspace "$run_dir" --database "$run_dir/eal.sqlite" \
+    --tools "$run_dir/argument.tools.toml" --timeout-secs "$eal_collection_timeout" --now "$assessed_at" \
+    --collection-id "$collection_id" --output "$host_report"
+  python3 - "$run_dir" <<'PY'
+import json, pathlib, sys
+directory = pathlib.Path(sys.argv[1])
+bundle = json.loads((directory/'argument.bundle.json').read_text())
+collection = json.loads((directory/'evidence-collection.json').read_text())
+envelope = json.loads((directory/'eal-assessment.json').read_text())
+assessment = envelope.get('result', {})
+claim_name = bundle['claim_names']['current_claim']
+claim = assessment.get('claims', {}).get(claim_name)
+if envelope.get('is_error') is not False or not isinstance(claim, dict):
+    raise SystemExit('EAL assessment did not return the current claim. Inspect eal-assessment.json.')
+valid = assessment.get('valid') is True
+complete = assessment.get('complete') is True
+supported = valid and complete and claim.get('status') == 'supported'
+reference_check = None
+if json.loads((directory/'input-identity.json').read_text()).get('simple_example'):
+    sys.path.insert(0, str(directory.parent.parent/'scripts'))
+    from catalogue_evidence_example import verify_observations
+    try:
+        reference_check = verify_observations(directory)
+    except (OSError, KeyError, ValueError, TypeError) as error:
+        reference_check = {'passed': False, 'reason': str(error)}
+        supported = False
+execution = {
+    'schema': 'engarg.catalog-sync-execution/1',
+    'status': 'supported' if supported else 'unresolved',
+    'valid': valid, 'complete': complete, 'claim_status': claim.get('status'),
+    'claim_name': claim_name, 'claim': claim,
+    'collection_id': collection['result']['collection_id'],
+    'assessment_id': assessment.get('assessment_id'),
+    'independent_reference_check': reference_check,
+    'evidence_collected': any(record.get('status') == 'ok' for record in collection['result'].get('records', {}).values()),
+    'measured_negative_evidence': [name for name, record in collection['result'].get('records', {}).items()
+                                   if (record.get('value') or {}).get('criterion_satisfied') is False],
+    'unavailable_evidence': [name for name, record in collection['result'].get('records', {}).items()
+                             if record.get('status') != 'ok'],
+    'scope': 'The declared formal method, evidence bindings, assumptions and selected observation set. This outcome does not establish arbitrary prose or external facts beyond those contracts.',
+    'artifacts': {'collection': str(directory/'evidence-collection.json'), 'assessment': str(directory/'eal-assessment.json')},
+}
+(directory/'execution-result.json').write_text(json.dumps(execution, indent=2)+'\n')
+PY
+  host_report=''
+fi
 set_stage 'run summary'
 python3 - "$run_dir" <<'PY'
 import json, pathlib, sys
@@ -655,8 +792,21 @@ for filename in ['eal-preflight.json','eal-validation.json','evidence-plan.json'
 report = json.loads((directory/'analysis.json').read_text())
 bundle = json.loads((directory/'argument.bundle.json').read_text())
 identity = json.loads((directory/'input-identity.json').read_text())
+execution_path = directory/'execution-result.json'
+completed_execution = json.loads(execution_path.read_text()) if execution_path.exists() else None
+def retained_tooling(value):
+    for _ in range(17):
+        tooling = value.get('tooling')
+        if isinstance(tooling, dict):
+            return tooling
+        provenance = value.get('replanning')
+        if not isinstance(provenance, dict):
+            return None
+        value = provenance.get('previous_extensions', {})
+    raise SystemExit('Tooling provenance exceeds its retained history bound')
 summary_common = {
-    'evidence_collected': False,
+    'evidence_collected': completed_execution['evidence_collected'] if completed_execution else False,
+    'eal_execution': completed_execution,
     'argument_status': report['argument']['status'],
     'recorded_model_calls': len(report.get('transcript', [])),
     'model_calls_this_run': 0 if identity['analysis_reuse'] else len(report.get('transcript', [])),
@@ -816,13 +966,14 @@ if identity['evidence_planning']['mode'] == 'graph':
         'evidence_planning': 'graph', 'graph_readiness': readiness,
         'stage_status': {'argument_validation': 'passed', 'artifact_generation': 'passed',
                          'acquisition_design': design_status, 'capability_selection': selection_status,
-                         'source_collection': source_status, 'evidence_assessment': 'not_performed'},
+                         'source_collection': source_status,
+                         'evidence_assessment': completed_execution['status'] if completed_execution else 'not_performed'},
         'next_step': readiness['next_step'],
         'tool_implementation': {'enabled': identity['tool_implementation']['enabled']},
     }
     summary['stage_status']['tool_implementation'] = 'not_requested'
     if identity['tool_implementation']['enabled']:
-        tooling = report.get('tooling')
+        tooling = retained_tooling(report)
         if not isinstance(tooling, dict) or tooling.get('schema') != 'engarg.capability-tooling/1':
             raise SystemExit('Graph implementation was enabled but the analysis has no capability tooling report')
         summary['stage_status']['tool_implementation'] = (
@@ -885,6 +1036,16 @@ if [[ -n $replan_analysis ]]; then
   printf 'Route replanning, rendering, export and EAL planning passed. Artifacts: %s\n' "$run_dir"
 else
   printf 'Authoring, rendering, export and EAL planning passed. Artifacts: %s\n' "$run_dir"
+fi
+if [[ $collect_and_assess -eq 1 ]]; then
+  python3 - "$run_dir/execution-result.json" <<'PY'
+import json, pathlib, sys
+result = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print('EAL execution: %s; valid: %s; complete: %s; current claim: %s. Full collection and assessment are retained.' % (
+    result['status'], result['valid'], result['complete'], result['claim_status']))
+if result['status'] != 'supported':
+    raise SystemExit(3)
+PY
 fi
 if [[ $evidence_planning == graph ]]; then
   python3 - "$run_dir/graph-readiness.json" <<'PY'

@@ -1,10 +1,64 @@
-# Catalog sync authoring smoke test
+# Catalogue evidence example and operator workflow
+
+With no arguments, [`scripts/run-catalog-sync-authoring.sh`](../scripts/run-catalog-sync-authoring.sh)
+runs a bounded local example with this claim:
+
+> The demonstration-v1 catalogue snapshot contains three entries with distinct identifiers.
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh --simple-example --check-only
+
+# A clean checkout, configured OPENAI_API_KEY, Rustup and running Docker are required.
+bash scripts/run-catalog-sync-authoring.sh --simple-example
+```
+
+The read-only additional MCP server uses the official Rust MCP SDK and reads a
+retained local catalogue file. Authoring receives the simple claim and explicit
+source and operation contracts, with no observations supplied. A separately
+generated custom tool counts the retrieved items and checks exact identifier
+distinctness. Its formal-input output preserves the specified deductive query.
+Separate acquired predicates establish the empirical premises before EAL's
+`deductive/1` method checks their conjunction.
+
+The workflow generates and verifies the custom tool in the isolated runner,
+checks its frozen examples against an independently specified reference, registers
+only the fixed demonstration operation, replans without repeating authoring,
+exports EAL/3, collects through both providers and assesses the current claim.
+Qualification runs independently authored empty, singleton, three-item, duplicate,
+case-sensitive and incomplete-input probes through the verified package's actual
+Docker-backed launcher. Their plan is frozen before authoring, retained with a
+digest at input preflight, and accompanied by an observed audit and receipt.
+These probes require no further model calls. After collection, a separate reference check
+recomputes the audit from the actual retained MCP snapshot and checks the custom
+tool's exact inputs and outputs. These checks concern a local demonstration
+snapshot and make no claim about a private deployment or a general scientific
+model.
+
+The default custom-tool profile is Python. Use `--tool-language rust` or
+`--tool-language javascript`, optionally with `--toolchain PROFILE.json`, to
+select another isolated profile. Runtime preparation is shared with the operator
+workflow. Default images are prepared before paid inference. An operator-supplied
+profile requires its image to be installed locally. The demonstration never
+replaces Docker verification with host execution.
+
+`execution-result.json` reports `supported` only when the EAL assessment is valid,
+complete, the current claim has status `supported`, and the independent check of
+the actual observations passes. Missing evidence, an unavailable provider, a
+failed method or an unmatched formal input remains unresolved. Collection,
+assessment, generated code, audits and rendered arguments remain available.
+An unresolved completed assessment returns status 3. A failed stage returns a
+nonzero status and identifies the retained run directory.
+
+The positional-input workflow below retains the existing Kubernetes and Grafana
+example. Add `--collect-and-assess` to execute its selected current claim after
+planning. Its independent judgements and unavailable observations remain visible
+and can leave that claim unresolved.
 
 [`scripts/run-catalog-sync-authoring.sh`](../scripts/run-catalog-sync-authoring.sh)
 authors a claim about one Kubernetes resource in context `dev` and one literal
 Grafana TraceQL query. It renders the argument presentations, exports an EAL bundle, validates
 the domain case and EAL source, and obtains an evidence plan. Collection and
-assessment remain separate operator actions.
+assessment are requested through `--collect-and-assess`.
 
 The script now defaults to graph planning and requires an operator evidence
 configuration. Start with the [support-planning guide](support-planning.md):
@@ -88,7 +142,9 @@ engarg eal repair \
 This command gives the retained final argument, original acceptance criteria,
 material objections and earlier designs to a separately bounded support repair.
 It preserves the original transcript and records new usage and source-report
-identity. Every paid completion is checkpointed in the private audit. An invalid
+identity. Completed decoded responses within the admitted byte budget are
+retained in the private audit before argument validation. Provider truncation
+and an interrupted request are not resumable workflow checkpoints. An invalid
 historical blueprint remains outside execution until its repaired form passes
 validation. Repair does not generate tools or collect evidence. Review the result,
 then use the implementation and registration workflow for genuine missing
@@ -395,19 +451,37 @@ Environment overrides retain the downloaded script's `ENGARG_MODEL`,
 `ENGARG_SERVICE_TIER`, `ENGARG_REASONING_EFFORT`, `ENGARG_MAX_REPAIRS` (0–3),
 `ENGARG_REQUEST_TIMEOUT_SECS`, `ENGARG_TIMEOUT_SECS`, `ENGARG_MAX_INPUT_BYTES`,
 `ENGARG_MAX_RESPONSE_BYTES`, `ENGARG_MAX_OUTPUT_TOKENS` and
-`ENGARG_MAX_CONCURRENT_REQUESTS`. Freshness policy overrides are
+`ENGARG_MAX_CONCURRENT_REQUESTS`. The default `gpt-6.1-sol` uses its published
+128,000 maximum output-token allowance, checked against the
+[official model specification](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+on 25 October 2026. This is an upper allowance, not a requested response length.
+An explicit override above that known limit fails before inference. Other model
+names and deployment aliases require an explicit `ENGARG_MAX_OUTPUT_TOKENS`
+matching their provider limit. The same allowance reaches authoring and tool
+implementation. The default decoded response allowance is 16 MiB.
+
+Argument depth is automatic by default. Set `ENGARG_ARGUMENT_DEPTH` from 1
+through 16 to impose an explicit bound. This replaces the previous hardcoded
+two-level authoring limit. Rendering's two-level initial display does not remove
+deeper nodes from the saved argument.
+
+Freshness policy overrides are
 `ENGARG_REVIEW_MAX_AGE_SECONDS` and `ENGARG_ACQUISITION_MAX_AGE_SECONDS`.
 `ENGARG_EAL_TIMEOUT_SECS` sets the separate host deadline for startup, validation
-and planning, from 1 to 3600 seconds with a default of 30 seconds. The longer model
-and overall analysis deadlines do not change this host deadline.
+and planning, from 1 to 3600 seconds with a default of 30 seconds.
+`ENGARG_EAL_COLLECTION_TIMEOUT_SECS` sets the collection and assessment host
+deadline, from 1 to 3600 seconds with a default of 600 seconds. Provider and
+overall analysis deadlines remain independently configurable.
 
 Each run retains request and input identity, build and binary provenance, the
 analysis audit, all renders, the EAL bundle, validation result, evidence plan and
 `run-summary.json` in a unique private directory. Collector preparation also
 retains the final input documents and their per-need readiness report. Failures
 preserve existing run
-artifacts. A passing run means authoring and deterministic planning succeeded;
-`evidence_collected` remains `false`.
+artifacts. Without `--collect-and-assess`, a passing operator run means authoring
+and deterministic planning succeeded and `evidence_collected` remains `false`.
+With execution requested, the summary records the actual collection identifier,
+assessment, current-claim status and explicit supported or unresolved outcome.
 When tooling is enabled, the summary also records its model calls and verified
 and reused package counts. Synthetic fixture results remain separate from live
 engineering observations.
