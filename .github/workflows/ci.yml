@@ -117,4 +117,5 @@ jobs:
           export EAL_CORE="$PWD/.eal-producer/target/debug/eal-core"
           test -x "$ENGARG_EAL_HOST"
           test -x "$EAL_CORE"
+          cargo +1.99.1 test --locked --bin engarg tooling_commands::native_provider -- --include-ignored
           cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test export_v3 --test support_cli --test support_export --test support_batch -- --include-ignored

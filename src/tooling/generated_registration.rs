@@ -30,6 +30,22 @@ pub fn operation_contract(
     )?)
 }
 
+/// Materialize only the two optional ToolMapping defaults accepted for generated
+/// native commands. Preserve every supplied value, unknown field, execution
+/// authority and package pin; the authoritative collector validates their types.
+pub fn canonical_mapping_defaults(provider: &Value) -> Result<Value, Error> {
+    let mut canonical = provider.clone();
+    let mapping = canonical
+        .get_mut("mapping")
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| invalid("generated provider requires an explicit mapping object"))?;
+    mapping
+        .entry("raw_output_schema_sha256")
+        .or_insert(Value::Null);
+    mapping.entry("scope_pointers").or_insert_with(|| json!({}));
+    Ok(canonical)
+}
+
 /// The all-zero configuration hash is an internal input to the collector's pure
 /// prepare-native-provider command, which owns its calculation and validation.
 pub fn native_provider_template(
@@ -82,6 +98,8 @@ pub fn validate_qualified_provider(template: &Value, qualified: &Value) -> Resul
 /// Check immutable execution/interface identity when replacing an earlier pending
 /// registration. Scientific qualification is deliberately a separate requirement.
 pub fn validate_provider_binding(template: &Value, qualified: &Value) -> Result<(), Error> {
+    let template = canonical_mapping_defaults(template)?;
+    let qualified = canonical_mapping_defaults(qualified)?;
     let baseline: CapabilityDescriptor = serde_json::from_value(template["capability"].clone())?;
     let capability: CapabilityDescriptor = serde_json::from_value(qualified["capability"].clone())?;
     capability.validate().map_err(Error::InvalidInput)?;
