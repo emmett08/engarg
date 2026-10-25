@@ -14,6 +14,14 @@ pub fn elaboration_schema() -> Value {
         .as_object_mut()
         .expect("schema object")
         .remove("$schema");
+    schema["properties"]["schema"] =
+        json!({"type":"string", "enum":[super::SUPPORT_ELABORATION_SCHEMA]});
+    schema["$defs"]["SupportContract"]["properties"]["schema"] = json!({
+        "type":"string", "enum":[eal_collector_contracts::capability::SUPPORT_CONTRACT_SCHEMA]
+    });
+    schema["$defs"]["OperationSpecification"]["properties"]["schema"] = json!({
+        "type":"string", "enum":[super::OPERATION_SPECIFICATION_SCHEMA]
+    });
     schema
 }
 

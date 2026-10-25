@@ -154,6 +154,31 @@ impl<M: LanguageModel> LanguageModel for ProgressModel<M> {
         };
         self.progress
             .line(&format!("call {} {} started", call.id, call.role));
+        // Inspect only orchestration metadata. Diagnostic text and candidate
+        // contents remain in the private audit rather than terminal output.
+        if let Ok(data) = serde_json::from_str::<serde_json::Value>(&request.user)
+            && let Some(attempt) = data.get("repair_attempt").and_then(|value| value.as_u64())
+        {
+            let diagnostics = data
+                .get("validation_errors")
+                .and_then(|value| value.as_array())
+                .map_or(0, Vec::len);
+            let allowance = data
+                .get("repair_limit")
+                .and_then(|value| value.as_u64())
+                .map(|limit| {
+                    format!(
+                        " of {limit}; {} repairs remain after this call",
+                        limit.saturating_sub(attempt)
+                    )
+                })
+                .unwrap_or_default();
+            self.progress.phase("validation-guided repair");
+            self.progress.line(&format!(
+                "repair {attempt}{allowance}; {diagnostics} validation diagnostics; requesting {}",
+                call.role
+            ));
+        }
         let result = self.inner.complete(request).await;
         call.finished = true;
         let outcome = match &result {
@@ -274,5 +299,33 @@ mod tests {
             assert!(!lines.contains("cancelled"));
             assert!(!lines.contains("private"));
         }
+    }
+
+    #[tokio::test]
+    async fn repair_status_precedes_the_request_without_echoing_private_diagnostics() {
+        let (progress, lines) = captured();
+        struct CheckStart(Arc<Mutex<Vec<String>>>);
+        impl LanguageModel for CheckStart {
+            async fn complete(&self, _: CompletionRequest) -> Result<Completion, Error> {
+                let lines = self.0.lock().unwrap().join("\n");
+                assert!(lines.contains("repair 1 of 2; 1 repairs remain after this call"));
+                assert!(lines.contains("2 validation diagnostics; requesting adjudicator"));
+                assert!(!lines.contains("private"));
+                Err(Error::Provider("private provider failure".into()))
+            }
+        }
+        let model = progress.model(CheckStart(Arc::clone(&lines)));
+        let mut request = request();
+        request.role = Role::Adjudicator;
+        request.user = json!({
+            "repair_attempt":1, "repair_limit":2,
+            "validation_errors":["private selector", "private acceptance criterion"],
+            "candidate_json":{"private":"argument"}
+        })
+        .to_string();
+        assert!(model.complete(request).await.is_err());
+        let lines = lines.lock().unwrap().join("\n");
+        assert!(lines.contains("validation-guided repair"));
+        assert!(!lines.contains("private"));
     }
 }

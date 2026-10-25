@@ -25,6 +25,7 @@ use std::{
 };
 
 const MAX_INPUT_BYTES: usize = 16 * 1_048_576;
+mod repair;
 
 #[derive(Subcommand)]
 pub enum EalCommand {
@@ -32,6 +33,8 @@ pub enum EalCommand {
     RegisterTools(super::tooling_commands::registration::RegisterToolsArgs),
     /// Rebuild evidence routes from a saved graph report without model calls.
     Replan(ReplanArgs),
+    /// Repair support design from retained calls while preserving the argument.
+    Repair(repair::RepairArgs),
     /// Implement missing collectors from a saved analysis using frozen fixtures.
     Implement(super::tooling_commands::ImplementArgs),
     /// Internal launcher for a verified generated collector package.
@@ -918,6 +921,19 @@ async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
         .await?;
     let mut updated = raw.clone();
     updated["evidence_planning"]["routes"] = serde_json::to_value(routes)?;
+    // Manually authored plans can omit provider history. Preserve that absence
+    // rather than attaching a history-based review without its source records.
+    if raw.get("transcript").is_some() {
+        let review = engarg::support_requirements::review_acquisition_design(
+            &previous.elaboration,
+            &canonical.transcript,
+            MAX_INPUT_BYTES,
+        )?;
+        if let Some(warning) = review.warning() {
+            eprintln!("engarg: warning: {warning}");
+        }
+        updated["evidence_planning"]["design_review"] = serde_json::to_value(review)?;
+    }
     report::retain_replanning(&raw, &mut updated)?;
     report::validate_replanning(&updated, &executable)?;
     let bytes = json_bytes(&updated)?;
@@ -1157,6 +1173,7 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             super::tooling_commands::registration::register_tools(args).await
         }
         EalCommand::Replan(args) => execute_replan(args).await,
+        EalCommand::Repair(args) => repair::execute(args).await,
         EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
         EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
         EalCommand::Prepare(args) => {

@@ -37,6 +37,22 @@ pub fn classify_evidence_planning(raw: &Value) -> Result<EvidencePlanningReport,
     {
         return Err(invalid("unsupported saved evidence planning schema"));
     }
+    if let Some(review) = &planning.design_review {
+        let transcript: Vec<crate::engine::CallRecord> =
+            serde_json::from_value(raw.get("transcript").cloned().ok_or_else(|| {
+                invalid("acquisition design review requires its retained transcript")
+            })?)?;
+        let expected = crate::support_requirements::review_acquisition_design(
+            &planning.elaboration,
+            &transcript,
+            16 * 1_048_576,
+        )?;
+        if digest(review)? != digest(&expected)? {
+            return Err(invalid(
+                "saved acquisition design review differs from retained authoring history",
+            ));
+        }
+    }
     Ok(EvidencePlanningReport::Graph(Box::new(planning)))
 }
 
@@ -88,13 +104,141 @@ pub fn retain_replanning(previous: &Value, current: &mut Value) -> Result<(), Er
 /// Verify a bounded chain and revalidate every archived package against its
 /// original planning metadata; no new model-call accounting is invented.
 pub fn validate_replanning(raw: &Value, executable: &Path) -> Result<(), Error> {
+    validate_support_recovery(raw)?;
     validate_replanning_limit(raw, executable, MAX_REPLANNING_HISTORY)
 }
 
 /// Reserve one retained-history slot before discovery can issue external reads.
 /// Existing maximum-depth reports remain valid for export and assessment.
 pub fn validate_replanning_for_update(raw: &Value, executable: &Path) -> Result<(), Error> {
+    validate_support_recovery(raw)?;
     validate_replanning_limit(raw, executable, MAX_REPLANNING_HISTORY - 1)
+}
+
+/// Recovery retains complete prior reports, with a small independent depth bound.
+pub fn support_recovery_depth(raw: &Value) -> Result<usize, Error> {
+    let mut current = raw;
+    for depth in 0..=3 {
+        let Some(record) = current
+            .get("support_recovery")
+            .filter(|record| !record.is_null())
+        else {
+            return Ok(depth);
+        };
+        if depth == 3 {
+            return Err(invalid("support recovery history exceeds three revisions"));
+        }
+        current = record
+            .get("previous_report")
+            .ok_or_else(|| invalid("support recovery omits previous report"))?;
+    }
+    unreachable!()
+}
+
+/// Validate recovery separately from route-only replanning. Support may change,
+/// while the argument, request and retained authoring prefix stay identical.
+pub fn validate_support_recovery(raw: &Value) -> Result<(), Error> {
+    support_recovery_depth(raw)?;
+    let mut current = raw;
+    while let Some(record) = current
+        .get("support_recovery")
+        .filter(|record| !record.is_null())
+    {
+        let previous = record
+            .get("previous_report")
+            .ok_or_else(|| invalid("support recovery omits previous report"))?;
+        if record["schema"] != "engarg.support-recovery/1"
+            || record["input_report_sha256"].as_str() != Some(digest(previous)?.as_str())
+            || current["argument"] != previous["argument"]
+            || current["request"] != previous["request"]
+            || current["input_sha256"] != previous["input_sha256"]
+            || current["run_config"] != previous["run_config"]
+            || current["provider_config"] != previous["provider_config"]
+        {
+            return Err(invalid(
+                "support recovery changed its retained source identity or frozen argument",
+            ));
+        }
+        let before = previous["transcript"]
+            .as_array()
+            .ok_or_else(|| invalid("support recovery requires original transcript"))?;
+        let after = current["transcript"]
+            .as_array()
+            .ok_or_else(|| invalid("support recovery requires transcript"))?;
+        let calls = record["model_calls"]
+            .as_u64()
+            .ok_or_else(|| invalid("support recovery needs model-call accounting"))?;
+        let limit = record["repair_limit"]
+            .as_u64()
+            .ok_or_else(|| invalid("support recovery needs repair allowance"))?;
+        if !(1..=3).contains(&limit)
+            || calls == 0
+            || calls > limit
+            || record["recorded_calls"].as_u64() != Some(before.len() as u64)
+            || after.len() != before.len() + calls as usize
+            || after.get(..before.len()) != Some(before.as_slice())
+        {
+            return Err(invalid(
+                "support recovery changed recorded calls or exceeded its separate allowance",
+            ));
+        }
+        let added: Vec<crate::engine::CallRecord> = after[before.len()..]
+            .iter()
+            .cloned()
+            .map(serde_json::from_value)
+            .collect::<Result<_, _>>()?;
+        if record["provider_requests"]
+            != serde_json::to_value(added.iter().map(|call| &call.prompt).collect::<Vec<_>>())?
+        {
+            return Err(invalid(
+                "support recovery provider requests differ from retained completions",
+            ));
+        }
+        for call in &added {
+            if call.role != crate::provider::Role::Adjudicator
+                || call.prompt.role != call.role
+                || call.response_content_omitted
+                || call.response_content_bytes != call.response.content.len()
+                || call.response_content_sha256
+                    != crate::engine::sha256_hex(call.response.content.as_bytes())
+            {
+                return Err(invalid(
+                    "support recovery contains an invalid completion identity",
+                ));
+            }
+        }
+        let argument: crate::domain::ArgumentCase =
+            serde_json::from_value(current["argument"].clone())?;
+        let EvidencePlanningReport::Graph(now) = classify_evidence_planning(current)? else {
+            return Err(invalid("support recovery requires graph planning"));
+        };
+        let EvidencePlanningReport::Graph(prior) = classify_evidence_planning(previous)? else {
+            return Err(invalid("support recovery requires previous graph planning"));
+        };
+        let errors = crate::support_requirements::validate_revision(
+            &argument,
+            &prior.elaboration,
+            &argument,
+            &now.elaboration,
+        );
+        if !errors.is_empty() {
+            return Err(Error::InvalidInput(errors.join("; ")));
+        }
+        let final_call = added.last().expect("positive call count");
+        let parsed = crate::support_requirements::parse_supported_argument(
+            &final_call.response.content,
+            final_call.response_content_bytes,
+        )?;
+        if serde_json::to_value(parsed.argument)? != current["argument"]
+            || digest(&parsed.support_elaboration)? != digest(&now.elaboration)?
+        {
+            return Err(invalid(
+                "support recovery result differs from its retained final completion",
+            ));
+        }
+        current = previous;
+    }
+    Ok(())
 }
 
 fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> Result<(), Error> {
@@ -125,7 +269,7 @@ fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> 
         let EvidencePlanningReport::Graph(now) = classify_evidence_planning(&current)? else {
             return Err(invalid("replanning provenance requires graph planning"));
         };
-        let prior_shell = json!({"evidence_planning":record.previous_evidence_planning});
+        let prior_shell = json!({"evidence_planning":record.previous_evidence_planning,"transcript":current.get("transcript").cloned().unwrap_or_else(||json!([]))});
         let EvidencePlanningReport::Graph(prior) = classify_evidence_planning(&prior_shell)? else {
             return Err(invalid(
                 "previous replanning provenance requires graph planning",

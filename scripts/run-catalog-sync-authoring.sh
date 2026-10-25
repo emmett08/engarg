@@ -683,7 +683,66 @@ if identity['evidence_planning']['mode'] == 'graph':
     routes = planning['routes']
     requirements = planning['elaboration']['requirements']
     acquisitions = routes['routes']
+    authored_acquisitions = planning['elaboration'].get('acquisitions', [])
     gaps = routes['gaps']
+    design_review = planning.get('design_review')
+    if not isinstance(design_review, dict):
+        design_review = None
+    pending_designs = design_review.get('pending_designs', []) if design_review else []
+    empirical_gap_kinds = {'source_unavailable', 'historical_unavailable', 'clarification',
+                          'operation_implementation', 'transformation_implementation'}
+    if design_review and design_review.get('status') == 'pending_repair':
+        design_status = 'pending_repair'
+    elif authored_acquisitions:
+        design_status = 'represented'
+    elif any(gap.get('kind') in empirical_gap_kinds for gap in gaps):
+        design_status = 'pending_design'
+    elif requirements:
+        design_status = 'judgement_only'
+    else:
+        design_status = 'no_acquisition_design'
+    # Route entries describe compiled choices. Historical logical_acquisitions
+    # counted these entries, so retain it as an explicitly documented alias.
+    selected_routes = [route for route in acquisitions if route.get('selected')]
+    ready_routes = [route for route in selected_routes if not route.get('configuration_gaps')]
+    execution = routes.get('execution', {})
+    steps = {step['id']: step for step in execution.get('acquisitions', [])}
+    derivations = {step['id']: step for step in execution.get('derivations', [])}
+    ready_ids = {route['acquisition_id'] for route in ready_routes}
+    dependencies = {}
+    for step_id, step in steps.items():
+        references = [binding.get('output', {}) for binding in step.get('bindings', [])]
+        fanout = step.get('for_each')
+        if fanout:
+            references.append(fanout.get('output', {}))
+            witness = fanout.get('stop_on_witness') or {}
+            if witness.get('equals_output'):
+                references.append(witness['equals_output'])
+        dependencies[step_id] = {reference.get('step_id') for reference in references}
+    for step_id, step in derivations.items():
+        dependencies[step_id] = {reference.get('step_id') for reference in step.get('inputs', [])}
+    # Resolve source and derivation availability without recursive traversal.
+    # An unknown reference or a cycle remains blocked. A downstream source needs
+    # every source behind data, discovery and witness-control dependencies.
+    available = set()
+    nodes = set(dependencies) | ready_ids
+    while True:
+        before = len(available)
+        for step_id in nodes - available:
+            if step_id not in derivations and step_id not in ready_ids:
+                continue
+            if dependencies.get(step_id, set()) <= available:
+                available.add(step_id)
+        if len(available) == before:
+            break
+    ready_ids &= available
+    if routes['discovery']['incomplete']:
+        ready_ids.clear()
+    selection_status = ('not_requested' if not acquisitions else
+                        'complete' if len(selected_routes) == len(acquisitions) else
+                        'partial' if selected_routes else 'unavailable')
+    source_status = ('ready' if acquisitions and len(ready_ids) == len(acquisitions) else
+                     'partial' if ready_ids else 'blocked' if acquisitions else 'no_acquisitions')
     budget = exported.get('collection_budget')
     if (not isinstance(budget, dict) or budget.get('schema') != 'engarg.collection-budget/1'
             or type(budget.get('assumed_default_limit')) is not int or budget['assumed_default_limit'] < 1
@@ -717,32 +776,58 @@ if identity['evidence_planning']['mode'] == 'graph':
         'schema': 'engarg.graph-readiness/1',
         'case_digest': exported['case_digest'],
         'execution_plan_sha256': exported['execution_plan_sha256'],
-        'requirements': len(requirements), 'logical_acquisitions': len(acquisitions),
+        'requirements': len(requirements),
+        'logical_acquisitions': len(acquisitions),
+        'logical_acquisitions_meaning': 'compatibility alias for compiled_acquisition_routes',
+        'authored_logical_acquisitions': len(authored_acquisitions),
+        'compiled_acquisition_routes': len(acquisitions),
+        'acquisition_design': {'status': design_status, 'review': design_review,
+                               'pending_designs': len(pending_designs)},
+        'capability_selection': {'status': selection_status,
+                                 'selected_routes': len(selected_routes)},
+        'source_collection': {'status': source_status,
+                              'ready_acquisition_ids': sorted(ready_ids),
+                              'blocked_acquisition_ids': sorted({route['acquisition_id'] for route in acquisitions} - ready_ids),
+                              'scope': 'configured compiled source routes and their dependencies; independent judgement remains pending'},
         'selected_capabilities': sorted({route['selected'] for route in acquisitions if route.get('selected')}),
         'routes': acquisitions, 'gaps': gaps, 'pending': exported['pending'],
         'collection_budget': budget, 'collection_admission': collection_admission,
         'discovery_incomplete': routes['discovery']['incomplete'],
-        'ready_for_collection': collection_admission['within_limit'] and bool(acquisitions) and not gaps and not routes['discovery']['incomplete'] and all(route.get('selected') and not route.get('configuration_gaps') for route in acquisitions),
+        'ready_for_collection': (collection_admission['within_limit'] and source_status == 'ready'
+                                 and design_status not in {'pending_repair', 'pending_design'}
+                                 and not any(gap.get('kind') != 'judgement' for gap in gaps)),
         'evidence_collected': False, 'evidence_truth_verified': False, 'inferential_soundness_verified': False,
         'independent_review_obligations': len(exported['independent_review_obligations']),
         'next_step': 'Resolve typed configuration, availability, qualification and clarification gaps before explicit collection; independent judgement remains separate.'
     }
+    if design_status in {'pending_repair', 'pending_design'}:
+        readiness['next_step'] = ('Repair the retained acquisition design before route replanning. '
+            'Review pending designs and the saved transcript; completed authoring calls remain retained.')
     if not collection_admission['within_limit']:
-        readiness['next_step'] = ('Default collect-all selects %s emitted evidence declarations against limit %s from %s. '
+        budget_next = ('Default collect-all selects %s emitted evidence declarations against limit %s from %s. '
             'Review the selected host budget or explicitly select a bounded claim before collection; the complete graph and independent reviews remain retained.' % (
                 budget['total_emitted_evidence'], selected_limit, limit_source))
+        readiness['next_step'] = ((readiness['next_step'] + ' ' + budget_next)
+            if design_status in {'pending_repair', 'pending_design'} else budget_next)
     summary = {
         **summary_common,
         'completed_phase': ('retained argument route replanning and deterministic export validation' if identity['analysis_reuse']
                             else 'argument authoring, independent support extraction, qualified route planning and deterministic export validation'),
         'evidence_planning': 'graph', 'graph_readiness': readiness,
+        'stage_status': {'argument_validation': 'passed', 'artifact_generation': 'passed',
+                         'acquisition_design': design_status, 'capability_selection': selection_status,
+                         'source_collection': source_status, 'evidence_assessment': 'not_performed'},
         'next_step': readiness['next_step'],
         'tool_implementation': {'enabled': identity['tool_implementation']['enabled']},
     }
+    summary['stage_status']['tool_implementation'] = 'not_requested'
     if identity['tool_implementation']['enabled']:
         tooling = report.get('tooling')
         if not isinstance(tooling, dict) or tooling.get('schema') != 'engarg.capability-tooling/1':
             raise SystemExit('Graph implementation was enabled but the analysis has no capability tooling report')
+        summary['stage_status']['tool_implementation'] = (
+            'function_contracts_verified' if tooling['capabilities'] else
+            'deferred' if tooling['deferred_implementation_gaps'] else 'no_eligible_implementation')
         summary['tool_implementation'].update(
             language=tooling['language'], model_calls=tooling['model_calls'],
             verified_packages=len(tooling['capabilities']),
@@ -806,8 +891,14 @@ if [[ $evidence_planning == graph ]]; then
 import json, sys
 with open(sys.argv[1], encoding='utf-8') as source:
     readiness = json.load(source)
-print('Graph readiness: %s requirements; %s shared logical acquisitions; %s typed gaps; ready for collection: %s. Evidence truth and inferential soundness remain unverified.' % (
-    readiness['requirements'], readiness['logical_acquisitions'], len(readiness['gaps']), readiness['ready_for_collection']))
+print('Graph readiness: %s requirements; %s authored logical acquisitions; %s compiled acquisition routes; %s typed gaps; ready for collection: %s. Evidence truth and inferential soundness remain unverified.' % (
+    readiness['requirements'], readiness['authored_logical_acquisitions'], readiness['compiled_acquisition_routes'], len(readiness['gaps']), readiness['ready_for_collection']))
+print('Acquisition design: %s; capability selection: %s; source collection: %s; independent reviews pending: %s.' % (
+    readiness['acquisition_design']['status'], readiness['capability_selection']['status'],
+    readiness['source_collection']['status'], readiness['independent_review_obligations']))
+if readiness['acquisition_design']['status'] in {'pending_repair', 'pending_design'}:
+    print('engarg: warning: acquisition planning is incomplete. Retained designs and completed model calls are available for targeted repair; inspect analysis.json and graph-readiness.json.', file=sys.stderr)
+
 budget = readiness['collection_admission']
 print('Collection budget for all emitted evidence: %s/%s; source: %s; assumed limit: %s.' % (
     budget['evidence_count'], budget['limit'], budget['limit_source'], budget['limit_is_assumed']))

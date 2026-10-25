@@ -163,6 +163,15 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
         .iter()
         .flat_map(|value| value.controls.iter().map(|(id, contract)| (*id, *contract)))
         .collect::<BTreeMap<_, _>>();
+    let discovery = values
+        .iter()
+        .flat_map(|value| {
+            value
+                .discovery
+                .iter()
+                .map(|(id, contract)| (*id, *contract))
+        })
+        .collect::<BTreeMap<_, _>>();
     let identity = methods.contains("engarg.identity-equal/1")
         || methods.contains("engarg.any-identity-equal/1");
     let mut selectors = required.scope.selectors.clone();
@@ -188,6 +197,7 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
             .iter()
             .chain(&selection)
             .chain(&controls)
+            .chain(&discovery)
             .map(|(id, contract)| {
                 (
                     (*id).to_owned(),
@@ -275,6 +285,7 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
         .iter()
         .copied()
         .chain(controls.values().copied())
+        .chain(discovery.values().copied())
         .collect::<Vec<_>>();
     if !identity && all.iter().any(|contract| time_errors(required, contract)) {
         errors.push("derived input historical interval or observation-time uncertainty differs from the result contract".into());
@@ -308,9 +319,10 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
     if !identity
         && controls
             .values()
+            .chain(discovery.values())
             .any(|contract| clock_errors(required, contract))
     {
-        errors.push("calculation witness controls do not preserve original observation clocks and uncertainty".into());
+        errors.push("calculation controls or discovery dependencies do not preserve original observation clocks and uncertainty".into());
     }
     let authorities = provenance_sources
         .iter()
@@ -348,6 +360,17 @@ pub fn validate_semantic_flow(elaboration: &SupportElaboration) -> Vec<String> {
                         acquisition.id,
                         source,
                         mismatches.join(", ")
+                    ));
+                }
+            }
+            for (source, contract) in &value.discovery {
+                if clock_errors(&acquisition.contract, contract)
+                    || acquisition.contract.provenance.transformation_history
+                        && !contract.provenance.transformation_history
+                {
+                    errors.push(format!(
+                        "logical acquisition {} discovery dependency {} does not preserve observation clocks or transformation provenance",
+                        acquisition.id, source
                     ));
                 }
             }
@@ -413,14 +436,14 @@ pub fn validate_semantic_flow(elaboration: &SupportElaboration) -> Vec<String> {
             }
             for (source, offered) in values
                 .iter()
-                .flat_map(|value| &value.controls)
+                .flat_map(|value| value.controls.iter().chain(&value.discovery))
                 .collect::<BTreeMap<_, _>>()
             {
                 if clock_errors(required, offered)
                     || required.provenance.transformation_history
                         && !offered.provenance.transformation_history
                 {
-                    errors.push(format!("evaluation {} witness control {} does not preserve observation clocks or transformation provenance",evaluation.id,source));
+                    errors.push(format!("evaluation {} witness control or discovery dependency {} does not preserve observation clocks or transformation provenance",evaluation.id,source));
                 }
             }
             for (source, offered) in values

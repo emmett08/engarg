@@ -197,7 +197,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                 report = {'request': request, 'argument': {'status': 'supported'}, 'transcript': []}
                 graph = '--evidence-planning' in args
                 if graph:
-                    elaboration = {'schema': 'engarg.support-elaboration/1', 'requirements': [{'id': 'R1'}]}
+                    elaboration = {'schema': 'engarg.support-elaboration/1', 'requirements': [{'id': 'R1'}], 'acquisitions': [{'id': 'query'}]}
                     routes = {'schema': 'engarg.evidence-routes/1', 'routes': [{'acquisition_id': 'query', 'selected': 'qualified_trace_search', 'configuration_gaps': ['credential_reference']}],
                               'gaps': [{'kind': 'configuration', 'description': 'Operator credential reference remains missing.'}],
                               'discovery': {'incomplete': False}, 'configuration': json.loads(pathlib.Path(option('--evidence-config')).read_text())}
@@ -211,6 +211,27 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                     if os.environ.get('GRAPH_READY_ROUTES'):
                         routes['gaps'] = []
                         routes['routes'][0]['configuration_gaps'] = []
+                    if os.environ.get('GRAPH_PENDING_JUDGEMENT'):
+                        routes['gaps'].append({'kind': 'judgement', 'requirement_id': 'R1',
+                                               'description': 'Independent assessment remains pending.'})
+                    if os.environ.get('GRAPH_COLLAPSED_DESIGN'):
+                        elaboration['acquisitions'] = []
+                        routes['routes'] = []
+                        routes['gaps'] = [{'kind': 'source_unavailable', 'requirement_id': 'R1',
+                                          'description': 'Contract was withheld after validation.'}]
+                        report['evidence_planning']['design_review'] = {
+                            'schema': 'engarg.acquisition-design-review/1', 'status': 'pending_repair',
+                            'active_acquisitions': 0, 'active_derivations': 0,
+                            'pending_designs': [{'missing_acquisition_ids': ['query']}]}
+                    if os.environ.get('GRAPH_BLOCKED_DEPENDENCY'):
+                        elaboration['acquisitions'].append({'id': 'discovery'})
+                        routes['routes'].append({'acquisition_id': 'discovery', 'selected': None,
+                                                  'configuration_gaps': ['missing_connection']})
+                        routes['execution'] = {'acquisitions': [
+                            {'id': 'query', 'bindings': [{'output': {'step_id': 'derive_version'}}]},
+                            {'id': 'discovery', 'bindings': []}],
+                            'derivations': [{'id': 'derive_version', 'inputs': [{'step_id': 'discovery'}]}]}
+
                 if '--implement-tools' in args:
                     directory = pathlib.Path(option('--tool-output-dir'))
                     assert not directory.exists(), 'Tool output must be a new directory'
@@ -977,6 +998,58 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                 self.assertEqual(summary['graph_readiness'], readiness)
                 if not expected:
                     self.assertIn('Default collect-all selects', summary['next_step'])
+
+    def test_graph_readiness_distinguishes_pending_reviews_from_configured_source_routes(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, self.inputs, graph=True,
+            env=dict(self.env, GRAPH_READY_ROUTES='1', GRAPH_PENDING_JUDGEMENT='1'))
+        directory = self.pipeline_directory(result)
+        readiness = json.loads((directory / 'graph-readiness.json').read_text())
+        self.assertEqual(readiness['authored_logical_acquisitions'], 1)
+        self.assertEqual(readiness['compiled_acquisition_routes'], 1)
+        self.assertEqual(readiness['logical_acquisitions'], 1)
+        self.assertEqual(readiness['source_collection']['status'], 'ready')
+        self.assertEqual(readiness['source_collection']['ready_acquisition_ids'], ['query'])
+        self.assertTrue(readiness['ready_for_collection'])
+        self.assertFalse(readiness['evidence_truth_verified'])
+        self.assertEqual(readiness['independent_review_obligations'], 1)
+        self.assertEqual(readiness['gaps'][0]['kind'], 'judgement')
+
+    def test_graph_readiness_checks_dependencies_through_derivations(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, self.inputs, graph=True,
+            env=dict(self.env, GRAPH_READY_ROUTES='1', GRAPH_BLOCKED_DEPENDENCY='1'))
+        directory = self.pipeline_directory(result)
+        readiness = json.loads((directory / 'graph-readiness.json').read_text())
+        self.assertEqual(readiness['source_collection']['status'], 'blocked')
+        self.assertEqual(readiness['source_collection']['ready_acquisition_ids'], [])
+        self.assertEqual(readiness['source_collection']['blocked_acquisition_ids'], ['discovery', 'query'])
+        self.assertFalse(readiness['ready_for_collection'])
+
+    def test_graph_collapse_warns_and_retains_completed_artifacts_with_explicit_stage_status(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, self.inputs, graph=True,
+            env=dict(self.env, GRAPH_COLLAPSED_DESIGN='1'))
+        directory = self.pipeline_directory(result)
+        readiness = json.loads((directory / 'graph-readiness.json').read_text())
+        summary = json.loads((directory / 'run-summary.json').read_text())
+        self.assertIn('warning: acquisition planning is incomplete', result.stderr)
+        self.assertEqual(readiness['acquisition_design']['status'], 'pending_repair')
+        self.assertEqual(readiness['acquisition_design']['pending_designs'], 1)
+        self.assertEqual(readiness['authored_logical_acquisitions'], 0)
+        self.assertEqual(readiness['compiled_acquisition_routes'], 0)
+        self.assertEqual(readiness['source_collection']['status'], 'no_acquisitions')
+        self.assertFalse(readiness['ready_for_collection'])
+        self.assertEqual(summary['stage_status']['argument_validation'], 'passed')
+        self.assertEqual(summary['stage_status']['artifact_generation'], 'passed')
+        self.assertEqual(summary['stage_status']['acquisition_design'], 'pending_repair')
+        self.assertEqual(summary['stage_status']['tool_implementation'], 'not_requested')
+        self.assertIn('targeted repair', result.stderr)
+        for filename in ['analysis.json', 'argument.md', 'argument.execution-plan.json', 'argument.bundle.json']:
+            self.assertTrue((directory / filename).is_file(), filename)
 
     def test_graph_collection_readiness_rejects_malformed_advertised_cap(self):
         config = self.write_evidence_config()

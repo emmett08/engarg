@@ -152,6 +152,7 @@ pub(crate) fn effective_blueprint(
     result.for_each = None;
     set_pointer(&mut result.arguments, &fanout.argument_pointer, Value::Null)?;
     result.bindings.push(DependencyBinding {
+        role: Default::default(),
         output: fanout.output.clone(),
         argument_pointer: fanout.argument_pointer.clone(),
     });

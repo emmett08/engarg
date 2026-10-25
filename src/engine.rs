@@ -384,7 +384,7 @@ where
     Ok(record)
 }
 
-fn sha256_hex(bytes: impl AsRef<[u8]>) -> String {
+pub(crate) fn sha256_hex(bytes: impl AsRef<[u8]>) -> String {
     Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))

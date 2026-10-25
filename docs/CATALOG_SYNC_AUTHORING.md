@@ -23,6 +23,9 @@ and elapsed time. A waiting update is scheduled every ten seconds during an acti
 operation, including long provider waits. Redirect stderr to retain the terminal
 status log. The private `analysis.audit.jsonl` retains completed provider exchanges
 for diagnosis, including responses rejected by later validation.
+Before each validation-guided model repair, progress reports the repair number,
+remaining allowance and diagnostic count. Diagnostic text and argument contents
+remain in the private audit.
 
 The provider schema and role instructions request at most 32 entries separately
 for `findings`, `objections` and `evidence_gaps` in every specialist and final-critic
@@ -51,6 +54,49 @@ visible; a smaller actual limit can block collection below 128 declarations.
 Independent review obligations remain visible and do not themselves block
 acquiring the source evidence.
 
+`run-summary.json` reports argument validation and artefact generation separately
+from acquisition design, capability selection, tool implementation and collection.
+An incomplete acquisition design produces a terminal warning while retaining all
+completed model responses and exported artefacts. A successful export therefore
+has an explicit `pending_repair` or `pending_design` status when work remains.
+Historical designs retained under `evidence_planning.design_review` are recovery
+inputs and cannot execute through the current plan.
+
+`graph-readiness.json` counts `authored_logical_acquisitions` separately from
+`compiled_acquisition_routes`. Its older `logical_acquisitions` field remains a
+compatibility alias for the compiled-route count. `source_collection` identifies
+configured source routes whose complete dependency closure is available. Its
+status can be `partial` when other routes remain blocked. Independent judgement
+gaps remain visible alongside those routes. `ready_for_collection` additionally
+checks the complete emitted selection and its collection budget. The budget
+counts emitted evidence declarations, including review obligations, rather than
+physical collector calls. No status in this report establishes evidence truth or
+inferential soundness.
+
+For a saved run whose adjudication removed an earlier acquisition design, repair
+the support graph before route-only replanning:
+
+```sh
+engarg eal repair \
+  --input engarg-runs/PREVIOUS-RUN/analysis.json \
+  --evidence-config operator-planning.json \
+  --model gpt-6.1-sol --max-repairs 1 --timeout-secs 3600 --progress \
+  --request-timeout-secs 1800 --max-output-tokens 65536 \
+  --audit repaired-support.audit.jsonl --output repaired-analysis.json
+```
+
+This command gives the retained final argument, original acceptance criteria,
+material objections and earlier designs to a separately bounded support repair.
+It preserves the original transcript and records new usage and source-report
+identity. Every paid completion is checkpointed in the private audit. An invalid
+historical blueprint remains outside execution until its repaired form passes
+validation. Repair does not generate tools or collect evidence. Review the result,
+then use the implementation and registration workflow for genuine missing
+operations. Existing capabilities can be selected through ordinary replanning.
+Support recovery defaults to a 1,800-second request deadline and 65,536 output
+tokens so the complete frozen argument and repaired graph can be returned.
+Both settings can be overridden for the selected provider.
+
 After correcting connection bindings or approving a catalogue, reuse the saved
 argument and support requirements rather than paying for authoring again:
 
@@ -70,6 +116,9 @@ requested. `run-summary.json` distinguishes retained `recorded_model_calls` from
 `model_calls_this_run` and records the reused report's source and SHA-256.
 Replanning refreshes discovery and route selection; it does not collect evidence
 or turn missing independent judgements into observations.
+It also preserves the existing support elaboration, so it cannot restore a design
+that was omitted or removed during authoring. Use `engarg eal repair` for that
+case, then pass its saved report to `--replan-analysis`.
 
 The catalogue and per-need preparation workflow below remains available through
 the explicit `--legacy-flat` switch. Its examples select that compatibility mode.

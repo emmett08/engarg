@@ -20,6 +20,9 @@ pub struct SupportElaboration {
     pub derivations: Vec<DerivationStep>,
     pub evaluations: Vec<RequirementEvaluation>,
     pub revisions: Vec<RequirementRevision>,
+    /// Dispositions for historical source designs, anchored to exact prior step identities.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub acquisition_revisions: Vec<AcquisitionRevision>,
     /// Explicit discriminating obligations for the case's ordered alternatives.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub alternative_support: Vec<AlternativeSupport>,
@@ -108,4 +111,23 @@ pub struct RequirementRevision {
 pub struct SupportedArgument {
     pub argument: ArgumentCase,
     pub support_elaboration: SupportElaboration,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AcquisitionDisposition {
+    Repaired,
+    Replaced,
+    Deferred,
+    Retired,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AcquisitionRevision {
+    pub previous_step_id: String,
+    pub previous_step_sha256: String,
+    pub disposition: AcquisitionDisposition,
+    pub replacement_ids: Vec<String>,
+    pub reason: String,
 }

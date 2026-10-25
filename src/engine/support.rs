@@ -1,4 +1,5 @@
 //! Catalogue-independent case construction followed by qualified route planning.
+pub mod recovery;
 use super::{
     CallRecord, Mode, RunConfig, RunReport, assessment_schema, assessment_warnings, check_prompt,
     context, execute, limitations, parse_assessment, prompt, sha256_hex,
@@ -37,6 +38,8 @@ pub struct SupportPlanning<P> {
     pub schema: String,
     pub elaboration: SupportElaboration,
     pub routes: P,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub design_review: Option<support_requirements::AcquisitionDesignReview>,
 }
 
 /// The legacy report remains unchanged; graph planning is an explicit extension.
@@ -119,10 +122,27 @@ fn validation_errors(
                     "initial support extraction cannot contain unverifiable prior revisions".into(),
                 );
             }
+            if !candidate.support_elaboration.acquisition_revisions.is_empty() {
+                errors.push("initial support extraction cannot contain unverifiable prior acquisition revisions".into());
+            }
             errors
         }
     });
     errors
+}
+
+fn step_identities(elaboration: &SupportElaboration) -> Result<BTreeMap<String, String>, Error> {
+    elaboration
+        .acquisitions
+        .iter()
+        .map(|step| Ok((step.id.clone(), support_requirements::step_identity(step)?)))
+        .chain(
+            elaboration
+                .derivations
+                .iter()
+                .map(|step| Ok((step.id.clone(), support_requirements::step_identity(step)?))),
+        )
+        .collect()
 }
 
 fn requirement_identities(
@@ -200,11 +220,20 @@ where
         draft.as_ref(),
     )
     .await?;
+    let design_review = support_requirements::review_acquisition_design(
+        &candidate.support_elaboration,
+        &transcript,
+        config.max_response_bytes,
+    )?;
     // A revised case may change IDs, scope or dependencies: never reuse the draft graph.
+    // Check retained design provenance before any resolver performs discovery IO.
     let routes = resolver
         .resolve(&candidate.argument, &candidate.support_elaboration)
         .await?;
     let mut run_limitations = limitations(config.mode);
+    if let Some(warning) = design_review.warning() {
+        run_limitations.push(warning);
+    }
     run_limitations.extend(
         transcript
             .iter()
@@ -230,6 +259,7 @@ where
             schema: "engarg.support-planning/1".into(),
             elaboration: candidate.support_elaboration,
             routes,
+            design_review: Some(design_review),
         },
     })
 }
@@ -314,6 +344,7 @@ where
                 "request":request,"independent_assessments":assessments,"draft":draft_view,
                 "draft_support_elaboration":draft.support_elaboration,
                 "draft_requirement_sha256":requirement_identities(&draft.support_elaboration)?,
+                "draft_step_sha256":step_identities(&draft.support_elaboration)?,
                 "draft_validation_errors":draft_errors,"retained_objections":retained,
                 "final_critique":final_critique["assessment"],
             }),
@@ -347,7 +378,16 @@ where
             config.max_response_bytes,
         ) {
             Ok(candidate) => {
-                let errors = validation_errors(request, &candidate, retained, config, draft);
+                let mut errors = validation_errors(request, &candidate, retained, config, draft);
+                if errors.is_empty()
+                    && let Err(error) = support_requirements::review_acquisition_design(
+                        &candidate.support_elaboration,
+                        transcript,
+                        config.max_response_bytes,
+                    )
+                {
+                    errors.push(error.to_string());
+                }
                 if errors.is_empty() {
                     return Ok(candidate);
                 }
@@ -371,9 +411,10 @@ where
         }
         let data = json!({
             "request":request,"candidate_json":candidate_json,"validation_errors":errors,
-            "retained_objections":retained,"repair_attempt":attempt+1,
+            "retained_objections":retained,"repair_attempt":attempt+1,"repair_limit":config.max_repairs,
             "original_support_elaboration":draft.map(|draft|&draft.support_elaboration),
             "original_requirement_sha256":draft.map(|draft|requirement_identities(&draft.support_elaboration)).transpose()?,
+            "original_step_sha256":draft.map(|draft|step_identities(&draft.support_elaboration)).transpose()?,
         });
         let repair = support_prompt(record.role, data, config)?;
         transcript.push(execute(model, repair, config, observer).await?);
@@ -398,6 +439,7 @@ mod tests {
         omitted_support: bool,
         repair: bool,
         critic_objection: bool,
+        collapse_design: bool,
     }
     impl LanguageModel for Model {
         async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
@@ -408,6 +450,9 @@ mod tests {
             let content = if matches!(role, Role::Single | Role::Synthesiser | Role::Adjudicator) {
                 let argument = case();
                 let mut elaboration = pending(&argument);
+                if self.collapse_design && role == Role::Synthesiser {
+                    elaboration = source_design_fixture();
+                }
                 if self.omitted_support && (!self.repair || !repaired) {
                     let removed = elaboration.requirements.remove(0);
                     elaboration
@@ -458,10 +503,79 @@ mod tests {
             omitted_support: false,
             repair: false,
             critic_objection: false,
+            collapse_design: false,
         }
     }
     fn request() -> Request {
         serde_json::from_str(include_str!("../../examples/claim-only-request.json")).unwrap()
+    }
+
+    fn source_design_fixture() -> SupportElaboration {
+        let mut elaboration = pending(&case());
+        let mut source = crate::support_requirements::tests::contract(
+            "source_retrieval",
+            "existential_witness",
+            "fixture.read/1",
+            "1",
+        );
+        source.schema = "engarg.support-contract/1".into();
+        source.acceptable_methods.clear();
+        elaboration.acquisitions = (1..=5)
+            .map(|index| {
+                serde_json::from_value(json!({
+                    "id":format!("source-{index}"),"contract":source,"arguments":{},
+                    "bindings":[],"for_each":null,"operation_spec":null,
+                }))
+                .unwrap()
+            })
+            .collect();
+        elaboration.derivations = (1..=2).map(|index| serde_json::from_value(json!({
+            "id":format!("projection-{index}"),"inputs":[{"step_id":format!("source-{index}"),"pointer":""}],
+            "operation":{"kind":"project","fields":{"result":"/result"}},
+        })).unwrap()).collect();
+        elaboration
+    }
+
+    #[tokio::test]
+    async fn structurally_valid_graph_collapse_retains_proposals_and_reports_incomplete_design() {
+        let mut model = mock();
+        model.collapse_design = true;
+        let resolver = Resolver::default();
+        let report = run_with_support(
+            &model,
+            &request(),
+            &RunConfig::default(),
+            &|_| Ok(()),
+            &resolver,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            report.report.transcript.len(),
+            6,
+            "retention does not spend another model call"
+        );
+        assert_eq!(
+            resolver.calls.load(Ordering::SeqCst),
+            1,
+            "invalid draft never reaches route matching"
+        );
+        assert!(report.evidence_planning.elaboration.acquisitions.is_empty());
+        let review = report.evidence_planning.design_review.as_ref().unwrap();
+        assert_eq!(
+            review.status,
+            support_requirements::AcquisitionDesignStatus::PendingRepair
+        );
+        assert_eq!(review.pending_designs[0].missing_acquisition_ids.len(), 5);
+        assert_eq!(review.pending_designs[0].missing_derivation_ids.len(), 2);
+        assert!(
+            report
+                .report
+                .limitations
+                .iter()
+                .any(|line| line.contains("Acquisition planning remains incomplete"))
+        );
+        assert!(!review.pending_designs[0].validation_errors.is_empty());
     }
 
     #[tokio::test]
