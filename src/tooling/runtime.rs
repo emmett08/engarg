@@ -13,6 +13,25 @@ use eal_process::CancellationToken;
 use serde_json::Value;
 use std::path::Path;
 
+fn validate_runtime_request_identity(request: &AcquisitionRequest) -> Result<(), Error> {
+    request.validate().map_err(Error::InvalidInput)?;
+    // Native EAL acquisition identifies an execution source by its canonical
+    // SHA-256 digest, which can start with a digit. Authored EAL identifiers and
+    // physical source identities are both valid; preserve the caller's spelling.
+    let evidence_id = eal_collector_contracts::identifier(&request.evidence_id)
+        || eal_collector_contracts::execution::valid_digest(&request.evidence_id);
+    if request.tool_version != "1"
+        || !eal_collector_contracts::identifier(&request.tool)
+        || !evidence_id
+        || !eal_collector_contracts::environment_name(&request.environment)
+    {
+        return Err(Error::InvalidInput(
+            "generated collector request identity is invalid".into(),
+        ));
+    }
+    Ok(())
+}
+
 pub fn execute_registered(
     package: &Path,
     request_bytes: &[u8],
@@ -42,16 +61,7 @@ pub fn execute_registered_with_cancellation(
     )
     .map_err(Error::InvalidInput)?;
     let request: AcquisitionRequest = serde_json::from_value(value)?;
-    request.validate().map_err(Error::InvalidInput)?;
-    if request.tool_version != "1"
-        || !eal_collector_contracts::identifier(&request.tool)
-        || !eal_collector_contracts::identifier(&request.evidence_id)
-        || !eal_collector_contracts::environment_name(&request.environment)
-    {
-        return Err(Error::InvalidInput(
-            "generated collector request identity is invalid".into(),
-        ));
-    }
+    validate_runtime_request_identity(&request)?;
     // Registry aliases belong to the operator. Preserve the exact alias in the observation.
     let validator = jsonschema::validator_for(&verified.contract().draft.input_schema)
         .map_err(|_| Error::InvalidInput("verified collector input schema is invalid".into()))?;
@@ -117,4 +127,45 @@ pub fn execute_registered_with_cancellation(
         ));
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn native_source_digest_identity_is_admitted_without_rewriting_named_identity_rules() {
+        let mut request = AcquisitionRequest {
+            evidence_id: "named_evidence".into(),
+            environment: "engarg_generated".into(),
+            tool: "generated_fixture".into(),
+            tool_version: "1".into(),
+            input: json!({"mode":"positive"}),
+            context: json!({"caller":"preserved"}),
+        };
+        validate_runtime_request_identity(&request).unwrap();
+        for first in "0123456789abcdef".chars() {
+            request.evidence_id = format!("{first}{}", "0".repeat(63));
+            request.validate().unwrap();
+            let original = request.to_value();
+            validate_runtime_request_identity(&request).unwrap();
+            assert_eq!(request.to_value(), original);
+        }
+        for invalid in [
+            "0not-a-digest".to_owned(),
+            "0".repeat(63),
+            "0".repeat(65),
+            format!("0{}", "A".repeat(63)),
+            "not an identifier".to_owned(),
+        ] {
+            request.evidence_id = invalid;
+            assert!(validate_runtime_request_identity(&request).is_err());
+        }
+        request.evidence_id = "0".repeat(64);
+        request.tool_version = "2".into();
+        assert!(validate_runtime_request_identity(&request).is_err());
+        request.tool_version = "1".into();
+        request.tool = "0invalid-tool".into();
+        assert!(validate_runtime_request_identity(&request).is_err());
+    }
 }

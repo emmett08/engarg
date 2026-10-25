@@ -88,6 +88,7 @@ pub fn code_request(contract: &NeedContract) -> CompletionRequest {
             "Return only source files and the unchanged language identifier. Use 1 to 16 source files, at most 128 KiB each and 512 KiB total. File paths must be safe relative paths without dot or dot-dot components, absolute paths, backslashes or case-fold aliases. ",
             "The program reads exactly one bounded JSON object from stdin and emits exactly one JSON object on stdout on success. ",
             "The request has exactly evidence_id:string, environment:string, tool:string, tool_version:string, input:object, context:object. ",
+            "evidence_id is an opaque nonempty caller identity and may be a digit-leading 64-character source digest; do not require an authored EAL identifier or rewrite it. ",
             "Validate input using the frozen schema and reject malformed requests or acquisition failures with a nonzero process exit, with no success JSON on stdout. ",
             "A successful response is {value:OBSERVATION,context:CONTEXT,request:{tool:TOOL,tool_version:VERSION,input:INPUT,context:CONTEXT}}. ",
             "OBSERVATION satisfies result_schema; positive and negative measured results both use collected:true. ",

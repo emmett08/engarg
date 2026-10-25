@@ -797,6 +797,16 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     assert_eq!(envelope["request"]["tool"], aliased["tool"]);
     assert_eq!(envelope["context"], aliased["context"]);
 
+    // Native EAL source IDs are opaque canonical digests, including digit-leading
+    // values. Exercise this transport shape independently of a random source hash.
+    aliased["evidence_id"] = json!("0".repeat(64));
+    let output = invoke(&manifest, &aliased);
+    successful(&output);
+    let envelope =
+        eal_collector_contracts::strict_json_exact(&output.stdout, Default::default()).unwrap();
+    assert_eq!(envelope["request"]["input"], aliased["input"]);
+    assert_eq!(envelope["context"], aliased["context"]);
+
     // A changed retained source cannot inherit the old test receipt.
     let candidate_path = manifest.parent().unwrap().join("candidate.json");
     let original_candidate = fs::read(&candidate_path).unwrap();
@@ -1179,6 +1189,26 @@ fn generated_interface_native_preflight_requires_original_time_then_executes_and
         assert_eq!(replanned["replanning"]["model_calls"], 0);
         if original_time {
             assert_native_acquisition_and_reuse(&collector, root, &replanned, &planning_path);
+            // Exercise the bounded diagnostic transport too, using the actual
+            // retained physical source ID and the same admitted environment.
+            let plan: eal_collector_contracts::execution::EvidenceExecutionPlan =
+                serde_json::from_value(routes["execution"].clone()).unwrap();
+            let diagnostic = native_failure_diagnostic(
+                &serde_json::to_value(&planning).unwrap(),
+                &plan,
+                &root.join("acquired-observations"),
+            );
+            assert_eq!(diagnostic["outcome"]["returncode"], 0, "{diagnostic}");
+            assert!(eal_collector_contracts::execution::valid_digest(
+                diagnostic["source_id"].as_str().unwrap()
+            ));
+            let envelope: Value =
+                serde_json::from_str(diagnostic["outcome"]["stdout"].as_str().unwrap()).unwrap();
+            assert_eq!(envelope["request"]["input"], diagnostic["request"]["input"]);
+            assert_eq!(
+                envelope["request"]["context"],
+                diagnostic["request"]["context"]
+            );
         }
     }
 }
@@ -1337,6 +1367,19 @@ fn assert_native_acquisition_and_reuse(
             .write_all(&serde_json::to_vec(&acquisition).unwrap())
             .unwrap();
         let output = child.wait_with_output().unwrap();
+        if !output.status.success() {
+            let diagnostic = native_failure_diagnostic(&planning, &execution, &evidence_store);
+            fs::write(
+                root.join("native-acquisition.failure.json"),
+                serde_json::to_vec_pretty(&diagnostic).unwrap(),
+            )
+            .unwrap();
+            panic!(
+                "support-graph failed: {}\nNative command diagnostic (environment values omitted): {}",
+                String::from_utf8_lossy(&output.stderr),
+                serde_json::to_string_pretty(&diagnostic).unwrap()
+            );
+        }
         successful(&output);
         eal_collector_contracts::strict_json_exact(&output.stdout, Default::default()).unwrap()
     };
@@ -1380,6 +1423,88 @@ fn assert_native_acquisition_and_reuse(
         observed["value"]["observation_ids"]
     );
     assert_eq!(fs::read(snapshot).unwrap(), retained);
+}
+
+/// Synthetic test diagnostics only. The failed-graph caller always fails after
+/// this bounded direct command probe; its output never replaces the failed result.
+fn native_failure_diagnostic(
+    planning: &Value,
+    execution: &eal_collector_contracts::execution::EvidenceExecutionPlan,
+    store: &Path,
+) -> Value {
+    let config: Value =
+        serde_json::from_slice(&fs::read(planning["connections"].as_str().unwrap()).unwrap())
+            .unwrap();
+    let step = &execution.acquisitions[0];
+    let provider = config["native_providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|provider| provider["capability"]["id"] == step.source.capability_id)
+        .unwrap();
+    let transport = &provider["transport"];
+    let protocol = &transport["protocol"];
+    let files=fs::read_dir(store).into_iter().flatten().filter_map(Result::ok).filter(|entry|entry.path().extension().is_some_and(|extension|extension=="json"||extension=="lock"||extension=="pending"))
+        .map(|entry|json!({"name":entry.file_name().to_string_lossy(),"bytes":entry.metadata().map(|metadata|metadata.len()).ok()})).collect::<Vec<_>>();
+    let source_id = files
+        .iter()
+        .filter_map(|file| file["name"].as_str())
+        .filter_map(|name| {
+            name.strip_suffix(".lock")
+                .or_else(|| name.strip_suffix(".pending"))
+        })
+        .find(|id| eal_collector_contracts::execution::valid_digest(id))
+        .map(str::to_owned)
+        .unwrap_or_else(|| "0".repeat(64));
+    let request = json!({"evidence_id":source_id,"environment":protocol["environment"],"tool":protocol["tool"],"tool_version":protocol["tool_version"],"input":step.arguments,"context":protocol["context"]});
+    let names = transport["inherit_env"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|name| name.as_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    let environment = names
+        .iter()
+        .filter_map(|name| std::env::var(name).ok().map(|value| (name.clone(), value)))
+        .collect();
+    let mut argv = vec![transport["program"].as_str().unwrap().to_owned()];
+    argv.extend(
+        transport["arguments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|arg| arg.as_str().unwrap().to_owned()),
+    );
+    let outcome =
+        eal_process::Supervisor::new(PathBuf::from(transport["supervisor"].as_str().unwrap()))
+            .run_with_stream_limits_and_cancellation(
+                eal_process::CommandRequest {
+                    argv: argv.clone(),
+                    environment,
+                    cwd: PathBuf::from(transport["cwd"].as_str().unwrap()),
+                    input: serde_json::to_vec(&request).unwrap(),
+                    timeout: Duration::from_secs(
+                        provider["capability"]["limits"]["timeout_seconds"]
+                            .as_u64()
+                            .unwrap()
+                            .min(120),
+                    ),
+                    max_output_bytes: 131072,
+                },
+                None,
+                &eal_process::CancellationToken::default(),
+                eal_process::StreamLimits {
+                    max_stdout_bytes: 65536,
+                    max_stderr_bytes: 65536,
+                },
+            );
+    let outcome = match outcome {
+        Ok(outcome) => {
+            json!({"returncode":outcome.returncode,"execution_error":format!("{:?}",outcome.execution_error),"stdout":String::from_utf8_lossy(&outcome.stdout),"stderr":String::from_utf8_lossy(&outcome.stderr)})
+        }
+        Err(error) => json!({"supervisor_error":format!("{error:?}")}),
+    };
+    json!({"source_id":source_id,"request":request,"argv":argv,"inherited_environment_names":names,"store_entries":files,"outcome":outcome,"provider":provider,"execution":execution})
 }
 
 /// This exercises normal commands and the authoritative native config loader;
