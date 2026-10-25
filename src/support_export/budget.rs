@@ -32,7 +32,14 @@ pub fn collection_budget(bundle: &SupportExport) -> CollectionBudget {
         limit_source: "EAL default collection_evidence; the selected host may advertise an override",
         total_emitted_evidence: bundle.authored.obligations.len()
             + bundle.requirements.len()
-            + guards.len(),
+            + guards.len()
+            + bundle
+                .authored
+                .original_case
+                .warrants
+                .iter()
+                .filter(|warrant| warrant.reasoning_method.is_some())
+                .count(),
         claim_evidence_counts: bundle
             .claim_names
             .keys()
@@ -61,6 +68,15 @@ pub fn collection_budget(bundle: &SupportExport) -> CollectionBudget {
                         .requirements
                         .iter()
                         .filter(|requirement| requirement.gated_claim_ids.contains(claim))
+                        .count()
+                    + bundle
+                        .authored
+                        .original_case
+                        .warrants
+                        .iter()
+                        .filter(|warrant| {
+                            warrant.reasoning_method.is_some() && cone.contains(warrant.id.as_str())
+                        })
                         .count()
                     + guards
                         .iter()

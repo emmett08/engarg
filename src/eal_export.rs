@@ -2,7 +2,8 @@
 //!
 //! Export creates review contracts, never observations. Supplying an excerpt or
 //! setting `checked_by_user` does not discharge any contract. EAL's structured
-//! method preserves an authored argument; it does not prove its prose sufficient.
+//! method preserves an authored argument. Explicit typed warrant bindings select
+//! bounded computational methods, without proving correspondence to arbitrary prose.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -13,7 +14,8 @@ use sha2::{Digest, Sha256};
 use crate::{
     Error,
     domain::{
-        ArgumentCase, ArgumentIndex, ArgumentNode, DefeaterStatus, Request, SupportRelationship,
+        ArgumentCase, ArgumentIndex, ArgumentNode, BoundReasoningMethod, DefeaterStatus,
+        ReasoningMethodBinding, ReasoningMethodKind, Request, SupportRelationship,
         validate_argument, validate_request,
     },
     eal_acquisition::AcquisitionProjection,
@@ -23,9 +25,32 @@ use crate::{
 const LEGACY_SCHEMA_VERSION: &str = "engarg.eal-export/1";
 const SCHEMA_VERSION: &str = "engarg.eal-export/3";
 const SEMANTICS_VERSION: &str = "engarg.eal-projection/3";
+const TYPED_SEMANTICS_VERSION: &str = "engarg.eal-projection/4";
 use crate::export_policy::ExportPolicy;
 const ENVIRONMENT: &str = "engarg_case";
 const REVIEW_TOOL: &str = "engarg_review_contract";
+pub(crate) const REASONING_TOOL: &str = "engarg_reasoning_input";
+
+fn semantics_version(case: &ArgumentCase) -> &'static str {
+    if case
+        .warrants
+        .iter()
+        .any(|warrant| warrant.reasoning_method.is_some())
+    {
+        TYPED_SEMANTICS_VERSION
+    } else {
+        SEMANTICS_VERSION
+    }
+}
+
+pub(crate) fn reasoning_input_selector(
+    revision: &str,
+    warrant_id: &str,
+    evidence_need_id: &str,
+) -> Value {
+    json!({"schema":"engarg.reasoning-input-pending/1", "case_digest":revision,
+        "warrant_id":warrant_id, "evidence_need_id":evidence_need_id})
+}
 
 /// A complete, loss-preserving bundle around the executable EAL/3 projection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,7 +148,7 @@ impl<'a> ExportIdentity<'a> {
             ));
         }
         if bundle.schema_version != SCHEMA_VERSION
-            || bundle.semantics_version.as_deref() != Some(SEMANTICS_VERSION)
+            || bundle.semantics_version.as_deref() != Some(semantics_version(&bundle.original_case))
             || bundle.authoring_profile.as_deref()
                 != Some(eal_collector_contracts::RUNTIME_EXPORTABLE_PROFILE)
             || bundle.acquisition_plan.is_none()
@@ -268,7 +293,11 @@ pub(crate) fn export_projection_with_policy_identity(
     })?;
     let mut identity_bytes = serde_json::to_vec(&(
         identity.schema_version(),
-        identity.digest_version(),
+        if semantics_version(case) == TYPED_SEMANTICS_VERSION {
+            TYPED_SEMANTICS_VERSION
+        } else {
+            identity.digest_version()
+        },
         request,
         case,
     ))?;
@@ -294,7 +323,7 @@ pub(crate) fn export_projection_with_policy_identity(
     let mut bundle = EalExport {
         schema_version: identity.schema_version().into(),
         exporter_version: identity.exporter_version().into(),
-        semantics_version: Some(SEMANTICS_VERSION.into()),
+        semantics_version: Some(semantics_version(case).into()),
         collector_catalogue: catalogue,
         acquisition_plan: Some(plan),
         export_policy: Some(policy.clone()),
@@ -321,6 +350,17 @@ pub(crate) fn export_projection_with_policy_identity(
         original_request: request.clone(),
         original_case: case.clone(),
     };
+    if case
+        .warrants
+        .iter()
+        .any(|warrant| warrant.reasoning_method.is_some())
+    {
+        bundle.limitations[0] = "Explicit bound warrants project to their versioned EAL computational methods with a typed result predicate. Legacy warrants retain authored structured/1 support, and unresolved methods retain an unavailable gate.".into();
+        bundle.limitations.extend([
+            "Typed warrant bindings execute the selected bounded EAL method and test its declared result. Formal-to-prose correspondence remains authored; a successful computation does not establish empirical premise truth or scientific model adequacy.".into(),
+            "Reasoning input, premise observations and sampling, hypothesis, intervention or structural-model evidence are separate obligations. Missing models, applicability records or matching acquired inputs leave the route unavailable.".into(),
+        ]);
+    }
     if acquisition.is_some() {
         bundle.limitations.push(
             "Acquisition availability follows the selected adapter contract. EngArg adapters use collected while native fleet collectors use cluster_count and native GitHub uses found. The existing independent review obligations still determine interpretation and sufficiency. Custom collectors remain command implementation stubs and unresolved inputs retain explicit command configuration templates. Acquisition observations use the persisted resolved per-need export-policy ages.".into(),
@@ -427,6 +467,97 @@ impl<'a> Exporter<'a> {
         self.record(id, "claim", declaration, role);
     }
 
+    fn typed_claim(
+        &mut self,
+        id: &str,
+        declaration: &str,
+        statement: &str,
+        bound: &BoundReasoningMethod,
+    ) -> Result<(), Error> {
+        let conclusion = &bound.conclusion;
+        self.source.push_str(&format!(
+            "claim {declaration} {{\n  statement {}\n  environment {ENVIRONMENT}\n  proposition {{\n    subject {}\n    quantity {}\n    unit {}\n    scope {}\n    valid_from {}\n    valid_until {}\n    query {}\n    result {} {} {}\n  }}\n}}\n\n",
+            quoted(statement), quoted(&conclusion.subject), quoted(&conclusion.quantity),
+            quoted(&conclusion.unit), quoted(&conclusion.scope.identity().map_err(Error::InvalidInput)?), quoted(&conclusion.valid_from),
+            quoted(&conclusion.valid_until), serde_json::to_string(&bound.method.query())?,
+            conclusion.result.path, conclusion.result.operator.as_str(),
+            serde_json::to_string(&conclusion.result.expected)?,
+        ));
+        self.record(id, "claim", declaration, "typed_candidate_route");
+        Ok(())
+    }
+
+    fn method_input(
+        &mut self,
+        warrant_id: &str,
+        bound: &BoundReasoningMethod,
+    ) -> Result<String, Error> {
+        let declaration = name("reasoning_input", warrant_id);
+        let input =
+            reasoning_input_selector(self.revision, warrant_id, &bound.input_evidence_need_id);
+        self.source.push_str(&format!(
+            "evidence {declaration} {{\n  tool {REASONING_TOOL}\n  kind {}\n  environment {ENVIRONMENT}\n  max_age {}\n  input {}\n  require schema == \"EAL/typed-input/1\"\n}}\n\n",
+            bound.method.evidence_kind(), self.policy.acquisition_age(&bound.input_evidence_need_id),
+            serde_json::to_string(&input)?,
+        ));
+        self.review_requests.push(ReviewRequest {
+            evidence_id: declaration.clone(),
+            environment: ENVIRONMENT.into(),
+            tool: REASONING_TOOL.into(),
+            tool_version: "1".into(),
+            input,
+            context: json!({"engarg_export_digest":self.revision}),
+        });
+        self.record(
+            warrant_id,
+            "evidence",
+            &declaration,
+            "reasoning_method_input",
+        );
+        Ok(declaration)
+    }
+
+    fn method_reasoning(
+        &mut self,
+        warrant_id: &str,
+        declaration: &str,
+        rationale: &str,
+        bound: &BoundReasoningMethod,
+    ) {
+        self.source.push_str(&format!(
+            "reasoning {declaration} {{\n  method {}\n  rationale {}\n",
+            quoted(bound.method.identifier()),
+            quoted(rationale),
+        ));
+        if bound.method.kind() == ReasoningMethodKind::Deductive {
+            self.source
+                .push_str("  require consistent_premises == true\n");
+        }
+        self.source.push_str("}\n\n");
+        self.record(warrant_id, "reasoning", declaration, "typed_warrant_method");
+    }
+
+    fn unresolved_method(
+        &mut self,
+        warrant_id: &str,
+        binding: &ReasoningMethodBinding,
+    ) -> Result<String, Error> {
+        let declaration = name("reasoning_unresolved", warrant_id);
+        let input = json!({"schema":"engarg.reasoning-unresolved/1","case_digest":self.revision,
+            "warrant_id":warrant_id,"binding":binding});
+        self.source.push_str(&format!(
+            "// Missing formal model or evidence keeps this route unavailable.\nevidence {declaration} {{\n  tool {REASONING_TOOL}\n  kind unavailable_method\n  environment {ENVIRONMENT}\n  max_age 0\n  input {}\n  require method_available == true\n}}\n\n",
+            serde_json::to_string(&input)?,
+        ));
+        self.record(
+            warrant_id,
+            "evidence",
+            &declaration,
+            "unresolved_reasoning_method",
+        );
+        Ok(declaration)
+    }
+
     fn reasoning(
         &mut self,
         id: &str,
@@ -524,6 +655,15 @@ impl<'a> Exporter<'a> {
             "language \"EAL/3\"\n\n// Authored EngArg projection. Review contracts are not observations.\n// Keep the JSON export bundle for the complete canonical source and source map.\n\nenvironment {ENVIRONMENT} {{\n  require engarg_export_digest == {}\n}}\n\ntool {REVIEW_TOOL} {{\n  version \"1\"\n}}\n\n",
             quoted(self.revision)
         ));
+        if case
+            .warrants
+            .iter()
+            .any(|warrant| warrant.reasoning_method.is_some())
+        {
+            self.source.push_str(&format!(
+                "tool {REASONING_TOOL} {{\n  version \"1\"\n}}\n\n"
+            ));
+        }
         if let Some(acquisition) = self.acquisition {
             self.source.push_str(&acquisition.declarations(
                 self.revision,
@@ -656,11 +796,26 @@ impl<'a> Exporter<'a> {
             let (text, qualifier) = index
                 .claim(&warrant.conclusion_id)
                 .expect("validated conclusion");
-            self.claim(&warrant.id, &route, &format!("Candidate support for: {text}\nQualifier: {qualifier}\nRule: {}\nOriginal inference: {:?}.\nApplicability: {}\nEngineering scope: {scope}", warrant.rule, warrant.inference, warrant.applicability), "candidate_route");
+            let statement = format!(
+                "Candidate support for: {text}\nQualifier: {qualifier}\nRule: {}\nOriginal inference: {:?}.\nApplicability: {}\nEngineering scope: {scope}",
+                warrant.rule, warrant.inference, warrant.applicability
+            );
             let reasoning = name("warrant", &warrant.id);
             let mut backing = evidence_names(&warrant.backing_evidence_ids);
             backing.push(name("warrant_review", &warrant.id));
-            self.reasoning(&warrant.id, &reasoning, &format!("{}\nOriginal inference: {:?}; retained as authored structured/1, not a computational certificate.\nApplicability: {}", warrant.rule, warrant.inference, warrant.applicability), &backing, "authored_warrant");
+            let bound = warrant
+                .reasoning_method
+                .as_ref()
+                .and_then(ReasoningMethodBinding::bound);
+            let method_input = if let Some(bound) = bound {
+                self.typed_claim(&warrant.id, &route, &statement, bound)?;
+                self.method_reasoning(&warrant.id, &reasoning, &format!("{}\nThe declared bounded method tests only the typed formal result. Prose correspondence and scientific applicability remain authored obligations.\nApplicability: {}", warrant.rule, warrant.applicability), bound);
+                Some(self.method_input(&warrant.id, bound)?)
+            } else {
+                self.claim(&warrant.id, &route, &statement, "candidate_route");
+                self.reasoning(&warrant.id, &reasoning, &format!("{}\nOriginal inference: {:?}; retained as authored structured/1, not a computational certificate.\nApplicability: {}", warrant.rule, warrant.inference, warrant.applicability), &backing, "authored_warrant");
+                None
+            };
             let mut support = Support::default();
             for premise in &warrant.premise_ids {
                 support.premises.insert(
@@ -673,15 +828,42 @@ impl<'a> Exporter<'a> {
             // An adequacy gate is also explicit source evidence: even a future
             // warrant without premises cannot become an empty EAL argument.
             support.evidence.insert(name("warrant_review", &warrant.id));
+            if let Some(bound) = bound {
+                support.evidence.extend(backing);
+                support.evidence.extend(method_input.iter().cloned());
+                support
+                    .assumptions
+                    .extend(bound.assumption_ids.iter().map(|id| name("assumption", id)));
+            } else if let Some(binding @ ReasoningMethodBinding::Unresolved { .. }) =
+                &warrant.reasoning_method
+            {
+                support
+                    .evidence
+                    .insert(self.unresolved_method(&warrant.id, binding)?);
+            }
             attach_conditions(index, &[&warrant.id], &mut support, self.acquisition);
-            self.argument(
-                &warrant.id,
-                &name("route_argument", &warrant.id),
-                &support,
-                &reasoning,
-                &route,
-                "candidate_route_support",
-            );
+            if let Some(input) = method_input {
+                let declaration = name("route_argument", &warrant.id);
+                self.source.push_str(&format!(
+                    "argument {declaration} = {} via {reasoning} => {route} binding {input}\n\n",
+                    support.render()
+                ));
+                self.record(
+                    &warrant.id,
+                    "argument",
+                    &declaration,
+                    "typed_candidate_route_support",
+                );
+            } else {
+                self.argument(
+                    &warrant.id,
+                    &name("route_argument", &warrant.id),
+                    &support,
+                    &reasoning,
+                    &route,
+                    "candidate_route_support",
+                );
+            }
         }
         for composition in &case.compositions {
             let reasoning = name("composition_reasoning", &composition.conclusion_id);

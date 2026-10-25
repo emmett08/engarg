@@ -111,6 +111,28 @@ fn numeric_threshold(value: &serde_json::Value, unit: &str) -> bool {
 fn criterion_errors(requirement: &SupportRequirement) -> Vec<String> {
     let mut errors = Vec::new();
     match &requirement.acceptance {
+        EvaluationCriterion::MethodInput { method } => {
+            use eal_collector_contracts::capability::SupportType;
+            if !matches!(
+                method.as_str(),
+                "deductive/1" | "inductive/1" | "abductive/1" | "causal/1" | "counterfactual/1"
+            ) {
+                errors.push(format!("support requirement {} method_input needs an installed bounded reasoning method", requirement.id));
+            }
+            let admissible = requirement.contract.as_ref().is_some_and(|contract| {
+                matches!(
+                    (contract.support_type, contract.logical_strength),
+                    (SupportType::SourceRetrieval, LogicalStrength::Clarification)
+                        | (SupportType::Calculation, LogicalStrength::ExactCalculation)
+                ) && contract.population.is_none()
+                    && contract.quantities.iter().any(|quantity| {
+                        matches!(quantity.unit.as_str(), "json" | "EAL/typed-input/1")
+                    })
+            });
+            if !admissible {
+                errors.push(format!("support requirement {} method_input admits a formal envelope only: use source_retrieval/clarification or calculation/exact_calculation, a JSON quantity and no population; it cannot establish empirical, statistical or proof coverage", requirement.id));
+            }
+        }
         EvaluationCriterion::Numeric {
             value_unit,
             threshold_unit,
@@ -172,6 +194,26 @@ pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboratio
     let mut errors = Vec::new();
     if !super::supported_schema(&elaboration.schema) {
         errors.push("unsupported support elaboration schema".into());
+    }
+    for requirement in &elaboration.requirements {
+        if let EvaluationCriterion::MethodInput { method } = &requirement.acceptance {
+            let matching = case.warrants.iter().find(|warrant| {
+                warrant.id == requirement.target_id
+                    && warrant
+                        .reasoning_method
+                        .as_ref()
+                        .and_then(|binding| binding.bound())
+                        .is_some_and(|bound| {
+                            bound.method.identifier() == method
+                                && requirement.evidence_need_ids.len() == 1
+                                && requirement.evidence_need_ids.first()
+                                    == Some(&bound.input_evidence_need_id)
+                        })
+            });
+            if matching.is_none() {
+                errors.push(format!("support requirement {} method_input must cover only the exact formal-input evidence need of its bound warrant and method", requirement.id));
+            }
+        }
     }
     if elaboration.requirements.is_empty()
         || elaboration.requirements.len() > MAX_RECORDS

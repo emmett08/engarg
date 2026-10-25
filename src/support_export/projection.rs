@@ -35,7 +35,18 @@ pub(super) fn build(
     let (projected_execution, alternative_projection) =
         super::alternatives::project(&authored.bundle.original_case, elaboration, execution)?;
     let execution = &projected_execution;
-    let registry = registry(locations)?;
+    let has_method_inputs = authored
+        .bundle
+        .original_case
+        .warrants
+        .iter()
+        .any(|warrant| {
+            warrant
+                .reasoning_method
+                .as_ref()
+                .is_some_and(|binding| binding.bound().is_some())
+        });
+    let registry = registry(locations, has_method_inputs)?;
     let tools_toml = registry.to_toml().map_err(Error::InvalidInput)?;
     let execution_plan_sha256 = canonical_digest(execution).map_err(Error::InvalidInput)?;
     let identity = (
@@ -57,14 +68,37 @@ pub(super) fn build(
     context["engarg_support_export_digest"] = json!(revision);
     context["engarg_execution_plan_sha256"] = json!(execution_plan_sha256);
     let mut source = authored.bundle.source.clone();
+    let projection_note = if has_method_inputs {
+        "Authored review routes are retained; typed method selectors are bound to this exact graph."
+    } else {
+        "The authored projection above is retained unchanged."
+    };
     source.push_str(&format!(
-        "// Generated support gates. The authored projection above is retained unchanged.\n// Requirement evaluations can share source IDs; repeated projections are not independent evidence.\n// Support export revision: {revision}\n\ntool {GRAPH_TOOL} {{\n  version \"1\"\n}}\n\n",
+        "// Generated support gates. {projection_note}\n// Requirement evaluations can share source IDs; repeated projections are not independent evidence.\n// Support export revision: {revision}\n\ntool {GRAPH_TOOL} {{\n  version \"1\"\n}}\n\n",
     ));
     let index = ArgumentIndex::new(&authored.bundle.original_case);
     let mut claim_names = BTreeMap::new();
     let mut source_map = authored.bundle.source_map.clone();
     let mut pending = Vec::new();
-    let mut acquisition_requests = Vec::new();
+    let mut acquisition_requests: Vec<_> = authored
+        .review_requests
+        .iter()
+        .filter(|request| request.tool != REVIEW_TOOL)
+        .cloned()
+        .collect();
+    let method_projection = super::methods::MethodProjection {
+        authored: &authored.bundle,
+        elaboration,
+        execution,
+        plan_digest: &execution_plan_sha256,
+        context: &context,
+    };
+    let reasoning_inputs = super::methods::project_inputs(
+        &method_projection,
+        &mut source,
+        &mut acquisition_requests,
+        &mut pending,
+    )?;
     let mut projections = Vec::new();
     let cones: BTreeMap<_, _> = authored
         .bundle
@@ -244,6 +278,14 @@ pub(super) fn build(
             }
         }
     }
+    super::methods::native_routes(
+        &method_projection,
+        &reasoning_inputs,
+        &projections,
+        &mut source,
+        &mut source_map,
+        &mut pending,
+    );
     for (id, original_claim) in &authored.bundle.claim_names {
         let gate = name("support_claim", id);
         let reasoning = name("support_reasoning", id);
@@ -285,7 +327,11 @@ pub(super) fn build(
         }
         claim_names.insert(id.clone(), gate);
     }
-    let mut review_requests = authored.review_requests;
+    let mut review_requests: Vec<_> = authored
+        .review_requests
+        .into_iter()
+        .filter(|request| request.tool == REVIEW_TOOL)
+        .collect();
     for request in &mut review_requests {
         request.context = context.clone();
     }
@@ -309,6 +355,13 @@ pub(super) fn build(
         "A plan, available interface or generated configuration is not an observation. Missing configuration, unavailable historical records and judgements without valid qualified retained records remain pending.".into(),
         "Typed machine predicates, calculations and proof-check outputs remain distinct from authored structured reasoning and retained independent review obligations.".into(),
     ]);
+    if has_method_inputs {
+        limitations.extend([
+            "A method_input criterion admits an acquired formal envelope. It establishes neither empirical premise truth nor sampling, intervention, hypothesis or structural-model adequacy. Separate acquired requirement evaluations gate native routes.".into(),
+            "Native methods check their declared bounded computation and result predicate. Exact input correspondences preserve retained values; the interpretation connecting prose, formal propositions and physical systems remains authored and conditional on the named evidence and assumptions.".into(),
+            "Native non-cumulative composition propagates only explicitly selected typed routes for the same qualified conclusion. Cumulative sufficiency retains review. Unresolved material challenges retain independent resolution gates, and assumption-targeted challenges keep the native route pending.".into(),
+        ]);
+    }
     let mut bundle = SupportExport {
         schema_version: SUPPORT_EXPORT_SCHEMA.into(),
         semantics_version: SUPPORT_PROJECTION_SEMANTICS.into(),
@@ -327,6 +380,7 @@ pub(super) fn build(
         claim_names,
         source_map,
         requirements: projections,
+        reasoning_inputs,
         registry: registry.clone(),
         pending,
         limitations,
@@ -383,7 +437,10 @@ fn requirement_age(
     }
 }
 
-fn registry(locations: &SupportExportLocations) -> Result<CommandRegistry, Error> {
+fn registry(
+    locations: &SupportExportLocations,
+    has_method_inputs: bool,
+) -> Result<CommandRegistry, Error> {
     let paths = [
         &locations.collector,
         &locations.execution_plan,
@@ -425,6 +482,10 @@ fn registry(locations: &SupportExportLocations) -> Result<CommandRegistry, Error
             parallel_safe: true,
         },
     )]);
+    if has_method_inputs {
+        let graph_binding = tools.get(GRAPH_TOOL).expect("graph binding exists").clone();
+        tools.insert(crate::eal_export::REASONING_TOOL.into(), graph_binding);
+    }
     if let Some(binding) = &locations.review_binding {
         tools.insert(REVIEW_TOOL.into(), binding.clone());
     }
@@ -445,7 +506,7 @@ fn literal_path(path: &Path) -> Result<String, Error> {
     }
     Ok(value.into())
 }
-fn record(
+pub(super) fn record(
     map: &mut BTreeMap<String, EalSourceMapping>,
     id: &str,
     kind: &str,

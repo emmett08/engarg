@@ -111,6 +111,10 @@ pub struct Warrant {
     pub backing_evidence_ids: Vec<String>,
     pub inference: InferenceKind,
     pub applicability: String,
+    /// Typed computational correspondence, or an explicit unresolved method.
+    /// Historical cases omit this field and retain authored structured support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_method: Option<super::ReasoningMethodBinding>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -166,6 +170,7 @@ pub enum InferenceKind {
     Inductive,
     Abductive,
     Causal,
+    Counterfactual,
     Analogical,
     Practical,
 }
@@ -262,5 +267,52 @@ pub fn case_schema() -> serde_json::Value {
     if let Some(object) = schema.as_object_mut() {
         object.remove("$schema");
     }
+    supported_schema(&mut schema);
+    // New generation must make the computational/unresolved choice explicit.
+    // Deserialising historical reports continues to admit the absent field.
+    let warrant = schema["$defs"]["Warrant"].take();
+    let mut computational = warrant.clone();
+    computational["properties"]["inference"] = serde_json::json!({"type":"string",
+        "enum":["deductive","inductive","abductive","causal","counterfactual"]});
+    computational["properties"]["reasoning_method"] =
+        serde_json::json!({"$ref":"#/$defs/ReasoningMethodBinding"});
+    let mut authored = warrant;
+    authored["properties"]["inference"] = serde_json::json!({"type":"string",
+        "enum":["analogical","practical"]});
+    authored["properties"]["reasoning_method"] = serde_json::json!({"type":"null"});
+    schema["$defs"]["Warrant"] = serde_json::json!({"anyOf":[computational,authored]});
     schema
+}
+
+/// Schemars emits disjoint tagged unions as oneOf. The provider's strict
+/// structured-output dialect uses anyOf, requires every object property and
+/// represents optional values through an explicit nullable alternative.
+fn supported_schema(value: &mut serde_json::Value) {
+    use serde_json::{Value, json};
+    match value {
+        Value::Object(object) => {
+            object.remove("default");
+            object.remove("format");
+            if let Some(variants) = object.remove("oneOf") {
+                object.insert("anyOf".into(), variants);
+            }
+            if let Some(constant) = object.remove("const") {
+                object.insert("enum".into(), json!([constant]));
+            }
+            if let Some(properties) = object.get_mut("properties").and_then(Value::as_object_mut) {
+                let keys: Vec<_> = properties.keys().cloned().map(Value::String).collect();
+                object.insert("required".into(), Value::Array(keys));
+                object.insert("additionalProperties".into(), Value::Bool(false));
+            }
+            for child in object.values_mut() {
+                supported_schema(child);
+            }
+        }
+        Value::Array(array) => {
+            for child in array {
+                supported_schema(child);
+            }
+        }
+        _ => {}
+    }
 }

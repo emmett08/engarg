@@ -490,6 +490,7 @@ mod tests {
             applicability: "Under stated scope".into(),
             inference: InferenceKind::Deductive,
             backing_evidence_ids: vec![],
+            reasoning_method: None,
         });
         if let Some(composition) = case
             .compositions

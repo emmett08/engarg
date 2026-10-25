@@ -305,6 +305,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                     if emitted > 128:
                         pending.append({'kind': 'collection_budget_exceeded', 'description': 'Assumed default exceeded.'})
                     bundle = {'schema_version': 'engarg.support-export/1', 'authored': {'revision': revision},
+                              'claim_names': {'current_claim': 'current_claim'},
                               'execution_plan_sha256': plan_digest, 'pending': pending}
                     write(option('--manifest'), bundle)
                     stem.write_text('offline graph EAL fixture\n')
@@ -361,11 +362,21 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                     write(preparation / 'collector-preparation.json', prepared)
                 pathlib.Path(option('--output')).write_text('offline EAL fixture\n')
                 pathlib.Path(option('--tools-output')).write_text('offline registry fixture\n')
-                write(option('--manifest'), {'revision': revision, 'acquisition_plan': {'entries': entries}, 'obligations': []})
+                write(option('--manifest'), {'revision': revision, 'acquisition_plan': {'entries': entries}, 'obligations': [],
+                                            'claim_names': {'current_claim': 'current_claim'}})
             elif args[:2] == ['eal', 'validate']:
                 write(option('--output'), {'is_error': False, 'result': {'valid': True}})
             elif args[:2] == ['eal', 'plan']:
                 write(option('--output'), {'is_error': False, 'result': {}})
+            elif args[:2] == ['eal', 'collect']:
+                write(option('--output'), {'is_error': False, 'result': {
+                    'collection_id': 'offline-script-collection',
+                    'records': {'source': {'status': 'ok'}}}})
+            elif args[:2] == ['eal', 'assess']:
+                assert option('--collection-id') == 'offline-script-collection'
+                write(option('--output'), {'is_error': False, 'result': {
+                    'assessment_id': 'offline-script-assessment', 'valid': True, 'complete': True,
+                    'claims': {'current_claim': {'status': os.environ.get('ASSESSMENT_STATUS', 'supported')}}}})
             else:
                 raise SystemExit('Unexpected EngArg operation')
             """).lstrip())
@@ -1225,6 +1236,75 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertIn('Missing executable EAL companion', result.stderr)
         self.assertIn('eal-collector', result.stderr)
         self.assertFalse(self.log.exists())
+
+    def test_default_provider_maximum_and_automatic_argument_depth(self):
+        self.install_pipeline_stubs()
+        directory = self.pipeline_directory(self.run_script(self.inputs))
+        analysis = next(call for call in self.invocations() if call[0] == 'analyse')
+        self.assertEqual(analysis[analysis.index('--max-output-tokens') + 1], '128000')
+        self.assertEqual(analysis[analysis.index('--max-response-bytes') + 1], '16777216')
+        self.assertNotIn('--argument-depth', analysis)
+        self.assertIsNone(json.loads((directory/'run-settings.json').read_text())['argument_depth'])
+
+    def test_explicit_model_budget_and_depth_are_forwarded(self):
+        self.install_pipeline_stubs()
+        self.pipeline_directory(self.run_script(self.inputs, env=dict(
+            self.env, ENGARG_MODEL='operator-deployment', ENGARG_MAX_OUTPUT_TOKENS='32000', ENGARG_ARGUMENT_DEPTH='5')))
+        analysis = next(call for call in self.invocations() if call[0] == 'analyse')
+        self.assertEqual(analysis[analysis.index('--max-output-tokens') + 1], '32000')
+        self.assertEqual(analysis[analysis.index('--argument-depth') + 1], '5')
+
+    def test_unknown_model_and_unsupported_known_budget_stop_before_inference(self):
+        self.install_pipeline_stubs()
+        for overrides in [{'ENGARG_MODEL': 'operator-deployment'}, {'ENGARG_MAX_OUTPUT_TOKENS': '128001'},
+                          {'ENGARG_ARGUMENT_DEPTH': '17'}]:
+            with self.subTest(overrides=overrides):
+                result = self.run_script(self.inputs, env=dict(self.env, **overrides))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(self.log.exists())
+
+    def test_collection_and_assessment_share_actual_collection_and_database(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        directory = self.pipeline_directory(self.run_script(
+            '--collect-and-assess', '--evidence-config', config, self.inputs, graph=True))
+        calls = self.invocations()
+        collect = next(call for call in calls if call[:2] == ['eal', 'collect'])
+        assess = next(call for call in calls if call[:2] == ['eal', 'assess'])
+        for call in [collect, assess]:
+            self.assertEqual(call[call.index('--database') + 1], str(directory/'eal.sqlite'))
+            self.assertEqual(call[call.index('--tools') + 1], str(directory/'argument.tools.toml'))
+            self.assertEqual(call[call.index('--timeout-secs') + 1], '600')
+        self.assertEqual(assess[assess.index('--collection-id') + 1], 'offline-script-collection')
+        summary = json.loads((directory/'run-summary.json').read_text())
+        self.assertTrue(summary['evidence_collected'])
+        self.assertEqual(summary['eal_execution']['status'], 'supported')
+        self.assertEqual(summary['stage_status']['evidence_assessment'], 'supported')
+
+    def test_unresolved_assessment_preserves_every_artifact_and_returns_nonzero(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        result = self.run_script('--collect-and-assess', '--evidence-config', config, self.inputs, graph=True,
+                                 env=dict(self.env, ASSESSMENT_STATUS='unsupported'))
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        directory = Path(result.stdout.split('Artifacts: ', 1)[1].splitlines()[0])
+        self.assertEqual(json.loads((directory/'execution-result.json').read_text())['status'], 'unresolved')
+        self.assertTrue((directory/'evidence-collection.json').is_file())
+        self.assertTrue((directory/'eal-assessment.json').is_file())
+        self.assertTrue((directory/'run-summary.json').is_file())
+        self.assertIn('current claim: unsupported', result.stdout)
+
+    def test_simple_catalogue_preflight_needs_no_runtime_or_provider(self):
+        shutil.copyfile(SOURCE_SCRIPT.parent/'catalogue_evidence_example.py', self.script.parent/'catalogue_evidence_example.py')
+        shutil.copyfile(SOURCE_SCRIPT.parents[1]/'examples/toolchains/python.json', self.repo/'examples/toolchains/python.json')
+        directory = self.successful_run_directory(self.run_script('--simple-example', '--check-only', graph=True))
+        request = json.loads((directory/'request.json').read_text())
+        self.assertEqual(request['claim'], 'The demonstration-v1 catalogue snapshot contains three entries with distinct identifiers.')
+        self.assertEqual(request['evidence'], [])
+        context = json.loads(request['context'])
+        self.assertEqual(context['required_custom_operation']['schema'], 'engarg.operation-specification/1')
+        self.assertEqual(context['formal_input']['method'], 'deductive/1')
+        self.assertFalse((self.commands/'cargo').exists())
 
 
 if __name__ == "__main__":

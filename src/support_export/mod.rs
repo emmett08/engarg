@@ -1,9 +1,11 @@
-//! EAL/3 support gates over an unchanged, canonical authored projection.
+//! EAL/3 support gates and native method routes over a canonical authored case.
 //!
 //! The outer version binds the source graph, collector locations and generated
-//! gates. The inner v3 projection retains its historical identity and semantics.
+//! gates. Historical v3 projections retain their identity. Typed projections
+//! bind their pending method selectors to exact retained graph outputs.
 mod alternatives;
 mod budget;
+mod methods;
 mod projection;
 mod types;
 

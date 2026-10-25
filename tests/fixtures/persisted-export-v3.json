@@ -1,0 +1,286 @@
+{
+  "schema_version": "engarg.eal-export/3",
+  "exporter_version": "0.10.0",
+  "semantics_version": "engarg.eal-projection/3",
+  "acquisition_plan": {
+    "enabled": true,
+    "entries": [
+      {
+        "need_id": "N1",
+        "tool_id": "custom",
+        "arguments": [],
+        "unresolved_arguments": [
+          "adapter"
+        ]
+      }
+    ]
+  },
+  "export_policy": {
+    "schema": "engarg.export-policy/1",
+    "review_max_age_seconds": 86400,
+    "acquisition_max_age_seconds": 86400,
+    "acquisition_per_need": {
+      "N1": 86400
+    }
+  },
+  "authoring_profile": "eal.runtime-exportable/1",
+  "revision": "549969e498ef84d45ea39daf158d36ca09a7196860adc330034249ef6f0b620b",
+  "target_language": "EAL/3",
+  "review_max_age_seconds": 86400,
+  "source": "language \"EAL/3\"\n\n// Authored EngArg projection. Review contracts are not observations.\n// Keep the JSON export bundle for the complete canonical source and source map.\n\nenvironment engarg_case {\n  require engarg_export_digest == \"549969e498ef84d45ea39daf158d36ca09a7196860adc330034249ef6f0b620b\"\n}\n\ntool engarg_review_contract {\n  version \"1\"\n}\n\ntool acquisition_tool_4e31 {\n  version \"1\"\n}\n\nevidence acquisition_4e31 {\n  tool acquisition_tool_4e31\n  kind acquisition\n  environment engarg_case\n  max_age 86400\n  input {\"arguments\":{},\"case_digest\":\"549969e498ef84d45ea39daf158d36ca09a7196860adc330034249ef6f0b620b\",\"need\":{\"acceptance_criterion\":\"The retained complete catalogue contains exactly one entry.\",\"comparator\":\"The requested count of one.\",\"cost\":\"One local test fixture read.\",\"enables_claim\":\"current_claim\",\"id\":\"N1\",\"if_failed\":\"Leave the claim unresolved.\",\"measurement\":\"An exact integer count.\",\"method\":\"Read and count one retained catalogue snapshot.\",\"priority\":1,\"question\":\"How many entries are in the compatibility catalogue?\",\"target_id\":\"G1\"},\"schema\":\"engarg.eal-acquisition/1\",\"tool_id\":\"custom\",\"unresolved_arguments\":[\"adapter\"]}\n  require collected == true\n}\n\nevidence ground_review_4731 {\n  tool engarg_review_contract\n  kind review\n  environment engarg_case\n  max_age 86400\n  input {\"acquisition\":\"Explicit independent review required; no observation is supplied by this export.\",\"authored_detail\":{\"evidence_ids\":[],\"id\":\"G1\",\"statement\":\"The exact number of catalogue entries is unknown.\",\"status\":\"missing\"},\"case_digest\":\"549969e498ef84d45ea39daf158d36ca09a7196860adc330034249ef6f0b620b\",\"obligation\":{\"eal_evidence_name\":\"ground_review_4731\",\"id\":\"ground_interpretation:G1\",\"kind\":\"ground_interpretation\",\"requirement\":\"Establish the bounded ground from admissible observations and its cited sources: The exact number of catalogue entries is unknown.. Original status Missing is authored metadata, not an observation.\",\"source_evidence_ids\":[],\"target_id\":\"G1\"},\"required_acquisitions\":[{\"evidence_id\":\"acquisition_4e31\",\"interpretation\":\"Independently assess the observation against the evidence need and its comparator and acceptance criterion. Successful acquisition establishes the recorded measurement only.\",\"need\":{\"acceptance_criterion\":\"The retained complete catalogue contains exactly one entry.\",\"comparator\":\"The requested count of one.\",\"cost\":\"One local test fixture read.\",\"enables_claim\":\"current_claim\",\"id\":\"N1\",\"if_failed\":\"Leave the claim unresolved.\",\"measurement\":\"An exact integer count.\",\"method\":\"Read and count one retained catalogue snapshot.\",\"priority\":1,\"question\":\"How many entries are in the compatibility catalogue?\",\"target_id\":\"G1\"},\"need_id\":\"N1\"}],\"schema\":\"engarg.eal-export/3\"}\n  require accepted == true\n}\n\nevidence warrant_review_5731 {\n  tool engarg_review_contract\n  kind review\n  environment engarg_case\n  max_age 86400\n  input {\"acquisition\":\"Explicit independent review required; no observation is supplied by this export.\",\"authored_detail\":{\"applicability\":\"Only the named fixture catalogue.\",\"backing_evidence_ids\":[],\"conclusion_id\":\"current_claim\",\"id\":\"W1\",\"inference\":\"deductive\",\"premise_ids\":[\"G1\"],\"rule\":\"A checked exact entry count would establish the bounded count claim.\"},\"case_digest\":\"549969e498ef84d45ea39daf158d36ca09a7196860adc330034249ef6f0b620b\",\"obligation\":{\"eal_evidence_name\":\"warrant_review_5731\",\"id\":\"warrant_adequacy:W1\",\"kind\":\"warrant_adequacy\",\"requirement\":\"Review whether the declared premises and backing adequately support this route's qualified conclusion in the declared scope, including applicability: Only the named fixture catalogue.\",\"source_evidence_ids\":[],\"target_id\":\"W1\"},\"required_acquisitions\":[],\"schema\":\"engarg.eal-export/3\"}\n  require accepted == true\n}\n\nevidence composition_review_63757272656e745f636c61696d {\n  tool engarg_review_contract\n  kind review\n  environment engarg_case\n  max_age 86400\n  input {\"acquisition\":\"Explicit independent review required; no observation is supplied by this export.\",\"authored_detail\":{\"conclusion_id\":\"current_claim\",\"rationale\":\"The single route depends on the missing catalogue count.\",\"relationship\":\"jointly_required\",\"selected_warrant_ids\":[\"W1\"]},\"case_digest\":\"549969e498ef84d45ea39daf158d36ca09a7196860adc330034249ef6f0b620b\",\"obligation\":{\"eal_evidence_name\":\"composition_review_63757272656e745f636c61696d\",\"id\":\"composition_adequacy:current_claim\",\"kind\":\"composition_adequacy\",\"requirement\":\"Review the sufficiency of this declared JointlyRequired composition under its explicit selected reliance; selection and agent agreement do not establish sufficiency. The single route depends on the missing catalogue count.\",\"source_evidence_ids\":[],\"target_id\":\"current_claim\"},\"required_acquisitions\":[],\"schema\":\"engarg.eal-export/3\"}\n  require accepted == true\n}\n\nclaim claim_63757272656e745f636c61696d {\n  statement \"The compatibility catalogue count remains unverified.\\nQualifier: Pending the declared acquisition.\\nEngineering scope: {\\\"system_boundary\\\":\\\"The compatibility catalogue.\\\",\\\"configuration\\\":\\\"Fixture version one.\\\",\\\"operating_conditions\\\":\\\"A fixed catalogue snapshot.\\\",\\\"units\\\":\\\"Entry count.\\\",\\\"time_horizon\\\":\\\"One fixture snapshot.\\\",\\\"consequences\\\":\\\"Compatibility testing only.\\\"}\"\n  environment engarg_case\n}\n\nclaim claim_7374726f6e6765725f746172676574 {\n  statement \"The compatibility catalogue contains one entry.\\nQualifier: Within the named compatibility catalogue.\\nEngineering scope: {\\\"system_boundary\\\":\\\"The compatibility catalogue.\\\",\\\"configuration\\\":\\\"Fixture version one.\\\",\\\"operating_conditions\\\":\\\"A fixed catalogue snapshot.\\\",\\\"units\\\":\\\"Entry count.\\\",\\\"time_horizon\\\":\\\"One fixture snapshot.\\\",\\\"consequences\\\":\\\"Compatibility testing only.\\\"}\"\n  environment engarg_case\n}\n\nclaim ground_4731 {\n  statement \"The exact number of catalogue entries is unknown.\\nOriginal ground status: Missing.\\nEngineering scope: {\\\"system_boundary\\\":\\\"The compatibility catalogue.\\\",\\\"configuration\\\":\\\"Fixture version one.\\\",\\\"operating_conditions\\\":\\\"A fixed catalogue snapshot.\\\",\\\"units\\\":\\\"Entry count.\\\",\\\"time_horizon\\\":\\\"One fixture snapshot.\\\",\\\"consequences\\\":\\\"Compatibility testing only.\\\"}\"\n  environment engarg_case\n}\n\nreasoning ground_reasoning_4731 {\n  method \"structured/1\"\n  rationale \"Source provenance and a separate reviewed interpretation jointly support only the stated bounded ground. Authored interpretation is not mechanically proved.\"\n}\n\nargument ground_argument_4731 = [evidence acquisition_4e31, ground_review_4731] via ground_reasoning_4731 => ground_4731\n\nclaim route_5731 {\n  statement \"Candidate support for: The compatibility catalogue count remains unverified.\\nQualifier: Pending the declared acquisition.\\nRule: A checked exact entry count would establish the bounded count claim.\\nOriginal inference: Deductive.\\nApplicability: Only the named fixture catalogue.\\nEngineering scope: {\\\"system_boundary\\\":\\\"The compatibility catalogue.\\\",\\\"configuration\\\":\\\"Fixture version one.\\\",\\\"operating_conditions\\\":\\\"A fixed catalogue snapshot.\\\",\\\"units\\\":\\\"Entry count.\\\",\\\"time_horizon\\\":\\\"One fixture snapshot.\\\",\\\"consequences\\\":\\\"Compatibility testing only.\\\"}\"\n  environment engarg_case\n}\n\nreasoning warrant_5731 {\n  method \"structured/1\"\n  rationale \"A checked exact entry count would establish the bounded count claim.\\nOriginal inference: Deductive; retained as authored structured/1, not a computational certificate.\\nApplicability: Only the named fixture catalogue.\"\n  backing [warrant_review_5731]\n}\n\nargument route_argument_5731 = [evidence warrant_review_5731, premises ground_4731] via warrant_5731 => route_5731\n\nreasoning composition_reasoning_63757272656e745f636c61696d {\n  method \"structured/1\"\n  rationale \"Declared JointlyRequired relationship. The single route depends on the missing catalogue count.\\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review.\"\n}\n\nargument composition_argument_63757272656e745f636c61696d = [evidence composition_review_63757272656e745f636c61696d, premises route_5731] via composition_reasoning_63757272656e745f636c61696d => claim_63757272656e745f636c61696d\n\n",
+  "context": {
+    "engarg_export_digest": "549969e498ef84d45ea39daf158d36ca09a7196860adc330034249ef6f0b620b"
+  },
+  "claim_names": {
+    "current_claim": "claim_63757272656e745f636c61696d",
+    "stronger_target": "claim_7374726f6e6765725f746172676574"
+  },
+  "source_map": {
+    "G1": {
+      "declarations": [
+        {
+          "kind": "evidence",
+          "name": "ground_review_4731",
+          "role": "ground_interpretation"
+        },
+        {
+          "kind": "claim",
+          "name": "ground_4731",
+          "role": "bounded_ground"
+        },
+        {
+          "kind": "reasoning",
+          "name": "ground_reasoning_4731",
+          "role": "ground_interpretation"
+        },
+        {
+          "kind": "argument",
+          "name": "ground_argument_4731",
+          "role": "ground_support"
+        }
+      ]
+    },
+    "N1": {
+      "declarations": [
+        {
+          "kind": "tool",
+          "name": "acquisition_tool_4e31",
+          "role": "planned_acquisition_tool"
+        },
+        {
+          "kind": "evidence",
+          "name": "acquisition_4e31",
+          "role": "planned_acquisition"
+        }
+      ]
+    },
+    "W1": {
+      "declarations": [
+        {
+          "kind": "evidence",
+          "name": "warrant_review_5731",
+          "role": "warrant_adequacy"
+        },
+        {
+          "kind": "claim",
+          "name": "route_5731",
+          "role": "candidate_route"
+        },
+        {
+          "kind": "reasoning",
+          "name": "warrant_5731",
+          "role": "authored_warrant"
+        },
+        {
+          "kind": "argument",
+          "name": "route_argument_5731",
+          "role": "candidate_route_support"
+        }
+      ]
+    },
+    "current_claim": {
+      "declarations": [
+        {
+          "kind": "evidence",
+          "name": "composition_review_63757272656e745f636c61696d",
+          "role": "composition_adequacy"
+        },
+        {
+          "kind": "claim",
+          "name": "claim_63757272656e745f636c61696d",
+          "role": "qualified_canonical_claim"
+        },
+        {
+          "kind": "reasoning",
+          "name": "composition_reasoning_63757272656e745f636c61696d",
+          "role": "support_composition"
+        },
+        {
+          "kind": "argument",
+          "name": "composition_argument_63757272656e745f636c61696d",
+          "role": "selected_composition"
+        }
+      ]
+    },
+    "stronger_target": {
+      "declarations": [
+        {
+          "kind": "claim",
+          "name": "claim_7374726f6e6765725f746172676574",
+          "role": "qualified_canonical_claim"
+        }
+      ]
+    }
+  },
+  "obligations": [
+    {
+      "id": "ground_interpretation:G1",
+      "eal_evidence_name": "ground_review_4731",
+      "kind": "ground_interpretation",
+      "target_id": "G1",
+      "requirement": "Establish the bounded ground from admissible observations and its cited sources: The exact number of catalogue entries is unknown.. Original status Missing is authored metadata, not an observation.",
+      "source_evidence_ids": []
+    },
+    {
+      "id": "warrant_adequacy:W1",
+      "eal_evidence_name": "warrant_review_5731",
+      "kind": "warrant_adequacy",
+      "target_id": "W1",
+      "requirement": "Review whether the declared premises and backing adequately support this route's qualified conclusion in the declared scope, including applicability: Only the named fixture catalogue.",
+      "source_evidence_ids": []
+    },
+    {
+      "id": "composition_adequacy:current_claim",
+      "eal_evidence_name": "composition_review_63757272656e745f636c61696d",
+      "kind": "composition_adequacy",
+      "target_id": "current_claim",
+      "requirement": "Review the sufficiency of this declared JointlyRequired composition under its explicit selected reliance; selection and agent agreement do not establish sufficiency. The single route depends on the missing catalogue count.",
+      "source_evidence_ids": []
+    }
+  ],
+  "limitations": [
+    "The EAL source is a structural projection of authored reasoning using structured/1; original inference labels are retained, not mechanically proved or promoted to computational methods.",
+    "No observation records are generated. Supplied excerpts, model statuses, and checked_by_user never discharge a review obligation. Missing observations mean unavailable support, not false claims.",
+    "engarg_review_contract is a declared review interface, not an installed collector. An operator must configure a trusted collector or provide compatible independently retained EAL observations before review evidence can be available.",
+    "Review observations have an explicit export-policy max_age of 86400 seconds; this is not an inferred expiry of the original source evidence.",
+    "Jointly required and cumulative routes are combined with AND. Cumulative weighting or statistical sufficiency remains an explicit composition review obligation. Only the selected alternative connects to its original conclusion; unselected route claims remain separately queryable.",
+    "Critical assumptions and open or sustained material challenges gate affected support. Noncritical assumptions remain declared and reviewable without adding mandatory dependencies absent from the original reliance policy.",
+    "Each challenge is an evidence-gated EAL objection at its original target category. Challenge kind, basis, materiality, response and original status are preserved in the review input and original_case; EAL does not encode these labels as an automatic proof or dismissal.",
+    "Free-text scope and qualifiers remain beside claim statements; they are not invented typed quantities, formal contraries, strict rules, rankings or preferences. Plans, prose, alternatives and decision limits are preserved exactly in original_request and original_case.",
+    "The context digest binds this projection to the canonical case revision. It identifies that authored scope; it does not establish that the real environment satisfies its conditions or authorize an engineering decision.",
+    "Acquisition availability follows the selected adapter contract. EngArg adapters use collected while native fleet collectors use cluster_count and native GitHub uses found. The existing independent review obligations still determine interpretation and sufficiency. Custom collectors remain command implementation stubs and unresolved inputs retain explicit command configuration templates. Acquisition observations use the persisted resolved per-need export-policy ages."
+  ],
+  "original_request": {
+    "claim": "The compatibility catalogue contains one entry.",
+    "context": "Public persisted-format compatibility example. No observations are supplied.",
+    "evidence": []
+  },
+  "original_case": {
+    "original_claim": "The compatibility catalogue contains one entry.",
+    "current_claim": {
+      "text": "The compatibility catalogue count remains unverified.",
+      "qualifier": "Pending the declared acquisition."
+    },
+    "stronger_target": {
+      "text": "The compatibility catalogue contains one entry.",
+      "qualifier": "Within the named compatibility catalogue."
+    },
+    "status": "unsupported",
+    "scope": {
+      "system_boundary": "The compatibility catalogue.",
+      "configuration": "Fixture version one.",
+      "operating_conditions": "A fixed catalogue snapshot.",
+      "units": "Entry count.",
+      "time_horizon": "One fixture snapshot.",
+      "consequences": "Compatibility testing only."
+    },
+    "subclaims": [],
+    "grounds": [
+      {
+        "id": "G1",
+        "statement": "The exact number of catalogue entries is unknown.",
+        "evidence_ids": [],
+        "status": "missing"
+      }
+    ],
+    "warrants": [
+      {
+        "id": "W1",
+        "rule": "A checked exact entry count would establish the bounded count claim.",
+        "conclusion_id": "current_claim",
+        "premise_ids": [
+          "G1"
+        ],
+        "backing_evidence_ids": [],
+        "inference": "deductive",
+        "applicability": "Only the named fixture catalogue."
+      }
+    ],
+    "compositions": [
+      {
+        "conclusion_id": "current_claim",
+        "relationship": "jointly_required",
+        "selected_warrant_ids": [
+          "W1"
+        ],
+        "rationale": "The single route depends on the missing catalogue count."
+      }
+    ],
+    "assumptions": [],
+    "defeaters": [],
+    "alternatives": [],
+    "evidence_plan": [
+      {
+        "id": "N1",
+        "target_id": "G1",
+        "question": "How many entries are in the compatibility catalogue?",
+        "method": "Read and count one retained catalogue snapshot.",
+        "measurement": "An exact integer count.",
+        "comparator": "The requested count of one.",
+        "acceptance_criterion": "The retained complete catalogue contains exactly one entry.",
+        "if_failed": "Leave the claim unresolved.",
+        "enables_claim": "current_claim",
+        "priority": 1,
+        "cost": "One local test fixture read."
+      }
+    ],
+    "reading": [
+      {
+        "claim_id": "current_claim",
+        "title": "Unverified count",
+        "paragraphs": [
+          {
+            "purpose": "answer",
+            "text": "The count remains unverified because no observation has been supplied.",
+            "reference_ids": [
+              "current_claim",
+              "G1",
+              "N1"
+            ]
+          }
+        ]
+      },
+      {
+        "claim_id": "stronger_target",
+        "title": "Stronger target",
+        "paragraphs": [
+          {
+            "purpose": "answer",
+            "text": "A complete retained count would be needed to establish the stronger target.",
+            "reference_ids": [
+              "stronger_target",
+              "N1"
+            ]
+          }
+        ]
+      }
+    ],
+    "residual_risks": [
+      "The catalogue has not been collected."
+    ],
+    "decision_limits": [
+      "This example tests format compatibility only."
+    ],
+    "adjudication": "No evidence has been acquired."
+  }
+}

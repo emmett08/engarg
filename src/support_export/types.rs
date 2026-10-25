@@ -4,7 +4,9 @@ use crate::{
     support_requirements::SupportElaboration,
 };
 use eal_collector_contracts::{
-    CommandBinding, CommandRegistry, capability::SupportType, execution::EvidenceExecutionPlan,
+    CommandBinding, CommandRegistry,
+    capability::SupportType,
+    execution::{EvidenceExecutionPlan, OutputReference},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -32,7 +34,7 @@ pub struct SupportExport {
     pub exporter_version: String,
     pub revision: String,
     pub target_language: String,
-    /// The exact authored case and its unchanged v3 projection, not generated nodes.
+    /// The exact authored case and canonical projection, not generated nodes.
     pub authored: EalExport,
     pub support_elaboration: SupportElaboration,
     pub execution_plan: EvidenceExecutionPlan,
@@ -48,6 +50,9 @@ pub struct SupportExport {
     pub claim_names: BTreeMap<String, String>,
     pub source_map: BTreeMap<String, EalSourceMapping>,
     pub requirements: Vec<SupportRequirementProjection>,
+    /// Exact source selectors used by typed methods. Missing selectors stay pending.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reasoning_inputs: Vec<ReasoningInputProjection>,
     pub registry: CommandRegistry,
     pub pending: Vec<PendingSupport>,
     pub limitations: Vec<String>,
@@ -85,6 +90,19 @@ pub struct SupportRequirementProjection {
     pub source_step_ids: Vec<String>,
     pub derived_step_ids: Vec<String>,
     pub gated_claim_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReasoningInputProjection {
+    pub warrant_id: String,
+    pub evidence_need_id: String,
+    pub eal_evidence_name: String,
+    pub method: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirement_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<OutputReference>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

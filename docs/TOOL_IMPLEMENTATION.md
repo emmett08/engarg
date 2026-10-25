@@ -8,6 +8,16 @@ parameterised operation contracts, separate consumer bindings, `tooling.capabili
 and function-test receipts that leave scientific qualification separate. This
 document's per-need overrides describe the compatible flat planning path.
 
+The graph capability path repairs malformed source, build failures and failed
+frozen tests within its remaining `--tool-max-calls` allowance and stage deadline.
+Each retry keeps the same frozen operation, schemas and fixture oracle. It receives
+the previous candidate and bounded failure diagnostics, with configured secret
+values removed. Failed attempts remain retained. Provider, infrastructure,
+cancellation and exhausted-budget errors stop the stage rather than triggering
+blind retries. A later invocation can still reuse the frozen contract.
+With `--progress`, the next repair and its remaining allowance are reported
+before another provider request.
+
 ## Prepare a language toolchain
 
 The language switch names the implementation language.
@@ -111,6 +121,11 @@ The stage executes the implementation and compares observed results with the rec
 It requires positive, measured-negative and acquisition-error cases.
 Independent protocol probes exercise malformed input, missing identity and invalid context.
 Successful observations must preserve the complete request and context, including large integers and escaped strings.
+When the retained operation contract requires original observation time, an outer
+`observed_at` UTC timestamp is mandatory during frozen verification. A fresh local
+calculation records its own observation time. Upstream measurement clocks remain
+separately preserved through the dependency graph. A generated tool cannot pass
+verification by omitting a timestamp that its eventual native binding requires.
 A measured negative remains a successful acquisition with its negative value.
 An acquisition error produces no successful observation.
 
