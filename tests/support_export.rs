@@ -929,9 +929,16 @@ fn saved_graph_report(path: &std::path::Path) {
 #[test]
 fn cli_export_and_prepare_write_matching_graph_bundles_with_evidence_plans() {
     let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("analysis.json");
+    let root = directory.path().to_path_buf();
+    #[cfg(unix)]
+    let root = {
+        let alias = root.join("operator-alias");
+        std::os::unix::fs::symlink(&root, &alias).unwrap();
+        alias
+    };
+    let input = root.join("analysis.json");
     saved_graph_report(&input);
-    let output = directory.path().join("argument.json");
+    let output = root.join("argument.json");
     let result = std::process::Command::new(env!("CARGO_BIN_EXE_engarg"))
         .args(["eal", "export", "--input"])
         .arg(&input)
@@ -949,7 +956,9 @@ fn cli_export_and_prepare_write_matching_graph_bundles_with_evidence_plans() {
     assert!(support_export::reconstruct_bundle(&bundle).is_ok());
     assert_eq!(
         bundle.locations.execution_plan,
-        directory.path().join("argument.execution-plan.json")
+        root.join("argument.execution-plan.json")
+            .canonicalize()
+            .unwrap()
     );
     let plan: EvidenceExecutionPlan =
         serde_json::from_slice(&std::fs::read(&bundle.locations.execution_plan).unwrap()).unwrap();
@@ -957,21 +966,20 @@ fn cli_export_and_prepare_write_matching_graph_bundles_with_evidence_plans() {
         canonical_digest(&plan).unwrap(),
         bundle.execution_plan_sha256
     );
-    let evidence: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(directory.path().join("argument.evidence-plan.json")).unwrap(),
-    )
-    .unwrap();
+    let evidence: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(root.join("argument.evidence-plan.json")).unwrap())
+            .unwrap();
     assert_eq!(
         evidence["execution_plan_sha256"],
         bundle.execution_plan_sha256
     );
     assert!(!evidence["evidence_needs"].as_array().unwrap().is_empty());
-    let tools = std::fs::read_to_string(directory.path().join("argument.tools.toml")).unwrap();
+    let tools = std::fs::read_to_string(root.join("argument.tools.toml")).unwrap();
     assert_eq!(
         tools,
         support_export::reconstruct(&bundle).unwrap().tools_toml
     );
-    let prepared = directory.path().join("prepared");
+    let prepared = root.join("prepared");
     let result = std::process::Command::new(env!("CARGO_BIN_EXE_engarg"))
         .args(["eal", "prepare", "--input"])
         .arg(&input)
@@ -1009,7 +1017,10 @@ fn cli_export_and_prepare_write_matching_graph_bundles_with_evidence_plans() {
     );
     assert_eq!(
         bundle.locations.execution_plan,
-        prepared.join("argument.execution-plan.json")
+        prepared
+            .join("argument.execution-plan.json")
+            .canonicalize()
+            .unwrap()
     );
 }
 
