@@ -22,14 +22,12 @@ The export also writes `argument.execution-plan.json`, `argument.evidence-plan.j
 
 ## Implementation baseline and compatibility
 
-The implementation was developed against these exact revisions:
-
-| Repository | Baseline |
-| --- | --- |
-| EngArg authoring work | `fcccdc825e0e385029b78a7c9f59046f35fd0818` |
-| EngArg main merged before this work | `f5628778c474b4514e1a3cca19621e75b263ef4d` |
-| EngArg resulting local merge | `9802758f40ef2b5e4526dfb86f51bb66f0387ece` |
-| EAL | `da9279fd5d2b1107335d218c8bf7c2b685667df6` |
+The 25 October 2026 completion review starts from EngArg default-branch revision
+`803984920cbfb1ec9a3c5aebb349a8f02016cd38` and EAL default-branch revision
+`92b9089`. The original planning PRs are merged. The dependency revision in
+`Cargo.toml`, `Cargo.lock` and the producer/consumer CI job identifies the EAL
+version required by this checkout. The findings register and verification
+results are in [VALIDATION.md](../VALIDATION.md).
 
 `--evidence-planning flat` remains the default. Existing argument-only, flat acquisition and v1/v2/v3 export paths retain their interfaces. Graph reports add `evidence_planning` and use a separate support-export wrapper containing the original authored v3 case. The generated support gates use the existing EAL/3 grammar; this work does not introduce a new language syntax.
 
@@ -99,7 +97,73 @@ engarg schema capabilities
 
 Selection compares bounded combinations using the configured cost order. Equivalent symbolic request groups are charged once even when requirements consume different quantities. Unresolved references can converge after binding, and freshness can require later refreshes, so these estimates do not predict exact runtime requests. Configuration and implementation effort are charged once per capability. Fan-out execution costs remain unknown because per-invocation estimates cannot predict the returned identifier count or witness position; setup costs stay explicit. `estimated_distinct_acquisitions` is null when selected inputs depend on runtime outputs. `estimated_distinct_acquisitions_upper_bound` sums per-step source-operation invocation bounds without a reuse discount, using each fan-out maximum. It excludes transport admission and any provider-internal requests. Runtime metrics report actual requests and transferred bytes.
 
-The deterministic search retains at most 32 partial plans and considers at most 64 ranked candidates per source. Backpointers retain selected choices, and only surviving states copy compact integer source sets. `selection.search_complete` reports pruning; a bounded result does not claim a global optimum. Unknown estimates remain separate from known totals. Set `prefer_configured: true` to restrict each source to executable candidates when any exist. The default is cost ranking with explicit configuration gaps.
+The deterministic search retains at most 32 partial plans and considers at most 64 ranked candidates per source. Backpointers retain selected choices, and only surviving states copy compact integer source sets. `selection.search_complete` reports pruning. Complete enumeration establishes a minimum only within the admitted candidates and declared objective.
+
+Each cost dimension compares `(unknown estimate count, known-value sum)`. Fewer
+unknown estimates take precedence over the known sum. This ordering assigns no
+numeric value to a missing estimate. Configuration and implementation effort
+are charged per capability, even when two capabilities use the same package.
+Other dimensions are charged per symbolic request group. A sum of latency
+estimates represents accumulated service time. Concurrent elapsed time also
+depends on scheduling and downstream limits.
+
+Omitting `prefer_configured`, or setting it to `false`, selects by cost and
+retains configuration gaps. This replaces the former implicit preference for
+configured routes. Setting it to `true` restricts each source to executable
+candidates when any exist, then falls back to ranked candidates with explicit
+gaps when none exist.
+
+## Comparing qualified acquisition graphs
+
+An operator can supply `batch_correspondences` in the planning configuration.
+Each entry pins a qualified item interface and batch interface by their
+`measurement_identity()` digests. Its qualification reference warrants that
+each returned batch quantity is the ordered array of the corresponding item
+quantities, including duplicate inputs. The scopes, methods, units, observation
+times, coverage and provenance must satisfy the original requirements.
+
+```json
+{
+  "id": "trace_identity_batch",
+  "qualification_reference": "reviewed-trace-batch-equivalence/1",
+  "item_capability_id": "trace_identity",
+  "item_measurement_sha256": "<item measurement_identity()>",
+  "batch_capability_id": "trace_identities",
+  "batch_measurement_sha256": "<batch measurement_identity()>",
+  "logical_argument_pointer": "/trace_id",
+  "item_argument_pointer": "/trace_id",
+  "batch_argument_pointer": "/trace_ids",
+  "maximum_items": 64
+}
+```
+
+Replace the digest placeholders with the reviewed descriptor identities. The
+batch capability's operator binding maps `/trace_ids` to `/trace_id`. Its input
+schema must declare an array whose item schema matches the scalar input and
+whose `maxItems` equals the authored fan-out bound. Each output quantity must
+declare an array of the corresponding item quantity schema. This finite schema
+profile requires resolved schemas for references and unions.
+
+The selected upstream source must also qualify an array whose `maxItems` fits
+the fan-out bound and whose element schema matches the item interface. An
+unbounded list keeps its authored fan-out route. Runtime checks require one
+value per input for every batch quantity before any dependent requirement can
+pass. Dynamic comparison controls retain their original rejection of null and
+array operands, together with their freshness and provenance.
+
+The planner compares the authored fan-out with admitted batch alternatives.
+Equivalent request groups can still supply several independently evaluated
+quantities. It retains at most 32 graph variants and checks at most 256
+correspondences, then runs the existing bounded selector within each variant.
+The report retains the selected graph, rejected alternatives, costs and pruning
+status. Export replays the selected correspondence against the original
+requirements and pinned descriptors.
+
+Graph comparison first minimises unresolved acquisitions. With
+`prefer_configured: true`, it then uses fully configured graphs at that level
+when available. Otherwise it applies the declared cost ordering with gaps
+retained. Determinism applies to the identified input snapshots and work
+limits. Live discovery can produce a different snapshot on a later replan.
 
 Dynamic dependency and fan-out slots follow those same physical mappings. Their eventual values undergo full runtime schema admission. Statically known inputs are checked during planning; dynamic slots cannot replace a fixed selector or historical interval. Missing object parents can be prepared along declared bindings, while operator arrays are never resized.
 
@@ -276,11 +340,24 @@ Registration rehashes each verified package, validates that qualification preser
 
 Replanning performs bounded discovery and deterministic selection with no model calls, preserves the exact support elaboration, and archives prior planning and tooling under `replanning`. The active `tooling` block is removed because its consumer bindings refer to the earlier routes; the archived package receipts remain validated and available for registration. Replanning can select the newly qualified capability or retain configuration, adequacy and source gaps. It does not acquire evidence or assert that the authored claim is true.
 
+A report can retain 16 replanning transitions. Existing reports at that limit
+remain readable and exportable. A further transition fails before discovery
+or output creation. Inputs remain bounded at 16 MiB. Use the exported tools
+registry for both collection and assessment so their retained bindings agree.
+
 A related qualified capability must share the subject kind, support type and an acceptable method. Its insufficient scope, units, coverage, time or provenance stays a capability mismatch. An unrelated tool does not suppress a genuine missing operation. Missing calculation and proof-check operations are classified as `transformation_implementation`; other unsupported operations use `operation_implementation`. A schema-compatible interface without reviewed semantics remains a qualification gap.
 
 ## Source reuse and metric boundaries
 
 Source identity includes provider/version, physical arguments, schema and qualification identities, configuration/authentication fingerprints, scope and historical interval. Reuse retains the original observation time and lineage. Requirement IDs, acceptance prose and thresholds are evaluated separately. Shared use of one source is reported as one source, rather than independent corroboration. A stale source or failed acquisition is pending; a successfully observed false value can fail a criterion. Neither becomes a fabricated positive observation.
+
+Whole-plan execution continues a witness-producing fan-out when another
+consumer requires complete enumeration or statistical coverage. A positive
+witness remains available if subsequent reads fail or exhaust the budget.
+Its population consumer remains pending until coverage is complete. A
+requirement-only request can still stop at the first sufficient witness.
+`execution_complete` and `budget_exhausted` describe the invocation separately
+from `criterion_satisfied`.
 
 Physical source IDs remain stable when an instrument produces a new observation. Each distinct observation is retained as a signed, hashed immutable `observations/<id>.json` snapshot. Reports and collector envelopes expose observation IDs, value hashes, original timestamps and relative paths; `SourceStore::load_observation` verifies retained snapshots. Refresh never silently overwrites the earlier raw record, including when two age policies use different observations from one source. Capacity exhaustion is explicit and does not evict earlier evidence.
 
@@ -303,6 +380,14 @@ python3 scripts/check-support-domains.py \
 ```
 
 The experiment requires `OPENAI_API_KEY` and a new output directory. It alternates mode order, retains each report, audit and failure log, and records the binary and configuration hashes. Provider-reported usage includes completed repair calls. Missing usage remains unknown and unsuccessful attempts stay in the result set. Paired ratios describe structurally accepted runs only. An expected support-type check does not establish domain adequacy: inspect the retained scope, methods, criteria and gaps independently before using the measurements to choose an agent topology. Discovery caching and provider billing classes are not controlled by this experiment.
+
+The [complete-workflow study protocol](../experiments/support-domains/README.md)
+adds frozen obligation references and paired recipes through implementation,
+qualification, registration, replanning, export, collection and assessment.
+It records phase-level usage and failures, and binds independent reviews to
+the exact output. Live semantic adequacy and cost results require executing
+and reviewing that study. The deterministic harness tests verify its
+accounting and failure handling.
 
 Two retained loopback measurements exercise sharing at different boundaries:
 

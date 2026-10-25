@@ -115,6 +115,7 @@ fn search_detail_fixture() -> (
     routes[0].capability = search;
     routes[0].projection_id = Some("search_quantities".into());
     routes.push(AcquisitionRouteProof {
+        batch: None,
         blueprint_id: "trace_details".into(),
         capability: detail,
         projection_id: Some("detail_quantities".into()),
@@ -1669,6 +1670,7 @@ fn actual_eal_collection_reuses_one_source_and_can_support_the_reviewed_canonica
         judgement_descriptor.measurement_identity().unwrap();
     execution.acquisitions.push(judgement_source);
     routes.push(AcquisitionRouteProof {
+        batch: None,
         blueprint_id: "judgement_source".into(),
         capability: judgement_descriptor,
         projection_id: Some("judgement_quantities".into()),

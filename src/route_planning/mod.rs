@@ -2,7 +2,8 @@
 mod arguments;
 mod compiler;
 mod configuration;
-pub use compiler::compile;
+mod graphs;
+pub use graphs::compile;
 mod candidates;
 mod implementation;
 mod preview;

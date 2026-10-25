@@ -23,6 +23,8 @@ pub struct PlanningConfig {
     pub prefer_configured: bool,
     pub scheduling: SchedulingPolicy,
     pub bindings: Vec<CapabilityInputBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub batch_correspondences: Vec<crate::support_graph::QualifiedBatchCorrespondence>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -65,6 +67,8 @@ pub struct RoutePlan {
 #[serde(deny_unknown_fields)]
 pub struct PlanSelection {
     pub method: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphs: Option<AcquisitionGraphComparison>,
     pub search_complete: bool,
     pub candidate_states: usize,
     /// Exact static request-group count; dynamic arguments or fan-out remain unknown.
@@ -117,4 +121,27 @@ pub struct PlanningGap {
     pub kind: GapKind,
     pub description: String,
     pub implementation: Option<CapabilityImplementationRequest>,
+}
+
+/// Bounded topology search and the precise finite family that was compared.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AcquisitionGraphComparison {
+    pub selected: String,
+    pub limit: usize,
+    pub correspondence_check_limit: usize,
+    pub correspondence_checks: usize,
+    pub search_complete: bool,
+    pub alternatives: Vec<AcquisitionGraphAlternative>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AcquisitionGraphAlternative {
+    pub id: String,
+    pub transformations: Vec<String>,
+    pub rejection: Option<String>,
+    pub total_costs: Vec<(usize, u128)>,
+    pub unresolved_acquisitions: usize,
+    pub configuration_gaps: usize,
+    pub route_search_complete: bool,
 }

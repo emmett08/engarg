@@ -23,6 +23,7 @@ pub(super) fn prepare(
     catalogue: &CapabilityCatalogue,
     config: &PlanningConfig,
     discovery: &DiscoverySnapshot,
+    allowed_capabilities: &BTreeMap<String, std::collections::BTreeSet<String>>,
 ) -> Result<(Vec<PreparedRoute>, PlanSelection), Error> {
     let capability_ids = catalogue
         .capabilities
@@ -48,15 +49,56 @@ pub(super) fn prepare(
             .collect(),
     );
     for blueprint in &elaboration.acquisitions {
+        let array_shape = source_item_array_shape(elaboration, catalogue, blueprint);
+        let allowed = |id: &str| {
+            allowed_capabilities
+                .get(&blueprint.id)
+                .is_none_or(|allowed| allowed.contains(id))
+                && !array_shape.is_some_and(|expected_array| {
+                    let capability = catalogue
+                        .capabilities
+                        .iter()
+                        .find(|capability| capability.id == id)
+                        .expect("catalogue capability");
+                    let binding = config
+                        .bindings
+                        .iter()
+                        .find(|binding| binding.capability_id == id);
+                    let logical = &blueprint
+                        .for_each
+                        .as_ref()
+                        .expect("known fan-out shape")
+                        .argument_pointer;
+                    let physical = binding
+                        .and_then(|binding| {
+                            binding
+                                .input_bindings
+                                .iter()
+                                .find(|(_, source)| *source == logical)
+                                .map(|(physical, _)| physical)
+                        })
+                        .unwrap_or(logical);
+                    crate::support_graph::schema_at(&capability.input_schema, physical)
+                        .and_then(array_schema)
+                        .is_some_and(|actual_array| actual_array != expected_array)
+                })
+        };
         let ranked = rank_adequate(
             &blueprint.contract,
             &catalogue.capabilities,
             &config.ranking,
         )
-        .map_err(Error::InvalidInput)?;
+        .map_err(Error::InvalidInput)?
+        .into_iter()
+        .filter(|rank| allowed(&rank.capability_id))
+        .collect::<Vec<_>>();
         let mut assessments = Vec::new();
         let mut physical = BTreeMap::new();
-        for capability in &catalogue.capabilities {
+        for capability in catalogue
+            .capabilities
+            .iter()
+            .filter(|capability| allowed(&capability.id))
+        {
             let compatibility = compatible(&blueprint.contract, capability);
             let binding = config
                 .bindings
@@ -140,6 +182,7 @@ pub(super) fn prepare(
         rows,
         PlanSelection {
             method: "bounded_joint_cost_with_symbolic_request_sharing/2".into(),
+            graphs: None,
             search_complete: best.complete,
             candidate_states: best.considered,
             estimated_distinct_acquisitions: best.exact_source_count,
@@ -151,3 +194,54 @@ pub(super) fn prepare(
 }
 #[cfg(test)]
 mod tests;
+
+fn array_schema(schema: &serde_json::Value) -> Option<bool> {
+    schema
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .map(|kind| kind == "array")
+}
+
+/// Reject only a proved array/scalar mismatch. Unknown or mixed source shapes
+/// retain the authored candidates, including legitimate fan-out over arrays.
+fn source_item_array_shape(
+    elaboration: &SupportElaboration,
+    catalogue: &CapabilityCatalogue,
+    blueprint: &crate::support_requirements::AcquisitionBlueprint,
+) -> Option<bool> {
+    let fanout = blueprint.for_each.as_ref()?;
+    let upstream = elaboration
+        .acquisitions
+        .iter()
+        .find(|source| source.id == fanout.output.step_id)?;
+    if upstream.for_each.is_some() {
+        return None;
+    }
+    let mut shape = None;
+    for capability in catalogue
+        .capabilities
+        .iter()
+        .filter(|capability| compatible(&upstream.contract, capability).adequate)
+    {
+        let quantity = capability
+            .semantics
+            .as_ref()?
+            .quantities
+            .iter()
+            .find(|quantity| {
+                format!("/{}", quantity.name.replace('~', "~0").replace('/', "~1"))
+                    == fanout.output.pointer
+            })?;
+        let schema =
+            crate::support_graph::schema_at(&capability.output_schema, &quantity.output_pointer)?;
+        if schema.get("type").and_then(serde_json::Value::as_str) != Some("array") {
+            return None;
+        }
+        let candidate = array_schema(schema.get("items")?)?;
+        if shape.is_some_and(|shape| shape != candidate) {
+            return None;
+        }
+        shape = Some(candidate);
+    }
+    shape
+}
