@@ -188,7 +188,7 @@ try {
 "###;
 
 const RUST_COLLECTOR: &str = r###"use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
+use serde_json::value::RawValue;
 use std::io::{Read, Write};
 
 #[derive(Deserialize)]
@@ -198,8 +198,8 @@ struct Request {
     environment: String,
     tool: String,
     tool_version: String,
-    input: Input,
-    context: Map<String, Value>,
+    input: Box<RawValue>,
+    context: Box<RawValue>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -214,6 +214,24 @@ enum Mode {
     Positive,
     Negative,
     Error,
+}
+
+#[derive(Serialize)]
+struct Measurement { collected: bool, present: bool }
+
+#[derive(Serialize)]
+struct Echo<'a> {
+    tool: &'a str,
+    tool_version: &'a str,
+    input: &'a RawValue,
+    context: &'a RawValue,
+}
+
+#[derive(Serialize)]
+struct Envelope<'a> {
+    value: Measurement,
+    context: &'a RawValue,
+    request: Echo<'a>,
 }
 
 fn collect() -> Result<(), Box<dyn std::error::Error>> {
@@ -231,22 +249,27 @@ fn collect() -> Result<(), Box<dyn std::error::Error>> {
     ].iter().any(|identity| identity.is_empty()) {
         return Err("request identity".into());
     }
-    let present = match request.input.mode {
+    if !request.context.get().trim_start().starts_with('{') {
+        return Err("context object".into());
+    }
+    let input: Input = serde_json::from_str(request.input.get())?;
+    let present = match input.mode {
         Mode::Positive => true,
         Mode::Negative => false,
         Mode::Error => return Err("synthetic acquisition error".into()),
     };
-    // The toolchain's arbitrary_precision feature retains every JSON number.
-    let envelope = json!({
-        "value": {"collected": true, "present": present},
-        "context": request.context,
-        "request": {
-            "tool": request.tool,
-            "tool_version": request.tool_version,
-            "input": request.input,
-            "context": request.context,
+    // Stream raw metadata through typed structs. A Value/json! intermediate can
+    // confuse literal reserved-key objects with serde's private number markers.
+    let envelope = Envelope {
+        value: Measurement { collected: true, present },
+        context: &request.context,
+        request: Echo {
+            tool: &request.tool,
+            tool_version: &request.tool_version,
+            input: &request.input,
+            context: &request.context,
         },
-    });
+    };
     let mut output = std::io::stdout().lock();
     serde_json::to_writer(&mut output, &envelope)?;
     output.write_all(b"\n")?;
@@ -608,9 +631,7 @@ fn replay_synthetic_fixture(attempt: &Path) -> Result<String, Box<dyn std::error
         .fixtures
         .first()
         .ok_or("synthetic contract has no fixture")?;
-    let precision: Value = serde_json::from_str(
-        r#"{"integer":90071992547409931234567890,"decimal":1.234567890123456789,"escaped":"quote \" slash \\ CRLF\r\n\u2028"}"#,
-    )?;
+    let precision = engarg::tooling::verification::protocol_precision_context()?;
     let request = json!({
         "evidence_id": contract.need.id,
         "environment": "engarg_tool_fixture",
@@ -826,10 +847,7 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     assert_eq!(unkeyed_manifest, manifest);
     assert_eq!(server.requests().len(), 2);
 
-    let context: Value = serde_json::from_str(
-        r#"{"exact_integer":90071992547409931234567890,"exact_decimal":1.234567890123456789,"escaped_text":"A quote \" and backslash \\ with \r\n and \u2028."}"#,
-    )
-    .unwrap();
+    let context = engarg::tooling::verification::protocol_precision_context().unwrap();
     let request = json!({
         "evidence_id": tool_name.replacen("acquisition_tool_", "acquisition_", 1),
         "environment": "engarg_case",
@@ -840,7 +858,8 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     });
     let output = invoke(&manifest, &request);
     successful(&output);
-    let envelope: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let envelope =
+        eal_collector_contracts::strict_json_exact(&output.stdout, Default::default()).unwrap();
     assert_eq!(
         envelope["value"],
         json!({"collected": true, "present": true})
@@ -861,7 +880,8 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     aliased["evidence_id"] = json!("synthetic_measurement");
     let output = invoke(&manifest, &aliased);
     successful(&output);
-    let envelope: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let envelope =
+        eal_collector_contracts::strict_json_exact(&output.stdout, Default::default()).unwrap();
     assert_eq!(envelope["request"]["tool"], aliased["tool"]);
     assert_eq!(envelope["context"], aliased["context"]);
 
@@ -915,6 +935,148 @@ fn rust_collector_is_compiled_registered_and_reused_with_exact_protocol_identity
         "main.rs",
         RUST_COLLECTOR,
     );
+}
+
+#[tokio::test]
+#[ignore = "requires Docker and the preloaded engarg-rust-tools:1.99.1 image"]
+async fn capability_contract_generates_rust_and_reuses_it_for_different_claims() {
+    use eal_collector_contracts::capability::{
+        LogicalStrength, ProvenanceRequirement, SUPPORT_CONTRACT_SCHEMA, SubjectScope,
+        SupportContract, SupportType, TimeRequirement,
+    };
+    use engarg::{
+        provider::{Completion, CompletionRequest, LanguageModel},
+        tooling::{
+            ToolchainProfile,
+            capability::{
+                CapabilityImplementationConfig, CapabilityImplementationRequest,
+                ImplementationGapKind, implement_capability,
+            },
+            execute_registered,
+        },
+    };
+    struct Model(Mutex<std::collections::VecDeque<String>>);
+    impl LanguageModel for Model {
+        async fn complete(&self, _request: CompletionRequest) -> Result<Completion, engarg::Error> {
+            Ok(Completion {
+                content: self
+                    .0
+                    .lock()
+                    .unwrap()
+                    .pop_front()
+                    .expect("unexpected coding call"),
+                model: "docker-function-contract-fixture".into(),
+                input_tokens: None,
+                output_tokens: None,
+                request_id: None,
+                service_tier: None,
+                reasoning_effort: None,
+            })
+        }
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let toolchain = directory.path().join("toolchain.json");
+    profile(&toolchain, "rust", "engarg-rust-tools:1.99.1", "main.rs");
+    let mut draft = draft_response();
+    draft["arguments"] = json!([]);
+    draft["unresolved_arguments"] = json!(["mode"]);
+    let request = CapabilityImplementationRequest {
+        support_contract: SupportContract {
+            schema: SUPPORT_CONTRACT_SCHEMA.into(),
+            support_type: SupportType::Calculation,
+            scope: SubjectScope {
+                kind: "synthetic_flag".into(),
+                subject: "Caller-supplied mode".into(),
+                selectors: Default::default(),
+                identity_dimensions: vec!["mode".into()],
+            },
+            acceptable_methods: vec!["synthetic_flag/1".into()],
+            quantities: Vec::new(),
+            logical_strength: LogicalStrength::ExactCalculation,
+            population: None,
+            time: TimeRequirement {
+                historical_interval: None,
+                max_age_seconds: None,
+                max_uncertainty_seconds: None,
+                require_original_observation_time: false,
+            },
+            provenance: ProvenanceRequirement {
+                required_authorities: Vec::new(),
+                transformation_history: false,
+            },
+            expected_output_schema_sha256: None,
+        },
+        input_schema: serde_json::from_str(draft["input_schema_json"].as_str().unwrap()).unwrap(),
+        output_schema: serde_json::from_str(draft["result_schema_json"].as_str().unwrap()).unwrap(),
+        operation_purpose: draft["purpose"].as_str().unwrap().into(),
+        declared_limits: Default::default(),
+    };
+    let mut selected = CapabilityImplementationConfig {
+        language: "rust".into(),
+        profile: ToolchainProfile::load(&toolchain).unwrap(),
+        store: directory.path().join("store"),
+        max_calls: 2,
+        max_input_bytes: 1_048_576,
+        max_response_bytes: 1_048_576,
+        supervisor: PathBuf::from(env!("CARGO_BIN_EXE_engarg-process-supervisor")),
+        engarg_executable: std::env::current_exe().unwrap(),
+    };
+    let model = Model(Mutex::new(std::collections::VecDeque::from([
+        draft.to_string(),
+        json!({"language":"rust","files":[{"path":"main.rs","content":RUST_COLLECTOR}]})
+            .to_string(),
+    ])));
+    let first = implement_capability(
+        &request,
+        ImplementationGapKind::Operation,
+        selected.clone(),
+        &model,
+    )
+    .await
+    .unwrap();
+    assert_eq!(first.model_calls, 2);
+    assert!(first.capability.semantics.is_none());
+    selected.max_calls = 0;
+    let second = implement_capability(
+        &request,
+        ImplementationGapKind::Operation,
+        selected.clone(),
+        &model,
+    )
+    .await
+    .unwrap();
+    assert!(second.reused);
+    assert_eq!(second.model_calls, 0);
+    assert_eq!(first.package_manifest, second.package_manifest);
+    for (id, alias, mode, criterion) in [
+        ("claim_a_need", "claim_a_tool", "positive", "p99 < 7"),
+        (
+            "claim_b_need",
+            "claim_b_tool",
+            "negative",
+            "population == 9",
+        ),
+    ] {
+        let mut context = serde_json::from_str::<Value>(&format!(
+            r#"{{"criterion":"{criterion}","integer":1234567890123456789012345678901234567890,"decimal":0.123456789012345678901234567890}}"#
+        )).unwrap();
+        context["opaque_protocol_metadata"] =
+            engarg::tooling::verification::protocol_precision_context().unwrap();
+        let runtime = json!({"evidence_id":id,"environment":"development","tool":alias,
+            "tool_version":"1","input":{"mode":mode},"context":context});
+        let observation = execute_registered(
+            &second.package_manifest,
+            &serde_json::to_vec(&runtime).unwrap(),
+            &selected.supervisor,
+        )
+        .unwrap();
+        assert_eq!(observation["context"], context);
+        assert_eq!(observation["request"]["context"], context);
+        assert_eq!(observation["request"]["tool"], alias);
+        assert_eq!(observation["request"]["input"], runtime["input"]);
+        assert_eq!(observation["value"]["present"], mode == "positive");
+    }
+    assert!(model.0.lock().unwrap().is_empty());
 }
 
 #[test]

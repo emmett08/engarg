@@ -94,6 +94,8 @@ pub fn code_request(contract: &NeedContract) -> CompletionRequest {
             "Copy the supplied tool and tool_version from each runtime request, including operator aliases. Do not hardcode an exported tool name or a context object. ",
             "Preserve input and context values exactly, including arbitrarily large JSON integers, precise decimals, escaped strings and Unicode. ",
             "Do not round metadata by parsing it through floating-point numbers; retain original JSON tokens or use a lossless JSON representation. ",
+            "Opaque JSON objects may have literal keys named $serde_json::private::Number or $serde_json::private::RawValue; never reinterpret those objects as serialization internals. ",
+            "For Rust opaque context or input, use serde_json::value::RawValue with raw_value support and serialize the raw values directly through typed transport structs, without intermediate serde_json::Value or json! buffering. Inspect only typed business fields separately and retain the original raw input/context for the response. ",
             "Keep stdout free of logs; diagnostics belong on stderr. Source files are mounted read-only at /src, fixture files read-only at /fixtures, and /build is writable. ",
             "Read synthetic fixture data through the supplied file layout when implementing the measurement; fixture outcomes are held out by the host. ",
             "Do not invent measurements, credentials, independent acceptance or host capabilities. ",

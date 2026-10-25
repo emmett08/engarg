@@ -3,6 +3,11 @@
 EngArg can generate and test missing collector implementations after argument planning.
 The stage is opt-in. Existing collectors and verified cached packages remain reusable.
 
+The [support-planning guide](support-planning.md) describes the graph mode variant:
+parameterised operation contracts, separate consumer bindings, `tooling.capabilities`,
+and function-test receipts that leave scientific qualification separate. This
+document's per-need overrides describe the compatible flat planning path.
+
 ## Prepare a language toolchain
 
 The language switch names the implementation language.
@@ -21,7 +26,7 @@ docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
 [Python](../examples/toolchains/python.json) and
 [JavaScript](../examples/toolchains/javascript.json) and
 [Rust](../examples/toolchains/rust.json) profiles are included.
-The Rust image supplies pinned Serde, arbitrary-precision JSON and blocking
+The Rust image supplies pinned Serde, arbitrary-precision/raw-value JSON and blocking
 Reqwest libraries. Its fixed compiler wrapper builds `/src/main.rs` offline
 against those libraries and writes `/build/collector`.
 Other languages use the same profile contract with an appropriate preloaded image and compiler commands.
@@ -29,12 +34,21 @@ Compiled outputs and compiler caches belong under `/build`.
 Dependencies needed by an offline build must already be available in the image.
 
 The [catalog sync authoring script](CATALOG_SYNC_AUTHORING.md) enables this Rust
-profile with `--implement-tools` and prepares its image automatically. The switch
+profile with `--implement-tools`. In its default graph mode, it prepares the image
+only after identifying genuine operation/transformation gaps; configuration-only
+runs require no Docker or coding calls. The switch
 also selects a persistent verified tool store for reuse across runs.
 
 The stage resolves and records the immutable image ID before generation.
 It also records the Docker executable, EngArg runner and supervisor digests.
 Changes invalidate the corresponding verified reuse identity.
+
+Mandatory metadata probes include huge numbers, escaped strings and literal
+objects with Serde's private Number/RawValue key spellings. Those keys remain
+ordinary data. Rust collectors should stream opaque input/context through
+`serde_json::value::RawValue` and typed transport structs, avoiding a `Value`
+intermediate that can reinterpret those literal objects. Test receipts use
+`engarg.tool-tests/2`; older receipts cannot authorize registration or reuse.
 
 ## Generate an argument and its missing tools
 

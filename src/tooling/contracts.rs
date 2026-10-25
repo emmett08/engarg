@@ -35,7 +35,12 @@ pub enum FixtureKind {
 pub struct ContractFixture {
     pub name: String,
     pub kind: FixtureKind,
+    #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_exact")]
     pub input: Value,
+    #[serde(
+        default,
+        deserialize_with = "eal_collector_contracts::deserialize_optional_value_exact"
+    )]
     pub expected_value: Option<Value>,
     pub files: Vec<SourceFile>,
 }
@@ -45,7 +50,9 @@ pub struct ContractFixture {
 pub struct ContractDraft {
     pub purpose: String,
     pub parameters: Vec<String>,
+    #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_exact")]
     pub input_schema: Value,
+    #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_exact")]
     pub result_schema: Value,
     pub arguments: Vec<ToolArgument>,
     pub unresolved_arguments: Vec<String>,

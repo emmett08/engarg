@@ -19,7 +19,11 @@ pub mod prompts;
 pub mod provider;
 pub mod render;
 pub mod retained_collectors;
+pub mod route_planning;
 pub mod scoped_collectors;
+pub mod support_export;
+pub mod support_graph;
+pub mod support_requirements;
 pub mod tooling;
 pub mod trace_inspection;
 

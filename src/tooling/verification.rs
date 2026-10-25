@@ -15,7 +15,25 @@ use super::{
 };
 use crate::Error;
 
-pub const TEST_SCHEMA: &str = "engarg.tool-tests/1";
+/// Version 2 requires exact opaque reserved-key objects in every successful
+/// fixture's metadata. Any change to mandatory protocol probes needs a new version.
+pub const TEST_SCHEMA: &str = "engarg.tool-tests/2";
+
+/// Mandatory metadata is independent of model-authored fixtures and their oracle.
+pub fn protocol_precision_context() -> Result<Value, Error> {
+    eal_collector_contracts::strict_json_exact(
+        br#"{
+            "integer":90071992547409931234567890,
+            "decimal":1.234567890123456789,
+            "escaped":"quote \" slash \\ CRLF\r\n\u2028",
+            "opaque_number":{"$serde_json::private::Number":"literal object"},
+            "opaque_numeric_number":{"$serde_json::private::Number":"123456789012345678901234567890"},
+            "opaque_raw_value":{"$serde_json::private::RawValue":"{\"literal\":true}"},
+            "nested_opaque":[{"$serde_json::private::Number":"opaque"},{"$serde_json::private::RawValue":{"literal":"object"}}]
+        }"#,
+        Default::default(),
+    ).map_err(Error::InvalidInput)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -206,9 +224,7 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         passed: false,
         results: Vec::new(),
     };
-    let precision: Value = serde_json::from_str(
-        r#"{"integer":90071992547409931234567890,"decimal":1.234567890123456789,"escaped":"quote \" slash \\ CRLF\r\n\u2028"}"#,
-    )?;
+    let precision = protocol_precision_context()?;
     for fixture in &contract.draft.fixtures {
         if cancellation.is_cancelled() {
             receipt.results.push(failed_run(&fixture.name, "cancelled"));
@@ -406,6 +422,8 @@ pub(crate) mod tests {
         None,
         Negative,
         Context,
+        OpaqueNumber,
+        OpaqueRawValue,
         Timeout,
     }
 
@@ -455,6 +473,12 @@ pub(crate) mod tests {
             if matches!(self.fault, Fault::Context) {
                 context["precision"]["integer"] = json!(1);
             }
+            if matches!(self.fault, Fault::OpaqueNumber) {
+                context["precision"]["opaque_numeric_number"] = json!(123);
+            }
+            if matches!(self.fault, Fault::OpaqueRawValue) {
+                context["precision"]["opaque_raw_value"] = json!({"literal":true});
+            }
             let envelope = json!({
                 "value":{"collected":true,"present":mode == "positive" || matches!(self.fault, Fault::Negative)},
                 "context":context,"request":request.acquisition()
@@ -477,6 +501,21 @@ pub(crate) mod tests {
         };
         verify(
             &runner,
+            &contract(),
+            &candidate(),
+            directory.path(),
+            &CancellationToken::default(),
+        )
+        .unwrap()
+    }
+
+    pub(crate) fn passing_receipt(identity: RunnerIdentity) -> VerificationReceipt {
+        let directory = tempfile::tempdir().unwrap();
+        verify(
+            &FakeRunner {
+                identity,
+                fault: Fault::None,
+            },
             &contract(),
             &candidate(),
             directory.path(),
@@ -512,6 +551,25 @@ pub(crate) mod tests {
         let receipt = tested(Fault::Context);
         assert!(!receipt.passed);
         assert!(!receipt.results[0].passed);
+    }
+
+    #[test]
+    fn opaque_reserved_keys_are_objects_and_cannot_be_reinterpreted() {
+        let precision = protocol_precision_context().unwrap();
+        assert_eq!(
+            precision["opaque_number"]["$serde_json::private::Number"],
+            "literal object"
+        );
+        assert_eq!(
+            precision["opaque_raw_value"]["$serde_json::private::RawValue"],
+            r#"{"literal":true}"#
+        );
+        for fault in [Fault::OpaqueNumber, Fault::OpaqueRawValue] {
+            let receipt = tested(fault);
+            assert_eq!(receipt.schema, "engarg.tool-tests/2");
+            assert!(!receipt.passed);
+            assert!(!receipt.results[0].passed);
+        }
     }
 
     #[test]

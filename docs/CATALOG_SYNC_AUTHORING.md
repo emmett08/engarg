@@ -6,12 +6,32 @@ Grafana TraceQL query. It renders three views, exports an EAL bundle, validates
 the domain case and EAL source, and obtains an evidence plan. Collection and
 assessment remain separate operator actions.
 
+The script now defaults to graph planning and requires an operator evidence
+configuration. Start with the [support-planning guide](support-planning.md):
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh --check-only \
+  --evidence-config operator-planning.json .engarg-local/collector-inputs.json
+
+bash scripts/run-catalog-sync-authoring.sh --implement-tools \
+  --evidence-config operator-planning.json .engarg-local/collector-inputs.json
+```
+
+Graph implementation first retains `analysis.original.json` and inspects its
+typed gaps. It prepares the default Rust image only for a genuine unsupported
+operation or transformation. Configuration-only runs need no Docker or coding
+calls. Graph evidence plans, native/MCP configuration, scoped reviews and the
+function-test qualification boundary are documented in that guide.
+
+The catalogue and per-need preparation workflow below remains available through
+the explicit `--legacy-flat` switch. Its examples select that compatibility mode.
+
 ## Check operator inputs
 
 From any directory within the EngArg checkout:
 
 ```sh
-bash scripts/run-catalog-sync-authoring.sh --check-only \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat --check-only \
   .engarg-local/catalog-sync-operator-20261024T120522Z/collector-inputs.json
 ```
 
@@ -66,7 +86,7 @@ To admit additional collector capabilities, pass an existing operator-selected
 catalogue as the second argument:
 
 ```sh
-bash scripts/run-catalog-sync-authoring.sh --check-only \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat --check-only \
   .engarg-local/collector-inputs.json \
   .engarg-local/infrastructure.collectors.json
 ```
@@ -93,7 +113,7 @@ and time correspondence require independent review.
 
 ## Prepare inputs for the current argument
 
-Every full script run prepares collector inputs during the normal EAL export.
+Every legacy flat-mode script run prepares collector inputs during the normal EAL export.
 The output remains `argument.eal`, `argument.tools.toml` and
 `argument.bundle.json` in the run directory. Its `collector-inputs/` directory
 contains the input documents, final acquisition plans, pending review files and
@@ -152,12 +172,12 @@ operations. An unavailable independent review remains an evidence gap until an
 authored decision exists. A genuinely unsupported producing operation selects
 `custom` for implementation.
 
-## Implement missing collectors
+## Implement missing flat-mode collectors
 
 Add `--implement-tools` to generate missing collectors in Rust during analysis:
 
 ```sh
-bash scripts/run-catalog-sync-authoring.sh --implement-tools \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat --implement-tools \
   .engarg-local/collector-inputs.json
 ```
 
@@ -175,7 +195,7 @@ image preparation. The operator must prepare that profile's image. Other
 implementation languages require an explicit matching language and profile:
 
 ```sh
-bash scripts/run-catalog-sync-authoring.sh \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat \
   --implement-tools --tool-language python \
   --toolchain examples/toolchains/python.json \
   --tool-store .engarg-local/tool-store \
@@ -246,7 +266,7 @@ The standard full run selects the managed installation automatically:
 
 ```sh
 # Export OPENAI_API_KEY through your normal secret-management mechanism.
-bash scripts/run-catalog-sync-authoring.sh \
+bash scripts/run-catalog-sync-authoring.sh --legacy-flat \
   .engarg-local/catalog-sync-operator-20261024T120522Z/collector-inputs.json
 ```
 

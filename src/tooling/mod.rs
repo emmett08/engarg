@@ -1,4 +1,6 @@
 //! Optional, isolated generation and verification of evidence collectors.
+pub mod capability;
+mod capability_report;
 pub mod contracts;
 pub mod generation;
 pub mod package;

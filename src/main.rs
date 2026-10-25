@@ -19,6 +19,7 @@ use std::{
 };
 
 mod eal_commands;
+mod support_commands;
 mod tooling_commands;
 
 #[derive(Parser)]
@@ -145,6 +146,17 @@ struct Analyse {
     /// Omit acquisition tool planning when only the canonical argument is needed.
     #[arg(long)]
     no_tool_planning: bool,
+    /// Tool-independent support requirements and shared evidence graph, or legacy flat planning.
+    #[arg(
+        long,
+        value_enum,
+        default_value = "flat",
+        conflicts_with = "no_tool_planning"
+    )]
+    evidence_planning: EvidencePlanning,
+    /// Operator-owned capability planning configuration for graph mode.
+    #[arg(long)]
+    evidence_config: Option<PathBuf>,
     /// Operator-selected versioned collector catalogue, for example eal-collector describe output.
     #[arg(long, conflicts_with = "no_tool_planning")]
     collector_catalogue: Option<PathBuf>,
@@ -155,6 +167,12 @@ struct Analyse {
     tooling: tooling_commands::ToolOptions,
     #[command(flatten)]
     output: Output,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum EvidencePlanning {
+    Flat,
+    Graph,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -175,6 +193,9 @@ enum Format {
 enum SchemaKind {
     Request,
     Case,
+    Support,
+    ExecutionPlan,
+    Capabilities,
 }
 
 #[derive(Args)]
@@ -363,13 +384,36 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         }
     };
     validate_request(&request).map_err(|v| Error::InvalidInput(v.join("; ")))?;
-    // Reject inactive implementation flags and admit the isolated runner before
-    // reading credentials or making paid argument calls.
-    let tooling_session = args.tooling.admit(
-        args.implement_tools,
-        args.max_input_bytes,
-        args.max_response_bytes,
-    )?;
+    let graph_planner = match (args.evidence_planning, args.evidence_config.as_deref()) {
+        (EvidencePlanning::Graph, Some(path)) => Some(support_commands::admit(path).await?),
+        (EvidencePlanning::Graph, None) => {
+            return Err(Error::InvalidInput(
+                "--evidence-planning graph requires --evidence-config".into(),
+            ));
+        }
+        (EvidencePlanning::Flat, Some(_)) => {
+            return Err(Error::InvalidInput(
+                "--evidence-config requires --evidence-planning graph".into(),
+            ));
+        }
+        _ => None,
+    };
+    if graph_planner.is_some() && args.collector_catalogue.is_some() {
+        return Err(Error::InvalidInput("Graph planning uses qualified capabilities from --evidence-config; --collector-catalogue configures flat planning".into()));
+    }
+    // Validate graph options before paid calls. Runner admission occurs only for
+    // an actual implementation gap after qualified candidate comparison.
+    let tooling_session = if graph_planner.is_some() && args.implement_tools {
+        args.tooling
+            .capability_config(true, args.max_input_bytes, args.max_response_bytes)?;
+        None
+    } else {
+        args.tooling.admit(
+            args.implement_tools,
+            args.max_input_bytes,
+            args.max_response_bytes,
+        )?
+    };
     let mut role_models = HashMap::new();
     for text in args.role_model {
         let (role, model) = text
@@ -448,9 +492,9 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
             .saturating_mul(2)
             .saturating_add(65536),
     };
-    let tooling_model = tooling_session
-        .as_ref()
-        .map(|_| {
+    let tooling_model = args
+        .implement_tools
+        .then(|| {
             tooling_commands::provider::independent_model(http_config(), transport_config.clone())
         })
         .transpose()?;
@@ -478,10 +522,22 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         audit_event(&audit, &json!({"event":"completion","record":record}))
     };
     let run = async {
-        if args.no_tool_planning {
-            engarg::engine::run_with_observer(&model, &request, &config, &observer).await
+        if let Some(planner) = &graph_planner {
+            serde_json::to_value(
+                engarg::engine::run_with_support(&model, &request, &config, &observer, planner)
+                    .await?,
+            )
+            .map_err(Error::from)
+        } else if args.no_tool_planning {
+            serde_json::to_value(
+                engarg::engine::run_with_observer(&model, &request, &config, &observer).await?,
+            )
+            .map_err(Error::from)
         } else {
-            engarg::engine::run_with_tools(&model, &request, &config, &observer).await
+            serde_json::to_value(
+                engarg::engine::run_with_tools(&model, &request, &config, &observer).await?,
+            )
+            .map_err(Error::from)
         }
     };
     let result = tokio::select! {
@@ -490,29 +546,41 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
     };
     match result {
         Ok(mut report) => {
-            report.provider_config = Some(provider_config);
-            report.limitations.push(format!("HTTP transport allows {} retries per logical call with a maximum retry delay of {} seconds and {} concurrent request sequences. HTTP attempts have a separate bound from the logical model-call budget.", transport_config.max_http_retries,transport_config.retry_max_delay_secs,transport_config.max_concurrent_requests));
-            let original = serde_json::to_value(&report)?;
+            report["provider_config"] = serde_json::to_value(provider_config)?;
+            report["limitations"].as_array_mut().ok_or_else(||Error::InvalidOutput("Run limitations missing".into()))?.push(json!(format!("HTTP transport allows {} retries per logical call with a maximum retry delay of {} seconds and {} concurrent request sequences. HTTP attempts have a separate bound from the logical model-call budget.", transport_config.max_http_retries,transport_config.retry_max_delay_secs,transport_config.max_concurrent_requests)));
+            let argument: ArgumentCase = serde_json::from_value(report["argument"].clone())?;
+            let original = report;
+            let input_sha256 = original["input_sha256"].clone();
             let final_report = match (&tooling_session, &tooling_model) {
-                (Some(session), Some(model)) => {
-                    match tooling_commands::run_stage(
-                        session,
-                        model,
-                        &original,
-                        args.tooling.deadline(),
-                    )
-                    .await
-                    {
+                (session, Some(model)) => {
+                    let stage_result = if graph_planner.is_some() {
+                        tooling_commands::capability::run_capability_fallback(
+                            model,
+                            &original,
+                            &args.tooling,
+                            args.max_input_bytes,
+                            args.max_response_bytes,
+                        )
+                        .await
+                    } else {
+                        let session = session.as_ref().ok_or_else(|| {
+                            Error::InvalidInput("Implementation session was not admitted".into())
+                        })?;
+                        tooling_commands::run_stage(
+                            session,
+                            model,
+                            &original,
+                            args.tooling.deadline(),
+                        )
+                        .await
+                    };
+                    match stage_result {
                         Ok(value) => value,
                         Err(error) => {
                             // A coding failure still leaves the completed canonical
                             // argument at the caller's requested normal output path.
-                            let content = report_content(
-                                &args.output,
-                                &request,
-                                &report.argument,
-                                &original,
-                            )?;
+                            let content =
+                                report_content(&args.output, &request, &argument, &original)?;
                             emit(&args.output, content)?;
                             audit_event(
                                 &audit,
@@ -528,11 +596,11 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
                 }
                 _ => original,
             };
-            let content = report_content(&args.output, &request, &report.argument, &final_report)?;
+            let content = report_content(&args.output, &request, &argument, &final_report)?;
             match emit(&args.output, content) {
                 Ok(()) => audit_event(
                     &audit,
-                    &json!({"event":"success","input_sha256":report.input_sha256}),
+                    &json!({"event":"success","input_sha256":input_sha256}),
                 ),
                 Err(error) => {
                     audit_event(
@@ -602,6 +670,11 @@ async fn execute(cli: Cli) -> Result<(), Error> {
             let schema = match kind {
                 SchemaKind::Request => serde_json::to_value(schemars::schema_for!(Request))?,
                 SchemaKind::Case => case_schema(),
+                SchemaKind::Support => engarg::support_requirements::elaboration_schema(),
+                SchemaKind::ExecutionPlan => eal_collector_contracts::execution::plan_schema(),
+                SchemaKind::Capabilities => serde_json::to_value(schemars::schema_for!(
+                    eal_collector_contracts::capability::CapabilityCatalogue
+                ))?,
             };
             println!("{}", serde_json::to_string_pretty(&schema)?);
             Ok(())

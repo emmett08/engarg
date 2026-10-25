@@ -22,6 +22,8 @@ RUN mkdir /src /build \
         'fn main() {' \
         '    let _client = reqwest::blocking::Client::new();' \
         '    let _json = serde_json::to_string(&Probe { ok: true }).unwrap();' \
+        '    let raw: Box<serde_json::value::RawValue> = serde_json::from_str("{\"$serde_json::private::Number\":\"literal\"}").unwrap();' \
+        '    assert_eq!(raw.get(), "{\"$serde_json::private::Number\":\"literal\"}");' \
         '}' > /src/main.rs \
     && chown 65534:65534 /build
 USER 65534:65534

@@ -16,7 +16,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts/install-eal-runtime.sh"
 REVISION = "a" * 40
 URL = "https://github.com/example/fixture-eal"
 BINARIES = {"eal-host", "eal-mcp", "eal-method-worker",
-            "eal-command-supervisor", "eal-process-supervisor"}
+            "eal-command-supervisor", "eal-process-supervisor", "eal-collector"}
 
 
 class InstallEalRuntimeTests(unittest.TestCase):
@@ -66,7 +66,7 @@ directory = prefix / 'bin'
 directory.mkdir(exist_ok=True)
 names = {'eal-process': ['eal-process-supervisor'],
          'eal-runtime': ['eal-method-worker', 'eal-command-supervisor'],
-         'eal-mcp': ['eal-host', 'eal-mcp']}[package]
+         'eal-mcp': ['eal-host', 'eal-mcp'], 'eal-collector': ['eal-collector']}[package]
 for name in names:
     binary = directory / name
     binary.write_text('#!/bin/sh\\n# Pinned fixture ' + name + '\\nexit 0\\n')
@@ -140,7 +140,7 @@ print('Synthetic toolchain progress on stdout')
         self.assertEqual([call["args"] for call in self.installs()], [
             ["+1.90.0", "install", "--git", URL, "--rev", REVISION, "--locked",
              "--root", str(prefix), "--force", package]
-            for package in ("eal-process", "eal-runtime", "eal-mcp")])
+            for package in ("eal-process", "eal-runtime", "eal-mcp", "eal-collector")])
         self.assertEqual({call["target"] for call in self.installs()}, {str(prefix / "target")})
 
     def test_valid_cache_checks_binaries_without_reinstalling_or_requiring_rustup(self):
@@ -151,7 +151,7 @@ print('Synthetic toolchain progress on stdout')
         self.assert_success(self.run_script(), prefix)
         self.assertEqual(self.calls()[:-1], original_calls)
         self.assertEqual(self.calls()[-1]["args"][0], "metadata")
-        self.assertEqual(len(self.installs()), 3)
+        self.assertEqual(len(self.installs()), 4)
 
     def test_tampered_or_missing_companion_reinstalls_every_package(self):
         prefix = self.root / "custom EAL prefix"
@@ -159,9 +159,9 @@ print('Synthetic toolchain progress on stdout')
         (prefix / "bin/eal-host").write_text("unverified replacement\n")
         (prefix / "bin/eal-command-supervisor").unlink()
         self.assert_success(self.run_script("--root", prefix), prefix)
-        self.assertEqual(len(self.installs()), 6)
-        self.assertEqual([call["args"][-1] for call in self.installs()[-3:]],
-                         ["eal-process", "eal-runtime", "eal-mcp"])
+        self.assertEqual(len(self.installs()), 8)
+        self.assertEqual([call["args"][-1] for call in self.installs()[-4:]],
+                         ["eal-process", "eal-runtime", "eal-mcp", "eal-collector"])
 
     def test_partial_install_has_no_success_receipt_and_can_be_retried(self):
         prefix = self.default_prefix()
@@ -171,6 +171,15 @@ print('Synthetic toolchain progress on stdout')
         self.assertFalse((prefix / ".engarg-eal-runtime.json").exists())
         self.assertTrue((prefix / ".engarg-install.lock").is_file())
         self.assert_success(self.run_script(), prefix)
+
+    def test_missing_collector_invalidates_runtime_cache_and_reinstalls_same_pin(self):
+        prefix = self.default_prefix()
+        self.assert_success(self.run_script(), prefix)
+        (prefix / 'bin/eal-collector').unlink()
+        self.assert_success(self.run_script(), prefix)
+        self.assertEqual(len(self.installs()), 8)
+        self.assertEqual([call['args'][-1] for call in self.installs()[-4:]],
+                         ['eal-process', 'eal-runtime', 'eal-mcp', 'eal-collector'])
 
     def test_failed_repair_invalidates_the_old_receipt(self):
         prefix = self.default_prefix()
@@ -245,7 +254,7 @@ print('Synthetic toolchain progress on stdout')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("regular directory", result.stderr)
         self.assertEqual({path.name: path.read_bytes() for path in original.iterdir()}, before)
-        self.assertEqual(len(self.installs()), 3)
+        self.assertEqual(len(self.installs()), 4)
         self.assertFalse((prefix / ".engarg-eal-runtime.json").exists())
 
     def test_linked_companion_is_replaced_without_changing_the_external_target(self):
