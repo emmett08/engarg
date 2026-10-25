@@ -65,6 +65,26 @@ fn write_record(path: &Path, measurement: Value, observed_at: &str) -> Value {
 #[tokio::test]
 #[ignore = "requires matching native EAL binaries; set ENGARG_EAL_HOST"]
 async fn existing_batch_identity_reader_receives_all_ids_once_and_serves_shared_requirements() {
+    run_batch_case(false, false, false).await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+#[ignore = "requires matching native EAL binaries; set ENGARG_EAL_HOST"]
+async fn planner_selects_qualified_batch_over_per_item_graph_then_collects_and_assesses() {
+    run_batch_case(true, false, false).await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+#[ignore = "requires matching native EAL binaries; set ENGARG_EAL_HOST"]
+async fn batch_preserves_unavailable_dynamic_comparison_and_rejects_missing_output_items() {
+    run_batch_case(true, true, false).await;
+    run_batch_case(true, false, true).await;
+}
+
+#[cfg(unix)]
+async fn run_batch_case(automatic: bool, invalid_comparison: bool, short_batch: bool) {
     let directory = tempfile::tempdir().unwrap();
     let host = PathBuf::from(std::env::var_os("ENGARG_EAL_HOST").expect("set ENGARG_EAL_HOST"));
     let observed_at = String::from_utf8(
@@ -188,6 +208,13 @@ async fn existing_batch_identity_reader_receives_all_ids_once_and_serves_shared_
     let call_log = directory.path().join("batch-calls.jsonl");
     let script = directory.path().join("existing_batch_reader.py");
     std::fs::write(&script,"import json,sys\ninputs=json.load(sys.stdin)\nassert inputs == {'case':'dev','trace_ids':['trace-a','trace-b']}\nwith open(sys.argv[2], 'a') as log: log.write(json.dumps(inputs)+'\\n')\nprint(json.dumps({'measurement':{'case':'dev','traces':{'resource_uids':['other-resource','wanted-resource']}},'observed_at':sys.argv[1]}))\n").unwrap();
+    if short_batch {
+        let script_text = std::fs::read_to_string(&script).unwrap().replace(
+            "['other-resource','wanted-resource']",
+            "['wanted-resource']",
+        );
+        std::fs::write(&script, script_text).unwrap();
+    }
     let python = String::from_utf8(
         std::process::Command::new("python3")
             .args(["-c", "import sys;print(sys.executable)"])
@@ -201,7 +228,7 @@ async fn existing_batch_identity_reader_receives_all_ids_once_and_serves_shared_
     let transports = [
         write_record(
             &directory.path().join("resource.json"),
-            json!({"case":"dev","resource":{"uid":"wanted-resource"}}),
+            json!({"case":"dev","resource":{"uid":if invalid_comparison { json!(null) } else { json!("wanted-resource") }}}),
             &observed_at,
         ),
         write_record(
@@ -212,7 +239,7 @@ async fn existing_batch_identity_reader_receives_all_ids_once_and_serves_shared_
         json!({"kind":"command","program":python,"supervisor":supervisor,"arguments":[script,observed_at,call_log],"cwd":directory.path(),"inherit_env":[],"protocol":{"kind":"raw_json"}}),
     ];
     let input = json!({"type":"object","properties":{"case":{"type":"string"}},"required":["case"],"additionalProperties":false});
-    let batch_input = json!({"type":"object","properties":{"case":{"type":"string"},"trace_ids":{"type":"array","items":{"type":"string"}}},"required":["case","trace_ids"],"additionalProperties":false});
+    let batch_input = json!({"type":"object","properties":{"case":{"type":"string"},"trace_ids":{"type":"array","items":{"type":"string"},"maxItems":4}},"required":["case","trace_ids"],"additionalProperties":false});
     let mut descriptors = [
         descriptor("resource_reader", &resource, input.clone(), "/resource/uid"),
         descriptor("search_reader", &search, input, "/results/ids"),
@@ -223,6 +250,12 @@ async fn existing_batch_identity_reader_receives_all_ids_once_and_serves_shared_
             "/traces/resource_uids",
         ),
     ];
+    descriptors[1].output_schema = json!({"type":"object","properties":{"results":{"type":"object","properties":{"ids":{"type":"array","items":{"type":"string"},"maxItems":4}},"required":["ids"]}},"required":["results"]});
+    descriptors[1].output_schema_sha256 = schema_identity(&descriptors[1].output_schema).unwrap();
+    descriptors[2].output_schema = json!({"type":"object","properties":{"case":{"type":"string"},"traces":{"type":"object","properties":{"resource_uids":{"type":"array","items":{"type":"string"}}},"required":["resource_uids"],"additionalProperties":false}},"required":["case","traces"],"additionalProperties":false});
+    descriptors[2].output_schema_sha256 = schema_identity(&descriptors[2].output_schema).unwrap();
+    descriptors[2].costs.execution_requests =
+        eal_collector_contracts::capability::CostEstimate::declared(1, "one batch request");
     let mut providers = vec![];
     let mut routes = vec![];
     execution.acquisitions.clear();
@@ -271,6 +304,7 @@ async fn existing_batch_identity_reader_receives_all_ids_once_and_serves_shared_
             reuse: Default::default(),
         });
         routes.push(AcquisitionRouteProof {
+            batch: None,
             blueprint_id: blueprint.id.clone(),
             capability: capability.clone(),
             projection_id: Some(format!("project_{}", blueprint.id)),
@@ -291,6 +325,86 @@ async fn existing_batch_identity_reader_receives_all_ids_once_and_serves_shared_
     locations.execution_plan = directory.path().join("execution.json");
     locations.store = directory.path().join("source-store");
     std::fs::write(&locations.connections,serde_json::to_vec(&json!({"schema":"eal.evidence-config/1","connections":[],"native_providers":providers,"local_catalogues":[],"approved_catalogues":[]})).unwrap()).unwrap();
+    if automatic {
+        let batch = &descriptors[2];
+        let mut item = batch.clone();
+        item.id = "existing_item_reader".into();
+        item.provider.id = item.id.clone();
+        item.input_schema["properties"]["trace_ids"] = json!({"type":"string"});
+        item.output_schema["properties"]["traces"]["properties"]["resource_uids"] =
+            json!({"type":"string"});
+        item.input_schema_sha256 = schema_identity(&item.input_schema).unwrap();
+        item.output_schema_sha256 = schema_identity(&item.output_schema).unwrap();
+        let correspondence = engarg::support_graph::QualifiedBatchCorrespondence {
+            id: "ordered_trace_batch".into(),
+            qualification_reference: "operator://batch-protocol-fixtures/1".into(),
+            item_capability_id: item.id.clone(),
+            item_measurement_sha256: item.measurement_identity().unwrap(),
+            batch_capability_id: batch.id.clone(),
+            batch_measurement_sha256: batch.measurement_identity().unwrap(),
+            logical_argument_pointer: "/trace_ids".into(),
+            item_argument_pointer: "/trace_ids".into(),
+            batch_argument_pointer: "/trace_ids".into(),
+            maximum_items: 4,
+        };
+        let batch_blueprint = &mut elaboration.acquisitions[2];
+        let binding = batch_blueprint.bindings.remove(0);
+        batch_blueprint.for_each = Some(eal_collector_contracts::execution::ForEachBinding {
+            output: binding.output,
+            argument_pointer: binding.argument_pointer,
+            maximum_items: 4,
+            stop_on_witness: Some(eal_collector_contracts::execution::WitnessPredicate {
+                pointer: "/resource_uids".into(),
+                equals: None,
+                equals_output: Some(OutputReference {
+                    step_id: "resource".into(),
+                    pointer: "/resource_uid".into(),
+                }),
+            }),
+        });
+        let mut capabilities = descriptors.to_vec();
+        capabilities.push(item);
+        let catalogue = eal_collector_contracts::capability::CapabilityCatalogue {
+            schema: eal_collector_contracts::capability::CAPABILITY_CATALOGUE_SCHEMA.into(),
+            capabilities,
+        };
+        let planning: engarg::route_planning::PlanningConfig = serde_json::from_value(json!({
+            "schema":engarg::route_planning::PLANNING_CONFIG_SCHEMA,
+            "collector":locations.collector,"connections":locations.connections,"store":locations.store,
+            "environment":[],"ranking":{"dimensions":["execution_requests"]},"prefer_configured":false,
+            "scheduling":{"maximum_concurrent_sources":4,"per_provider":{}},"bindings":[],
+            "batch_correspondences":[correspondence]
+        })).unwrap();
+        let discovery = engarg::route_planning::DiscoverySnapshot {
+            admitted_capabilities: descriptors
+                .iter()
+                .map(|capability| capability.id.clone())
+                .collect(),
+            ..Default::default()
+        };
+        let planned =
+            engarg::route_planning::compile(&case, &elaboration, &catalogue, &planning, &discovery)
+                .unwrap();
+        let comparison = planned.selection.as_ref().unwrap().graphs.as_ref().unwrap();
+        assert_ne!(comparison.selected, "authored");
+        assert_eq!(comparison.alternatives.len(), 2);
+        assert!(comparison.search_complete);
+        assert!(
+            planned
+                .routes
+                .iter()
+                .all(|route| route.configuration_gaps.is_empty())
+        );
+        assert!(
+            planned
+                .execution
+                .acquisitions
+                .iter()
+                .all(|step| step.for_each.is_none())
+        );
+        execution = planned.execution;
+        routes = planned.projections;
+    }
     let artifacts = support_export::export(
         &request,
         &case,
@@ -328,6 +442,10 @@ async fn existing_batch_identity_reader_receives_all_ids_once_and_serves_shared_
         .filter(|projection| projection.requirement_id.starts_with("shared_requirement"))
     {
         let record = &result["result"]["records"][&projection.eal_evidence_name];
+        if invalid_comparison || short_batch {
+            assert_ne!(record["value"]["criterion_satisfied"], true, "{record}");
+            continue;
+        }
         assert_eq!(record["status"], "ok", "{record}");
         assert_eq!(record["value"]["criterion_satisfied"], true, "{record}");
         assert_eq!(record["value"]["source_ids"].as_array().unwrap().len(), 3);

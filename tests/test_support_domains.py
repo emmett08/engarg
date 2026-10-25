@@ -46,5 +46,233 @@ class DomainExperimentTests(unittest.TestCase):
         self.assertIsNone(comparison["elapsed_seconds"]["median_graph_to_flat_ratio"])
 
 
+# This fixture exercises orchestration and accounting. It supplies no live model
+# or scientific acceptance evidence.
+import copy
+import json
+import os
+import tempfile
+from types import SimpleNamespace
+from unittest.mock import patch
+import support_study as STUDY
+
+
+FIXTURE = '''#!/usr/bin/env python3
+import json, os, pathlib, sys
+args=sys.argv[1:]
+def arg(name, default=None):
+    return args[args.index(name)+1] if name in args else default
+def save(path, value):
+    p=pathlib.Path(path); p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(value))
+phase=args[0] if args[0] != 'eal' else args[1]
+value={'phase':phase, 'model_key_present':bool(os.environ.get('STUDY_FIXTURE_KEY'))}
+if phase == 'analyse':
+    value.update(argument={'claim':'fixture'}, transcript=[{'response':{'input_tokens':100,'output_tokens':20,'model':'fixture'}}])
+    save(arg('--output'), value)
+    save(arg('--audit'), {'event':'completion','record':{'response':{'input_tokens':100,'output_tokens':20,'model':'fixture'},'prompt':{'system':'fixture'}}})
+elif phase == 'implement':
+    output=pathlib.Path(arg('--tool-output-dir')); output.mkdir()
+    value.update(transcript=[{'response':{'input_tokens':100,'output_tokens':20}}],tooling={'model_calls':1})
+    save(output/'analysis.with-tools.json',value)
+    (output/'tooling.audit.jsonl').write_text(json.dumps({'event':'capability_request','call':1,'request':{'system':'implementation'}})+'\\n'+json.dumps({'event':'capability_completion','call':1,'completion':{'input_tokens':5,'output_tokens':2,'model':'fixture-code'}})+'\\n')
+else:
+    if phase == 'collect':
+        value.update(result={'collection_id':'retained-123'}, metrics={'source_requests':1})
+    if phase == 'assess':
+        value.update(status='supported', collection_id=arg('--collection-id'))
+    save(arg('--output'),value)
+'''
+
+
+class FullWorkflowStudyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.binary = self.root / 'fixture'
+        self.binary.write_text(FIXTURE)
+        self.binary.chmod(0o700)
+        self.config = self.root / 'config.json'
+        self.config.write_text('{}')
+        self.reference = self.root / 'qualification.json'
+        self.reference.write_text('{"measurement_semantics":"fixture only"}')
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def recipe(self):
+        phases = []
+        for name in STUDY.PHASES:
+            path = '{work}/' + name + '.json'
+            verb = 'register-tools' if name == 'register' else name
+            argv = ['{binary}', 'eal', verb, '--output', path]
+            phase = {'name': name, 'argv': argv, 'timeout_seconds': 5, 'report': path,
+                     'assertions': [{'file': path, 'pointer': '/phase', 'equals': verb}]}
+            if name == 'implement':
+                phase.update(argv=['{binary}', 'eal', 'implement', '--input', '{analysis}',
+                                   '--tool-output-dir', '{work}/tools', '--tool-max-calls', '2',
+                                   '--http-retries', '0'],
+                             report='{work}/tools/analysis.with-tools.json',
+                             audit='{work}/tools/tooling.audit.jsonl',
+                             assertions=[{'file':'{work}/tools/analysis.with-tools.json',
+                                          'pointer':'/tooling/model_calls','equals':1}])
+            if name == 'qualify':
+                phase['argv'] = ['{qualifier}', 'qualify', '--output', path]
+                phase['qualification_reference'] = 'qualification'
+            if name == 'collect':
+                phase['captures'] = {'collection_id': {'file':path,'pointer':'/result/collection_id'}}
+                phase['counters'] = {'source_requests': {'file':path,'pointer':'/metrics/source_requests'}}
+            if name == 'assess':
+                phase['argv'] += ['--collection-id', '{collection_id}']
+                phase['assertions'].append({'file':path,'pointer':'/collection_id','equals':'retained-123'})
+                phase['assertions'].append({'file':path,'pointer':'/status','equals':'supported'})
+            phases.append(phase)
+        return {'phases':phases}
+
+    def freeze(self, mutate=None):
+        config = {'schema':'engarg.support-workflow-study/1', 'purpose':'exploratory',
+                  'sampling_justification':'One specified algorithm probes the generated route lifecycle.',
+                  'cache_treatment':'Fresh isolated workflow stores; provider caches uncontrolled.',
+                  'inference_unit':'case','eal_revision':'fixture-only', 'max_model_calls':18,
+                  'assets':{'qualifier':str(self.binary),'qualification':str(self.reference)},
+                  'cases':{'specified_algorithm':{'partition':'development','genuine_code_gap':True,
+                                                  'flat':self.recipe(),'graph':self.recipe()}}}
+        if mutate:
+            mutate(config)
+        path = self.root / 'workflow.json'
+        path.write_text(json.dumps(config))
+        args = SimpleNamespace(workflow=path, binary=self.binary, evidence_config=self.config,
+                               case=['specified_algorithm'], repetitions=1, model='fixture')
+        return STUDY.freeze_study(args, EXPERIMENT.CASES)
+
+    def test_full_chain_counts_phase_usage_once_and_binds_collection(self):
+        protocol = self.freeze()
+        output = self.root / 'runs'
+        output.mkdir()
+        with patch.dict(os.environ, {'STUDY_FIXTURE_KEY':'fixture-value'}):
+            result = STUDY.run_workflow(protocol, output, 'STUDY_FIXTURE_KEY')
+        self.assertEqual(len(result['rows']), 2)
+        for row in result['rows']:
+            self.assertTrue(row['workflow_accepted'], row)
+            self.assertEqual(row['input_tokens'], 105)
+            self.assertEqual(row['output_tokens'], 22)
+            self.assertEqual(row['calls'], 2)
+            self.assertEqual([p['phase'] for p in row['phases']], ['analyse', *STUDY.PHASES])
+            work = Path(row['analysis']).parent
+            self.assertTrue(json.loads(Path(row['analysis']).read_text())['model_key_present'])
+            self.assertFalse(json.loads((work/'qualify.json').read_text())['model_key_present'])
+            self.assertFalse(json.loads((work/'assess.json').read_text())['model_key_present'])
+            self.assertEqual(json.loads((work/'assess.json').read_text())['collection_id'], 'retained-123')
+        self.assertEqual(result['comparisons']['input_tokens']['independent_cases'], 1)
+        self.assertEqual(result['comparisons']['all_attempt_resources']['input_tokens'], 210)
+        self.assertIsNone(result['comparisons']['all_attempt_resources']['request_bytes'])
+
+    def test_failed_assertion_stops_later_phases_and_retains_spend(self):
+        def change(config):
+            for mode in ['flat','graph']:
+                config['cases']['specified_algorithm'][mode]['phases'][3]['assertions'][0]['equals'] = 'wrong'
+        protocol = self.freeze(change)
+        output = self.root / 'runs'; output.mkdir()
+        result = STUDY.run_workflow(protocol, output, 'STUDY_FIXTURE_KEY')
+        for row in result['rows']:
+            self.assertFalse(row['workflow_accepted'])
+            self.assertEqual(row['failed_phase'], 'replan')
+            self.assertEqual(row['input_tokens'], 105)
+            self.assertFalse((Path(row['analysis']).parent/'collect.json').exists())
+        self.assertEqual(result['comparisons']['input_tokens']['paired_runs'], 0)
+        self.assertEqual(result['comparisons']['all_attempt_resources']['input_tokens'], 210)
+
+    def test_freeze_rejects_excess_budget_and_unbound_qualification(self):
+        with self.assertRaisesRegex(ValueError, 'exceeds study budget'):
+            self.freeze(lambda c: c.update(max_model_calls=1))
+        with self.assertRaisesRegex(ValueError, 'hashed study asset'):
+            self.freeze(lambda c: c['assets'].pop('qualification'))
+        with self.assertRaisesRegex(ValueError, 'genuine algorithm-gap'):
+            self.freeze(lambda c: c['cases']['specified_algorithm'].update(genuine_code_gap=False,
+                flat={'phases': self.recipe()['phases'][3:]}, graph={'phases':self.recipe()['phases'][3:]}))
+
+    def test_frozen_input_change_is_rejected_before_commands(self):
+        protocol = self.freeze()
+        self.config.write_text('{"changed":true}')
+        with self.assertRaisesRegex(ValueError, 'input bytes changed'):
+            STUDY.verify_protocol(protocol)
+        protocol['model_requested'] = 'different'
+        with self.assertRaisesRegex(ValueError, 'protocol digest mismatch'):
+            STUDY.verify_protocol(protocol)
+
+    def test_unrepresentable_arm_is_a_capability_difference(self):
+        protocol = self.freeze(lambda c: c['cases']['specified_algorithm'].update(
+            flat={'unrepresentable':True,'reason':'fixture declared capability gap'}))
+        output = self.root / 'runs'; output.mkdir()
+        result = STUDY.run_workflow(protocol, output, 'STUDY_FIXTURE_KEY')
+        self.assertEqual(result['comparisons']['unrepresentable_runs'], 1)
+        self.assertEqual(result['comparisons']['input_tokens']['paired_runs'], 0)
+        self.assertTrue(result['rows'][0]['capability_difference'])
+
+    def test_process_deadline_and_log_bound_are_observed(self):
+        import sys
+        value = STUDY.run_command([sys.executable,'-c','import time;time.sleep(10)'], self.root,
+                                  self.root/'timeout.log', 0.05, os.environ)
+        self.assertEqual(value['failure'], 'phase deadline exceeded')
+        self.assertLess(value['elapsed_seconds'], 3)
+        value = STUDY.run_command([sys.executable,'-c','print("x"*5000)'], self.root,
+                                  self.root/'bounded.log', 5, os.environ, max_bytes=100)
+        self.assertEqual(value['failure'], 'phase log limit exceeded')
+
+    def test_implementation_reuse_never_recounts_authoring(self):
+        report = {'transcript':[{'response':{'input_tokens':100,'output_tokens':20}}],
+                  'tooling':{'model_calls':0}}
+        measured = STUDY.model_usage([], report, implementation=True)
+        self.assertEqual((measured['calls'], measured['input_tokens'], measured['output_tokens']), (0,0,0))
+        report['tooling']['model_calls'] = 1
+        measured = STUDY.model_usage([], report, implementation=True)
+        self.assertEqual(measured['calls'], 1)
+        self.assertIsNone(measured['input_tokens'])
+
+    def test_failed_provider_usage_remains_unknown_with_known_subtotal(self):
+        measured = STUDY.model_usage([
+            {'event':'capability_request','call':1,'request':{}},
+            {'event':'capability_completion','call':1,'completion':{'input_tokens':7,'output_tokens':2}},
+            {'event':'capability_request','call':2,'request':{}},
+            {'event':'capability_provider_failure','call':2}], implementation=True, failed=True)
+        self.assertIsNone(measured['input_tokens'])
+        self.assertEqual(measured['known_input_tokens'],7)
+        self.assertEqual(measured['unknown_usage_attempts'],1)
+
+    def test_review_rejects_changed_outputs_and_preserves_disagreement(self):
+        protocol = self.freeze()
+        output=self.root/'runs'; output.mkdir()
+        result=STUDY.run_workflow(protocol,output,'STUDY_FIXTURE_KEY')
+        template=STUDY.review_template(result)
+        first=template['reviews'][0]
+        first.update(reviewer='independent-a', independent_of_authoring=True, reasons='Fixture rubric test.')
+        first['obligations']={key:'covered' for key in first['obligations']}
+        first['errors']={key:0 for key in first['errors']}
+        second=copy.deepcopy(first); second['reviewer']='independent-b'
+        template['reviews']=[first,second]
+        scored=STUDY.score_reviews(result,template)
+        self.assertEqual(scored['outcomes'][0]['status'],'adequate')
+        self.assertEqual(scored['outcomes'][1]['status'],'requires_review')
+        second['obligations']['exactness']='missing'
+        second['errors']['method']=1
+        self.assertEqual(STUDY.score_reviews(result,template)['outcomes'][0]['status'],'disputed')
+        adjudication=copy.deepcopy(first)
+        adjudication.update(reviewer='adjudicator',reviewers=['independent-a','independent-b'],
+                            reasons='Resolve exactness dispute against the retained operation.')
+        template['adjudications']=[adjudication]
+        resolved=STUDY.score_reviews(result,template)
+        self.assertEqual(resolved['outcomes'][0]['status'],'adjudicated_adequate')
+        self.assertTrue(resolved['outcomes'][0]['reviewers_disagree'])
+        self.assertEqual(len(resolved['outcomes'][0]['reviews']),2)
+        self.assertEqual(resolved['error_prevalence']['method']['flagged_runs'],1)
+        second['analysis_sha256']='0'*64
+        with self.assertRaisesRegex(ValueError,'retained analysis'):
+            STUDY.score_reviews(result,template)
+        second['analysis_sha256']=first['analysis_sha256']
+        Path(result['rows'][0]['analysis']).write_text('{}')
+        with self.assertRaisesRegex(ValueError,'bytes changed'):
+            STUDY.score_reviews(result,template)
+
+
 if __name__ == "__main__":
     unittest.main()

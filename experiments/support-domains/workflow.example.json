@@ -1,0 +1,286 @@
+{
+  "schema": "engarg.support-workflow-study/1",
+  "purpose": "exploratory",
+  "sampling_justification": "One fully specified operation probes the generated route lifecycle. One repetition supplies a failure-mode observation, not a population estimate.",
+  "cache_treatment": "New package and assessment stores per run. Specify the source-store initial state in the operator planning configuration. Provider caches uncontrolled.",
+  "inference_unit": "case",
+  "eal_revision": "REPLACE_WITH_EXACT_EAL_COMMIT",
+  "max_model_calls": 11,
+  "assets": {
+    "toolchain": "/operator/rust-toolchain-profile.json",
+    "qualifier": "/operator/independent-qualification",
+    "qualification": "/operator/measurement-reference.json",
+    "eal_host": "/operator/bin/eal-host"
+  },
+  "cases": {
+    "specified_algorithm": {
+      "partition": "development",
+      "genuine_code_gap": true,
+      "flat": {
+        "unrepresentable": true,
+        "reason": "Qualified registration and replan require a graph report in this exact command workflow. Preserve this as a capability difference."
+      },
+      "graph": {
+        "phases": [
+          {
+            "name": "implement",
+            "argv": [
+              "{binary}",
+              "eal",
+              "implement",
+              "--input",
+              "{analysis}",
+              "--model",
+              "{model}",
+              "--api-key-env",
+              "{api_key_env}",
+              "--tool-language",
+              "rust",
+              "--toolchain",
+              "{toolchain}",
+              "--tool-store",
+              "{work}/packages",
+              "--tool-output-dir",
+              "{work}/implementation",
+              "--tool-max-calls",
+              "4",
+              "--http-retries",
+              "0"
+            ],
+            "timeout_seconds": 3600,
+            "report": "{work}/implementation/analysis.with-tools.json",
+            "assertions": [
+              {
+                "file": "{work}/implementation/analysis.with-tools.json",
+                "pointer": "/tooling/capabilities",
+                "nonempty": true
+              }
+            ],
+            "audit": "{work}/implementation/tooling.audit.jsonl",
+            "counters": {
+              "generated_code_count": {
+                "file": "{work}/implementation/analysis.with-tools.json",
+                "pointer": "/tooling/capabilities/*/reused",
+                "count_equals": false
+              }
+            }
+          },
+          {
+            "name": "qualify",
+            "argv": [
+              "{qualifier}",
+              "--input",
+              "{work}/implementation/analysis.with-tools.json",
+              "--measurement-reference",
+              "{qualification}",
+              "--output",
+              "{work}/qualified.json"
+            ],
+            "timeout_seconds": 3600,
+            "report": "{work}/qualified.json",
+            "assertions": [
+              {
+                "file": "{work}/qualified.json",
+                "pointer": "/schema",
+                "equals": "eal.evidence-config/1"
+              }
+            ],
+            "qualification_reference": "qualification"
+          },
+          {
+            "name": "register",
+            "argv": [
+              "{binary}",
+              "eal",
+              "register-tools",
+              "--input",
+              "{work}/implementation/analysis.with-tools.json",
+              "--qualifications",
+              "{work}/qualified.json",
+              "--evidence-config",
+              "{config}",
+              "--output",
+              "{work}/registered.json"
+            ],
+            "timeout_seconds": 3600,
+            "report": "{work}/registered.json",
+            "assertions": [
+              {
+                "file": "{work}/registered.json",
+                "pointer": "/schema",
+                "equals": "engarg.capability-planning-config/1"
+              }
+            ]
+          },
+          {
+            "name": "replan",
+            "argv": [
+              "{binary}",
+              "eal",
+              "replan",
+              "--input",
+              "{work}/implementation/analysis.with-tools.json",
+              "--evidence-config",
+              "{work}/registered.json",
+              "--output",
+              "{work}/replanned.json"
+            ],
+            "timeout_seconds": 3600,
+            "report": "{work}/replanned.json",
+            "assertions": [
+              {
+                "file": "{work}/replanned.json",
+                "pointer": "/replanning/model_calls",
+                "equals": 0
+              }
+            ],
+            "counters": {
+              "discovery_requests": {
+                "file": "{work}/replanned.json",
+                "pointer": "/evidence_planning/routes/discovery/metrics/requests"
+              },
+              "request_bytes": {
+                "file": "{work}/replanned.json",
+                "pointer": "/evidence_planning/routes/discovery/metrics/request_bytes"
+              },
+              "response_bytes": {
+                "file": "{work}/replanned.json",
+                "pointer": "/evidence_planning/routes/discovery/metrics/response_bytes"
+              }
+            }
+          },
+          {
+            "name": "export",
+            "argv": [
+              "{binary}",
+              "eal",
+              "export",
+              "--input",
+              "{work}/replanned.json",
+              "--format",
+              "json",
+              "--output",
+              "{work}/bundle.json",
+              "--tools-output",
+              "{work}/tools.toml"
+            ],
+            "timeout_seconds": 3600,
+            "report": "{work}/bundle.json",
+            "assertions": [
+              {
+                "file": "{work}/bundle.json",
+                "pointer": "/claim_names/current_claim",
+                "nonempty": true
+              }
+            ],
+            "captures": {
+              "claim_name": {
+                "file": "{work}/bundle.json",
+                "pointer": "/claim_names/current_claim"
+              }
+            },
+            "artefacts": [
+              "{work}/tools.toml",
+              "{work}/bundle.eal"
+            ]
+          },
+          {
+            "name": "collect",
+            "argv": [
+              "{binary}",
+              "eal",
+              "collect",
+              "--input",
+              "{work}/bundle.json",
+              "--eal-host",
+              "{eal_host}",
+              "--workspace",
+              "{work}",
+              "--database",
+              "{work}/assessment.sqlite",
+              "--tools",
+              "{work}/tools.toml",
+              "--output",
+              "{work}/collection.json"
+            ],
+            "timeout_seconds": 3600,
+            "report": "{work}/collection.json",
+            "assertions": [
+              {
+                "file": "{work}/collection.json",
+                "pointer": "/result/collection_id",
+                "nonempty": true
+              }
+            ],
+            "captures": {
+              "collection_id": {
+                "file": "{work}/collection.json",
+                "pointer": "/result/collection_id"
+              }
+            },
+            "counters": {
+              "source_requests": {
+                "file": "{work}/collection.json",
+                "pointer": "/result/records/*/details/metrics/source_requests"
+              },
+              "request_bytes": {
+                "file": "{work}/collection.json",
+                "pointer": "/result/records/*/details/metrics/request_bytes"
+              },
+              "response_bytes": {
+                "file": "{work}/collection.json",
+                "pointer": "/result/records/*/details/metrics/response_bytes"
+              },
+              "generated_code_count": {
+                "file": "{work}/collection.json",
+                "pointer": "/result/records/*/details/metrics/generated_code_count"
+              },
+              "reused_sources": {
+                "file": "{work}/collection.json",
+                "pointer": "/result/records/*/details/metrics/reused_sources"
+              }
+            }
+          },
+          {
+            "name": "assess",
+            "argv": [
+              "{binary}",
+              "eal",
+              "assess",
+              "--input",
+              "{work}/bundle.json",
+              "--collection-id",
+              "{collection_id}",
+              "--now",
+              "{now}",
+              "--eal-host",
+              "{eal_host}",
+              "--workspace",
+              "{work}",
+              "--database",
+              "{work}/assessment.sqlite",
+              "--tools",
+              "{work}/tools.toml",
+              "--output",
+              "{work}/assessment.json"
+            ],
+            "timeout_seconds": 3600,
+            "report": "{work}/assessment.json",
+            "assertions": [
+              {
+                "file": "{work}/assessment.json",
+                "pointer": "/result/claims/{claim_name}/status",
+                "equals": "supported"
+              },
+              {
+                "file": "{work}/assessment.json",
+                "pointer": "/result/collection_id",
+                "equals": "{collection_id}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

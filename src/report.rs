@@ -88,13 +88,27 @@ pub fn retain_replanning(previous: &Value, current: &mut Value) -> Result<(), Er
 /// Verify a bounded chain and revalidate every archived package against its
 /// original planning metadata; no new model-call accounting is invented.
 pub fn validate_replanning(raw: &Value, executable: &Path) -> Result<(), Error> {
+    validate_replanning_limit(raw, executable, MAX_REPLANNING_HISTORY)
+}
+
+/// Reserve one retained-history slot before discovery can issue external reads.
+/// Existing maximum-depth reports remain valid for export and assessment.
+pub fn validate_replanning_for_update(raw: &Value, executable: &Path) -> Result<(), Error> {
+    validate_replanning_limit(raw, executable, MAX_REPLANNING_HISTORY - 1)
+}
+
+fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> Result<(), Error> {
     let mut current = raw.clone();
-    for depth in 0..=MAX_REPLANNING_HISTORY {
+    for depth in 0..=maximum {
         let Some(value) = current.get("replanning").filter(|value| !value.is_null()) else {
             return Ok(());
         };
-        if depth == MAX_REPLANNING_HISTORY {
-            return Err(invalid("replanning history exceeds 16 revisions"));
+        if depth == maximum {
+            return Err(invalid(if maximum == MAX_REPLANNING_HISTORY {
+                "replanning history exceeds 16 revisions"
+            } else {
+                "replanning history already contains 16 revisions; no additional transition can be retained"
+            }));
         }
         let record: ReplanningRecord = serde_json::from_value(value.clone())?;
         if record.schema != REPLANNING_SCHEMA

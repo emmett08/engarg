@@ -1423,6 +1423,127 @@ fn assert_native_acquisition_and_reuse(
         observed["value"]["observation_ids"]
     );
     assert_eq!(fs::read(snapshot).unwrap(), retained);
+    assert_export_collection_and_assessment(collector, root, selected, &execution);
+}
+
+/// Carry the selected provider through the public export, collection and
+/// assessment commands. The synthetic source settles its three predicates;
+/// unrelated review and counter-evidence obligations must remain unresolved.
+fn assert_export_collection_and_assessment(
+    collector: &Path,
+    root: &Path,
+    selected: &Value,
+    execution: &eal_collector_contracts::execution::EvidenceExecutionPlan,
+) {
+    let analysis = root.join("selected-for-export.json");
+    fs::write(&analysis, serde_json::to_vec_pretty(selected).unwrap()).unwrap();
+    let source = root.join("selected.eal");
+    let manifest = root.join("selected.bundle.json");
+    let registry = root.join("selected.tools.toml");
+    successful(
+        &Command::new(env!("CARGO_BIN_EXE_engarg"))
+            .args(["eal", "export", "--input"])
+            .arg(&analysis)
+            .arg("--output")
+            .arg(&source)
+            .arg("--manifest")
+            .arg(&manifest)
+            .arg("--tools-output")
+            .arg(&registry)
+            .output()
+            .unwrap(),
+    );
+    let bundle: engarg::support_export::SupportExport =
+        serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&bundle.support_elaboration).unwrap(),
+        selected["evidence_planning"]["elaboration"]
+    );
+    assert_eq!(
+        bundle.execution_plan.acquisitions[0].source,
+        execution.acquisitions[0].source
+    );
+    assert!(!bundle.support_elaboration.alternative_support.is_empty());
+    let host = collector.with_file_name(format!("eal-host{}", std::env::consts::EXE_SUFFIX));
+    let database = root.join("selected.sqlite");
+    let run = |operation: &str| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
+        command
+            .args(["eal", operation, "--input"])
+            .arg(&manifest)
+            .arg("--eal-host")
+            .arg(&host)
+            .arg("--workspace")
+            .arg(root)
+            .arg("--database")
+            .arg(&database)
+            .args(["--timeout-secs", "120"])
+            .env_remove("OPENAI_API_KEY")
+            .env_remove("ENGARG_API_KEY");
+        command
+    };
+    let collected = run("collect")
+        .arg("--tools")
+        .arg(&registry)
+        .output()
+        .unwrap();
+    successful(&collected);
+    let collected: Value = serde_json::from_slice(&collected.stdout).unwrap();
+    assert_eq!(collected["is_error"], false, "{collected}");
+    let collection = &collected["result"];
+    let shared = bundle
+        .requirements
+        .iter()
+        .filter(|requirement| {
+            requirement
+                .requirement_id
+                .starts_with("shared_requirement_")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(shared.len(), 3);
+    let mut source_ids = None;
+    for requirement in &shared {
+        let record = &collection["records"][&requirement.eal_evidence_name];
+        assert_eq!(record["status"], "ok", "{record}");
+        assert_eq!(record["value"]["criterion_satisfied"], true, "{record}");
+        assert_eq!(record["value"]["source_ids"].as_array().unwrap().len(), 1);
+        let current = record["value"]["source_ids"].clone();
+        if let Some(expected) = &source_ids {
+            assert_eq!(
+                &current, expected,
+                "all consumers must retain the same source identity"
+            );
+        }
+        source_ids = Some(current);
+    }
+    let now = chrono::DateTime::from(std::time::SystemTime::now())
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let assessed = run("assess")
+        .arg("--tools")
+        .arg(&registry)
+        .arg("--now")
+        .arg(now)
+        .arg("--collection-id")
+        .arg(collection["collection_id"].as_str().unwrap())
+        .output()
+        .unwrap();
+    successful(&assessed);
+    let assessed: Value = serde_json::from_slice(&assessed.stdout).unwrap();
+    assert_eq!(assessed["is_error"], false, "{assessed}");
+    let assessment = &assessed["result"];
+    assert_eq!(assessment["valid"], true, "{assessment}");
+    assert_eq!(assessment["collection_id"], collection["collection_id"]);
+    for requirement in shared {
+        assert_eq!(
+            assessment["evidence"][&requirement.eal_evidence_name]["status"], "available",
+            "{}",
+            assessment["evidence"][&requirement.eal_evidence_name]
+        );
+    }
+    assert_eq!(
+        assessment["claims"][&bundle.claim_names["current_claim"]]["status"], "unsupported",
+        "unavailable independent obligations must survive successful acquisition: {assessment}"
+    );
 }
 
 /// Synthetic test diagnostics only. The failed-graph caller always fails after

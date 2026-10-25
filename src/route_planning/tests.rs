@@ -7,7 +7,7 @@ use eal_collector_contracts::{capability::*, execution::*};
 use serde_json::json;
 use std::collections::BTreeMap;
 
-fn fixture() -> (
+pub(super) fn fixture() -> (
     ArgumentCase,
     SupportElaboration,
     CapabilityCatalogue,
@@ -75,6 +75,7 @@ fn fixture() -> (
         },
         scheduling: SchedulingPolicy::default(),
         bindings: vec![],
+        batch_correspondences: vec![],
     };
     let discovery = DiscoverySnapshot {
         budget_usage: json!({"requests_upper_bound":1,"bytes_upper_bound":0,"pages_by_connection":{}}),
@@ -418,11 +419,25 @@ fn shared_request_estimates_preserve_scope_and_arguments_but_not_consumer_age() 
     second.id = "second".into();
     second.contract.time.max_age_seconds = Some(30);
     elaboration.acquisitions.push(second);
-    let (_, shared) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    let (_, shared) = selection::prepare(
+        &elaboration,
+        &catalogue,
+        &config,
+        &discovery,
+        &BTreeMap::new(),
+    )
+    .unwrap();
     assert_eq!(shared.estimated_distinct_acquisitions, Some(1));
     assert_eq!(shared.estimated_distinct_acquisitions_upper_bound, Some(2));
     elaboration.acquisitions[1].arguments["expression"] = json!("5+6");
-    let (_, distinct) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    let (_, distinct) = selection::prepare(
+        &elaboration,
+        &catalogue,
+        &config,
+        &discovery,
+        &BTreeMap::new(),
+    )
+    .unwrap();
     assert_eq!(distinct.estimated_distinct_acquisitions, Some(2));
     elaboration.acquisitions[1].arguments["expression"] = json!("3+4");
     elaboration.acquisitions[1]
@@ -430,7 +445,14 @@ fn shared_request_estimates_preserve_scope_and_arguments_but_not_consumer_age() 
         .scope
         .selectors
         .insert("revision".into(), json!("r2"));
-    let (_, scoped) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    let (_, scoped) = selection::prepare(
+        &elaboration,
+        &catalogue,
+        &config,
+        &discovery,
+        &BTreeMap::new(),
+    )
+    .unwrap();
     assert_eq!(scoped.estimated_distinct_acquisitions, Some(2));
 }
 
@@ -451,7 +473,14 @@ fn bounded_selection_reports_pruning_and_never_overflows_known_costs() {
     second.id = "second".into();
     second.arguments["expression"] = json!("5+6");
     elaboration.acquisitions.push(second);
-    let (_, selected) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    let (_, selected) = selection::prepare(
+        &elaboration,
+        &catalogue,
+        &config,
+        &discovery,
+        &BTreeMap::new(),
+    )
+    .unwrap();
     assert!(!selected.search_complete);
     assert_eq!(selected.total_costs[0], (0, 2 * u128::from(u64::MAX)));
     assert_eq!(selected.estimated_distinct_acquisitions, Some(2));
@@ -473,7 +502,14 @@ fn fanout_preserves_unknown_cost_and_explicit_call_bound() {
         maximum_items: 1000,
         stop_on_witness: None,
     });
-    let (_, selection) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    let (_, selection) = selection::prepare(
+        &elaboration,
+        &catalogue,
+        &config,
+        &discovery,
+        &BTreeMap::new(),
+    )
+    .unwrap();
     assert_eq!(selection.total_costs, vec![(1, 0), (1, 0)]);
     assert_eq!(selection.estimated_distinct_acquisitions, None);
     assert_eq!(
@@ -500,7 +536,14 @@ fn dependent_request_groups_report_bounds_without_claiming_distinct_resolved_sou
     second.id = "second_detail".into();
     second.bindings[0].output.step_id = "second_selector".into();
     elaboration.acquisitions.push(second);
-    let (_, selection) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    let (_, selection) = selection::prepare(
+        &elaboration,
+        &catalogue,
+        &config,
+        &discovery,
+        &BTreeMap::new(),
+    )
+    .unwrap();
     assert_eq!(selection.estimated_distinct_acquisitions, None);
     assert_eq!(
         selection.estimated_distinct_acquisitions_upper_bound,
