@@ -921,15 +921,19 @@ async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
         .await?;
     let mut updated = raw.clone();
     updated["evidence_planning"]["routes"] = serde_json::to_value(routes)?;
-    let review = engarg::support_requirements::review_acquisition_design(
-        &previous.elaboration,
-        &canonical.transcript,
-        MAX_INPUT_BYTES,
-    )?;
-    if let Some(warning) = review.warning() {
-        eprintln!("engarg: warning: {warning}");
+    // Manually authored plans can omit provider history. Preserve that absence
+    // rather than attaching a history-based review without its source records.
+    if raw.get("transcript").is_some() {
+        let review = engarg::support_requirements::review_acquisition_design(
+            &previous.elaboration,
+            &canonical.transcript,
+            MAX_INPUT_BYTES,
+        )?;
+        if let Some(warning) = review.warning() {
+            eprintln!("engarg: warning: {warning}");
+        }
+        updated["evidence_planning"]["design_review"] = serde_json::to_value(review)?;
     }
-    updated["evidence_planning"]["design_review"] = serde_json::to_value(review)?;
     report::retain_replanning(&raw, &mut updated)?;
     report::validate_replanning(&updated, &executable)?;
     let bytes = json_bytes(&updated)?;

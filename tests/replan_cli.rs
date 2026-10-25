@@ -357,7 +357,7 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':catalogue,'ad
         initial.gaps[0].kind,
         engarg::route_planning::GapKind::Configuration
     ));
-    let original = json!({"request":request,"argument":case,"transcript":[],"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":initial}});
+    let original = json!({"request":request,"argument":case,"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":initial}});
     let config_path = root.join("planning.json");
     let input = root.join("original.json");
     write(&config_path, &config);
@@ -387,6 +387,8 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':catalogue,'ad
         for key in ["request", "argument", "transcript"] {
             assert_eq!(updated[key], original[key]);
         }
+        assert!(updated.get("transcript").is_none());
+        assert!(updated["evidence_planning"].get("design_review").is_none());
         assert_eq!(
             updated["evidence_planning"]["elaboration"],
             original["evidence_planning"]["elaboration"]
