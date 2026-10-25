@@ -183,6 +183,32 @@ pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboratio
             "support elaboration exceeds its finite record limits or omits requirements".into(),
         ];
     }
+    if elaboration.acquisition_revisions.len() > MAX_RECORDS {
+        errors.push("acquisition revisions exceed the finite record limit".into());
+    }
+    let mut source_revisions = BTreeSet::new();
+    for revision in &elaboration.acquisition_revisions {
+        if !id(&revision.previous_step_id)
+            || !eal_collector_contracts::execution::valid_digest(&revision.previous_step_sha256)
+            || !text(&revision.reason, 8192)
+            || !source_revisions
+                .insert((&revision.previous_step_id, &revision.previous_step_sha256))
+            || revision.replacement_ids.len() > MAX_RECORDS
+            || revision.replacement_ids.iter().any(|value| !id(value))
+            || revision
+                .replacement_ids
+                .iter()
+                .collect::<BTreeSet<_>>()
+                .len()
+                != revision.replacement_ids.len()
+            || matches!(
+                revision.disposition,
+                super::AcquisitionDisposition::Deferred | super::AcquisitionDisposition::Retired
+            ) && !revision.replacement_ids.is_empty()
+        {
+            errors.push(format!("acquisition revision {} needs a unique exact prior identity, bounded reason and replacement IDs consistent with its disposition", revision.previous_step_id));
+        }
+    }
     let index = ArgumentIndex::new(case);
     let need_map: BTreeMap<_, _> = case
         .evidence_plan
@@ -268,13 +294,13 @@ pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboratio
                 requirement.id
             ));
         }
-        if let Some(contract) = &requirement.contract
-            && let Err(error) = contract.validate()
-        {
-            errors.push(format!(
-                "support requirement {} has invalid measurement contract: {error}",
-                requirement.id
-            ));
+        if let Some(contract) = &requirement.contract {
+            errors.extend(contract.diagnostics().into_iter().map(|diagnostic| {
+                format!(
+                    "support requirement {} has invalid measurement contract at {} [{}]: {}",
+                    requirement.id, diagnostic.path, diagnostic.code, diagnostic.message,
+                )
+            }));
         }
         errors.extend(criterion_errors(requirement));
     }
@@ -349,10 +375,10 @@ fn graph_errors(
                 "logical acquisitions require a unique bounded ID and object arguments".into(),
             );
         }
-        if let Err(error) = acquisition.contract.validate() {
+        for error in acquisition.contract.diagnostics() {
             errors.push(format!(
-                "logical acquisition {} has invalid contract: {error}",
-                acquisition.id
+                "logical acquisition {} has invalid contract at acquisitions.{}.contract: {error}",
+                acquisition.id, acquisition.id
             ));
         }
         if canonical_identity(&acquisition.arguments).is_err() {
@@ -364,34 +390,51 @@ fn graph_errors(
                 acquisition.id
             ));
         }
-        if acquisition.bindings.iter().any(|binding| {
-            !valid_pointer(&binding.argument_pointer)
+        for (index, binding) in acquisition.bindings.iter().enumerate() {
+            if !valid_pointer(&binding.argument_pointer)
                 || acquisition
                     .arguments
                     .pointer(&binding.argument_pointer)
                     .is_none()
-        }) {
-            errors.push(format!(
-                "logical acquisition {} binding requires an existing argument pointer",
-                acquisition.id
-            ));
+            {
+                errors.push(format!(
+                    "logical acquisition {} binding requires an existing argument pointer: acquisitions.{}.bindings[{index}].argument_pointer {:?} does not identify a declared slot in arguments; declare the destination before binding an upstream output",
+                    acquisition.id, acquisition.id, binding.argument_pointer
+                ));
+            }
         }
-        if acquisition.for_each.as_ref().is_some_and(|binding| {
-            !(1..=1024).contains(&binding.maximum_items)
-                || !valid_pointer(&binding.argument_pointer)
+        if let Some(binding) = &acquisition.for_each {
+            if !(1..=1024).contains(&binding.maximum_items) {
+                errors.push(format!(
+                    "logical acquisition {} requires bounded fan-out: acquisitions.{}.for_each.maximum_items received {}, expected 1..=1024",
+                    acquisition.id, acquisition.id, binding.maximum_items
+                ));
+            }
+            if !valid_pointer(&binding.argument_pointer)
                 || acquisition
                     .arguments
                     .pointer(&binding.argument_pointer)
                     .is_none()
-                || binding.stop_on_witness.as_ref().is_some_and(|predicate| {
-                    !valid_pointer(&predicate.pointer)
-                        || predicate.equals.is_some() == predicate.equals_output.is_some()
-                })
-        }) {
-            errors.push(format!(
-                "logical acquisition {} requires bounded fan-out and explicit pointers",
-                acquisition.id
-            ));
+            {
+                errors.push(format!(
+                    "logical acquisition {} requires bounded fan-out and explicit pointers: acquisitions.{}.for_each.argument_pointer {:?} does not identify a declared slot in arguments",
+                    acquisition.id, acquisition.id, binding.argument_pointer
+                ));
+            }
+            if let Some(predicate) = &binding.stop_on_witness {
+                if !valid_pointer(&predicate.pointer) {
+                    errors.push(format!(
+                        "logical acquisition {} requires bounded fan-out and explicit pointers: acquisitions.{}.for_each.stop_on_witness.pointer {:?} is not a valid JSON pointer",
+                        acquisition.id, acquisition.id, predicate.pointer
+                    ));
+                }
+                if predicate.equals.is_some() == predicate.equals_output.is_some() {
+                    errors.push(format!(
+                        "logical acquisition {} requires bounded fan-out and explicit pointers: acquisitions.{}.for_each.stop_on_witness must specify exactly one of equals and equals_output",
+                        acquisition.id, acquisition.id
+                    ));
+                }
+            }
         }
     }
     for derivation in &elaboration.derivations {

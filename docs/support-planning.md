@@ -45,6 +45,41 @@ An old prose evidence plan does not contain the measurement semantics required f
 
 The ordinary successful hybrid argument uses six logical model calls: Constructor, Sceptic, EvidenceAuditor, Synthesiser, FinalCritic and Adjudicator. Matching after synthesis and after adjudication is deterministic. The FinalCritic sees the candidate routes and their limitations. Other argument authors do not receive the capability catalogue. Argument repairs use the existing argument budget; implementation has its own call and time budgets. Single mode remains a one-call baseline.
 
+## Incomplete designs and saved-run repair
+
+Argument validation, acquisition design and source collection have separate
+completion states. A contract or dependency error is a design defect rather than
+evidence that the source does not exist. Historical designs removed during
+adjudication remain available in `evidence_planning.design_review` as explicitly
+non-executable recovery inputs. A pending design produces an incomplete-planning
+warning and leaves completed responses and artefacts available.
+
+Repair a saved support design with its own bounded model-call allowance:
+
+```sh
+engarg eal repair --input analysis.json --evidence-config planning.json \
+  --model gpt-6.1-sol --max-repairs 1 --progress \
+  --audit repaired-support.audit.jsonl --output repaired-analysis.json
+```
+
+The repair retains the final argument and paid transcript, checks the support
+requirements against their original acceptance criteria, and checkpoints each
+new completion. It can use earlier acquisition blueprints without promoting
+invalid drafts into executable routes. Existing `engarg eal replan` refreshes
+capability selection for an unchanged support elaboration and makes no authoring
+model calls. It cannot reconstruct a removed blueprint. New implementations
+still require explicit operation specifications, function-contract verification
+and separate source or method qualification.
+
+The catalog-sync summary reports authored blueprints separately from compiled
+route entries. `source_collection.ready_acquisition_ids` lists configured routes
+whose dependencies, including dependencies through derivations, are available.
+This can identify a usable source subset while independent reviews or other
+sources remain pending. The script reports the complete emitted evidence budget
+separately. Its evidence-declaration count includes reviews and does not predict
+physical acquisition calls. The script retains artefacts and reports incomplete
+planning without claiming collected evidence or verified inference.
+
 The catalog-sync authoring script defaults to graph planning and requires its operator configuration:
 
 ```sh

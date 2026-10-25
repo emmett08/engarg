@@ -1,8 +1,8 @@
 //! Typed logical shapes and calculation lineage shared by validation and implementation contracts.
 use super::SupportElaboration;
 use eal_collector_contracts::{
-    capability::SupportContract,
-    execution::{DerivationOperation, OutputReference},
+    capability::{LogicalStrength, SupportContract, SupportType},
+    execution::{DependencyRole, DerivationOperation, OutputReference},
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -121,6 +121,11 @@ pub(super) struct ValueSemantics<'a> {
     pub(super) selection: BTreeMap<&'a str, &'a SupportContract>,
     /// Witness comparison controls execution but does not relabel source scope.
     pub(super) controls: BTreeMap<&'a str, &'a SupportContract>,
+    /// Qualified discovery records configure a retrieval without selecting its
+    /// measured population. Their own clocks and provenance remain material.
+    pub(super) discovery: BTreeMap<&'a str, &'a SupportContract>,
+    /// Discovery may pass through single-input projections, never aggregation.
+    pub(super) metadata_projection: bool,
     pub(super) shape: Shape,
     pub(super) calculation: CalculationLineage,
 }
@@ -178,6 +183,8 @@ pub(super) fn selected<'a>(
         origins: value.origins.clone(),
         selection: value.selection.clone(),
         controls: value.controls.clone(),
+        discovery: value.discovery.clone(),
+        metadata_projection: value.metadata_projection,
         calculation: value.calculation.clone(),
         shape: value.shape.select(&reference.pointer).ok_or_else(|| {
             format!(
@@ -271,6 +278,15 @@ fn derive<'a>(
     let controls = values
         .iter()
         .flat_map(|value| value.controls.iter().map(|(id, contract)| (*id, *contract)))
+        .collect();
+    let discovery = values
+        .iter()
+        .flat_map(|value| {
+            value
+                .discovery
+                .iter()
+                .map(|(id, contract)| (*id, *contract))
+        })
         .collect();
     let mut calculation = CalculationLineage::merge(values.iter().map(|value| &value.calculation));
     if let Some(method) = ClosedMethod::for_operation(operation) {
@@ -419,6 +435,15 @@ fn derive<'a>(
         origins,
         selection,
         controls,
+        discovery,
+        metadata_projection: values.len() == 1
+            && values[0].metadata_projection
+            && matches!(
+                operation,
+                DerivationOperation::Extract { .. }
+                    | DerivationOperation::Project { .. }
+                    | DerivationOperation::ProjectValue { .. }
+            ),
         shape,
         calculation,
     })
@@ -533,6 +558,70 @@ pub(super) fn infer_outputs(
                 .iter()
                 .flat_map(|value| value.controls.iter().map(|(id, contract)| (*id, *contract)))
                 .collect::<BTreeMap<_, _>>();
+            let mut discovery = upstream
+                .iter()
+                .flat_map(|value| {
+                    value
+                        .discovery
+                        .iter()
+                        .map(|(id, contract)| (*id, *contract))
+                })
+                .collect::<BTreeMap<_, _>>();
+            let mut selection = BTreeMap::new();
+            let mut invalid_discovery = false;
+            for (index, value) in upstream.iter().enumerate() {
+                match acquisition.bindings.get(index).map(|binding| &binding.role) {
+                    Some(role @ DependencyRole::Discovery { .. }) => {
+                        // A population selector cannot acquire weaker semantics by
+                        // being labelled as discovery metadata in a later binding.
+                        if !value.metadata_projection
+                            || !value.selection.is_empty()
+                            || !value.calculation.is_empty()
+                            || value.origins.len() != 1
+                            || matches!(value.shape, Shape::Collection(_))
+                            || value.origins.values().any(|contract| {
+                                contract.support_type != SupportType::SourceRetrieval
+                                    || contract.logical_strength != LogicalStrength::Clarification
+                            })
+                        {
+                            errors.push(format!(
+                                "logical acquisition {} bindings[{index}].role discovery requires SourceRetrieval/Clarification metadata from one scalar source without measurement or population-selection ancestors",
+                                acquisition.id
+                            ));
+                            invalid_discovery = true;
+                            continue;
+                        }
+                        for (source, contract) in &value.origins {
+                            if let Err(error) = role.validate_scopes(
+                                &serde_json::json!(contract.scope.selectors),
+                                &serde_json::json!(acquisition.contract.scope.selectors),
+                            ) {
+                                errors.push(format!(
+                                    "logical acquisition {} bindings[{index}].role discovery scope from {source}: {error}",
+                                    acquisition.id
+                                ));
+                                invalid_discovery = true;
+                            }
+                        }
+                        discovery
+                            .extend(value.origins.iter().map(|(id, contract)| (*id, *contract)));
+                    }
+                    _ => {
+                        // Bindings without a role and fan-out selectors retain
+                        // the existing population-selection interpretation.
+                        selection.extend(
+                            value
+                                .origins
+                                .iter()
+                                .chain(&value.selection)
+                                .map(|(id, contract)| (*id, *contract)),
+                        );
+                    }
+                }
+            }
+            if invalid_discovery {
+                continue;
+            }
             if let Some(reference) = witness.and_then(|predicate| predicate.equals_output.as_ref())
                 && let Ok(value) = selected(reference, &outputs)
             {
@@ -544,17 +633,13 @@ pub(super) fn infer_outputs(
                         .chain(&value.controls)
                         .map(|(id, contract)| (*id, *contract)),
                 );
-            }
-            let selection = upstream
-                .iter()
-                .flat_map(|value| {
+                discovery.extend(
                     value
-                        .origins
+                        .discovery
                         .iter()
-                        .chain(&value.selection)
-                        .map(|(id, contract)| (*id, *contract))
-                })
-                .collect();
+                        .map(|(id, contract)| (*id, *contract)),
+                );
+            }
             let shape = Shape::Object(
                 acquisition
                     .contract
@@ -583,6 +668,15 @@ pub(super) fn infer_outputs(
                     origins: BTreeMap::from([(acquisition.id.as_str(), &acquisition.contract)]),
                     selection,
                     controls,
+                    discovery,
+                    metadata_projection: acquisition.contract.support_type
+                        == SupportType::SourceRetrieval
+                        && acquisition.contract.logical_strength == LogicalStrength::Clarification
+                        && acquisition.for_each.is_none()
+                        && acquisition
+                            .bindings
+                            .iter()
+                            .all(|binding| !binding.role.is_selection()),
                     shape,
                     calculation: CalculationLineage::default(),
                 },

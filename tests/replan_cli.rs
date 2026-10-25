@@ -8,6 +8,7 @@ use engarg::{
     route_planning::{DiscoverySnapshot, PlanningConfig},
 };
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{os::unix::fs::PermissionsExt, path::Path, process::Command};
 
 fn cli() -> Command {
@@ -64,7 +65,11 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
     let config_path = directory.path().join("planning.json");
     write(&config_path, &configuration);
     let response = json!({"argument":case}).to_string();
-    let transcript = json!([{"role":"adjudicator","prompt":{"role":"adjudicator","system":"retained fixture","user":"{}","schema":{}},"response":{"content":response,"model":"original-model","input_tokens":7,"output_tokens":5,"request_id":"original-request","service_tier":null,"reasoning_effort":null},"response_content_bytes":response.len(),"response_content_sha256":"retained-fixture","response_content_omitted":false,"elapsed_ms":1}]);
+    let digest = Sha256::digest(response.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let transcript = json!([{"role":"adjudicator","prompt":{"role":"adjudicator","system":"retained fixture","user":"{}","schema":{}},"response":{"content":response,"model":"original-model","input_tokens":7,"output_tokens":5,"request_id":"original-request","service_tier":null,"reasoning_effort":null},"response_content_bytes":response.len(),"response_content_sha256":digest,"response_content_omitted":false,"elapsed_ms":1}]);
     let original = json!({"request":request,"argument":case,"transcript":transcript,"tooling":null,"retained_numeric":serde_json::from_str::<Value>("0.123456789012345678901234567890123456789").unwrap(),"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":initial}});
     let input = directory.path().join("original.json");
     write(&input, &original);

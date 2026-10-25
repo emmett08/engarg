@@ -26,6 +26,7 @@ fn fixture() -> (AcquisitionBlueprint, CapabilityDescriptor) {
         contract,
         arguments: json!({"revision":"r1","trace_id":null,"count":3}),
         bindings: vec![DependencyBinding {
+            role: Default::default(),
             output: OutputReference {
                 step_id: "search".into(),
                 pointer: "/trace_id".into(),
@@ -145,6 +146,7 @@ fn dynamic_history_cannot_replace_the_original_query_interval() {
     blueprint.arguments["start"] = json!(0);
     blueprint.arguments["end"] = json!(60);
     blueprint.bindings.push(DependencyBinding {
+        role: Default::default(),
         output: OutputReference {
             step_id: "window".into(),
             pointer: "/start".into(),

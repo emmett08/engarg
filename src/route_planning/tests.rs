@@ -526,6 +526,7 @@ fn dependent_request_groups_report_bounds_without_claiming_distinct_resolved_sou
     elaboration.acquisitions[0]
         .bindings
         .push(DependencyBinding {
+            role: Default::default(),
             output: OutputReference {
                 step_id: "first_selector".into(),
                 pointer: "/expression".into(),

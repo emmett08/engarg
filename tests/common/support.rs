@@ -147,6 +147,7 @@ pub fn fixture() -> (
         derivations: Vec::new(),
         evaluations: evaluations.clone(),
         revisions: Vec::new(),
+        acquisition_revisions: Vec::new(),
 
         alternative_support: vec![],
     };

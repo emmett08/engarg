@@ -38,6 +38,17 @@ pub struct ProviderArgs {
 }
 
 impl ProviderArgs {
+    /// Requested settings excluding credentials and credential variable names.
+    pub fn metadata(&self) -> serde_json::Value {
+        serde_json::json!({
+            "model":self.model,"endpoint":self.endpoint,"api":format!("{:?}",self.api),
+            "service_tier":self.service_tier,"reasoning_effort":self.reasoning_effort,
+            "max_output_tokens":self.max_output_tokens,"http_retries":self.http_retries,
+            "retry_max_delay_secs":self.retry_max_delay_secs,
+            "request_timeout_secs":self.request_timeout_secs,
+        })
+    }
+
     pub fn model(&self) -> Result<CodingModel, Error> {
         if self.max_input_bytes == 0 || self.max_response_bytes == 0 {
             return Err(Error::InvalidInput(

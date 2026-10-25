@@ -140,6 +140,7 @@ async fn run_batch_case(automatic: bool, invalid_comparison: bool, short_batch: 
             contract: batch.clone(),
             arguments: json!({"case":"dev","trace_ids":null}),
             bindings: vec![DependencyBinding {
+                role: Default::default(),
                 output: OutputReference {
                     step_id: "search".into(),
                     pointer: "/ids".into(),

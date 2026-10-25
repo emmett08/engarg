@@ -86,6 +86,7 @@ pub(crate) fn pending(case: &ArgumentCase) -> SupportElaboration {
         derivations: vec![],
         evaluations,
         revisions: vec![],
+        acquisition_revisions: vec![],
 
         alternative_support,
     }
@@ -1125,4 +1126,27 @@ fn resource_identity_matches_existing_batch_identity_quantity_without_fanout() {
         "{:?}",
         validate_elaboration(&case, &elaboration)
     );
+}
+
+#[test]
+fn extraction_schema_names_authoritative_versions_and_nonempty_methods() {
+    let schema = elaboration_schema();
+    assert_eq!(
+        schema["properties"]["schema"]["enum"],
+        json!([SUPPORT_ELABORATION_SCHEMA])
+    );
+    assert_eq!(
+        schema["$defs"]["SupportContract"]["properties"]["schema"]["enum"],
+        json!(["eal.support-contract/1"])
+    );
+    assert_eq!(
+        schema["$defs"]["OperationSpecification"]["properties"]["schema"]["enum"],
+        json!([OPERATION_SPECIFICATION_SCHEMA])
+    );
+    assert_eq!(
+        schema["$defs"]["SupportContract"]["properties"]["acceptable_methods"]["minItems"],
+        1
+    );
+    assert!(EXTRACTION_INSTRUCTIONS.contains("representation defect to repair"));
+    assert!(EXTRACTION_INSTRUCTIONS.contains("SourceRetrieval/Clarification"));
 }
