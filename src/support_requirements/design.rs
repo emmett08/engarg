@@ -440,13 +440,15 @@ mod tests {
                     "The revised source definition covers the same retained observation obligation."
                         .into(),
             });
-        let review = review_acquisition_design(&renamed, &[source.clone()], 1_048_576).unwrap();
+        let review =
+            review_acquisition_design(&renamed, std::slice::from_ref(&source), 1_048_576).unwrap();
         assert_eq!(review.status, AcquisitionDesignStatus::Represented);
         assert!(review.pending_designs.is_empty());
         let mut repaired = proposed.clone();
         repaired.acquisitions[0].contract.schema = "eal.support-contract/1".into();
         repaired.acquisitions[0].contract.acceptable_methods = vec!["fixture.read/1".into()];
-        let review = review_acquisition_design(&repaired, &[source.clone()], 1_048_576).unwrap();
+        let review =
+            review_acquisition_design(&repaired, std::slice::from_ref(&source), 1_048_576).unwrap();
         assert_eq!(
             review.status,
             AcquisitionDesignStatus::PendingRepair,
@@ -521,7 +523,7 @@ mod tests {
                         .into(),
             });
         assert_eq!(
-            review_acquisition_design(&accepted, &[source.clone()], 1_048_576)
+            review_acquisition_design(&accepted, std::slice::from_ref(&source), 1_048_576)
                 .unwrap()
                 .status,
             AcquisitionDesignStatus::PendingRepair
