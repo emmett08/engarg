@@ -315,6 +315,20 @@ When tooling is enabled, the summary also records its model calls and verified
 and reused package counts. Synthetic fixture results remain separate from live
 engineering observations.
 
+The script renders each presentation from the same saved analysis without further
+model calls. The `presentations` map in `run-summary.json` records their paths.
+
+| File | Presentation |
+| --- | --- |
+| `analysis.json` | Complete canonical argument and run audit |
+| `argument.md` | Full Markdown argument records with the duplicate JSON audit appendix omitted |
+| `argument.txt` | Indented argument statements with two detailed claim levels |
+| `argument.html` | Expandable HTML with two detailed claim levels and glossary help |
+| `prose.md` | Connected reading prose with two detailed claim levels |
+
+The Markdown report keeps every argument record. The canonical JSON retains the
+audit appendix's source data.
+
 ## Inspect and retry a host failure
 
 The line `Structural and reporting checks passed` confirms EngArg's domain

@@ -14,6 +14,7 @@ pub mod eal_observe;
 pub mod eal_prepare;
 pub mod engine;
 pub mod export_policy;
+pub mod glossary;
 pub mod presentations;
 pub mod prompts;
 pub mod provider;

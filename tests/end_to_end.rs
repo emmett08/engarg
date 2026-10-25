@@ -108,17 +108,79 @@ enum Input {
     MinimalJson,
 }
 
-fn run_case(corrupt_final: bool, input: Input, mode: &str) {
-    run_configured(corrupt_final, input, mode, false, true);
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum ReadingFixture {
+    #[default]
+    Original,
+    Concise,
 }
 
-fn run_configured(
-    corrupt_final: bool,
-    input: Input,
-    mode: &str,
+struct CaseOptions {
     repair_missing_plan: bool,
     tool_planning: bool,
-) {
+    reading: ReadingFixture,
+}
+
+impl Default for CaseOptions {
+    fn default() -> Self {
+        Self {
+            repair_missing_plan: false,
+            tool_planning: true,
+            reading: ReadingFixture::Original,
+        }
+    }
+}
+
+fn case_fixture(claim_only: bool, reading: ReadingFixture) -> Value {
+    let text = if claim_only {
+        include_str!("../examples/claim-only-case.json")
+    } else {
+        include_str!("../examples/case.json")
+    };
+    let mut case: Value = serde_json::from_str(text).unwrap();
+    if reading == ReadingFixture::Concise {
+        assert!(claim_only);
+        let original = case.clone();
+        case["reading"] = json!([
+            {
+                "claim_id":"current_claim",
+                "title":"Conditional benefit from parallel execution",
+                "paragraphs":[{
+                    "purpose":"answer",
+                    "text":"Parallel CI groups conditionally shorten the complete pipeline and preserve outcomes because critical-path savings must exceed added scheduling, setup and contention costs, and equivalent isolated execution must preserve every required check. G1 and G2 are assumptions without supplied observations. A remaining bottleneck or hidden shared state can defeat those premises, while comparison and coverage remain untested. First profile complete-pipeline timing and audit selection, isolation, outcomes and inference backing under controlled, representative conditions. Paired observations remain necessary for the stronger empirical target.",
+                    "reference_ids":["current_claim","S1","G1","G2","G3","W1","W2","W3","A1","A2","D1","D2","stronger_target","N-G1","N-G2","N-G3","N-W1","N-W2","N-W3"]
+                }]
+            },
+            {
+                "claim_id":"S1",
+                "title":"When overlap shortens the pipeline",
+                "paragraphs":[{
+                    "purpose":"answer",
+                    "text":"Useful overlap conditionally shortens the complete pipeline because removed critical-path work must exceed all added costs while the remaining work stays comparable. A different bottleneck, contention or setup can erase that benefit. Complete-pipeline profiles and a justified timing decomposition must test the mechanism under the declared comparison conditions.",
+                    "reference_ids":["S1","G1","W1","A1","D1","N-G1","N-W1"]
+                }]
+            }
+        ]);
+        let mut restored = case.clone();
+        restored["reading"] = original["reading"].clone();
+        assert_eq!(
+            restored, original,
+            "the concise fixture only changes reading"
+        );
+    }
+    case
+}
+
+fn run_case(corrupt_final: bool, input: Input, mode: &str) {
+    run_configured(corrupt_final, input, mode, CaseOptions::default());
+}
+
+fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOptions) {
+    let CaseOptions {
+        repair_missing_plan,
+        tool_planning,
+        reading,
+    } = options;
     let claim_only = !matches!(input, Input::Evidence);
     let request_text = if claim_only {
         include_str!("../examples/claim-only-request.json")
@@ -127,6 +189,8 @@ fn run_configured(
     };
     let request: Value = serde_json::from_str(request_text).unwrap();
     let expected_claim = request["claim"].as_str().unwrap().to_owned();
+    let expected_argument = case_fixture(claim_only, reading);
+    let response_case = expected_argument.clone();
     let base_calls = if mode == "single" { 1 } else { 6 };
     let calls = base_calls + usize::from(repair_missing_plan);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -140,6 +204,10 @@ fn run_configured(
             assert_eq!(body["service_tier"], "ultrafast");
             assert_eq!(body["reasoning"], json!({"effort":"high"}));
             assert!(body.get("reasoning_effort").is_none());
+            let instructions = body["instructions"].as_str().unwrap();
+            assert!(instructions.contains("ENGINEERING WRITING SKILL"));
+            assert!(instructions.contains("ARGUMENT ROLE GLOSSARY"));
+            assert!(instructions.contains(&engarg::glossary::find("W").unwrap().definition));
             let envelope: Value = serde_json::from_str(body["input"].as_str().unwrap()).unwrap();
             assert_eq!(envelope["request"]["claim"], expected_claim);
             if claim_only {
@@ -165,12 +233,7 @@ fn run_configured(
             let is_case = planned || properties.get("current_claim").is_some();
             let content = if is_case {
                 assert_eq!(planned, tool_planning);
-                let case_text = if claim_only {
-                    include_str!("../examples/claim-only-case.json")
-                } else {
-                    include_str!("../examples/case.json")
-                };
-                let mut case: Value = serde_json::from_str(case_text).unwrap();
+                let mut case = response_case.clone();
                 if corrupt_final && index == 5 {
                     case["original_claim"] = json!("silently changed claim");
                 }
@@ -313,6 +376,14 @@ fn run_configured(
         );
         assert_eq!(events.last().unwrap()["event"], "success");
         let report: Value = serde_json::from_slice(&std::fs::read(&output).unwrap()).unwrap();
+        if reading == ReadingFixture::Concise {
+            assert_eq!(report["argument"], expected_argument);
+            for section in report["argument"]["reading"].as_array().unwrap() {
+                let paragraphs = section["paragraphs"].as_array().unwrap();
+                assert_eq!(paragraphs.len(), 1);
+                assert_eq!(paragraphs[0]["purpose"], "answer");
+            }
+        }
         assert_eq!(report["transcript"].as_array().unwrap().len(), calls);
         let final_content = report["transcript"][calls - 1]["response"]["content"]
             .as_str()
@@ -523,11 +594,42 @@ fn minimal_claim_json_constructs_a_single_call_argument_without_context_or_evide
 }
 
 #[test]
+fn concise_reading_survives_hybrid_and_single_workflows_and_all_presentations() {
+    for mode in ["hybrid", "single"] {
+        run_configured(
+            false,
+            Input::Claim,
+            mode,
+            CaseOptions {
+                reading: ReadingFixture::Concise,
+                ..CaseOptions::default()
+            },
+        );
+    }
+}
+
+#[test]
 fn cli_repairs_a_missing_material_defeater_plan_within_the_recorded_call_budget() {
-    run_configured(false, Input::Claim, "hybrid", true, true);
+    run_configured(
+        false,
+        Input::Claim,
+        "hybrid",
+        CaseOptions {
+            repair_missing_plan: true,
+            ..CaseOptions::default()
+        },
+    );
 }
 
 #[test]
 fn cli_can_retain_the_direct_case_provider_contract_without_tool_planning() {
-    run_configured(false, Input::MinimalJson, "single", false, false);
+    run_configured(
+        false,
+        Input::MinimalJson,
+        "single",
+        CaseOptions {
+            tool_planning: false,
+            ..CaseOptions::default()
+        },
+    );
 }

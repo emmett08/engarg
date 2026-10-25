@@ -151,7 +151,11 @@ fn one_saved_graph_can_render_every_presentation_without_a_provider_key() {
     let before = std::fs::read(&canonical).unwrap();
     for (format, marker) in [
         ("markdown", "Argument context"),
+        ("md", "Argument context"),
         ("outline", "current\\_claim"),
+        ("argument", "current_claim"),
+        ("plain", "current_claim"),
+        ("txt", "current_claim"),
         ("prose", "controlled parallelisation"),
         ("html", "<details"),
         ("expandable", "<details"),

@@ -569,6 +569,7 @@ PY
 stage='argument validation'
 "$engarg_bin" validate --input "$run_dir/request.json" --case "$run_dir/case.json"
 stage='argument rendering'
+"$engarg_bin" render --input "$run_dir/analysis.json" --format markdown --no-audit-appendix --output "$run_dir/argument.md"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format argument --outline-depth 3 --display-depth 2 --output "$run_dir/argument.txt"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format prose --display-depth 2 --output "$run_dir/prose.md"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format html --display-depth 2 --output "$run_dir/argument.html"
@@ -670,6 +671,10 @@ summary = {
     'evidence_collected': False,
     'argument_status': report['argument']['status'],
     'recorded_model_calls': len(report.get('transcript', [])),
+    'presentations': {name: str(directory / filename) for name, filename in {
+        'json': 'analysis.json', 'markdown': 'argument.md', 'text': 'argument.txt',
+        'html': 'argument.html', 'prose': 'prose.md'
+    }.items()},
     'selected_collectors': sorted({entry['tool_id'] for entry in entries}),
     'unresolved_arguments': [{'need_id': entry['need_id'], 'arguments': entry['unresolved_arguments']}
         for entry in entries if entry['unresolved_arguments']],

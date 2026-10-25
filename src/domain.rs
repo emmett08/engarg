@@ -460,9 +460,43 @@ mod tests {
     }
 
     #[test]
-    fn reading_requires_distinct_connected_paragraph_roles_and_single_paragraph_text() {
+    fn reading_accepts_one_answer_paragraph_without_repeated_conclusions() {
         let (request, mut case) = fixtures();
-        case.reading[0].paragraphs[1].purpose = ParagraphPurpose::Answer;
+        for section in &mut case.reading {
+            let text = section
+                .paragraphs
+                .iter()
+                .map(|paragraph| paragraph.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let mut reference_ids = section
+                .paragraphs
+                .iter()
+                .flat_map(|paragraph| paragraph.reference_ids.iter().cloned())
+                .collect::<Vec<_>>();
+            reference_ids.sort_unstable();
+            reference_ids.dedup();
+            section.paragraphs = vec![ReasoningParagraph {
+                purpose: ParagraphPurpose::Answer,
+                text,
+                reference_ids,
+            }];
+        }
+        assert_eq!(validate_case(&request, &case), Ok(()));
+    }
+
+    #[test]
+    fn reading_accepts_additional_paragraph_purposes_without_requiring_all_five() {
+        let (request, mut case) = fixtures();
+        case.reading[0].paragraphs[1].purpose = ParagraphPurpose::Connection;
+        case.reading[0].paragraphs.last_mut().unwrap().purpose = ParagraphPurpose::Complication;
+        assert_eq!(validate_case(&request, &case), Ok(()));
+    }
+
+    #[test]
+    fn reading_still_requires_an_opening_answer_and_single_paragraph_text() {
+        let (request, mut case) = fixtures();
+        case.reading[0].paragraphs[0].purpose = ParagraphPurpose::Finding;
         case.reading[0].paragraphs[0]
             .text
             .push_str("\n\nA second paragraph must be a distinct record.");
@@ -470,12 +504,32 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.contains("must include answer, finding"))
+                .any(|e| e.contains("must start with an answer paragraph"))
         );
         assert!(
             errors
                 .iter()
                 .any(|e| e.contains("text must contain one paragraph"))
+        );
+    }
+
+    #[test]
+    fn reading_still_rejects_empty_sections_and_blank_answer_text() {
+        let (request, mut case) = fixtures();
+        case.reading[0].paragraphs.clear();
+        assert!(
+            validate_case(&request, &case)
+                .unwrap_err()
+                .iter()
+                .any(|e| e.contains("needs at least one answer paragraph"))
+        );
+        let (request, mut case) = fixtures();
+        case.reading[0].paragraphs[0].text = " \t".into();
+        assert!(
+            validate_case(&request, &case)
+                .unwrap_err()
+                .iter()
+                .any(|e| e.contains("paragraph 1 text must contain text"))
         );
     }
 
