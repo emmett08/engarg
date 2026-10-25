@@ -45,8 +45,14 @@ Ten of eleven Docker tests passed. The newly extended collection test omitted
 explicit forwarding of the generated provider's admitted environment names.
 A local native fixture reproduces the same failed observation and stderr digest
 when a declared variable is absent from the host's default environment. The
-revised helper selects those names through `--collector-env`; it preserves the
-production forwarding policy and adds a source-level failure diagnostic. Final
+revised helper selects those names through `--collector-env`. A second run,
+[40213469463](https://github.com/emmett08/engarg/actions/runs/40213469463), exposed
+the corresponding sensitivity boundary: explicitly forwarded values remain
+secret until classified otherwise. The fixture now separately marks its reviewed
+public host settings with `--public-collector-env`, with a local regression that
+first verifies rejection under the default secret policy. Credential settings
+retain that default. The helper preserves the production environment policy and
+adds a source-level failure diagnostic. Final
 hosted results belong to the checks on [PR #15](https://github.com/emmett08/engarg/pull/15).
 
 | Finding | Disposition and decisive evidence |

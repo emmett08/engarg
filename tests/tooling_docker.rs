@@ -1154,7 +1154,9 @@ fn generated_interface_native_preflight_requires_original_time_then_executes_and
         fs::write(&connections,json!({"schema":"eal.evidence-config/1","connections":[],"native_providers":[prepared],"local_catalogues":[],"approved_catalogues":[]}).to_string()).unwrap();
         let mut planning = config.clone();
         planning.connections = connections;
-        planning.environment = vec!["EAL_COLLECTOR".into()];
+        // The export helper supplies USER with a deterministic public fixture
+        // value; the native provider itself needs only EAL_COLLECTOR.
+        planning.environment = vec!["EAL_COLLECTOR".into(), "USER".into()];
         let planning_path = root.join(format!("{name}-planning.json"));
         fs::write(
             &planning_path,
@@ -1470,9 +1472,33 @@ fn assert_export_collection_and_assessment(
         execution.acquisitions[0].source
     );
     assert!(!bundle.support_elaboration.alternative_support.is_empty());
+    let connections: Value =
+        serde_json::from_slice(&fs::read(&bundle.locations.connections).unwrap()).unwrap();
+    let credential_names = connections["native_providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|provider| provider["credential_env"].as_array().unwrap())
+        .filter_map(Value::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let public_environment = bundle
+        .locations
+        .environment
+        .iter()
+        .filter(|name| {
+            (engarg::tooling::runner::DOCKER_ENVIRONMENT.contains(&name.as_str())
+                || name.as_str() == "EAL_COLLECTOR")
+                && !credential_names.contains(name.as_str())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let exercise_public_sensitivity = bundle
+        .locations
+        .environment
+        .iter()
+        .any(|name| name == "EAL_COLLECTOR");
     let host = collector.with_file_name(format!("eal-host{}", std::env::consts::EXE_SUFFIX));
     let database = root.join("selected.sqlite");
-    let run = |operation: &str| {
+    let run = |operation: &str, classify_public: bool| {
         let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
         command
             .args(["eal", operation, "--input"])
@@ -1491,10 +1517,36 @@ fn assert_export_collection_and_assessment(
         // settings are not part of the host's default process environment.
         for name in &bundle.locations.environment {
             command.arg("--collector-env").arg(name);
+            // These synthetic fixtures explicitly classify reviewed host
+            // settings and the native binary path as public configuration.
+            // Custom runtime credentials and all unknown names stay sensitive.
+            if classify_public && public_environment.contains(name) {
+                command.arg("--public-collector-env").arg(name);
+            }
+        }
+        if exercise_public_sensitivity {
+            // This harmless public value appears in the returned evidence IDs.
+            // It makes default sensitive-value filtering deterministic without
+            // depending on the CI account name or filesystem layout.
+            command.env("USER", "support_evaluation");
         }
         command
     };
-    let collected = run("collect")
+    if exercise_public_sensitivity {
+        let rejected = run("collect", false)
+            .arg("--tools")
+            .arg(&registry)
+            .output()
+            .unwrap();
+        assert!(!rejected.status.success());
+        assert!(rejected.stdout.is_empty());
+        assert!(
+            String::from_utf8_lossy(&rejected.stderr).contains("EAL_HOST_CREDENTIAL_LEAK"),
+            "{}",
+            String::from_utf8_lossy(&rejected.stderr)
+        );
+    }
+    let collected = run("collect", true)
         .arg("--tools")
         .arg(&registry)
         .output()
@@ -1503,6 +1555,18 @@ fn assert_export_collection_and_assessment(
     let collected: Value = serde_json::from_slice(&collected.stdout).unwrap();
     assert_eq!(collected["is_error"], false, "{collected}");
     let collection = &collected["result"];
+    if exercise_public_sensitivity {
+        assert!(
+            collection["records"]
+                .as_object()
+                .unwrap()
+                .values()
+                .any(|record| record["evidence_id"]
+                    .as_str()
+                    .is_some_and(|id| id.contains("support_evaluation"))),
+            "the public fixture value must really occur in the returned observation"
+        );
+    }
     let shared = bundle
         .requirements
         .iter()
@@ -1551,7 +1615,7 @@ fn assert_export_collection_and_assessment(
     }
     let now = chrono::DateTime::from(std::time::SystemTime::now())
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let assessed = run("assess")
+    let assessed = run("assess", true)
         .arg("--tools")
         .arg(&registry)
         .arg("--now")

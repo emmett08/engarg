@@ -205,7 +205,11 @@
               "--collector-env",
               "HOME",
               "--output",
-              "{work}/collection.json"
+              "{work}/collection.json",
+              "--public-collector-env",
+              "PATH",
+              "--public-collector-env",
+              "HOME"
             ],
             "timeout_seconds": 3600,
             "report": "{work}/collection.json",
@@ -266,7 +270,15 @@
               "--tools",
               "{work}/tools.toml",
               "--output",
-              "{work}/assessment.json"
+              "{work}/assessment.json",
+              "--collector-env",
+              "PATH",
+              "--collector-env",
+              "HOME",
+              "--public-collector-env",
+              "PATH",
+              "--public-collector-env",
+              "HOME"
             ],
             "timeout_seconds": 3600,
             "report": "{work}/assessment.json",
