@@ -1,0 +1,647 @@
+{
+  "schema": "engarg.complete-planner-measurement/1",
+  "revision": "228c0639173bef70417d8729718cafd84d611a3e",
+  "compiler": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "build": "cargo +1.99.1 build --locked --offline --release --bins --example benchmark_planner",
+  "binary_sha256": "a6c9dcaafe3af009f33c8e7828ff8f7991b83b198ac8bc846264c9aa436fb229",
+  "source_sha256": {
+    "Cargo.lock": "0d551b40cd5328d82e7182d606a067a24be59cd04fa151fa6ee815d8c74a9063",
+    "Cargo.toml": "fcc5711ebe04d36002035a840eab489790b47d0bd14492d8805fd38115406364",
+    "examples/benchmark_planner.rs": "9b21f0bb3e043bfdaa6a9accc1e3773aaa3bb5fcb94bd7ec81b181aa13fc1df0",
+    "rust-toolchain.toml": "35d83b6333e752741900ba4935be885bbbf6bf883e7b1383d8d0f14f72843e0b",
+    "src/acquisition.rs": "47456367710cd7a509c580e4dc7f301d5fb9f3432b7d8a00fca11c8993eff660",
+    "src/argument_depth.rs": "35a7d70e4c984ef00f1e2924fcf1a004f39a7ee1e015ea81abac0258b6ea247f",
+    "src/bin/process_supervisor.rs": "582dee92160f609eca268fdf133d35a5e4a4b6c8173c09279355ca189a4254e7",
+    "src/bounded_file.rs": "76d238a0b86d47d3fb285419ccb1a70684e347b823b266ddef6b850d4db63d7d",
+    "src/collector_catalogue.rs": "06946a27ec427f7b66edc1e49140ca79a53c06240e3db9991252f90b840dcccd",
+    "src/collector_preparation.rs": "e44187649283099b7eb67b1b1f14391f1d0e5ddf065776779453005ebffb3a01",
+    "src/collector_registry.rs": "25c7da0b8af14acce669527611bf0371c519e62420d065ebd54f4bfa06e5630c",
+    "src/domain/diagnostics.rs": "bd46082f503b598388b0627d3b1714a305089e899896908587977eff51bfa466",
+    "src/domain/identifiers.rs": "045a97f3651047555d4420b8af2bb6c1fe894c9c66ed51f4cce602a050aed91b",
+    "src/domain/index.rs": "1ee76229c278475634a368262faa1d8b201a630d966c64e6864320973f95d487",
+    "src/domain/records.rs": "c3b771b1dc3fe29875e5e96dce8ff8215ff0cb9cf9612b9f17ca77e98c7295f7",
+    "src/domain/validation/evidence.rs": "a58fe64ae7be727223772bb3aa249edadf3241920c786620ddab3befe572cd64",
+    "src/domain/validation/mod.rs": "6bbda83aa4ead641f49b1f873e1b11da45690d7844dd2ed10d6a7becf8d928ef",
+    "src/domain/validation/narrative.rs": "070fcb63ed3daf29e4d1bf3071c758cfc9004883d7b13152e529887c9f324507",
+    "src/domain/validation/status.rs": "0b3e312bc12c8d186f342c95f6767cd1c927e79b7ff300df5c4fc949c17d4894",
+    "src/domain/validation/structure.rs": "1b353f2d51db73530b9ebcdf18aba0c46adeb73dd6adc01994136aeacde1ed08",
+    "src/domain.rs": "4e24a3488f0295da98974e76dde04b0d0541546bddd9bdc3b86aa383ec29cf14",
+    "src/eal_acquisition.rs": "a65ad0a9361ec165c233ed87633cd74c7a136d859d4388bef40fb7accc318bcd",
+    "src/eal_commands.rs": "6bc4c1c6a1e5c674b7f008897ad4d24a5239da360b5bd2399630e8fe9c80d722",
+    "src/eal_export.rs": "bf6dcbc7f9678be0ccea4b5c883072315f7fc58ded9e758d04ee17096b74cb09",
+    "src/eal_host.rs": "2d4086cd7fb1ba9529b0e88dddcd9d9f834fa5cdf1f14ca3a48c440ea3ed7ed5",
+    "src/eal_observe.rs": "08513d614db00a3e70656aa3d2c0cc32fc4feadac4b3518e2c9f1011d84cd0ae",
+    "src/eal_prepare.rs": "5cf1fbdf145a99204ff1db81b2e7dec655fda5686222572c78af4111b53644f9",
+    "src/engine/context/target_contexts.rs": "100fd39a39b9b146c4d3d237b8e334d47a9a80f0fb149dbc493a03b360c4d353",
+    "src/engine/context.rs": "f85d69e697ec30906cae2cef6182b107b653ef713124b370e1e1148c5191fb55",
+    "src/engine/repair.rs": "508c5c452db2ecae98b5c838aa55a60534dfd9ffa3bac98824b8bc11e1c8be99",
+    "src/engine/support.rs": "34e91a772767f91b7e2ae1d413a00fb1939f8fb7495c2f00e5b830f7b1a6c0b5",
+    "src/engine.rs": "c4dd593aca444f0af3ffd75d0b75b08a1eab80633c31e3a8d92c03ba0ba044fb",
+    "src/export_policy.rs": "cbfc6fdccdad7827306292d96dbb818e23b1385b7be58114bdfb2a5f7d54c028",
+    "src/glossary.rs": "f7442cc78c8ece73f6cc69e5ea39428b29f7a402f1e7a8497a7d2c613c56a75b",
+    "src/glossary_command.rs": "00e95cb565f0c597e8b676d97d1d8a31ef630f7868b4fd9154b6b029e3376bd3",
+    "src/legacy_acquisition.rs": "abe4e9b09a1bdc0a32dbc5363c4f9b0cefa98b8c79a4a60673edeeea94bac030",
+    "src/legacy_catalogue.rs": "4870c0f4d05ac1ad8f9dd1fc7d9609c8832170e1fb2fe57f658ece00be1c021d",
+    "src/legacy_export.rs": "c81b59723c58c92325f372d09afa995726ab6deaffab68e6ba4555a280dc891d",
+    "src/legacy_native_collectors.rs": "84f92639d33d06dde76c875c3b4495da089efe13685854c243241a256633dd2d",
+    "src/legacy_plans.rs": "074fceb7e73b2ee43b5939bceb14a50dc648beedeca3f85f735c13cc30d0bdd0",
+    "src/lib.rs": "e0373ac94fc9bca46a446b5f02639cd7e5c2bfa6f5a838b307fdb33369bf0c74",
+    "src/main.rs": "e16af4a7e77b10533e3cc8474386f96ebb4bb88e2e5799b237995bd9859b30a3",
+    "src/output_validation/target_context.rs": "8bd8443adaf19b27a73e8586578f7545d4e56f81cc788dc6c549f8d3d0fe568f",
+    "src/output_validation.rs": "03543aee95dce05887fa3a326bbe7a32ce14ac59207a74823aafabf73eb005ad",
+    "src/presentations/budget.rs": "4013a5c832198f6402ad3067f558ab7f23f03ddf20666be391f1234117794805",
+    "src/presentations/html.rs": "b01d64befe9a3b9e6abf00ff11ebca63e8109653a6f6c4912c981882fa3d6d22",
+    "src/presentations/plain.rs": "2604544785a3dacfabd749fc222a90a72ef2623deee928bcc86b9d690cd0ea36",
+    "src/presentations/view.rs": "82799754c44d0b78584462f88954e2703a2bc653dfd666167d3d9a84f1b4906a",
+    "src/presentations.rs": "377db1caaeaa0a7d11e08cb524d429246bdb2070bfbe0dbfd6265edf5e47ae65",
+    "src/prompts/skills.rs": "22fb9a7ad061207d5adcf401440531b329063137da681ad4e3ed72e240186031",
+    "src/prompts.rs": "e3adfc0c88b0c0df36447c14b461d38dad7548fd35ce00d718bcfa8600682b2d",
+    "src/provider/http.rs": "c6591de1b1aa49525070723f27934a0855839ccefa99c3fdd36ceadda70b096f",
+    "src/provider/rate_limit.rs": "5ada58abd6e91f986441e25ec569dc7e012ed0513b85ee4d2d75e32278d525d0",
+    "src/provider.rs": "1b868e9e291689097b380183f56541750e28ddda6e73d19e8766b35c47525d21",
+    "src/render/text.rs": "07351b7d10f8b82df02345292513151f963b254397b79e6f2ac1ffc0b9f981a6",
+    "src/render.rs": "a1d10cd34456691cd4686e48712023539330a5224e6f17f281b6e730bec6b217",
+    "src/report.rs": "46c3036f774d7062a98a2fbf37276276d34a680fecefa6e4c1113aed0753c2f6",
+    "src/retained_collectors.rs": "df8fbd95f4afbb0fb850f9610c777cb7267121635453fc19132a44f5ef0f726d",
+    "src/route_planning/arguments.rs": "ddd295b13ad4c42655ddaaed5322e9584bf49eee781a7607540e50366305aa33",
+    "src/route_planning/arguments_tests.rs": "bf4d00bcdae7f441277c3497b503615b8a777037e6c7c2da90deef141447260f",
+    "src/route_planning/candidates.rs": "d22b07b154a73ece1e2c3761ec38f80447cd35fbbbda05c35240421d8b1f889d",
+    "src/route_planning/compiler.rs": "af6e7db0510cd0bc7f3e24ea58591e4049a1538205933ac9ca34513fe5eeb292",
+    "src/route_planning/configuration.rs": "9f83065143af312b6d2231520a3492a9924df101cda428748e24a65b1cbfcc1b",
+    "src/route_planning/graphs/tests.rs": "d1360b447e5015f16c6a3a3c48ed872d4675817cde8494a97e0488cdc1019489",
+    "src/route_planning/graphs.rs": "9a3c1041f604f790af365f33f2c83585663a21cd30c2343b233c634f4a912543",
+    "src/route_planning/implementation/inputs.rs": "004ccf29f8e429173e9d5fe4be796ff4925875b68597da914a96e9c682fbcdd0",
+    "src/route_planning/implementation/tests.rs": "61b08a87a4c5eaa0e2ec2259f323d88ef20adf1e0ce73ecf731bf1a393270833",
+    "src/route_planning/implementation.rs": "44e1530d087744a79a7cd9ae5310294fbbaa9d7a8f9539c36ec31a647b396ef3",
+    "src/route_planning/mod.rs": "28e041ec535c37533c77de302246834842194cec5514f732fb7db79e4ccb3db8",
+    "src/route_planning/preview.rs": "916ff33eb25c4d802e8646cc9e9d21b833e5f6b9bb32b556978c087fd25d9f21",
+    "src/route_planning/selection/beam.rs": "696597411e1a42e4279a5c26632a2864ee6e35abcc24c831382c8679500318e7",
+    "src/route_planning/selection/tests.rs": "9b9583772775579663aa8fb6d214e517ab47a42a776b612d0da7eb2656f1d56f",
+    "src/route_planning/selection.rs": "ca9886a6b1655d8c6ef5c5c00dd9efe4ee34087cfeb2415f750486808b56ab1e",
+    "src/route_planning/tests.rs": "b9f3a8262977c34d2575f3095fd0d4775a19c42a61e4911f7deadb711e606f31",
+    "src/route_planning/types.rs": "5dfdf32878a594bf890f7c95230cfaa83b6107c700212dcfa15487e2d2674d02",
+    "src/scoped_collectors.rs": "5f3b8d6214a2202aa4939a615245474aecdd9c4266b77d339ea43239fbd6c273",
+    "src/support_commands.rs": "f3fa86fcf3e5b6b86accb8b411cc049d1ab91078cbc74bf0cacb0c1f8c88cb36",
+    "src/support_export/alternatives.rs": "04c3c57ba5b88cc43202c009671b4d021eeda0d3e353b6a56582287294a74a4f",
+    "src/support_export/budget.rs": "cfaa676b2fbb1645bfb2ed610661429b514374c136804dd649c9490f3fe4c8d8",
+    "src/support_export/mod.rs": "3b12260f9e5cd2ea6e05f2a19977a39f3b8440a7fc7d339d0d7325d69d3bb457",
+    "src/support_export/projection.rs": "40674fa01250207012480c0b159c762fe1f158096a123516f1e087111c3e83a4",
+    "src/support_export/types.rs": "4dc2088817c01e362f8b1a1a220c9fff1fcb09f81d5769ada32dcd7d0ed9e4cd",
+    "src/support_graph/batch.rs": "82560f3e1217aba0e62de11bb9aa5ad18ffca5a8e1dc560b5da03fc62233b719",
+    "src/support_graph/inputs.rs": "afa9f43a9944c4b40c43098484e6743cfd8ae5fdd0413be145023e8056041381",
+    "src/support_graph.rs": "f0c65a8b37ed68ea7238242bdfa78d73cfa8faac13305bc9b5c7063e90a42ce0",
+    "src/support_requirements/alternative_tests.rs": "c07b57237bb266e5c018f77bb0ac0bd918bc39e8f3310da0f5c14bdf8272b73e",
+    "src/support_requirements/alternatives.rs": "4e8226cb6ed28cb5689fb9432af64246cfe993f0a3cbeae65920d5861b2cc6ef",
+    "src/support_requirements/lineage.rs": "ce2e42e517cca43dcfec1e81a271842b257ea32b34e4775d8d18165e4b614664",
+    "src/support_requirements/lineage_tests.rs": "5a690348b6bc5334477dbe519a288dd837a26c4e9588f659bef66c4ada03b3a4",
+    "src/support_requirements/mod.rs": "a2e4c5a00a072bd7eade7687a7135dea2f03d8f435292c79966dad238f649fc3",
+    "src/support_requirements/operation_spec.rs": "6c6c149cc1efcd91780fd731d54a1607c38140cc2e224714b0bab8af51136e77",
+    "src/support_requirements/schema.rs": "91aeb88e04c5cab8782ad3ef1c5a2d23358db2d97eb158d71678b94a617e3cc3",
+    "src/support_requirements/semantics.rs": "c62c8adf7e743cb4a382ee72bcee03a6a24ef4e0db5774a140c1b3163b846ed3",
+    "src/support_requirements/tests.rs": "81ed033a015fb3bd563d21d31cfdf1f9e8dbae573ea32af62fc865243802d34c",
+    "src/support_requirements/types.rs": "1b9de9f155f3bbb9beedaae6eefa45b8f0c926a8c28a4d7f543012b301525a57",
+    "src/support_requirements/validation.rs": "433a28275d9de6a7251ab477dbcaa1aa5a2a21ba602e8ff4cbbc97c3264c4d48",
+    "src/tooling/capability.rs": "850b31daf592563fe4e7e807ce73972993ca4a42227e73d8cb8c583d76f302cb",
+    "src/tooling/capability_report.rs": "da13d55c77fc96b7aada5c2c19993035b85668bfb3952514ab3772a470591f13",
+    "src/tooling/capability_tests.rs": "e3b2b40e5629d239c2d5c6570c4791ac2e11bc52ddc7dea8d5175b97ce47dbf1",
+    "src/tooling/completion.rs": "c81f6d5f917dde2206b18ff83a5983f4fa8bb3f73012e32b4830cc48b7f7f4ea",
+    "src/tooling/contracts.rs": "ba4c0612da7a1972a9594b05f5ff1a3ec570503f298364c1c9e9c62eee2135c9",
+    "src/tooling/generated_registration.rs": "27877f536bb7becbf6a67c4ee2348de07bf18610409f2966c0c1c60b0935d765",
+    "src/tooling/generation.rs": "149238b0b6c909169653218898674314435bc68041ae15636336d7bd094250f7",
+    "src/tooling/mod.rs": "eb2849fbe668da7bb8201e3c20f1df90745ad374883c3d8c2d2cc396dc092464",
+    "src/tooling/package.rs": "c5cdc110f068505b80960f727524666db002bc43b8043cf33a9ef5a8671f4dcf",
+    "src/tooling/profile.rs": "56e038bbd614031543993464e748723c76a921a195369bb75dbaea22d662d1d0",
+    "src/tooling/protocol.rs": "093ffb2b1a81a47190c4dc0ca294e5c496d0a842909a263eaa4a207bc26cd5f3",
+    "src/tooling/runner.rs": "f62a9cff0a60d526009538c449c67b469b5442eaa35d376c250eb1d3dadcef8f",
+    "src/tooling/runner_snapshot.rs": "84283df0079fc508ecea7401b4e628973309adacf65f619395f7604c6ac70094",
+    "src/tooling/runtime.rs": "82bbdddc9eac8a65c9f565ee7d38f0c62471a1999fc9f456cb279785db4dc14e",
+    "src/tooling/saved.rs": "6d9e4b99fdbfa829487b17f1492b937112e9083d343d3666de98f60df0763041",
+    "src/tooling/stage.rs": "60202618c1f449ab45dc57a823cc30f010d934902a3199592bab51837d177ea5",
+    "src/tooling/verification.rs": "4250acb6e18d87fd1d4f2a6329b12b967a8e78cae0c3665c0ddcf63e1c30db5b",
+    "src/tooling/verified_build.rs": "dd1b8d967dc901ae791cfadb24a512d35724127cac946c0b34b55cfe6d0722b7",
+    "src/tooling_commands/capability.rs": "29da6e78cc126330f72f3196b8687773e647bd693fb492c43c1557cbdb62b098",
+    "src/tooling_commands/native_provider.rs": "fd83daf992c204523882551dfe78470dd873d1030faac721118c738097e6e9e4",
+    "src/tooling_commands/provider.rs": "f5f2c9ca737aaf3b1a4d13b99d18f40850e2884f0d3c4c9a40f6e00084492945",
+    "src/tooling_commands/registration.rs": "deb27034b89786cdfb68638c30f8a1a0583fb6d1615e455b8625045dc39bba64",
+    "src/tooling_commands.rs": "857b10c3ad04de7601e73e84a3091c47906e95675d28a6930003b902f39d64e4",
+    "src/trace_inspection.rs": "4a3905a3aac3e74f342c3081b2c0f72412490f47378b1d462d2f8907e003f7ad",
+    "tests/common/support.rs": "d9097b0170ecbb915532695c2088506cca47878e50b0c7d7c200b9230d11a437"
+  },
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "sampling": "One warm-up process per shape then five fresh measured processes per shape. Shape order alternates. No compilation or other session tests ran concurrently. Frozen synthetic snapshots. No live discovery/provider/model work. OS and dependency caches warm and uncontrolled.",
+  "decision": "Descriptive complete-compiler baseline only. No baseline/candidate speed-up, monetary saving, tail percentile or production latency is inferred. Cases omit batch correspondences and external I/O. The previous kernel comparison remains a distinct narrower experiment.",
+  "summary": [
+    {
+      "acquisitions": 8,
+      "candidates": 8,
+      "n": 5,
+      "median_ms": 5.63708,
+      "minimum_ms": 5.506851,
+      "maximum_ms": 6.381763
+    },
+    {
+      "acquisitions": 32,
+      "candidates": 16,
+      "n": 5,
+      "median_ms": 32.357393,
+      "minimum_ms": 31.944133,
+      "maximum_ms": 33.391851
+    },
+    {
+      "acquisitions": 128,
+      "candidates": 32,
+      "n": 5,
+      "median_ms": 239.934572,
+      "minimum_ms": 232.97809,
+      "maximum_ms": 253.577987
+    }
+  ],
+  "runs": [
+    {
+      "acquisitions": 8,
+      "candidates_per_acquisition": 8,
+      "elapsed_ns": 5821428,
+      "evaluations": 21,
+      "input_sha256": "814874d3ec87ce190e61967e80cd0166911690e7775d8ee0d1300c3ef4edf0bf",
+      "output_sha256": "8fd76d1088964ce4d0462bf32e9dad965267611b8d6fc790877e8fd70eb307c4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 1608,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 8,
+        "estimated_distinct_acquisitions_upper_bound": 8,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            8
+          ]
+        ]
+      },
+      "repetition": 0,
+      "phase": "warmup",
+      "process_elapsed_ns": 13425672
+    },
+    {
+      "acquisitions": 32,
+      "candidates_per_acquisition": 16,
+      "elapsed_ns": 32117393,
+      "evaluations": 45,
+      "input_sha256": "e5a83768c5e709b9fc9c8280e1bc543d67a209a0367349041cc2748ceb5f5c06",
+      "output_sha256": "bd7f5420e55d95513dc08e84fb7aba32de1cb93d522c0ccaf9bb0874aaa4fba4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 15632,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 32,
+        "estimated_distinct_acquisitions_upper_bound": 32,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            32
+          ]
+        ]
+      },
+      "repetition": 0,
+      "phase": "warmup",
+      "process_elapsed_ns": 46627684
+    },
+    {
+      "acquisitions": 128,
+      "candidates_per_acquisition": 32,
+      "elapsed_ns": 242893123,
+      "evaluations": 141,
+      "input_sha256": "2b6a0eb9b520ce9e3c39692800dfab8520fbd6ecc0720c6183fde32139e971ad",
+      "output_sha256": "fe1e9531b151a436dd78f78f506390b4272abe052c6d90162002268728a923bd",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 130080,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 128,
+        "estimated_distinct_acquisitions_upper_bound": 128,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            128
+          ]
+        ]
+      },
+      "repetition": 0,
+      "phase": "warmup",
+      "process_elapsed_ns": 327122639
+    },
+    {
+      "acquisitions": 128,
+      "candidates_per_acquisition": 32,
+      "elapsed_ns": 241356055,
+      "evaluations": 141,
+      "input_sha256": "2b6a0eb9b520ce9e3c39692800dfab8520fbd6ecc0720c6183fde32139e971ad",
+      "output_sha256": "fe1e9531b151a436dd78f78f506390b4272abe052c6d90162002268728a923bd",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 130080,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 128,
+        "estimated_distinct_acquisitions_upper_bound": 128,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            128
+          ]
+        ]
+      },
+      "repetition": 1,
+      "phase": "measured",
+      "process_elapsed_ns": 322875236
+    },
+    {
+      "acquisitions": 32,
+      "candidates_per_acquisition": 16,
+      "elapsed_ns": 31944133,
+      "evaluations": 45,
+      "input_sha256": "e5a83768c5e709b9fc9c8280e1bc543d67a209a0367349041cc2748ceb5f5c06",
+      "output_sha256": "bd7f5420e55d95513dc08e84fb7aba32de1cb93d522c0ccaf9bb0874aaa4fba4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 15632,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 32,
+        "estimated_distinct_acquisitions_upper_bound": 32,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            32
+          ]
+        ]
+      },
+      "repetition": 1,
+      "phase": "measured",
+      "process_elapsed_ns": 46015805
+    },
+    {
+      "acquisitions": 8,
+      "candidates_per_acquisition": 8,
+      "elapsed_ns": 5637080,
+      "evaluations": 21,
+      "input_sha256": "814874d3ec87ce190e61967e80cd0166911690e7775d8ee0d1300c3ef4edf0bf",
+      "output_sha256": "8fd76d1088964ce4d0462bf32e9dad965267611b8d6fc790877e8fd70eb307c4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 1608,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 8,
+        "estimated_distinct_acquisitions_upper_bound": 8,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            8
+          ]
+        ]
+      },
+      "repetition": 1,
+      "phase": "measured",
+      "process_elapsed_ns": 11918129
+    },
+    {
+      "acquisitions": 8,
+      "candidates_per_acquisition": 8,
+      "elapsed_ns": 5695959,
+      "evaluations": 21,
+      "input_sha256": "814874d3ec87ce190e61967e80cd0166911690e7775d8ee0d1300c3ef4edf0bf",
+      "output_sha256": "8fd76d1088964ce4d0462bf32e9dad965267611b8d6fc790877e8fd70eb307c4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 1608,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 8,
+        "estimated_distinct_acquisitions_upper_bound": 8,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            8
+          ]
+        ]
+      },
+      "repetition": 2,
+      "phase": "measured",
+      "process_elapsed_ns": 11508985
+    },
+    {
+      "acquisitions": 32,
+      "candidates_per_acquisition": 16,
+      "elapsed_ns": 33391851,
+      "evaluations": 45,
+      "input_sha256": "e5a83768c5e709b9fc9c8280e1bc543d67a209a0367349041cc2748ceb5f5c06",
+      "output_sha256": "bd7f5420e55d95513dc08e84fb7aba32de1cb93d522c0ccaf9bb0874aaa4fba4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 15632,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 32,
+        "estimated_distinct_acquisitions_upper_bound": 32,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            32
+          ]
+        ]
+      },
+      "repetition": 2,
+      "phase": "measured",
+      "process_elapsed_ns": 46979627
+    },
+    {
+      "acquisitions": 128,
+      "candidates_per_acquisition": 32,
+      "elapsed_ns": 237583923,
+      "evaluations": 141,
+      "input_sha256": "2b6a0eb9b520ce9e3c39692800dfab8520fbd6ecc0720c6183fde32139e971ad",
+      "output_sha256": "fe1e9531b151a436dd78f78f506390b4272abe052c6d90162002268728a923bd",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 130080,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 128,
+        "estimated_distinct_acquisitions_upper_bound": 128,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            128
+          ]
+        ]
+      },
+      "repetition": 2,
+      "phase": "measured",
+      "process_elapsed_ns": 314288663
+    },
+    {
+      "acquisitions": 128,
+      "candidates_per_acquisition": 32,
+      "elapsed_ns": 239934572,
+      "evaluations": 141,
+      "input_sha256": "2b6a0eb9b520ce9e3c39692800dfab8520fbd6ecc0720c6183fde32139e971ad",
+      "output_sha256": "fe1e9531b151a436dd78f78f506390b4272abe052c6d90162002268728a923bd",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 130080,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 128,
+        "estimated_distinct_acquisitions_upper_bound": 128,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            128
+          ]
+        ]
+      },
+      "repetition": 3,
+      "phase": "measured",
+      "process_elapsed_ns": 318910978
+    },
+    {
+      "acquisitions": 32,
+      "candidates_per_acquisition": 16,
+      "elapsed_ns": 32357393,
+      "evaluations": 45,
+      "input_sha256": "e5a83768c5e709b9fc9c8280e1bc543d67a209a0367349041cc2748ceb5f5c06",
+      "output_sha256": "bd7f5420e55d95513dc08e84fb7aba32de1cb93d522c0ccaf9bb0874aaa4fba4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 15632,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 32,
+        "estimated_distinct_acquisitions_upper_bound": 32,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            32
+          ]
+        ]
+      },
+      "repetition": 3,
+      "phase": "measured",
+      "process_elapsed_ns": 46198608
+    },
+    {
+      "acquisitions": 8,
+      "candidates_per_acquisition": 8,
+      "elapsed_ns": 6381763,
+      "evaluations": 21,
+      "input_sha256": "814874d3ec87ce190e61967e80cd0166911690e7775d8ee0d1300c3ef4edf0bf",
+      "output_sha256": "8fd76d1088964ce4d0462bf32e9dad965267611b8d6fc790877e8fd70eb307c4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 1608,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 8,
+        "estimated_distinct_acquisitions_upper_bound": 8,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            8
+          ]
+        ]
+      },
+      "repetition": 3,
+      "phase": "measured",
+      "process_elapsed_ns": 12741032
+    },
+    {
+      "acquisitions": 8,
+      "candidates_per_acquisition": 8,
+      "elapsed_ns": 5506851,
+      "evaluations": 21,
+      "input_sha256": "814874d3ec87ce190e61967e80cd0166911690e7775d8ee0d1300c3ef4edf0bf",
+      "output_sha256": "8fd76d1088964ce4d0462bf32e9dad965267611b8d6fc790877e8fd70eb307c4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 1608,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 8,
+        "estimated_distinct_acquisitions_upper_bound": 8,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            8
+          ]
+        ]
+      },
+      "repetition": 4,
+      "phase": "measured",
+      "process_elapsed_ns": 12179343
+    },
+    {
+      "acquisitions": 32,
+      "candidates_per_acquisition": 16,
+      "elapsed_ns": 32092113,
+      "evaluations": 45,
+      "input_sha256": "e5a83768c5e709b9fc9c8280e1bc543d67a209a0367349041cc2748ceb5f5c06",
+      "output_sha256": "bd7f5420e55d95513dc08e84fb7aba32de1cb93d522c0ccaf9bb0874aaa4fba4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 15632,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 32,
+        "estimated_distinct_acquisitions_upper_bound": 32,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            32
+          ]
+        ]
+      },
+      "repetition": 4,
+      "phase": "measured",
+      "process_elapsed_ns": 45808048
+    },
+    {
+      "acquisitions": 128,
+      "candidates_per_acquisition": 32,
+      "elapsed_ns": 253577987,
+      "evaluations": 141,
+      "input_sha256": "2b6a0eb9b520ce9e3c39692800dfab8520fbd6ecc0720c6183fde32139e971ad",
+      "output_sha256": "fe1e9531b151a436dd78f78f506390b4272abe052c6d90162002268728a923bd",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 130080,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 128,
+        "estimated_distinct_acquisitions_upper_bound": 128,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            128
+          ]
+        ]
+      },
+      "repetition": 4,
+      "phase": "measured",
+      "process_elapsed_ns": 341589321
+    },
+    {
+      "acquisitions": 128,
+      "candidates_per_acquisition": 32,
+      "elapsed_ns": 232978090,
+      "evaluations": 141,
+      "input_sha256": "2b6a0eb9b520ce9e3c39692800dfab8520fbd6ecc0720c6183fde32139e971ad",
+      "output_sha256": "fe1e9531b151a436dd78f78f506390b4272abe052c6d90162002268728a923bd",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 130080,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 128,
+        "estimated_distinct_acquisitions_upper_bound": 128,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            128
+          ]
+        ]
+      },
+      "repetition": 5,
+      "phase": "measured",
+      "process_elapsed_ns": 314649298
+    },
+    {
+      "acquisitions": 32,
+      "candidates_per_acquisition": 16,
+      "elapsed_ns": 33066315,
+      "evaluations": 45,
+      "input_sha256": "e5a83768c5e709b9fc9c8280e1bc543d67a209a0367349041cc2748ceb5f5c06",
+      "output_sha256": "bd7f5420e55d95513dc08e84fb7aba32de1cb93d522c0ccaf9bb0874aaa4fba4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 15632,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 32,
+        "estimated_distinct_acquisitions_upper_bound": 32,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            32
+          ]
+        ]
+      },
+      "repetition": 5,
+      "phase": "measured",
+      "process_elapsed_ns": 47587187
+    },
+    {
+      "acquisitions": 8,
+      "candidates_per_acquisition": 8,
+      "elapsed_ns": 5546982,
+      "evaluations": 21,
+      "input_sha256": "814874d3ec87ce190e61967e80cd0166911690e7775d8ee0d1300c3ef4edf0bf",
+      "output_sha256": "8fd76d1088964ce4d0462bf32e9dad965267611b8d6fc790877e8fd70eb307c4",
+      "schema": "engarg.complete-planner-profile/1",
+      "scope": "compile: requirement and catalogue validation, schema matching, argument materialisation, selection, graph projection and execution validation. Excludes fixture construction, JSON decoding, discovery, providers and models.",
+      "selection": {
+        "candidate_states": 1608,
+        "dynamic_acquisition_groups": 0,
+        "estimated_distinct_acquisitions": 8,
+        "estimated_distinct_acquisitions_upper_bound": 8,
+        "method": "bounded_joint_cost_with_symbolic_request_sharing/2",
+        "search_complete": false,
+        "total_costs": [
+          [
+            0,
+            8
+          ]
+        ]
+      },
+      "repetition": 5,
+      "phase": "measured",
+      "process_elapsed_ns": 11713830
+    }
+  ]
+}

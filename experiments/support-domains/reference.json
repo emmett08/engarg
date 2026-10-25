@@ -1,0 +1,214 @@
+{
+  "schema": "engarg.support-domain-reference/1",
+  "review_policy": {
+    "reference_origin": "Obligations authored from the stated claims before collecting model outputs. These are candidate expert references requiring independent review, not empirically validated gold labels.",
+    "reviewers_per_run": 2,
+    "independence": "Reviewers must be independent of the assessed authoring run and inspect retained outputs. No generated support-type list serves as a correctness label.",
+    "labels": {
+      "covered": "The retained requirement and acceptance criterion explicitly preserve the obligation.",
+      "partial": "Some required property is present but a material restriction or criterion is missing.",
+      "missing": "No retained requirement establishes the obligation.",
+      "unrepresentable": "The topology cannot express this obligation under the frozen interface."
+    },
+    "coverage": "Number of obligations labelled covered divided by all frozen obligations for that case. Partial and unrepresentable labels remain in the denominator.",
+    "errors": {
+      "critical_omission": "Required obligation whose omission could change the supported claim.",
+      "false_readiness": "Executable or supported status asserted despite an unmet prerequisite or criterion.",
+      "unit": "Incompatible units or an unjustified conversion.",
+      "method": "A method does not establish the specified statistic, operation or judgement.",
+      "scope": "Evidence refers to a different subject, revision, environment or population.",
+      "time": "Evidence age, interval or validity condition fails correspondence.",
+      "lost_challenge": "Material counter-evidence, alternative or applicability condition is absent.",
+      "unjustified_generation": "Code generated despite an admitted existing capability or without a sufficient operation specification."
+    },
+    "error_count_unit": "Distinct erroneous assertions or missing obligations, identified in reviewer reasons. An assertion may receive multiple error-class labels. Error prevalence is runs with at least one error divided by all reviewed runs.",
+    "adequacy": "All frozen obligations covered and zero recorded errors, with two concordant independent reviews. Disagreement remains disputed until separately adjudicated with reasons.",
+    "sampling": "Cases are purposive failure-mode probes. Repetitions are nested within cases. Descriptive case results do not estimate an engineering-population success rate."
+  },
+  "cases": {
+    "deployment_identity": {
+      "obligations": [
+        {
+          "id": "revision",
+          "criterion": "Bind the deployed service and image digest to revision abc123."
+        },
+        {
+          "id": "scope",
+          "criterion": "Identify development cluster dev and the service instance under observation."
+        },
+        {
+          "id": "identity",
+          "criterion": "Compare the complete sha256 digest exactly."
+        },
+        {
+          "id": "time",
+          "criterion": "Retain the original observation time and an explicit admissible age."
+        },
+        {
+          "id": "challenge",
+          "criterion": "Retain a mismatched image or unavailable revision as counter-evidence or pending support."
+        }
+      ]
+    },
+    "performance": {
+      "obligations": [
+        {
+          "id": "sample",
+          "criterion": "Measure 1000 completed requests at concurrency 8."
+        },
+        {
+          "id": "scope",
+          "criterion": "Bind measurements to revision abc123 and the eight-core reference host."
+        },
+        {
+          "id": "method",
+          "criterion": "Use the arithmetic mean over the specified completed-request population."
+        },
+        {
+          "id": "unit",
+          "criterion": "Compare mean latency with 50 milliseconds using compatible units."
+        },
+        {
+          "id": "coverage",
+          "criterion": "Retain failed or omitted requests and any consequence for the population claim."
+        },
+        {
+          "id": "time",
+          "criterion": "Declare the measurement interval and permissible reuse age."
+        }
+      ]
+    },
+    "statistical_reliability": {
+      "obligations": [
+        {
+          "id": "model",
+          "criterion": "State and assess the independent Bernoulli workload assumption."
+        },
+        {
+          "id": "data",
+          "criterion": "Retain successes and trial count for revision abc123 with sampling provenance."
+        },
+        {
+          "id": "method",
+          "criterion": "Specify the one-sided lower confidence-bound algorithm and its 95 percent coverage convention."
+        },
+        {
+          "id": "criterion",
+          "criterion": "Compare the computed lower bound strictly with 0.999."
+        },
+        {
+          "id": "challenge",
+          "criterion": "Retain dependence, missing trials and selection effects as limitations."
+        }
+      ]
+    },
+    "api_conformance": {
+      "obligations": [
+        {
+          "id": "population",
+          "criterion": "Enumerate every documented operation at contract revision abc123."
+        },
+        {
+          "id": "scope",
+          "criterion": "Bind test execution to deployment revision def456."
+        },
+        {
+          "id": "request",
+          "criterion": "Verify request conformance for every operation."
+        },
+        {
+          "id": "response",
+          "criterion": "Verify response conformance for every operation."
+        },
+        {
+          "id": "coverage",
+          "criterion": "Require complete operation coverage before accepting the universal claim."
+        },
+        {
+          "id": "challenge",
+          "criterion": "Retain failures, unsupported operations and unavailable executions."
+        }
+      ]
+    },
+    "numerical_result": {
+      "obligations": [
+        {
+          "id": "operands",
+          "criterion": "Represent 1/3 and 1/6 as exact rationals."
+        },
+        {
+          "id": "method",
+          "criterion": "Retain the addition operation and calculation provenance."
+        },
+        {
+          "id": "criterion",
+          "criterion": "Compare the exact result with 1/2."
+        },
+        {
+          "id": "evidence",
+          "criterion": "Retain a deterministic calculation or proof result with identifiable implementation."
+        }
+      ]
+    },
+    "design_judgement": {
+      "obligations": [
+        {
+          "id": "reviewer",
+          "criterion": "Identify a reviewer independent of the design author."
+        },
+        {
+          "id": "scope",
+          "criterion": "Bind the judgement to the design at revision abc123."
+        },
+        {
+          "id": "requirements",
+          "criterion": "Specify the recovery and latency requirements used to compare options."
+        },
+        {
+          "id": "alternative",
+          "criterion": "Compare a durable queue with synchronous calls against those same requirements."
+        },
+        {
+          "id": "reasons",
+          "criterion": "Retain the reasons, trade-offs and material objections."
+        },
+        {
+          "id": "time",
+          "criterion": "Retain review time and conditions that invalidate its applicability."
+        }
+      ]
+    },
+    "specified_algorithm": {
+      "obligations": [
+        {
+          "id": "specification",
+          "criterion": "Retain the ordered fold, initial value 7, multiplier 31 and modulus 65521."
+        },
+        {
+          "id": "inputs",
+          "criterion": "Bind the ordered delays [2,3,5] to the specified input and revision abc123."
+        },
+        {
+          "id": "exactness",
+          "criterion": "Use exact integer arithmetic and a deterministic order."
+        },
+        {
+          "id": "criterion",
+          "criterion": "Compare the checksum exactly with 13994."
+        },
+        {
+          "id": "reuse",
+          "criterion": "Inspect qualified capabilities before classifying an implementation gap."
+        },
+        {
+          "id": "qualification",
+          "criterion": "If implementation is required, retain independent measurement qualification separately from finite fixture and protocol results."
+        },
+        {
+          "id": "execution",
+          "criterion": "Retain the generated package identity through registration, replanning, export, collection and assessment."
+        }
+      ]
+    }
+  }
+}

@@ -9,12 +9,13 @@ use crate::{
 use eal_collector_contracts::{capability::*, execution::*};
 use serde_json::json;
 
-pub fn compile(
+pub(super) fn compile_fixed(
     case: &ArgumentCase,
     elaboration: &SupportElaboration,
     catalogue: &CapabilityCatalogue,
     config: &PlanningConfig,
     discovery: &DiscoverySnapshot,
+    batches: &std::collections::BTreeMap<String, crate::support_graph::BatchRouteProof>,
 ) -> Result<RoutePlan, Error> {
     let errors = crate::support_requirements::validate_elaboration(case, elaboration);
     if !errors.is_empty() {
@@ -22,7 +23,69 @@ pub fn compile(
     }
     catalogue.validate().map_err(Error::InvalidInput)?;
     config.validate()?;
-    let (prepared, selection) = selection::prepare(elaboration, catalogue, config, discovery)?;
+    let original_elaboration = elaboration;
+    let mut effective = elaboration.clone();
+    let mut allowed = std::collections::BTreeMap::new();
+    for blueprint in &mut effective.acquisitions {
+        if let Some(batch) = batches.get(&blueprint.id) {
+            let capability = catalogue
+                .capabilities
+                .iter()
+                .find(|capability| capability.id == batch.correspondence.batch_capability_id)
+                .ok_or_else(|| {
+                    Error::InvalidInput("batch capability is absent from the catalogue".into())
+                })?;
+            *blueprint =
+                crate::support_graph::effective_blueprint(blueprint, capability, Some(batch))?;
+            allowed.insert(
+                blueprint.id.clone(),
+                std::collections::BTreeSet::from([capability.id.clone()]),
+            );
+        }
+    }
+    for (id, batch) in batches {
+        let original = original_elaboration
+            .acquisitions
+            .iter()
+            .find(|blueprint| &blueprint.id == id)
+            .expect("batch source");
+        let upstream_id = &original
+            .for_each
+            .as_ref()
+            .expect("batch fan-out")
+            .output
+            .step_id;
+        let upstream = original_elaboration
+            .acquisitions
+            .iter()
+            .find(|blueprint| &blueprint.id == upstream_id)
+            .ok_or_else(|| {
+                Error::InvalidInput(
+                    "batch population bound requires a directly qualified source".into(),
+                )
+            })?;
+        let admitted = catalogue
+            .capabilities
+            .iter()
+            .filter(|capability| {
+                crate::support_graph::validate_batch_population(
+                    original, batch, upstream, capability,
+                )
+                .is_ok()
+            })
+            .map(|capability| capability.id.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        let entry = allowed
+            .entry(upstream.id.clone())
+            .or_insert_with(|| admitted.clone());
+        *entry = entry.intersection(&admitted).cloned().collect();
+        if entry.is_empty() {
+            return Err(Error::InvalidInput("batch list source cannot establish the authored fan-out cardinality and item schema".into()));
+        }
+    }
+    let elaboration = &effective;
+    let (prepared, selection) =
+        selection::prepare(elaboration, catalogue, config, discovery, &allowed)?;
     let mut result = RoutePlan {
         schema: ROUTE_PLAN_SCHEMA.into(),
         execution: EvidenceExecutionPlan {
@@ -225,6 +288,7 @@ pub fn compile(
             .is_some_and(|s| !s.quantities.is_empty());
         if mappings_resolved {
             result.projections.push(AcquisitionRouteProof {
+                batch: batches.get(&blueprint.id).cloned(),
                 blueprint_id: blueprint.id.clone(),
                 capability: capability.clone(),
                 operator_arguments: binding.map(|binding| binding.arguments.clone()),
@@ -247,7 +311,11 @@ pub fn compile(
             configuration_gaps: gaps,
         });
     }
-    project_execution_graph(elaboration, &result.projections, &mut result.execution)?;
+    project_execution_graph(
+        original_elaboration,
+        &result.projections,
+        &mut result.execution,
+    )?;
     result.execution.validate().map_err(Error::InvalidInput)?;
     Ok(result)
 }

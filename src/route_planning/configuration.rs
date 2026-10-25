@@ -6,6 +6,14 @@ use eal_collector_contracts::execution::valid_pointer;
 impl PlanningConfig {
     pub fn validate(&self) -> Result<(), Error> {
         if self.schema != PLANNING_CONFIG_SCHEMA
+            || self.batch_correspondences.len() > 64
+            || self
+                .batch_correspondences
+                .iter()
+                .map(|batch| &batch.id)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != self.batch_correspondences.len()
             || self.bindings.len() > 4096
             || self
                 .bindings
@@ -18,6 +26,9 @@ impl PlanningConfig {
             return Err(Error::InvalidInput(
                 "Unsupported or duplicate capability planning configuration".into(),
             ));
+        }
+        for batch in &self.batch_correspondences {
+            batch.validate()?;
         }
         self.ranking.validate().map_err(Error::InvalidInput)?;
         eal_collector_contracts::execution::EvidenceExecutionPlan {

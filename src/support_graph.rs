@@ -1,6 +1,9 @@
 //! Format-independent compilation of qualified support acquisition graphs.
+mod batch;
 mod inputs;
 use crate::{Error, support_requirements::SupportElaboration};
+pub use batch::{BatchRouteProof, QualifiedBatchCorrespondence};
+pub(crate) use batch::{effective_blueprint, schema_at, validate_batch_population};
 use eal_collector_contracts::{
     capability::{
         CapabilityDescriptor, SupportContract, canonical_identity, compatible,
@@ -19,6 +22,8 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AcquisitionRouteProof {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch: Option<BatchRouteProof>,
     pub blueprint_id: String,
     pub capability: CapabilityDescriptor,
     pub projection_id: Option<String>,
@@ -87,7 +92,11 @@ fn expected_graph(
         ));
     }
     let mut admitted_routes = BTreeMap::new();
+    let mut effective = BTreeMap::new();
     let mut projections = BTreeMap::new();
+    let mut comparison_controls = BTreeMap::new();
+    let mut batch_checks = BTreeMap::new();
+    let mut generated_ids = BTreeSet::new();
     let mut occupied: BTreeSet<_> = logical
         .keys()
         .copied()
@@ -108,6 +117,25 @@ fn expected_graph(
             return Err(invalid(
                 "selected source does not satisfy its tool-independent acquisition contract",
             ));
+        }
+        let transformed = effective_blueprint(blueprint, &route.capability, route.batch.as_ref())?;
+        effective.insert(route.blueprint_id.as_str(), transformed);
+        let blueprint = &effective[route.blueprint_id.as_str()];
+        if let Some(batch) = &route.batch {
+            let qualification = &batch.correspondence;
+            let physical = route
+                .input_bindings
+                .iter()
+                .find(|(_, logical)| *logical == &qualification.logical_argument_pointer)
+                .map_or(
+                    qualification.logical_argument_pointer.as_str(),
+                    |(physical, _)| physical.as_str(),
+                );
+            if physical != qualification.batch_argument_pointer {
+                return Err(invalid(
+                    "batch input mapping differs from its qualified array slot",
+                ));
+            }
         }
         let step = actual[route.blueprint_id.as_str()];
         let (expected_arguments, gaps) = materialise_source_arguments(
@@ -191,6 +219,7 @@ fn expected_graph(
                 || id.len() > 256
                 || id.chars().any(char::is_control)
                 || !occupied.insert(id)
+                || !generated_ids.insert(id.to_owned())
             {
                 return Err(invalid(
                     "quantity projection identities must be unique and bounded",
@@ -216,6 +245,40 @@ fn expected_graph(
                     },
                 },
             );
+            if route.batch.is_some() {
+                let original = logical[route.blueprint_id.as_str()];
+                let (cardinality, comparison) = batch::projection_checks(original, id);
+                for step in cardinality.iter().chain(&comparison) {
+                    if step.id.len() > 256
+                        || occupied.contains(step.id.as_str())
+                        || !generated_ids.insert(step.id.clone())
+                    {
+                        return Err(invalid("batch projection identities collide"));
+                    }
+                }
+                batch_checks.insert(route.blueprint_id.as_str(), cardinality);
+                if !comparison.is_empty() {
+                    comparison_controls.insert(route.blueprint_id.as_str(), comparison);
+                }
+            }
+        }
+    }
+    for route in routes {
+        if let Some(batch) = &route.batch {
+            let original = logical[route.blueprint_id.as_str()];
+            let upstream_id = &original
+                .for_each
+                .as_ref()
+                .expect("validated batch fan-out")
+                .output
+                .step_id;
+            let upstream = logical
+                .get(upstream_id.as_str())
+                .ok_or_else(|| invalid("batch population bound requires a source operation"))?;
+            let producer = admitted_routes.get(upstream_id.as_str()).ok_or_else(|| {
+                invalid("batch population bound requires a qualified producer route")
+            })?;
+            validate_batch_population(original, batch, upstream, &producer.capability)?;
         }
     }
     for step in &execution.acquisitions {
@@ -229,12 +292,19 @@ fn expected_graph(
     }
     let rewrite = |reference: &mut OutputReference| {
         if let Some(projection) = projections.get(reference.step_id.as_str()) {
-            reference.step_id = projection.id.clone();
+            reference.step_id = comparison_controls
+                .get(reference.step_id.as_str())
+                .map_or_else(
+                    || projection.id.clone(),
+                    |steps| steps.last().expect("batch controls").id.clone(),
+                );
         }
     };
     let mut result = execution.clone();
     for step in &mut result.acquisitions {
-        let blueprint = logical[step.id.as_str()];
+        let blueprint = effective
+            .get(step.id.as_str())
+            .unwrap_or(logical[step.id.as_str()]);
         if !admitted_routes.contains_key(step.id.as_str())
             && canonical_digest(&step.arguments).map_err(Error::InvalidInput)?
                 != canonical_digest(&blueprint.arguments).map_err(Error::InvalidInput)?
@@ -318,39 +388,41 @@ fn expected_graph(
             rewrite(reference);
         }
     }
-    result.derivations = projections.into_values().collect();
+    let mut controls = comparison_controls
+        .values()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    controls.extend(batch_checks.values().flatten().cloned());
+    for step in &mut controls {
+        for reference in &mut step.inputs {
+            rewrite(reference);
+        }
+    }
+    result.derivations = projections.values().cloned().collect();
+    result.derivations.extend(controls);
     result.derivations.extend(authored_derivations);
     result.evaluations = elaboration.evaluations.clone();
     // Do not rewrite references to authored derivations: their meaning and output
     // pointers stay exactly as authored, including acceptance and gating clauses.
-    let projection_ids: BTreeMap<_, _> = result
-        .derivations
-        .iter()
-        .filter_map(|step| match &step.operation {
-            DerivationOperation::Project { .. } | DerivationOperation::ProjectValue { .. }
-                if step.inputs.len() == 1
-                    && admitted_routes
-                        .get(step.inputs[0].step_id.as_str())
-                        .is_some_and(|route| {
-                            route.projection_id.as_deref() == Some(step.id.as_str())
-                        }) =>
-            {
-                Some((step.inputs[0].step_id.as_str(), step.id.as_str()))
-            }
-            _ => None,
-        })
-        .collect();
     for evaluation in &mut result.evaluations {
+        let cardinality_checks = batch_checks
+            .iter()
+            .filter(|(source, _)| batch::evaluation_depends_on(elaboration, evaluation, source))
+            .map(|(_, checks)| OutputReference {
+                step_id: checks.last().expect("batch cardinality check").id.clone(),
+                pointer: String::new(),
+            })
+            .collect::<Vec<_>>();
         for reference in evaluation
             .inputs
             .iter_mut()
             .chain(&mut evaluation.applicability)
             .chain(&mut evaluation.challenges)
         {
-            if let Some(id) = projection_ids.get(reference.step_id.as_str()) {
-                reference.step_id = (*id).into();
-            }
+            rewrite(reference);
         }
+        evaluation.applicability.extend(cardinality_checks);
     }
     Ok(result)
 }

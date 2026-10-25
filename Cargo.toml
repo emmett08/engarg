@@ -13,9 +13,9 @@ name = "engarg-process-supervisor"
 path = "src/bin/process_supervisor.rs"
 
 [dependencies]
-eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "cb5013c37ef79331e79ee0337862aec58d1ee5cb" }
-eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "cb5013c37ef79331e79ee0337862aec58d1ee5cb" }
-eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "cb5013c37ef79331e79ee0337862aec58d1ee5cb" }
+eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "70b2e0ac2d48fcc86d14da2e08a352038970388f" }
+eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "70b2e0ac2d48fcc86d14da2e08a352038970388f" }
+eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "70b2e0ac2d48fcc86d14da2e08a352038970388f" }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 chrono = { version = "0.4.42", default-features = false, features = ["std"] }
 httpdate = "1.0.3"

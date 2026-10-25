@@ -549,7 +549,25 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         },
     )?;
     let observer = |record: &engarg::engine::CallRecord| {
-        audit_event(&audit, &json!({"event":"completion","record":record}))
+        audit_event(&audit, &json!({"event":"completion","record":record}))?;
+        for warning in engarg::engine::assessment_warnings(record) {
+            audit_event(
+                &audit,
+                &json!({
+                    "event": "warning",
+                    "code": "assessment_list_limit_exceeded",
+                    "warning": warning,
+                }),
+            )?;
+            // Warnings remain visible when routine progress is disabled. Only
+            // fixed role/field names and counts enter terminal diagnostics.
+            let _ = writeln!(
+                std::io::stderr().lock(),
+                "engarg: warning: {}",
+                warning.message()
+            );
+        }
+        Ok(())
     };
     progress.phase("argument authoring and evidence planning");
     let run = async {

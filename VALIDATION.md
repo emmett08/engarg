@@ -1,5 +1,128 @@
 # Verification record
 
+## Default-branch plan reconciliation, 25 October 2026
+
+The attached implementation plan was checked against EngArg
+`803984920cbfb1ec9a3c5aebb349a8f02016cd38` and EAL `92b9089`, after both original
+planning PRs merged. EngArg commits `60cf1ee`, `14e7d56` and `112843f` already
+repair native qualification defaults and extend generated-source integration.
+Those repairs are preserved. This register is the current disposition of the
+plan's original findings. Historical verification records below retain their
+own revision and workload limits.
+
+The selected producer is EAL `70b2e0ac2d48fcc86d14da2e08a352038970388f`, published
+in [EAL PR #20](https://github.com/emmett08/eal-mcp/pull/20). Its published Git
+tree `b9162641752dcf04c1b30f14003ea1d1ac5b3f78` equals the locally tested tree.
+The default-branch EngArg run
+[40208700822](https://github.com/emmett08/engarg/actions/runs/40208700822)
+completed successfully on both platforms and in the compatibility job, including
+the formerly failing Docker case. It verifies the baseline repairs separately
+from this change.
+
+| Current local check | Result |
+| --- | --- |
+| EngArg, Rust 1.99.1, formatting and all-target Clippy with warnings denied | Passed |
+| Locked EngArg default all-target tests | 531 passed, 27 external tests ignored by the default command |
+| EngArg/EAL native and producer/consumer test selection | 65 passed, zero ignored |
+| Native qualification preparation and generated-interface lifecycle | 4 passed, zero ignored |
+| Python/script checks | 101 passed, including 18 support-study checks; shell syntax passed |
+| EAL, Rust 1.90.0, workspace formatting and all-target Clippy | Passed |
+| Locked EAL workspace tests | 605 passed, zero ignored |
+| EAL installed-boundary smoke | All 10 application groups and coordination/recovery scenarios passed |
+
+Local checks ran on Linux. EngArg final verification used disabled incremental
+compilation and debug information. EAL retained line-table debug information.
+Both retained normal debug assertions and overflow checks. A first EAL workspace
+link attempt exhausted this container's disk. Clearing disposable build outputs
+allowed the unchanged source to complete all checks. The final standalone EAL
+workflow remains manually triggered. Local equivalents above identify the exact
+producer source used.
+
+Hosted run [40211635686](https://github.com/emmett08/engarg/actions/runs/40211635686)
+on `e762b1c` passed the producer/consumer job, every macOS check, and Linux
+formatting, Clippy, default tests, release build and installed-runtime checks.
+Ten of eleven Docker tests passed. The newly extended collection test omitted
+explicit forwarding of the generated provider's admitted environment names.
+A local native fixture reproduces the same failed observation and stderr digest
+when a declared variable is absent from the host's default environment. The
+revised helper selects those names through `--collector-env`. A second run,
+[40213469463](https://github.com/emmett08/engarg/actions/runs/40213469463), exposed
+the corresponding sensitivity boundary: explicitly forwarded values remain
+secret until classified otherwise. The fixture now separately marks its reviewed
+public host settings with `--public-collector-env`, with a local regression that
+first verifies rejection under the default secret policy. Credential settings
+retain that default. The helper preserves the production environment policy and
+adds a source-level failure diagnostic. Final
+hosted results belong to the checks on [PR #15](https://github.com/emmett08/engarg/pull/15).
+
+| Finding | Disposition and decisive evidence |
+| --- | --- |
+| F01, calculation provenance lost by scaling | Repair verified on the reviewed default branch. `src/support_requirements/lineage_tests.rs` rejects mean → scale promotion and preserves exact unit conversion. |
+| F02, export correspondence incomplete | Repair verified on the reviewed default branch. `tests/support_export.rs` rejects changed history, static arguments, operator projections and source bindings. The new batch proof follows the same replay boundary. |
+| F03, blocking locks defeat deadlines | Extended here. EAL shares an absolute deadline across preparation, key-lock initialisation and execution. Explicit expired-request admission checks precede provider work. Final criterion results retain a separate budget outcome. See EAL `tests/deadlines.rs` and collector `tests/evidence.rs`. |
+| F04, saved configuration cannot recover | Repair verified on the reviewed default branch. Separate `tests/replan_cli.rs` cases now verify complete planning recovery from a sole missing credential and recovery with independent blockers retained. Both preserve authored content and make zero model calls. A seventeenth transition now fails before discovery. |
+| F05, null extension discards flat collectors | Repair verified on the reviewed default branch. Typed report decoding treats null and absent graph extensions consistently. Flat preparation and export regressions preserve their selected collector. |
+| F06, freshness uses run-start time | Live lookup and same-run age checks are present. New EAL cases cover exact age, explicit assessment time and source-lock delay. Future observations are now rejected even without a maximum age, preventing an older lineage timestamp from masking them. |
+| F07, oversized completions enter audit content | Repair verified on the reviewed default branch. `src/tooling/completion.rs` tests admission before body retention and keeps reported usage. |
+| F08, formatting fails | The reviewed default-branch hosted formatting steps passed. Formatting remains a required check of each proposed revision. |
+| F09, graph summaries omit presentations | Repair verified on the reviewed default branch. The common script summary and Python regressions cover both planning modes. |
+| F10, SQLite sidecar metadata race | Narrow retry is present. New EAL tests cover real concurrent checkpoint/connection cleanup and hostile symlink/hard-link replacement after unlink. Foreign-owner fixture construction is unavailable in this container's UID namespace and is explicitly reported. |
+| F11, generated-tool workflow incomplete | The old native-default failure is repaired on main. The new acceptance path uses public export → collect → assess after registration/replanning, preserving source identity and unresolved independent obligations. Native execution passes locally. Docker generation uses the same lifecycle helper and requires hosted Docker verification. |
+| F12, selection only compares fixed acquisitions | Extended with bounded, qualified fan-out/batch alternatives and retained rejection/pruning records. Existing joint selection still shares multi-quantity source operations. `src/route_planning/graphs/tests.rs` and `tests/support_batch.rs` exercise selection and exported execution. |
+| F13, readiness overrides declared cost order | Explicit `prefer_configured` is present. Documentation now states its fallback, the `(unknown count, known sum)` objective and per-capability/per-request charging. |
+| F14, dynamic identity and mixed coverage | Dynamic operands are present. EAL now continues shared acquisition for complete/statistical consumers and retains completed observations when continuation fails. Recovery after expiry is bounded separately. |
+| F15, semantic-quality acceptance evidence absent | Obligation references, an output-bound review rubric and frozen study machinery are implemented. Live reviewed model outputs remain unavailable because this session has no provider credential. The structural and fixture tests establish harness behaviour only. |
+| F16, complete-workflow token/cost evidence absent | The study orchestrates the declared phases, pins the qualification executable and prevents captured values from replacing frozen bindings. Each completed phase and its known resource use are retained before the next admission check. External qualification usage stays unknown unless a retained receipt or explicit deterministic attestation supplies it. Failed-call token totals remain unknown while known subtotals are retained. The declared call bound covers EngArg authoring and implementation only. Live paired outcomes remain unmeasured. Model topology and monetary-saving claims remain unestablished. |
+
+All six original refactorings remain in place: completion admission, verified
+package construction, typed report decoding, typed calculation lineage,
+deterministic replanning and common presentation summaries. New responsibilities
+are limited to qualified graph comparison, bounded runtime finalisation and the
+complete-workflow study. The study protocol is documented in
+[`experiments/support-domains/README.md`](experiments/support-domains/README.md).
+
+The workflow inventory contains one EngArg workflow with Linux/macOS checks and
+a separate producer/consumer job, plus its shared Cargo-cache action. EAL has
+one manually dispatched workflow with workspace, context-experiment and parser
+regeneration jobs. Their different coverage is retained. Superseded-PR
+cancellation, combined runtime installation, native smoke checks and bounded
+build-output caches remain in place. Runner duration and monetary cost are
+separate quantities. The earlier installer and selection-kernel measurements
+below retain their original scope.
+
+### Complete planner compilation
+
+The release build passed. The new `benchmark_planner` example measures complete
+deterministic compilation from a frozen synthetic snapshot. Its timed region
+includes requirement/catalogue validation, schema matching, argument
+materialisation, selection, graph projection and execution-plan validation.
+Fixture construction, JSON decoding, live discovery, provider calls and model
+work remain outside that region. These cases use the authored graph without
+batch correspondences.
+
+| Acquisitions | Candidates each | Median, ms | Observed range, ms |
+| ---: | ---: | ---: | ---: |
+| 8 | 8 | 5.637 | 5.507–6.382 |
+| 32 | 16 | 32.357 | 31.944–33.392 |
+| 128 | 32 | 239.935 | 232.978–253.578 |
+
+Each row has five fresh measured processes after one retained warm-up process.
+Shape order alternates across repetitions. No compilation or session tests ran
+concurrently. The source was frozen at `228c063`, and the benchmark retains
+binary, source, input and output hashes in
+[`benchmarks/planner_profile.json`](benchmarks/planner_profile.json). All outputs
+passed their independent workload assertions and repeated output identities
+matched. The recorded search flags still report pruning.
+
+These are descriptive local compiler measurements. They establish neither a
+before/after improvement nor complete workflow latency. Five purposively
+selected runs provide an observed range, with no production tail estimate.
+Reproduce one case with:
+
+```sh
+cargo run --locked --release --example benchmark_planner -- --acquisitions 32 --candidates 16
+```
+
 Version 0.9.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. This record concerns program behaviour. It contains no measured claim that the hybrid workflow produces better arguments than a single model.
 
 | Check | Result |

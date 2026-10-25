@@ -12,6 +12,12 @@ from pathlib import Path
 import subprocess
 import statistics
 import time
+import sys
+
+# Keep this script runnable from any working directory and importable by tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from support_study import (freeze_study, run_workflow, score_reviews,
+                           write_json, review_template)
 
 
 CASES = {
@@ -38,6 +44,10 @@ CASES = {
     "design_judgement": (
         'For the bounded design review at revision abc123, an independent reviewer judges that a durable queue is preferable to synchronous calls under the stated recovery and latency requirements.',
         {"judgement"},
+    ),
+    "specified_algorithm": (
+        'At revision abc123 the retry-schedule checksum is 13994. For the ordered delays 2, 3 and 5, start at s=7 and replace s by (31*s+d) modulo 65521 for each delay d. The available capability catalogue must be checked before deciding whether this specified operation needs an implementation.',
+        {"calculation", "proof_check"},
     ),
 }
 
@@ -83,21 +93,64 @@ def comparisons(rows):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, required=True)
-    parser.add_argument("--evidence-config", type=Path, required=True)
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--binary", type=Path)
+    parser.add_argument("--evidence-config", type=Path)
+    parser.add_argument("--model")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY")
     parser.add_argument("--case", choices=sorted(CASES), action="append")
+    parser.add_argument("--workflow", type=Path,
+                        help="Operator-owned full-workflow phase recipes and frozen resource limits")
+    parser.add_argument("--frozen-protocol", type=Path,
+                        help="Execute a previously frozen protocol after verifying all input hashes")
+    parser.add_argument("--freeze-only", action="store_true",
+                        help="Retain the study protocol and input hashes without making calls")
+    parser.add_argument("--reviews", type=Path,
+                        help="Independent reviews, bound to output hashes, applied after execution")
+    parser.add_argument("--score-results", type=Path,
+                        help="Score previously retained results without repeating inference")
     args = parser.parse_args()
     if not 1 <= args.repetitions <= 10:
         parser.error("repetitions must be between 1 and 10")
-    if not os.environ.get(args.api_key_env):
+    if args.score_results:
+        if not args.reviews:
+            parser.error("--score-results requires --reviews")
+        retained = json.loads(args.score_results.read_text())
+        retained["semantic_review"] = score_reviews(retained, json.loads(args.reviews.read_text()))
+        write_json(args.output_dir / "reviewed-results.json", retained)
+        return 0
+    if args.frozen_protocol:
+        if args.workflow or args.freeze_only:
+            parser.error("--frozen-protocol cannot be combined with --workflow or --freeze-only")
+        if not os.environ.get(args.api_key_env):
+            parser.error(f"{args.api_key_env} must be configured for live inference")
+        protocol = json.loads(args.frozen_protocol.read_text())
+        args.output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
+        write_json(args.output_dir / "protocol.json", protocol)
+        result = run_workflow(protocol, args.output_dir, args.api_key_env)
+        write_json(args.output_dir / "review-template.json", review_template(result))
+        return int(any(not row["workflow_accepted"] for row in result["rows"]))
+    if not all((args.binary, args.evidence_config, args.model)):
+        parser.error("execution and freezing require --binary, --evidence-config and --model")
+    if not args.freeze_only and not os.environ.get(args.api_key_env):
         parser.error(f"{args.api_key_env} must be configured for live inference")
     binary = args.binary.resolve(strict=True)
     config = args.evidence_config.resolve(strict=True)
     args.output_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
+    if args.workflow:
+        protocol = freeze_study(args, CASES)
+        write_json(args.output_dir / "protocol.json", protocol)
+        if args.freeze_only:
+            return 0
+        result = run_workflow(protocol, args.output_dir, args.api_key_env)
+        if args.reviews:
+            result["semantic_review"] = score_reviews(result, json.loads(args.reviews.read_text()))
+        write_json(args.output_dir / "results.json", result)
+        write_json(args.output_dir / "review-template.json", review_template(result))
+        return int(any(not row["workflow_accepted"] for row in result["rows"]))
+    if args.freeze_only:
+        parser.error("--freeze-only requires --workflow")
     rows = []
     identity = {
         "schema": "engarg.support-domain-experiment/1",

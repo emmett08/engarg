@@ -146,8 +146,71 @@ struct Assessment {
     evidence_gaps: Vec<String>,
 }
 
-/// The same finite list bound applies to all specialist and final-critic assessments.
+impl Assessment {
+    fn fields(&self) -> [(&'static str, &[String]); 3] {
+        [
+            ("findings", &self.findings),
+            ("objections", &self.objections),
+            ("evidence_gaps", &self.evidence_gaps),
+        ]
+    }
+}
+
+/// The requested list bound applies to every specialist and final-critic assessment.
+/// Responses exceeding it are retained within the run's hard byte budgets.
 pub(crate) const MAX_ASSESSMENT_ENTRIES: usize = 32;
+
+/// A valid assessment exceeded a requested list bound without losing its content.
+#[derive(Debug, Clone, Serialize)]
+pub struct AssessmentWarning {
+    pub role: Role,
+    pub field: &'static str,
+    pub count: usize,
+    pub requested_maximum: usize,
+}
+
+impl AssessmentWarning {
+    /// Content-free diagnostic suitable for terminal output and report limitations.
+    pub fn message(&self) -> String {
+        format!(
+            "{} assessment.{} contains {} entries (requested maximum {}). Retaining all {} entries and continuing.",
+            self.role.as_str(),
+            self.field,
+            self.count,
+            self.requested_maximum,
+            self.count
+        )
+    }
+}
+
+/// Derive advisory count warnings from a complete, structurally valid assessment.
+/// This can be called by a completion observer before the next dependent call.
+/// Invalid JSON, blank entries and omitted responses remain hard errors in the engine
+/// and do not produce a misleading continuation warning here.
+pub fn assessment_warnings(record: &CallRecord) -> Vec<AssessmentWarning> {
+    if record.response_content_omitted
+        || !matches!(
+            record.role,
+            Role::Constructor | Role::Sceptic | Role::EvidenceAuditor | Role::FinalCritic
+        )
+    {
+        return Vec::new();
+    }
+    let Ok(assessment) = parse_assessment(record) else {
+        return Vec::new();
+    };
+    assessment
+        .fields()
+        .into_iter()
+        .filter(|(_, entries)| entries.len() > MAX_ASSESSMENT_ENTRIES)
+        .map(|(field, entries)| AssessmentWarning {
+            role: record.role,
+            field,
+            count: entries.len(),
+            requested_maximum: MAX_ASSESSMENT_ENTRIES,
+        })
+        .collect()
+}
 
 // Spell out Unicode White_Space rather than using \S: ECMAScript and Rust differ
 // on NEL and BOM. This supported JSON Schema pattern matches str::trim exactly.
@@ -179,18 +242,7 @@ fn parse_assessment(record: &CallRecord) -> Result<Assessment, Error> {
             record.role.as_str()
         ))
     })?;
-    for (field, values) in [
-        ("findings", &result.findings),
-        ("objections", &result.objections),
-        ("evidence_gaps", &result.evidence_gaps),
-    ] {
-        if values.len() > MAX_ASSESSMENT_ENTRIES {
-            return Err(Error::InvalidOutput(format!(
-                "{} assessment.{field} contains {} entries (maximum {MAX_ASSESSMENT_ENTRIES})",
-                record.role.as_str(),
-                values.len()
-            )));
-        }
+    for (field, values) in result.fields() {
         if let Some(index) = values.iter().position(|value| value.trim().is_empty()) {
             return Err(Error::InvalidOutput(format!(
                 "{} assessment.{field}[{index}] is blank (entry {} of {})",
@@ -463,6 +515,13 @@ where
         tool_planning,
     )
     .await?;
+    let mut run_limitations = limitations(config.mode);
+    run_limitations.extend(
+        transcript
+            .iter()
+            .flat_map(assessment_warnings)
+            .map(|warning| warning.message()),
+    );
     Ok(RunReport {
         schema_version: "engarg.run.v2".to_owned(),
         execution_mode: "provider_calls".to_owned(),
@@ -474,7 +533,7 @@ where
         argument: final_case,
         transcript,
         tooling: None,
-        limitations: limitations(config.mode),
+        limitations: run_limitations,
     })
 }
 
@@ -653,7 +712,7 @@ mod tests {
     }
 
     #[test]
-    fn assessment_schema_and_validator_agree_at_each_list_boundary_for_every_role() {
+    fn assessment_schema_requests_bounds_but_valid_overflow_is_preserved_for_every_role() {
         let schema = assessment_schema();
         let validator = jsonschema::validator_for(&schema).unwrap();
         for role in ASSESSMENT_ROLES {
@@ -674,24 +733,23 @@ mod tests {
                         "{role} {field} {count}"
                     );
                     let record = assessment_record(role, &value);
-                    let parsed = parse_assessment(&record);
-                    assert_eq!(parsed.is_ok(), accepted, "{role} {field} {count}");
-                    if let Ok(parsed) = parsed {
-                        // Admission preserves every entry and its exact spelling.
-                        for (name, entries) in [
-                            ("findings", parsed.findings),
-                            ("objections", parsed.objections),
-                            ("evidence_gaps", parsed.evidence_gaps),
-                        ] {
-                            assert_eq!(json!(entries), value[name]);
-                        }
-                    } else {
-                        assert_eq!(
-                            parsed.unwrap_err().to_string(),
-                            format!(
-                                "invalid model output: {} assessment.{field} contains {count} entries (maximum {MAX_ASSESSMENT_ENTRIES})",
-                                role.as_str()
-                            )
+                    let parsed = parse_assessment(&record).unwrap();
+                    // Advisory overflow never truncates or changes an entry.
+                    for (name, entries) in parsed.fields() {
+                        assert_eq!(json!(entries), value[name]);
+                    }
+                    let warnings = assessment_warnings(&record);
+                    assert_eq!(warnings.len(), usize::from(!accepted));
+                    if !accepted {
+                        let warning = &warnings[0];
+                        assert_eq!(warning.role, role);
+                        assert_eq!(warning.field, field);
+                        assert_eq!(warning.count, count);
+                        assert_eq!(warning.requested_maximum, MAX_ASSESSMENT_ENTRIES);
+                        assert!(
+                            warning
+                                .message()
+                                .contains(&format!("Retaining all {count} entries"))
                         );
                     }
                 }
@@ -700,7 +758,7 @@ mod tests {
     }
 
     #[test]
-    fn final_critic_rejects_41_evidence_gaps_with_the_field_count_and_bound() {
+    fn final_critic_warns_about_41_evidence_gaps_without_discarding_any_entries() {
         // Reproduce the reported list counts without retaining the private argument.
         let value = json!({
             "findings": vec!["A qualified finding."; 11],
@@ -710,9 +768,13 @@ mod tests {
         let validator = jsonschema::validator_for(&assessment_schema()).unwrap();
         assert!(!validator.is_valid(&value));
         let record = assessment_record(Role::FinalCritic, &value);
+        let assessment = parse_assessment(&record).unwrap();
+        assert_eq!(assessment.findings.len(), 11);
+        assert_eq!(assessment.objections.len(), 28);
+        assert_eq!(assessment.evidence_gaps.len(), 41);
         assert_eq!(
-            parse_assessment(&record).unwrap_err().to_string(),
-            "invalid model output: final_critic assessment.evidence_gaps contains 41 entries (maximum 32)"
+            assessment_warnings(&record)[0].message(),
+            "final_critic assessment.evidence_gaps contains 41 entries (requested maximum 32). Retaining all 41 entries and continuing."
         );
         assert_eq!(
             serde_json::from_str::<Value>(&record.response.content).unwrap(),
@@ -785,6 +847,214 @@ mod tests {
                     )
                 );
                 assert!(!error.contains("Private argument"));
+            }
+        }
+    }
+
+    #[test]
+    fn continuation_warnings_require_complete_structurally_valid_assessments() {
+        let value = json!({"findings": vec!["Retain this finding."; 33], "objections": [], "evidence_gaps": []});
+        let record = assessment_record(Role::FinalCritic, &value);
+        assert_eq!(assessment_warnings(&record).len(), 1);
+
+        let mut omitted = record.clone();
+        omitted.response_content_omitted = true;
+        assert!(assessment_warnings(&omitted).is_empty());
+        for role in [Role::Single, Role::Synthesiser, Role::Adjudicator] {
+            assert!(assessment_warnings(&assessment_record(role, &value)).is_empty());
+        }
+        for malformed in [
+            "{",
+            r#"{"findings":[],"objections":[]}"#,
+            r#"{"findings":[],"objections":[],"evidence_gaps":[],"extra":[]}"#,
+            r#"{"findings":[],"findings":[],"objections":[],"evidence_gaps":[]}"#,
+        ] {
+            let mut invalid = record.clone();
+            invalid.response.content = malformed.into();
+            assert!(parse_assessment(&invalid).is_err());
+            assert!(assessment_warnings(&invalid).is_empty());
+        }
+        let mut blank = value;
+        blank["evidence_gaps"] = json!(["\u{0085}\n"]);
+        let invalid = assessment_record(Role::FinalCritic, &blank);
+        assert!(parse_assessment(&invalid).is_err());
+        assert!(assessment_warnings(&invalid).is_empty());
+    }
+
+    #[tokio::test]
+    async fn critic_11_findings_28_objections_41_gaps_complete_flat_and_graph_adjudication() {
+        use crate::support_requirements::{self, SupportElaboration, tests::pending};
+
+        struct OverflowModel {
+            support: bool,
+            assessment: Value,
+            calls: Mutex<Vec<CompletionRequest>>,
+        }
+        impl LanguageModel for OverflowModel {
+            async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
+                let role = request.role;
+                let data: Value = serde_json::from_str(&request.user)?;
+                self.calls.lock().unwrap().push(request);
+                let content = if matches!(role, Role::Synthesiser | Role::Adjudicator) {
+                    let mut argument: ArgumentCase =
+                        serde_json::from_str(include_str!("../examples/case.json"))?;
+                    let mut elaboration = pending(&argument);
+                    if role == Role::Adjudicator {
+                        // The fixture adjudicator explicitly represents every retained
+                        // challenge and gives each one a discriminating investigation.
+                        for retained in data["retained_objections"].as_array().unwrap() {
+                            let id = retained["id"].as_str().unwrap();
+                            if argument.defeaters.iter().any(|item| item.id == id) {
+                                continue;
+                            }
+                            let mut defeater = argument.defeaters[0].clone();
+                            defeater.id = id.into();
+                            defeater.challenge = retained["challenge"].as_str().unwrap().into();
+                            let mut need = argument.evidence_plan[2].clone();
+                            need.id = format!("investigate-{id}");
+                            need.target_id = id.into();
+                            argument.defeaters.push(defeater);
+                            argument.evidence_plan.push(need);
+                        }
+                        // Add support for new obligations without changing any of the
+                        // original requirement identities or acceptance conditions.
+                        let extended = pending(&argument);
+                        for mut requirement in extended.requirements {
+                            if elaboration
+                                .requirements
+                                .iter()
+                                .any(|original| original.target_id == requirement.target_id)
+                            {
+                                continue;
+                            }
+                            let mut evaluation = extended
+                                .evaluations
+                                .iter()
+                                .find(|item| item.requirement_id == requirement.id)
+                                .unwrap()
+                                .clone();
+                            requirement.id = format!("requirement-{}", requirement.target_id);
+                            evaluation.id = format!("evaluation-{}", requirement.target_id);
+                            evaluation.requirement_id = requirement.id.clone();
+                            elaboration.requirements.push(requirement);
+                            elaboration.evaluations.push(evaluation);
+                        }
+                    }
+                    if self.support {
+                        json!({"argument": argument, "support_elaboration_json": serde_json::to_string(&elaboration)?}).to_string()
+                    } else {
+                        serde_json::to_string(&argument)?
+                    }
+                } else if role == Role::FinalCritic {
+                    self.assessment.to_string()
+                } else {
+                    json!({"findings": [], "objections": [], "evidence_gaps": []}).to_string()
+                };
+                Ok(Completion {
+                    content,
+                    model: "overflow-regression-fixture".into(),
+                    input_tokens: None,
+                    output_tokens: None,
+                    request_id: None,
+                    service_tier: None,
+                    reasoning_effort: None,
+                })
+            }
+        }
+        struct PendingResolver;
+        impl RouteResolver for PendingResolver {
+            type Plan = Value;
+            async fn resolve(
+                &self,
+                argument: &ArgumentCase,
+                elaboration: &SupportElaboration,
+            ) -> Result<Value, Error> {
+                assert!(
+                    support_requirements::validate_elaboration(argument, elaboration).is_empty()
+                );
+                Ok(json!({"status": "pending_configuration"}))
+            }
+        }
+
+        let entries = |kind: &str, count| {
+            (1..=count)
+                .map(|index| format!("{kind} {index}: retain its target and qualification."))
+                .collect::<Vec<_>>()
+        };
+        let assessment = json!({
+            "findings": entries("Finding", 11),
+            "objections": entries("Challenge", 28),
+            "evidence_gaps": entries("Evidence obligation", 41),
+        });
+        for support in [false, true] {
+            let model = OverflowModel {
+                support,
+                assessment: assessment.clone(),
+                calls: Mutex::new(Vec::new()),
+            };
+            let report = if support {
+                run_with_support(
+                    &model,
+                    &request(),
+                    &RunConfig::default(),
+                    &|_| Ok(()),
+                    &PendingResolver,
+                )
+                .await
+                .unwrap()
+                .report
+            } else {
+                run(&model, &request(), &RunConfig::default())
+                    .await
+                    .unwrap()
+            };
+            assert_eq!(report.transcript.len(), 6);
+            assert_eq!(report.transcript.last().unwrap().role, Role::Adjudicator);
+            let critic = &report.transcript[4];
+            assert_eq!(
+                serde_json::from_str::<Value>(&critic.response.content).unwrap(),
+                assessment
+            );
+            let warnings = assessment_warnings(critic);
+            assert_eq!(warnings.len(), 1);
+            assert!(report.limitations.contains(&warnings[0].message()));
+
+            let calls = model.calls.lock().unwrap();
+            assert_eq!(calls.len(), 6, "overflow must not add paid calls");
+            let adjudication: Value = serde_json::from_str(&calls[5].user).unwrap();
+            for field in ["findings", "evidence_gaps"] {
+                assert_eq!(adjudication["final_critique"][field], assessment[field]);
+            }
+            let ids = adjudication["final_critique"]["objection_ids"]
+                .as_array()
+                .unwrap();
+            assert_eq!(ids.len(), 28);
+            for (index, id) in ids.iter().enumerate() {
+                let retained = adjudication["retained_objections"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|item| item["id"] == *id)
+                    .unwrap();
+                assert_eq!(retained["challenge"], assessment["objections"][index]);
+                assert_eq!(retained["source_role"], "final_critic");
+                let defeater = report
+                    .argument
+                    .defeaters
+                    .iter()
+                    .find(|item| item.id == id.as_str().unwrap())
+                    .unwrap();
+                assert_eq!(
+                    defeater.challenge,
+                    assessment["objections"][index].as_str().unwrap()
+                );
+                assert!(
+                    report
+                        .argument
+                        .evidence_plan
+                        .iter()
+                        .any(|need| need.target_id == defeater.id)
+                );
             }
         }
     }

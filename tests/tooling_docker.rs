@@ -1127,6 +1127,11 @@ fn generated_interface_native_preflight_requires_original_time_then_executes_and
     let original = root.join("analysis.json");
     fs::write(&original, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
     let mut native = json!({"capability":descriptor,"transport":{"kind":"command","program":source_program,"supervisor":supervisor,"arguments":[],"cwd":root,"inherit_env":[],"protocol":{"kind":"eal_acquisition","environment":"synthetic","tool":"synthetic_generated","tool_version":"1","context":{}}},"mapping":{"tool":"synthetic_generated","raw_output_schema_sha256":null,"response_format":{"kind":"structured"},"value_pointer":"/value","observation_time":{"kind":"pointer","pointer":"/observed_at"},"scope_pointers":{"mode":"/mode"}},"pinned_files":[],"credential_env":[]});
+    // Require an already-present, non-secret reference that the host does not
+    // inherit by default. Native admission checks every declared reference even
+    // when the synthetic executable itself does not read it. This reproduces
+    // the Docker provider's environment boundary without requiring Docker.
+    native["transport"]["inherit_env"] = json!(["EAL_COLLECTOR"]);
     // Preparation/discovery/replanning make no source calls. The ready route is
     // subsequently acquired through the same helper used by the Docker package.
     for (name, original_time) in [("collection_time", false), ("original_time", true)] {
@@ -1149,6 +1154,9 @@ fn generated_interface_native_preflight_requires_original_time_then_executes_and
         fs::write(&connections,json!({"schema":"eal.evidence-config/1","connections":[],"native_providers":[prepared],"local_catalogues":[],"approved_catalogues":[]}).to_string()).unwrap();
         let mut planning = config.clone();
         planning.connections = connections;
+        // The export helper supplies USER with a deterministic public fixture
+        // value; the native provider itself needs only EAL_COLLECTOR.
+        planning.environment = vec!["EAL_COLLECTOR".into(), "USER".into()];
         let planning_path = root.join(format!("{name}-planning.json"));
         fs::write(
             &planning_path,
@@ -1423,6 +1431,216 @@ fn assert_native_acquisition_and_reuse(
         observed["value"]["observation_ids"]
     );
     assert_eq!(fs::read(snapshot).unwrap(), retained);
+    assert_export_collection_and_assessment(collector, root, selected, &execution);
+}
+
+/// Carry the selected provider through the public export, collection and
+/// assessment commands. The synthetic source settles its three predicates;
+/// unrelated review and counter-evidence obligations must remain unresolved.
+fn assert_export_collection_and_assessment(
+    collector: &Path,
+    root: &Path,
+    selected: &Value,
+    execution: &eal_collector_contracts::execution::EvidenceExecutionPlan,
+) {
+    let analysis = root.join("selected-for-export.json");
+    fs::write(&analysis, serde_json::to_vec_pretty(selected).unwrap()).unwrap();
+    let source = root.join("selected.eal");
+    let manifest = root.join("selected.bundle.json");
+    let registry = root.join("selected.tools.toml");
+    successful(
+        &Command::new(env!("CARGO_BIN_EXE_engarg"))
+            .args(["eal", "export", "--input"])
+            .arg(&analysis)
+            .arg("--output")
+            .arg(&source)
+            .arg("--manifest")
+            .arg(&manifest)
+            .arg("--tools-output")
+            .arg(&registry)
+            .output()
+            .unwrap(),
+    );
+    let bundle: engarg::support_export::SupportExport =
+        serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
+    assert_eq!(
+        serde_json::to_value(&bundle.support_elaboration).unwrap(),
+        selected["evidence_planning"]["elaboration"]
+    );
+    assert_eq!(
+        bundle.execution_plan.acquisitions[0].source,
+        execution.acquisitions[0].source
+    );
+    assert!(!bundle.support_elaboration.alternative_support.is_empty());
+    let connections: Value =
+        serde_json::from_slice(&fs::read(&bundle.locations.connections).unwrap()).unwrap();
+    let credential_names = connections["native_providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|provider| provider["credential_env"].as_array().unwrap())
+        .filter_map(Value::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let public_environment = bundle
+        .locations
+        .environment
+        .iter()
+        .filter(|name| {
+            (engarg::tooling::runner::DOCKER_ENVIRONMENT.contains(&name.as_str())
+                || name.as_str() == "EAL_COLLECTOR")
+                && !credential_names.contains(name.as_str())
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let exercise_public_sensitivity = bundle
+        .locations
+        .environment
+        .iter()
+        .any(|name| name == "EAL_COLLECTOR");
+    let host = collector.with_file_name(format!("eal-host{}", std::env::consts::EXE_SUFFIX));
+    let database = root.join("selected.sqlite");
+    let run = |operation: &str, classify_public: bool| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
+        command
+            .args(["eal", operation, "--input"])
+            .arg(&manifest)
+            .arg("--eal-host")
+            .arg(&host)
+            .arg("--workspace")
+            .arg(root)
+            .arg("--database")
+            .arg(&database)
+            .args(["--timeout-secs", "120"])
+            .env_remove("OPENAI_API_KEY")
+            .env_remove("ENGARG_API_KEY");
+        // The registry declares permitted references; the caller must separately
+        // grant forwarding through the host. In particular, Docker-specific
+        // settings are not part of the host's default process environment.
+        for name in &bundle.locations.environment {
+            command.arg("--collector-env").arg(name);
+            // These synthetic fixtures explicitly classify reviewed host
+            // settings and the native binary path as public configuration.
+            // Custom runtime credentials and all unknown names stay sensitive.
+            if classify_public && public_environment.contains(name) {
+                command.arg("--public-collector-env").arg(name);
+            }
+        }
+        if exercise_public_sensitivity {
+            // This harmless public value appears in the returned evidence IDs.
+            // It makes default sensitive-value filtering deterministic without
+            // depending on the CI account name or filesystem layout.
+            command.env("USER", "support_evaluation");
+        }
+        command
+    };
+    if exercise_public_sensitivity {
+        let rejected = run("collect", false)
+            .arg("--tools")
+            .arg(&registry)
+            .output()
+            .unwrap();
+        assert!(!rejected.status.success());
+        assert!(rejected.stdout.is_empty());
+        assert!(
+            String::from_utf8_lossy(&rejected.stderr).contains("EAL_HOST_CREDENTIAL_LEAK"),
+            "{}",
+            String::from_utf8_lossy(&rejected.stderr)
+        );
+    }
+    let collected = run("collect", true)
+        .arg("--tools")
+        .arg(&registry)
+        .output()
+        .unwrap();
+    successful(&collected);
+    let collected: Value = serde_json::from_slice(&collected.stdout).unwrap();
+    assert_eq!(collected["is_error"], false, "{collected}");
+    let collection = &collected["result"];
+    if exercise_public_sensitivity {
+        assert!(
+            collection["records"]
+                .as_object()
+                .unwrap()
+                .values()
+                .any(|record| record["evidence_id"]
+                    .as_str()
+                    .is_some_and(|id| id.contains("support_evaluation"))),
+            "the public fixture value must really occur in the returned observation"
+        );
+    }
+    let shared = bundle
+        .requirements
+        .iter()
+        .filter(|requirement| {
+            requirement
+                .requirement_id
+                .starts_with("shared_requirement_")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(shared.len(), 3);
+    let mut source_ids = None;
+    for requirement in &shared {
+        let record = &collection["records"][&requirement.eal_evidence_name];
+        if record["status"] != "ok" {
+            // Probe the exact registered source and the export's store, rather
+            // than the separate store used by direct acquisition above. This
+            // is diagnostic only: successful probing cannot replace a failed
+            // public collection or turn this assertion into a pass.
+            let mut diagnostic = native_failure_diagnostic(
+                &json!({"connections": bundle.locations.connections}),
+                execution,
+                &bundle.locations.store,
+            );
+            diagnostic["collection_record"] = record.clone();
+            diagnostic["forwarded_environment_names"] = json!(bundle.locations.environment);
+            fs::write(
+                root.join("selected-collection.failure.json"),
+                serde_json::to_vec_pretty(&diagnostic).unwrap(),
+            )
+            .unwrap();
+            panic!(
+                "public collection failed; native command diagnostic (environment values omitted): {}",
+                serde_json::to_string_pretty(&diagnostic).unwrap()
+            );
+        }
+        assert_eq!(record["value"]["criterion_satisfied"], true, "{record}");
+        assert_eq!(record["value"]["source_ids"].as_array().unwrap().len(), 1);
+        let current = record["value"]["source_ids"].clone();
+        if let Some(expected) = &source_ids {
+            assert_eq!(
+                &current, expected,
+                "all consumers must retain the same source identity"
+            );
+        }
+        source_ids = Some(current);
+    }
+    let now = chrono::DateTime::from(std::time::SystemTime::now())
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let assessed = run("assess", true)
+        .arg("--tools")
+        .arg(&registry)
+        .arg("--now")
+        .arg(now)
+        .arg("--collection-id")
+        .arg(collection["collection_id"].as_str().unwrap())
+        .output()
+        .unwrap();
+    successful(&assessed);
+    let assessed: Value = serde_json::from_slice(&assessed.stdout).unwrap();
+    assert_eq!(assessed["is_error"], false, "{assessed}");
+    let assessment = &assessed["result"];
+    assert_eq!(assessment["valid"], true, "{assessment}");
+    assert_eq!(assessment["collection_id"], collection["collection_id"]);
+    for requirement in shared {
+        assert_eq!(
+            assessment["evidence"][&requirement.eal_evidence_name]["status"], "available",
+            "{}",
+            assessment["evidence"][&requirement.eal_evidence_name]
+        );
+    }
+    assert_eq!(
+        assessment["claims"][&bundle.claim_names["current_claim"]]["status"], "unsupported",
+        "unavailable independent obligations must survive successful acquisition: {assessment}"
+    );
 }
 
 /// Synthetic test diagnostics only. The failed-graph caller always fails after

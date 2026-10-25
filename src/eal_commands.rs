@@ -888,7 +888,7 @@ async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
         ));
     };
     let executable = std::env::current_exe()?;
-    report::validate_replanning(&raw, &executable)?;
+    report::validate_replanning_for_update(&raw, &executable)?;
     engarg::tooling::capability::revalidate_report(&raw, &executable)?;
     let canonical: CanonicalReport = serde_json::from_value(raw.clone())?;
     engarg::domain::validate_request(&canonical.request)
