@@ -141,6 +141,63 @@ def cache_valid(prefix, owner):
         return False
 
 
+def build_companions(repo, prefix, git_url, revision, lock):
+    """Build the six admitted binaries together from one verified source tree."""
+    if shutil.which("git") is None:
+        fail("Required command for runtime installation: git")
+    environment = dict(os.environ, CARGO_TARGET_DIR=str(prefix / "target"))
+    with tempfile.TemporaryDirectory(prefix=".runtime-source-", dir=prefix) as temporary:
+        source = Path(temporary)
+        def git(*arguments, capture=False):
+            return subprocess.run(
+                ["git", "-C", str(source), *arguments], cwd=repo, check=True,
+                stdout=subprocess.PIPE if capture else sys.stderr, text=True,
+                pass_fds=(lock.fileno(),),
+            )
+        git("init", "--quiet")
+        git("remote", "add", "origin", git_url)
+        git("fetch", "--quiet", "--depth", "1", "--no-tags", "origin", revision)
+        git("checkout", "--quiet", "--detach", "FETCH_HEAD")
+        if git("rev-parse", "HEAD", capture=True).stdout.strip() != revision:
+            fail("Runtime source checkout differs from the admitted revision")
+        command = ["cargo", "+" + TOOLCHAIN, "build", "--manifest-path", str(source / "Cargo.toml"),
+                   "--locked", "--release", "--bins", "--message-format=json-render-diagnostics"]
+        for package in PACKAGES:
+            command.extend(["--package", package])
+        # One invocation unifies shared dependency features. Separate cargo
+        # installs repeatedly compiled serde, libc and the EAL core in cold CI.
+        result = subprocess.run(command, cwd=source, env=environment, check=True,
+                                stdout=subprocess.PIPE, text=True, pass_fds=(lock.fileno(),))
+        artifacts = {}
+        target = (prefix / "target").resolve()
+        for line in result.stdout.splitlines():
+            message = json.loads(line)
+            if (message.get("reason") == "compiler-artifact"
+                    and message.get("target", {}).get("kind") == ["bin"]
+                    and message.get("executable")):
+                name = message["target"]["name"]
+                binary = Path(message["executable"])
+                if name not in BINARIES or name in artifacts or not binary.resolve().is_relative_to(target):
+                    fail("Unexpected runtime binary artifact: " + name)
+                artifacts[name] = binary
+        if set(artifacts) != set(BINARIES):
+            fail("Pinned runtime build did not produce every required companion")
+        (prefix / "bin").mkdir(mode=0o700, exist_ok=True)
+        for name in BINARIES:
+            binary = artifacts[name]
+            expected = binary_hash(binary)
+            with tempfile.NamedTemporaryFile(dir=prefix / "bin", prefix=".runtime-", delete=False) as output:
+                staged = Path(output.name)
+            try:
+                shutil.copyfile(binary, staged)
+                staged.chmod(0o700)
+                if binary_hash(staged) != expected:
+                    fail("Runtime companion changed while staging: " + name)
+                os.replace(staged, prefix / "bin" / name)
+            finally:
+                staged.unlink(missing_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Install EngArg's pinned Rust EAL runtime in an isolated prefix")
     parser.add_argument("--root", type=Path, help="empty or previously managed installation prefix")
@@ -183,7 +240,7 @@ def main():
         if shutil.which("rustup") is None:
             fail("Required command for runtime installation: rustup")
         # A failure leaves ownership but never a success receipt. A later attempt
-        # reinstalls every package, including the preferred legacy supervisor alias.
+        # rebuilds all companions, including the preferred legacy supervisor alias.
         receipt = prefix / RECEIPT
         if receipt.exists() or receipt.is_symlink():
             receipt.unlink()
@@ -201,14 +258,7 @@ def main():
                 binary.unlink()
         subprocess.run(["rustup", "toolchain", "install", TOOLCHAIN, "--profile", "minimal"],
                        cwd=repo, check=True, stdout=sys.stderr, pass_fds=(lock.fileno(),))
-        environment = dict(os.environ, CARGO_TARGET_DIR=str(prefix / "target"))
-        for package in PACKAGES:
-            subprocess.run(
-                ["cargo", "+" + TOOLCHAIN, "install", "--git", git_url, "--rev", revision,
-                 "--locked", "--root", str(prefix), "--force", package],
-                cwd=repo, env=environment, check=True, stdout=sys.stderr,
-                pass_fds=(lock.fileno(),),
-            )
+        build_companions(repo, prefix, git_url, revision, lock)
         write_json(receipt, {"schema": "engarg.eal-runtime/1", "git": git_url,
                              "revision": revision, "binaries": hashes(prefix)})
     print(prefix / "bin" / "eal-host")

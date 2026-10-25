@@ -21,6 +21,7 @@ fn fixture() -> (AcquisitionBlueprint, CapabilityDescriptor) {
         "configuration_requirements":[],"limits":{"timeout_seconds":30,"output_bytes":1048576,"concurrency":1,"requests_per_minute":null},"costs":CapabilityCosts::unknown("Not measured")
     })).unwrap();
     let blueprint = AcquisitionBlueprint {
+        operation_spec: None,
         id: "read".into(),
         contract,
         arguments: json!({"revision":"r1","trace_id":null,"count":3}),

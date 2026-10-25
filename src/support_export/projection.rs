@@ -32,10 +32,13 @@ pub(super) fn build(
         execution,
         routes,
     )?;
+    let (projected_execution, alternative_projection) =
+        super::alternatives::project(&authored.bundle.original_case, elaboration, execution)?;
+    let execution = &projected_execution;
     let registry = registry(locations)?;
     let tools_toml = registry.to_toml().map_err(Error::InvalidInput)?;
     let execution_plan_sha256 = canonical_digest(execution).map_err(Error::InvalidInput)?;
-    let revision = canonical_digest(&(
+    let identity = (
         SUPPORT_EXPORT_SCHEMA,
         SUPPORT_PROJECTION_SEMANTICS,
         exporter_version,
@@ -44,7 +47,11 @@ pub(super) fn build(
         execution,
         routes,
         locations,
-    ))
+    );
+    let revision = match &alternative_projection {
+        None => canonical_digest(&identity),
+        Some(projection) => canonical_digest(&(identity, projection)),
+    }
     .map_err(Error::InvalidInput)?;
     let mut context = authored.bundle.context.clone();
     context["engarg_support_export_digest"] = json!(revision);
@@ -65,6 +72,7 @@ pub(super) fn build(
         .keys()
         .map(|id| (id.as_str(), index.selected_dependency(id)))
         .collect();
+    let alternative_gates = crate::support_requirements::alternative_requirement_gates(elaboration);
     for requirement in &elaboration.requirements {
         let evaluation = execution
             .evaluations
@@ -197,21 +205,64 @@ pub(super) fn build(
             derived_step_ids,
             gated_claim_ids: cones
                 .iter()
-                .filter(|(_, cone)| cone.contains(requirement.target_id.as_str()))
+                .filter(|(id, cone)| {
+                    cone.contains(requirement.target_id.as_str())
+                        || alternative_gates
+                            .get(&requirement.id)
+                            .is_some_and(|claims| claims.contains(**id))
+                })
                 .map(|(id, _)| (*id).to_owned())
                 .collect(),
         });
+    }
+    if let Some(projection) = &alternative_projection {
+        for guard in &projection.guards {
+            let input = json!({"schema":SUPPORT_ACQUISITION_SCHEMA,"case_digest":authored.bundle.revision,"execution_plan_sha256":execution_plan_sha256,"requirement_id":guard.requirement_id});
+            source.push_str(&format!("// Generated unavailable guard for incomplete legacy support extraction.\nevidence {} {{\n  tool {GRAPH_TOOL}\n  kind acquisition\n  environment {SUPPORT_ENVIRONMENT}\n  max_age 0\n  input {}\n  require collected == true\n  require criterion_satisfied == true\n  require execution_plan_sha256 == {}\n}}\n\n",guard.evidence_name,serde_json::to_string(&input)?,quoted(&execution_plan_sha256)));
+            record(
+                &mut source_map,
+                &format!("alternative:{}", guard.alternative_id),
+                "evidence",
+                &guard.evidence_name,
+                "generated_legacy_alternative_gap",
+            );
+            acquisition_requests.push(ReviewRequest {
+                evidence_id: guard.evidence_name.clone(),
+                environment: SUPPORT_ENVIRONMENT.into(),
+                tool: GRAPH_TOOL.into(),
+                tool_version: "1".into(),
+                input,
+                context: context.clone(),
+            });
+            for claim in &guard.claim_ids {
+                pending.push(PendingSupport {
+                    kind: "legacy_alternative_support".into(),
+                    requirement_id: None,
+                    target_id: claim.clone(),
+                    description: guard.description.clone(),
+                });
+            }
+        }
     }
     for (id, original_claim) in &authored.bundle.claim_names {
         let gate = name("support_claim", id);
         let reasoning = name("support_reasoning", id);
         let argument = name("support_argument", id);
         let (text, qualifier) = index.claim(id).expect("canonical claim map");
-        let evidence: Vec<_> = projections
+        let mut evidence: Vec<_> = projections
             .iter()
             .filter(|projection| projection.gated_claim_ids.contains(id))
             .map(|projection| projection.eal_evidence_name.as_str())
             .collect();
+        if let Some(projection) = &alternative_projection {
+            evidence.extend(
+                projection
+                    .guards
+                    .iter()
+                    .filter(|guard| guard.claim_ids.contains(id))
+                    .map(|guard| guard.evidence_name.as_str()),
+            );
+        }
         let support = if evidence.is_empty() {
             format!("[premises {original_claim}]")
         } else {
@@ -258,7 +309,7 @@ pub(super) fn build(
         "A plan, available interface or generated configuration is not an observation. Missing configuration, unavailable historical records and judgements without valid qualified retained records remain pending.".into(),
         "Typed machine predicates, calculations and proof-check outputs remain distinct from authored structured reasoning and retained independent review obligations.".into(),
     ]);
-    let bundle = SupportExport {
+    let mut bundle = SupportExport {
         schema_version: SUPPORT_EXPORT_SCHEMA.into(),
         semantics_version: SUPPORT_PROJECTION_SEMANTICS.into(),
         exporter_version: exporter_version.into(),
@@ -267,6 +318,7 @@ pub(super) fn build(
         authored: authored.bundle,
         support_elaboration: elaboration.clone(),
         execution_plan: execution.clone(),
+        alternative_projection,
         route_proofs: routes.to_vec(),
         execution_plan_sha256,
         locations: locations.clone(),
@@ -279,6 +331,25 @@ pub(super) fn build(
         pending,
         limitations,
     };
+    let budget = super::collection_budget(&bundle);
+    if budget.total_emitted_evidence > budget.assumed_default_limit {
+        bundle.pending.push(PendingSupport {
+            kind: "collection_budget_exceeded".into(),
+            requirement_id: None,
+            target_id: "current_claim".into(),
+            description: format!("Default collect-all selects {} emitted evidence declarations, exceeding the assumed EAL default collection_evidence budget {}. Check the selected host advertised budget or explicitly select a bounded claim; the complete graph is retained.", budget.total_emitted_evidence, budget.assumed_default_limit),
+        });
+    }
+    for (claim, count) in &budget.claim_evidence_counts {
+        if *count > budget.assumed_default_limit {
+            bundle.pending.push(PendingSupport {
+                kind: "collection_budget_exceeded".into(),
+                requirement_id: None,
+                target_id: claim.clone(),
+                description: format!("Selected claim requires {count} evidence declarations, exceeding the assumed EAL default collection_evidence budget {}. Check the selected host advertised budget; the complete graph is retained.", budget.assumed_default_limit),
+            });
+        }
+    }
     Ok(SupportExportArtifacts {
         bundle,
         tools_toml,
@@ -410,11 +481,16 @@ fn source_closure<'a>(
                 step.bindings
                     .iter()
                     .map(|binding| binding.output.step_id.clone())
-                    .chain(
-                        step.for_each
-                            .iter()
-                            .map(|binding| binding.output.step_id.clone()),
-                    ),
+                    .chain(step.for_each.iter().flat_map(|binding| {
+                        std::iter::once(binding.output.step_id.clone()).chain(
+                            binding.stop_on_witness.iter().filter_map(|predicate| {
+                                predicate
+                                    .equals_output
+                                    .as_ref()
+                                    .map(|output| output.step_id.clone())
+                            }),
+                        )
+                    })),
             );
         } else if let Some(step) = plan.derivations.iter().find(|step| step.id == id) {
             derived.insert(id);

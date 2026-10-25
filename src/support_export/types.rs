@@ -36,6 +36,9 @@ pub struct SupportExport {
     pub authored: EalExport,
     pub support_elaboration: SupportElaboration,
     pub execution_plan: EvidenceExecutionPlan,
+    /// Explicit generated guards for incomplete legacy requirement extraction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alternative_projection: Option<AlternativeProjection>,
     pub route_proofs: Vec<AcquisitionRouteProof>,
     pub execution_plan_sha256: String,
     pub locations: SupportExportLocations,
@@ -48,6 +51,25 @@ pub struct SupportExport {
     pub registry: CommandRegistry,
     pub pending: Vec<PendingSupport>,
     pub limitations: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AlternativeProjection {
+    pub schema: String,
+    pub original_execution_plan: EvidenceExecutionPlan,
+    pub original_execution_plan_sha256: String,
+    pub guards: Vec<AlternativeGuard>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AlternativeGuard {
+    pub alternative_id: String,
+    pub requirement_id: String,
+    pub evaluation_id: String,
+    pub evidence_name: String,
+    pub claim_ids: Vec<String>,
+    pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

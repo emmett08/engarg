@@ -14,6 +14,7 @@ usage() {
 Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOGUE.json]
   --check-only                 Check inputs without build, Docker, host or inference.
   --evidence-config JSON        Required graph planning configuration (collector may be "managed").
+  --replan-analysis JSON        Reuse a saved graph analysis and refresh routes without authoring calls.
   --legacy-flat                 Use the earlier flat collector-planning workflow.
   --implement-tools            Generate and fixture-test missing collectors (default: Rust).
   --tool-language LANGUAGE      Implementation language (default: rust), matching the profile.
@@ -27,6 +28,7 @@ check_only=0
 evidence_planning='graph'
 evidence_config=${ENGARG_EVIDENCE_CONFIG:-}
 evidence_config_explicit=0
+replan_analysis=''
 implement_tools=0
 tool_options=0
 tool_language='rust'
@@ -41,6 +43,9 @@ while [[ $# -gt 0 ]]; do
     --evidence-config)
       [[ $# -ge 2 && -n $2 ]] || fail 'Missing value for --evidence-config'
       evidence_config=$2; evidence_config_explicit=1; shift 2 ;;
+    --replan-analysis)
+      [[ $# -ge 2 && -n $2 ]] || fail 'Missing value for --replan-analysis'
+      replan_analysis=$2; shift 2 ;;
     --implement-tools) implement_tools=1; shift ;;
     --tool-language|--toolchain|--tool-store|--tool-max-calls|--tool-timeout-secs)
       [[ $# -ge 2 && -n $2 ]] || fail "Missing value for $1"
@@ -65,6 +70,7 @@ if [[ $evidence_planning == graph ]]; then
   [[ $# -eq 1 ]] || fail 'A positional collector catalogue requires --legacy-flat; graph planning uses qualified capabilities from --evidence-config.'
 else
   [[ $evidence_config_explicit -eq 0 ]] || fail '--evidence-config cannot be combined with --legacy-flat.'
+  [[ -z $replan_analysis ]] || fail '--replan-analysis requires graph planning.'
   evidence_config=''
 fi
 [[ $implement_tools -eq 1 || $tool_options -eq 0 ]] || fail 'Tool implementation options require --implement-tools.'
@@ -78,6 +84,10 @@ inputs=$(absolute_path "$1")
 if [[ $evidence_planning == graph ]]; then
   evidence_config=$(absolute_path "$evidence_config")
   [[ -e $evidence_config ]] || fail "Evidence planning configuration does not exist: $evidence_config"
+fi
+if [[ -n $replan_analysis ]]; then
+  replan_analysis=$(absolute_path "$replan_analysis")
+  [[ -e $replan_analysis ]] || fail "Saved analysis does not exist: $replan_analysis"
 fi
 catalogue=''
 if [[ $# -eq 2 ]]; then
@@ -128,7 +138,7 @@ trap on_exit EXIT
 # Read each operator file once, bound its size, reject duplicate keys and retain
 # exact private snapshots. Only allowlisted scope fields enter the LLM request.
 python3 - "$inputs" "$catalogue" "$run_dir" "$implement_tools" "$tool_language" \
-  "$toolchain" "$tool_store" "$tool_max_calls" "$tool_timeout" "$evidence_planning" "$evidence_config" <<'PY'
+  "$toolchain" "$tool_store" "$tool_max_calls" "$tool_timeout" "$evidence_planning" "$evidence_config" "$replan_analysis" <<'PY'
 import datetime, hashlib, json, os, pathlib, re, stat, sys, urllib.parse
 
 inputs_path, catalogue_path, directory = map(pathlib.Path, sys.argv[1:4])
@@ -177,7 +187,8 @@ try:
         config_path = pathlib.Path(sys.argv[11])
         config_raw, config = read(config_path, limit=4_194_304)
         if (config.get('schema') != 'engarg.capability-planning-config/1'
-                or set(config) - {'schema', 'collector', 'connections', 'store', 'environment', 'ranking', 'scheduling', 'bindings'}
+                or set(config) - {'schema', 'collector', 'connections', 'store', 'environment', 'ranking', 'scheduling', 'bindings', 'prefer_configured'}
+                or 'prefer_configured' in config and type(config['prefer_configured']) is not bool
                 or not isinstance(config.get('ranking'), dict)
                 or not isinstance(config.get('scheduling'), dict)
                 or not isinstance(config.get('bindings'), list) or len(config['bindings']) > 4096):
@@ -289,6 +300,18 @@ try:
         'Discover identifiers before detailed reads; preserve incomplete historical access and independent judgements as gaps.'
     )
     request = dict(claim=claim, context=json.dumps(context, ensure_ascii=False), evidence=[])
+    reuse = None
+    if sys.argv[12]:
+        retained_path = pathlib.Path(sys.argv[12])
+        retained_raw, retained = read(retained_path, limit=16_777_216)
+        support = retained.get('evidence_planning')
+        if (retained.get('request') != request or not isinstance(retained.get('argument'), dict)
+                or not isinstance(support, dict) or support.get('schema') != 'engarg.support-planning/1'
+                or not isinstance(support.get('elaboration'), dict)
+                or not isinstance(support.get('routes'), dict)):
+            raise ValueError('Saved graph analysis must retain this exact operator request')
+        (directory / 'retained-analysis.snapshot.json').write_bytes(retained_raw)
+        reuse = {'source': str(retained_path), 'sha256': hashlib.sha256(retained_raw).hexdigest()}
     ages = {name: int(os.environ.get(variable, '86400')) for name, variable in [
         ('review_max_age_seconds', 'ENGARG_REVIEW_MAX_AGE_SECONDS'),
         ('acquisition_max_age_seconds', 'ENGARG_ACQUISITION_MAX_AGE_SECONDS')]}
@@ -307,7 +330,7 @@ try:
         'catalogue_selection': 'external' if catalogue_raw is not None else 'engarg built-in',
         'search_window_utc': window,
         'operator_inputs': str(inputs_path), 'operator_catalogue': str(catalogue_path) if catalogue_raw is not None else None,
-        'tool_implementation': implementation, 'evidence_planning': planning
+        'tool_implementation': implementation, 'evidence_planning': planning, 'analysis_reuse': reuse
     })
 except (KeyError, TypeError, ValueError, OSError, OverflowError):
     raise SystemExit('Input preflight failed. Check scope fields, exact query, time window, evidence planning configuration and connections, catalogue, toolchain, implementation budgets and freshness ages.')
@@ -338,7 +361,9 @@ eal_timeout=${ENGARG_EAL_TIMEOUT_SECS:-30}
 # Three retries permit up to four HTTP attempts per logical call, at most 28 with defaults.
 
 for required in cargo rustc; do command -v "$required" >/dev/null || fail "Required command for a full run: $required"; done
-: "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
+if [[ -z $replan_analysis || $implement_tools -eq 1 ]]; then
+  : "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
+fi
 if [[ $prepare_rust_image -eq 1 && $evidence_planning == flat ]]; then
   stage='Rust tooling prerequisites'
   command -v docker >/dev/null || fail 'Docker is required with --implement-tools. Install and start Docker before generating Rust collectors.'
@@ -418,6 +443,7 @@ record.update(git_commit=output('git','rev-parse','HEAD'), rustc=output('rustc',
     api='responses', http_retries=3, retry_max_delay_seconds=120)
 record['tool_implementation'] = json.loads((directory/'input-identity.json').read_text())['tool_implementation']
 record['evidence_planning'] = json.loads((directory/'input-identity.json').read_text())['evidence_planning']
+record['analysis_reuse'] = json.loads((directory/'input-identity.json').read_text())['analysis_reuse']
 if record['evidence_planning']['mode'] == 'graph':
     configuration = json.loads((directory/'evidence-config.json').read_text())
     collector = pathlib.Path(configuration['collector'])
@@ -448,6 +474,12 @@ if (envelope.get('is_error') is not False or not isinstance(result, dict)
         or result.get('source_syntax') != 'EAL/3'
         or not isinstance(methods, dict) or 'structured/1' not in methods):
     raise SystemExit('EAL host preflight requires EAL/3 syntax and the structured/1 method. Install the pinned compatible runtime.')
+for field in ['execution_limits', 'budgets']:
+    advertised = result.get(field)
+    if isinstance(advertised, dict) and 'collection_evidence' in advertised:
+        if type(advertised['collection_evidence']) is not int or advertised['collection_evidence'] < 1:
+            raise SystemExit('EAL host collection_evidence budget must be a positive integer')
+        break
 PY
 host_report=''
 
@@ -466,6 +498,12 @@ with_catalogue() {
   fi
 }
 run_analysis() {
+  if [[ -n $replan_analysis ]]; then
+    stage='retained analysis route planning'
+    "$engarg_bin" eal replan --input "$run_dir/retained-analysis.snapshot.json" \
+      --evidence-config "$run_dir/evidence-config.json" --output "$analysis_output"
+    return
+  fi
   if [[ $evidence_planning == graph ]]; then
     set -- "$@" --evidence-planning graph --evidence-config "$run_dir/evidence-config.json"
   fi
@@ -611,6 +649,17 @@ for filename in ['eal-preflight.json','eal-validation.json','evidence-plan.json'
 report = json.loads((directory/'analysis.json').read_text())
 bundle = json.loads((directory/'argument.bundle.json').read_text())
 identity = json.loads((directory/'input-identity.json').read_text())
+summary_common = {
+    'evidence_collected': False,
+    'argument_status': report['argument']['status'],
+    'recorded_model_calls': len(report.get('transcript', [])),
+    'model_calls_this_run': 0 if identity['analysis_reuse'] else len(report.get('transcript', [])),
+    'analysis_reuse': identity['analysis_reuse'],
+    'presentations': {name: str(directory / filename) for name, filename in {
+        'json': 'analysis.json', 'markdown': 'argument.md', 'text': 'argument.txt',
+        'html': 'argument.html', 'prose': 'prose.md'
+    }.items()},
+}
 if identity['evidence_planning']['mode'] == 'graph':
     planning = report.get('evidence_planning')
     try:
@@ -629,6 +678,35 @@ if identity['evidence_planning']['mode'] == 'graph':
     requirements = planning['elaboration']['requirements']
     acquisitions = routes['routes']
     gaps = routes['gaps']
+    budget = exported.get('collection_budget')
+    if (not isinstance(budget, dict) or budget.get('schema') != 'engarg.collection-budget/1'
+            or type(budget.get('assumed_default_limit')) is not int or budget['assumed_default_limit'] < 1
+            or type(budget.get('total_emitted_evidence')) is not int or budget['total_emitted_evidence'] < 0
+            or not isinstance(budget.get('claim_evidence_counts'), dict)
+            or any(type(count) is not int or count < 0 for count in budget['claim_evidence_counts'].values())):
+        raise SystemExit('Graph evidence plan requires valid collection-budget counts and an explicit default assumption')
+    selected_limit = budget['assumed_default_limit']
+    limit_source = 'exported.collection_budget.assumed_default_limit'
+    limit_is_assumed = True
+    description = json.loads((directory/'eal-preflight.json').read_text())['result']
+    # The current EAL service publishes execution_limits. Accept budgets as a
+    # compatibility alias, while retaining the exact source used.
+    for field in ['execution_limits', 'budgets']:
+        advertised = description.get(field)
+        if isinstance(advertised, dict) and 'collection_evidence' in advertised:
+            selected_limit = advertised['collection_evidence']
+            if type(selected_limit) is not int or selected_limit < 1:
+                raise SystemExit('EAL host collection_evidence budget must be a positive integer')
+            limit_source = 'eal-preflight.result.' + field + '.collection_evidence'
+            limit_is_assumed = False
+            break
+    collection_admission = {
+        'selection': 'all_emitted_evidence',
+        'evidence_count': budget['total_emitted_evidence'],
+        'limit': selected_limit, 'limit_source': limit_source,
+        'limit_is_assumed': limit_is_assumed,
+        'within_limit': budget['total_emitted_evidence'] <= selected_limit,
+    }
     readiness = {
         'schema': 'engarg.graph-readiness/1',
         'case_digest': exported['case_digest'],
@@ -636,17 +714,22 @@ if identity['evidence_planning']['mode'] == 'graph':
         'requirements': len(requirements), 'logical_acquisitions': len(acquisitions),
         'selected_capabilities': sorted({route['selected'] for route in acquisitions if route.get('selected')}),
         'routes': acquisitions, 'gaps': gaps, 'pending': exported['pending'],
+        'collection_budget': budget, 'collection_admission': collection_admission,
         'discovery_incomplete': routes['discovery']['incomplete'],
-        'ready_for_collection': bool(acquisitions) and not gaps and not routes['discovery']['incomplete'] and all(route.get('selected') and not route.get('configuration_gaps') for route in acquisitions),
+        'ready_for_collection': collection_admission['within_limit'] and bool(acquisitions) and not gaps and not routes['discovery']['incomplete'] and all(route.get('selected') and not route.get('configuration_gaps') for route in acquisitions),
         'evidence_collected': False, 'evidence_truth_verified': False, 'inferential_soundness_verified': False,
         'independent_review_obligations': len(exported['independent_review_obligations']),
         'next_step': 'Resolve typed configuration, availability, qualification and clarification gaps before explicit collection; independent judgement remains separate.'
     }
+    if not collection_admission['within_limit']:
+        readiness['next_step'] = ('Default collect-all selects %s emitted evidence declarations against limit %s from %s. '
+            'Review the selected host budget or explicitly select a bounded claim before collection; the complete graph and independent reviews remain retained.' % (
+                budget['total_emitted_evidence'], selected_limit, limit_source))
     summary = {
-        'completed_phase': 'argument authoring, independent support extraction, qualified route planning and deterministic export validation',
-        'evidence_planning': 'graph', 'argument_status': report['argument']['status'],
-        'recorded_model_calls': len(report.get('transcript', [])),
-        'evidence_collected': False, 'graph_readiness': readiness,
+        **summary_common,
+        'completed_phase': ('retained argument route replanning and deterministic export validation' if identity['analysis_reuse']
+                            else 'argument authoring, independent support extraction, qualified route planning and deterministic export validation'),
+        'evidence_planning': 'graph', 'graph_readiness': readiness,
         'next_step': readiness['next_step'],
         'tool_implementation': {'enabled': identity['tool_implementation']['enabled']},
     }
@@ -667,14 +750,8 @@ if identity['evidence_planning']['mode'] == 'graph':
 plan = bundle.get('acquisition_plan') or {}
 entries = plan.get('entries', [])
 summary = {
+    **summary_common,
     'completed_phase': 'argument authoring and deterministic export validation',
-    'evidence_collected': False,
-    'argument_status': report['argument']['status'],
-    'recorded_model_calls': len(report.get('transcript', [])),
-    'presentations': {name: str(directory / filename) for name, filename in {
-        'json': 'analysis.json', 'markdown': 'argument.md', 'text': 'argument.txt',
-        'html': 'argument.html', 'prose': 'prose.md'
-    }.items()},
     'selected_collectors': sorted({entry['tool_id'] for entry in entries}),
     'unresolved_arguments': [{'need_id': entry['need_id'], 'arguments': entry['unresolved_arguments']}
         for entry in entries if entry['unresolved_arguments']],
@@ -713,7 +790,11 @@ if implementation['enabled']:
         summary['tool_implementation']['coverage'] = tooling['coverage']
 (directory/'run-summary.json').write_text(json.dumps(summary, indent=2)+'\n')
 PY
-printf 'Authoring, rendering, export and EAL planning passed. Artifacts: %s\n' "$run_dir"
+if [[ -n $replan_analysis ]]; then
+  printf 'Route replanning, rendering, export and EAL planning passed. Artifacts: %s\n' "$run_dir"
+else
+  printf 'Authoring, rendering, export and EAL planning passed. Artifacts: %s\n' "$run_dir"
+fi
 if [[ $evidence_planning == graph ]]; then
   python3 - "$run_dir/graph-readiness.json" <<'PY'
 import json, sys
@@ -721,6 +802,9 @@ with open(sys.argv[1], encoding='utf-8') as source:
     readiness = json.load(source)
 print('Graph readiness: %s requirements; %s shared logical acquisitions; %s typed gaps; ready for collection: %s. Evidence truth and inferential soundness remain unverified.' % (
     readiness['requirements'], readiness['logical_acquisitions'], len(readiness['gaps']), readiness['ready_for_collection']))
+budget = readiness['collection_admission']
+print('Collection budget for all emitted evidence: %s/%s; source: %s; assumed limit: %s.' % (
+    budget['evidence_count'], budget['limit'], budget['limit_source'], budget['limit_is_assumed']))
 PY
 else
   printf 'Review per-need bindings and independent review obligations before collection and assessment.\n'

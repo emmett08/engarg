@@ -99,6 +99,9 @@ fn validation_errors(
         retained,
         config.max_argument_depth,
     );
+    if candidate.support_elaboration.schema != support_requirements::SUPPORT_ELABORATION_SCHEMA {
+        errors.push("new support extraction must use engarg.support-elaboration/2 with explicit alternative support; legacy /1 is import-only".into());
+    }
     errors.extend(match previous {
         Some(previous) => support_requirements::validate_revision(
             &previous.argument,

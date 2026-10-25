@@ -1,6 +1,6 @@
 use super::*;
 use crate::support_requirements::{
-    AcquisitionBlueprint,
+    AcquisitionBlueprint, OperationSpecification,
     tests::{case, pending},
 };
 use eal_collector_contracts::{capability::*, execution::*};
@@ -32,6 +32,14 @@ fn fixture() -> (
         arguments: json!({"revision":"r1","expression":"3+4"}),
         bindings: vec![],
         for_each: None,
+        operation_spec: Some(OperationSpecification {
+            schema: "engarg.operation-specification/1".into(),
+            definition: "Evaluate the supplied arithmetic expression exactly for the identified revision.".into(),
+            input_conditions: vec!["expression is a supported exact arithmetic expression".into()],
+            output_guarantees: vec!["result is the exact expression value in unit 1".into()],
+            input_schema: json!({"type":"object","properties":{"revision":{"type":"string"},"expression":{"type":"string"}},"required":["revision","expression"],"additionalProperties":false}),
+            output_schema: json!({"type":"object","properties":{"result":{"type":"integer"}},"required":["result"],"additionalProperties":false}),
+        }),
     });
     elaboration.evaluations[0].inputs = vec![OutputReference {
         step_id: "compute".into(),
@@ -58,6 +66,7 @@ fn fixture() -> (
         connections: "/operator/connections.json".into(),
         store: "/operator/store".into(),
         environment: vec![],
+        prefer_configured: false,
         ranking: RankingPolicy {
             dimensions: vec![
                 CostDimension::ExecutionRequests,
@@ -89,7 +98,7 @@ fn qualified_outputs_project_without_changing_acceptance_or_original_requirement
     );
     assert_ne!(plan.execution.evaluations[0].inputs[0].step_id, "compute");
     assert!(
-        matches!(&plan.execution.derivations[0].operation,DerivationOperation::Project{fields} if fields.get("result")==Some(&"/value".to_owned()))
+        matches!(&plan.execution.derivations[0].operation,DerivationOperation::ProjectValue{fields} if fields.get("result")==Some(&"/value".to_owned()))
     );
 }
 #[test]
@@ -238,8 +247,9 @@ fn unrelated_catalogue_does_not_hide_a_missing_transformation() {
 
 #[test]
 fn configured_adequate_route_is_selected_before_pending_configuration() {
-    let (case, elaboration, mut catalogue, config, discovery) = fixture();
+    let (case, elaboration, mut catalogue, mut config, discovery) = fixture();
     let mut unavailable = catalogue.capabilities[0].clone();
+    config.prefer_configured = true;
     unavailable.id = "cheap-unconfigured".into();
     unavailable.costs.execution_requests = CostEstimate::declared(0, "declared request estimate");
     catalogue.capabilities.push(unavailable);
@@ -257,14 +267,114 @@ fn configured_adequate_route_is_selected_before_pending_configuration() {
 }
 
 #[test]
-fn generated_interfaces_preserve_arbitrary_integers_and_heterogeneous_inputs() {
+fn cost_policy_can_select_an_adequate_route_that_still_needs_configuration() {
+    let (case, elaboration, mut catalogue, config, discovery) = fixture();
+    let mut cheaper = catalogue.capabilities[0].clone();
+    cheaper.id = "cheap-unconfigured".into();
+    cheaper.costs.execution_requests = CostEstimate::declared(0, "operator estimate");
+    catalogue.capabilities.push(cheaper);
+    let plan = compile(&case, &elaboration, &catalogue, &config, &discovery).unwrap();
+    assert_eq!(
+        plan.routes[0].selected.as_deref(),
+        Some("cheap-unconfigured")
+    );
+    assert!(!plan.routes[0].configuration_gaps.is_empty());
+}
+
+#[test]
+fn critic_sees_deduplicated_qualified_batch_shapes_without_operator_arguments() {
+    let (case, elaboration, mut catalogue, config, discovery) = fixture();
+    let mut batch = catalogue.capabilities[0].clone();
+    batch.id = "batch".into();
+    batch.input_schema["properties"]["expressions"] =
+        json!({"type":"array","items":{"type":"string"},"default":["PRIVATE"]});
+    batch.input_schema_sha256 = schema_identity(&batch.input_schema).unwrap();
+    catalogue.capabilities.push(batch);
+    let plan = compile(&case, &elaboration, &catalogue, &config, &discovery).unwrap();
+    let planner = Planner {
+        catalogue,
+        config,
+        discovery,
+    };
+    let preview = planner.preview(&plan).unwrap();
+    let interfaces = preview["qualified_alternatives"]["interfaces"]
+        .as_array()
+        .unwrap();
+    assert_eq!(interfaces.len(), 2);
+    let batch = interfaces
+        .iter()
+        .find(|item| item["capability_id"] == "batch")
+        .unwrap();
+    assert_eq!(
+        batch["input_shape"]["properties"]["expressions"]["type"],
+        "array"
+    );
+    assert!(!preview.to_string().contains("PRIVATE"));
+    assert!(preview.get("configuration").is_none());
+    assert!(preview["qualified_sources"][0].get("semantics").is_none());
+}
+
+#[test]
+fn joint_cost_selection_shares_a_combined_measurement_across_distinct_quantities() {
+    let (case, mut elaboration, mut catalogue, config, mut discovery) = fixture();
+    let mut second = elaboration.acquisitions[0].clone();
+    second.id = "memory_source".into();
+    second.contract.quantities[0].name = "memory".into();
+    elaboration.acquisitions[0].contract.quantities[0].name = "cpu".into();
+    elaboration.requirements[0].contract = Some(elaboration.acquisitions[0].contract.clone());
+    elaboration.evaluations[0].inputs[0].pointer = "/cpu".into();
+    elaboration.acquisitions.push(second.clone());
+    elaboration.requirements[1].contract = Some(second.contract);
+    elaboration.requirements[1].gaps.clear();
+    elaboration.requirements[1].acceptance = EvaluationCriterion::Equals { expected: json!(7) };
+    elaboration.evaluations[1].criterion = elaboration.requirements[1].acceptance.clone();
+    elaboration.evaluations[1].inputs = vec![OutputReference {
+        step_id: "memory_source".into(),
+        pointer: "/memory".into(),
+    }];
+    elaboration.evaluations[1].max_age_seconds = Some(60);
+    let mut cpu = catalogue.capabilities[0].clone();
+    cpu.id = "a_cpu".into();
+    cpu.semantics.as_mut().unwrap().quantities[0].name = "cpu".into();
+    cpu.costs.execution_requests = CostEstimate::declared(1, "one source request");
+    let mut memory = cpu.clone();
+    memory.id = "b_memory".into();
+    memory.semantics.as_mut().unwrap().quantities[0].name = "memory".into();
+    let mut both = cpu.clone();
+    both.id = "z_combined".into();
+    both.semantics
+        .as_mut()
+        .unwrap()
+        .quantities
+        .push(memory.semantics.as_ref().unwrap().quantities[0].clone());
+    discovery.admitted_capabilities = vec![cpu.id.clone(), memory.id.clone(), both.id.clone()];
+    catalogue.capabilities = vec![cpu, memory, both];
+    let plan = compile(&case, &elaboration, &catalogue, &config, &discovery).unwrap();
+    assert!(
+        plan.routes
+            .iter()
+            .all(|route| route.selected.as_deref() == Some("z_combined"))
+    );
+    let selection = plan.selection.unwrap();
+    assert!(selection.search_complete);
+    assert_eq!(selection.estimated_distinct_acquisitions, Some(1));
+    assert_eq!(selection.total_costs[0], (0, 1));
+}
+
+#[test]
+fn generated_interfaces_preserve_explicit_arbitrary_integer_and_heterogeneous_contracts() {
     let (_, mut elaboration, _, _, _) = fixture();
     elaboration.acquisitions[0].arguments = eal_collector_contracts::strict_json_exact(
         br#"{"revision":"r1","items":[123456789012345678901234567890,true,"trace"]}"#,
         Default::default(),
     )
     .unwrap();
-    let request = implementation::request(&elaboration.acquisitions[0]).unwrap();
+    elaboration.acquisitions[0]
+        .operation_spec
+        .as_mut()
+        .unwrap()
+        .input_schema = json!({"type":"object","properties":{"revision":{"type":"string"},"items":{"type":"array","items":{"anyOf":[{"type":"integer"},{"type":"boolean"},{"type":"string"}]}}},"required":["revision","items"],"additionalProperties":false});
+    let request = implementation::request(&elaboration.acquisitions[0], &elaboration).unwrap();
     request.validate().unwrap();
     let items = &request.input_schema["properties"]["items"]["items"]["anyOf"];
     assert_eq!(items.as_array().unwrap().len(), 3);
@@ -276,12 +386,127 @@ fn generated_interfaces_preserve_arbitrary_integers_and_heterogeneous_inputs() {
             .any(|schema| schema["type"] == "integer")
     );
     elaboration.acquisitions[0].contract.quantities.clear();
-    let request = implementation::request(&elaboration.acquisitions[0]).unwrap();
+    let request = implementation::request(&elaboration.acquisitions[0], &elaboration).unwrap();
     request.validate().unwrap();
     assert!(
         request.output_schema["required"]
             .as_array()
             .unwrap()
-            .contains(&json!("value"))
+            .contains(&json!("result"))
     );
+}
+
+#[test]
+fn an_undefined_operation_remains_a_clarification_instead_of_invented_code() {
+    let (case, mut elaboration, mut catalogue, config, discovery) = fixture();
+    catalogue.capabilities.clear();
+    elaboration.acquisitions[0].operation_spec = None;
+    let plan = compile(&case, &elaboration, &catalogue, &config, &discovery).unwrap();
+    assert!(
+        plan.gaps
+            .iter()
+            .any(|gap| gap.kind == GapKind::Clarification)
+    );
+    assert!(plan.gaps.iter().all(|gap| gap.implementation.is_none()));
+}
+
+#[test]
+fn shared_request_estimates_preserve_scope_and_arguments_but_not_consumer_age() {
+    let (_, mut elaboration, mut catalogue, config, discovery) = fixture();
+    catalogue.capabilities[0].costs.execution_requests = CostEstimate::declared(1, "one read");
+    let mut second = elaboration.acquisitions[0].clone();
+    second.id = "second".into();
+    second.contract.time.max_age_seconds = Some(30);
+    elaboration.acquisitions.push(second);
+    let (_, shared) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    assert_eq!(shared.estimated_distinct_acquisitions, Some(1));
+    assert_eq!(shared.estimated_distinct_acquisitions_upper_bound, Some(2));
+    elaboration.acquisitions[1].arguments["expression"] = json!("5+6");
+    let (_, distinct) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    assert_eq!(distinct.estimated_distinct_acquisitions, Some(2));
+    elaboration.acquisitions[1].arguments["expression"] = json!("3+4");
+    elaboration.acquisitions[1]
+        .contract
+        .scope
+        .selectors
+        .insert("revision".into(), json!("r2"));
+    let (_, scoped) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    assert_eq!(scoped.estimated_distinct_acquisitions, Some(2));
+}
+
+#[test]
+fn bounded_selection_reports_pruning_and_never_overflows_known_costs() {
+    let (_, mut elaboration, mut catalogue, config, discovery) = fixture();
+    let original = catalogue.capabilities[0].clone();
+    catalogue.capabilities = (0..65)
+        .map(|index| {
+            let mut capability = original.clone();
+            capability.id = format!("candidate_{index:02}");
+            capability.costs.execution_requests =
+                CostEstimate::declared(u64::MAX, "large estimate");
+            capability
+        })
+        .collect();
+    let mut second = elaboration.acquisitions[0].clone();
+    second.id = "second".into();
+    second.arguments["expression"] = json!("5+6");
+    elaboration.acquisitions.push(second);
+    let (_, selected) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    assert!(!selected.search_complete);
+    assert_eq!(selected.total_costs[0], (0, 2 * u128::from(u64::MAX)));
+    assert_eq!(selected.estimated_distinct_acquisitions, Some(2));
+}
+
+#[test]
+fn fanout_preserves_unknown_cost_and_explicit_call_bound() {
+    let (_, mut elaboration, mut catalogue, config, discovery) = fixture();
+    catalogue.capabilities[0].costs.execution_requests =
+        CostEstimate::declared(1, "one detail request");
+    catalogue.capabilities[0].costs.transfer_bytes =
+        CostEstimate::declared(100, "one detail response");
+    elaboration.acquisitions[0].for_each = Some(ForEachBinding {
+        output: OutputReference {
+            step_id: "identifier_search".into(),
+            pointer: "/ids".into(),
+        },
+        argument_pointer: "/expression".into(),
+        maximum_items: 1000,
+        stop_on_witness: None,
+    });
+    let (_, selection) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    assert_eq!(selection.total_costs, vec![(1, 0), (1, 0)]);
+    assert_eq!(selection.estimated_distinct_acquisitions, None);
+    assert_eq!(
+        selection.estimated_distinct_acquisitions_upper_bound,
+        Some(1000)
+    );
+    assert_eq!(selection.dynamic_acquisition_groups, 1);
+}
+
+#[test]
+fn dependent_request_groups_report_bounds_without_claiming_distinct_resolved_sources() {
+    let (_, mut elaboration, mut catalogue, config, discovery) = fixture();
+    catalogue.capabilities[0].costs.execution_requests = CostEstimate::declared(1, "one request");
+    elaboration.acquisitions[0]
+        .bindings
+        .push(DependencyBinding {
+            output: OutputReference {
+                step_id: "first_selector".into(),
+                pointer: "/expression".into(),
+            },
+            argument_pointer: "/expression".into(),
+        });
+    let mut second = elaboration.acquisitions[0].clone();
+    second.id = "second_detail".into();
+    second.bindings[0].output.step_id = "second_selector".into();
+    elaboration.acquisitions.push(second);
+    let (_, selection) = selection::prepare(&elaboration, &catalogue, &config, &discovery).unwrap();
+    assert_eq!(selection.estimated_distinct_acquisitions, None);
+    assert_eq!(
+        selection.estimated_distinct_acquisitions_upper_bound,
+        Some(2)
+    );
+    assert_eq!(selection.dynamic_acquisition_groups, 2);
+    assert_eq!(selection.total_costs[0], (0, 2));
+    assert!(selection.method.contains("symbolic_request_sharing"));
 }

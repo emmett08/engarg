@@ -5,6 +5,8 @@ mod configuration;
 pub use compiler::compile;
 mod candidates;
 mod implementation;
+mod preview;
+mod selection;
 #[cfg(test)]
 mod tests;
 mod types;
@@ -29,7 +31,9 @@ impl RouteResolver for Planner {
             "schema":plan.schema,
             "routes":plan.routes,
             "gaps":plan.gaps.iter().map(|gap|serde_json::json!({"acquisition_id":gap.acquisition_id,"requirement_id":gap.requirement_id,"kind":gap.kind,"description":gap.description})).collect::<Vec<_>>(),
-            "qualified_sources":plan.projections.iter().map(|route|serde_json::json!({"blueprint_id":route.blueprint_id,"capability_id":route.capability.id,"version":route.capability.version,"semantics":route.capability.semantics,"limits":route.capability.limits})).collect::<Vec<_>>(),
+            "qualified_sources":plan.projections.iter().map(|route|serde_json::json!({"blueprint_id":route.blueprint_id,"capability_id":route.capability.id,"version":route.capability.version})).collect::<Vec<_>>(),
+            "qualified_alternatives":preview::alternatives(&self.catalogue, plan),
+            "selection":plan.selection,
             "discovery_incomplete":plan.discovery.incomplete,
             "acquisition_count":plan.execution.acquisitions.len(),
             "derivation_count":plan.execution.derivations.len(),

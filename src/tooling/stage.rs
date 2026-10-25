@@ -1,15 +1,13 @@
 //! Generate collectors without changing argument authorship or registering untested code.
 use super::{
-    contracts::{
-        CONTRACT_SCHEMA, CodeCandidate, NeedContract, digest_json, validate_candidate,
-        validate_contract, validate_language,
-    },
-    generation::{code_request, draft_request, parse_candidate, parse_draft},
+    completion::{CompletionBudget, CompletionLimits},
+    contracts::{CONTRACT_SCHEMA, NeedContract, digest_json, validate_contract, validate_language},
+    generation::{code_request, draft_request, parse_draft},
     package::{PackageStore, VerifiedPackage, load_verified},
     profile::ToolchainProfile,
-    runner::{DockerRunner, RunnerIdentity},
+    runner::DockerRunner,
     saved::{self, SavedInput},
-    verification,
+    verified_build::VerifiedBuild,
 };
 use crate::{
     Error,
@@ -28,7 +26,6 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Instant,
 };
 
 const TOOLING_SCHEMA: &str = "engarg.tooling/1";
@@ -316,34 +313,16 @@ impl ToolingSession {
         phase: &str,
         need: &str,
         request: CompletionRequest,
-        calls: &mut u32,
+        calls: &CompletionBudget,
     ) -> Result<Completion, Error> {
-        if *calls >= self.config.max_calls {
-            return Err(Error::Budget("tooling model call budget exhausted".into()));
-        }
-        if serde_json::to_vec(&request)?.len() > self.config.max_input_bytes {
-            return Err(Error::Budget(
-                "tooling model request exceeds its input byte budget".into(),
-            ));
-        }
-        self.audit(&json!({"event":"request","phase":phase,"need_id":need,"request":request}))?;
-        *calls += 1;
-        let started = Instant::now();
-        let completion = match model.complete(request).await {
-            Ok(completion) => completion,
-            Err(error) => {
-                self.audit(&json!({"event":"provider_failure","phase":phase,"need_id":need,"elapsed_ms":started.elapsed().as_millis()}))?;
-                return Err(error);
-            }
-        };
-        if completion.content.len() > self.config.max_response_bytes {
-            self.audit(&json!({"event":"response_limit","phase":phase,"need_id":need,"response_bytes":completion.content.len()}))?;
-            return Err(Error::Budget(
-                "tooling model response exceeds its byte budget".into(),
-            ));
-        }
-        self.audit(&json!({"event":"completion","phase":phase,"need_id":need,"completion":completion,"elapsed_ms":started.elapsed().as_millis()}))?;
-        Ok(completion)
+        calls
+            .complete(model, request, |event| {
+                let mut record = event.record();
+                record["phase"] = json!(phase);
+                record["need_id"] = json!(need);
+                self.audit(&record)
+            })
+            .await
     }
     pub async fn implement<M: LanguageModel>(
         &self,
@@ -413,7 +392,11 @@ impl ToolingSession {
         let mut generated = empty_catalogue();
         let mut overrides = Vec::new();
         let mut packages = Vec::new();
-        let mut calls = 0;
+        let calls = CompletionBudget::new(CompletionLimits {
+            max_calls: self.config.max_calls,
+            max_input_bytes: self.config.max_input_bytes,
+            max_response_bytes: self.config.max_response_bytes,
+        })?;
         for item in work {
             if cancellation.is_cancelled() {
                 return Err(Error::Provider("tool implementation cancelled".into()));
@@ -421,15 +404,8 @@ impl ToolingSession {
             let (package, reused) = match item {
                 Work::Reuse(package) => (*package, true),
                 Work::Frozen(key, contract) => (
-                    self.code_and_verify(
-                        model,
-                        &key,
-                        *contract,
-                        &identity,
-                        &mut calls,
-                        cancellation,
-                    )
-                    .await?,
+                    self.code_and_verify(model, &key, *contract, &calls, cancellation)
+                        .await?,
                     false,
                 ),
                 Work::Fresh(key, need) => {
@@ -445,7 +421,7 @@ impl ToolingSession {
                                 &self.config.language,
                                 &description,
                             ),
-                            &mut calls,
+                            &calls,
                         )
                         .await?;
                     let draft = parse_draft(response.content.as_bytes())?;
@@ -460,15 +436,8 @@ impl ToolingSession {
                     validate_contract(&contract)?;
                     let contract = self.store.freeze_contract(&key, &contract, &identity)?;
                     (
-                        self.code_and_verify(
-                            model,
-                            &key,
-                            contract,
-                            &identity,
-                            &mut calls,
-                            cancellation,
-                        )
-                        .await?,
+                        self.code_and_verify(model, &key, contract, &calls, cancellation)
+                            .await?,
                         false,
                     )
                 }
@@ -503,7 +472,8 @@ impl ToolingSession {
             )));
         }
         let coverage = ToolingCoverage::derived(&input, &packages);
-        self.audit(&json!({"event":"coverage", "model_calls":calls, "coverage":coverage}))?;
+        let model_calls = calls.calls()?;
+        self.audit(&json!({"event":"coverage", "model_calls":model_calls, "coverage":coverage}))?;
         let metadata = ToolingReport {
             schema: TOOLING_SCHEMA.into(),
             language: self.config.language.clone(),
@@ -513,7 +483,7 @@ impl ToolingSession {
             catalogue: generated,
             overrides,
             packages,
-            model_calls: calls,
+            model_calls,
             audit_path: self.config.output_dir.join("tooling.audit.jsonl"),
             coverage: Some(coverage),
         };
@@ -526,11 +496,9 @@ impl ToolingSession {
         model: &M,
         key: &str,
         contract: NeedContract,
-        identity: &RunnerIdentity,
-        calls: &mut u32,
+        calls: &CompletionBudget,
         cancellation: &CancellationToken,
     ) -> Result<VerifiedPackage, Error> {
-        let attempt = self.store.new_attempt(key)?;
         let response = self
             .complete(
                 model,
@@ -540,50 +508,8 @@ impl ToolingSession {
                 calls,
             )
             .await?;
-        let candidate: CodeCandidate = parse_candidate(response.content.as_bytes())?;
-        validate_candidate(&contract, &candidate)?;
-        self.store.save_candidate(
-            &attempt,
-            &contract,
-            &candidate,
-            &self.config.profile,
-            identity,
-        )?;
-        let runner = Arc::clone(&self.runner);
-        let task_contract = contract.clone();
-        let task_candidate = candidate.clone();
-        let task_attempt = attempt.clone();
-        let task_cancel = cancellation.clone();
-        let receipt = tokio::task::spawn_blocking(move || {
-            verification::verify(
-                runner.as_ref(),
-                &task_contract,
-                &task_candidate,
-                &task_attempt,
-                &task_cancel,
-            )
-        })
-        .await
-        .map_err(|_| Error::Provider("tool fixture worker failed".into()))??;
-        if cancellation.is_cancelled() {
-            return Err(Error::Provider("tool implementation cancelled".into()));
-        }
-        self.audit(&json!({"event":"verification","need_id":contract.need.id,"passed":receipt.passed,"attempt":attempt}))?;
-        if !receipt.passed {
-            return Err(Error::InvalidOutput(format!(
-                "generated collector failed contract fixtures; inspect {}",
-                attempt.join("test-results.json").display()
-            )));
-        }
-        self.store.commit_verified(
-            key,
-            &attempt,
-            contract,
-            candidate,
-            self.config.profile.clone(),
-            identity.clone(),
-            receipt,
-        )
+        VerifiedBuild{store:&self.store,key,profile:&self.config.profile,runner:self.runner.clone(),cancellation}
+            .commit(contract,response.content.as_bytes(),|event| self.audit(&json!({"event":"verification","need_id":event.need_id,"passed":event.passed,"attempt":event.attempt}))).await
     }
 }
 impl ToolingReport {

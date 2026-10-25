@@ -3,7 +3,10 @@ use engarg::{
     domain::{ArgumentCase, Request},
     engine::SupportRunReport,
     route_planning::RoutePlan,
-    support_requirements::{SupportElaboration, material_targets, validate_elaboration},
+    support_requirements::{
+        SUPPORT_ELABORATION_SCHEMA, SupportElaboration, alternative_obligations, material_targets,
+        validate_elaboration,
+    },
 };
 use serde_json::{Value, json};
 use std::{
@@ -36,7 +39,12 @@ fn pending(case: &ArgumentCase) -> SupportElaboration {
         }));
         evaluations.push(json!({"id":format!("evaluation_{id}"),"requirement_id":id,"inputs":[],"criterion":criterion,"max_age_seconds":null,"required_coverage":"unspecified","applicability":[],"challenges":[]}));
     }
-    serde_json::from_value(json!({"schema":"engarg.support-elaboration/1","requirements":requirements,"acquisitions":[],"derivations":[],"evaluations":evaluations,"revisions":[]})).unwrap()
+    let alternative_support=alternative_obligations(case).into_iter().map(|alternative| {
+        let requirement=requirements.last_mut().unwrap();
+        requirement["discriminating_evidence"].as_array_mut().unwrap().push(json!(alternative.distinguishing_test));
+        json!({"alternative_id":alternative.alternative_id,"distinguishing_test":alternative.distinguishing_test,"claim_ids":alternative.claim_ids,"requirement_ids":[requirement["id"]]})
+    }).collect::<Vec<_>>();
+    serde_json::from_value(json!({"schema":SUPPORT_ELABORATION_SCHEMA,"requirements":requirements,"acquisitions":[],"derivations":[],"evaluations":evaluations,"revisions":[],"alternative_support":alternative_support})).unwrap()
 }
 
 fn receive(listener: &TcpListener, index: usize) -> (TcpStream, Value) {

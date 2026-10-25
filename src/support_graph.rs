@@ -1,12 +1,17 @@
 //! Format-independent compilation of qualified support acquisition graphs.
+mod inputs;
 use crate::{Error, support_requirements::SupportElaboration};
 use eal_collector_contracts::{
-    capability::{CapabilityDescriptor, compatible},
+    capability::{
+        CapabilityDescriptor, SupportContract, canonical_identity, compatible,
+        validate_historical_input,
+    },
     execution::{
         DerivationOperation, DerivationStep, EvidenceExecutionPlan, OutputReference,
         SourceAvailability, canonical_digest, valid_pointer,
     },
 };
+pub use inputs::{materialise_source_arguments, physical_dependencies, set_pointer};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -20,6 +25,13 @@ pub struct AcquisitionRouteProof {
     /// Physical input pointer -> original logical argument pointer.
     #[serde(default)]
     pub input_bindings: BTreeMap<String, String>,
+    /// Operator-owned physical constants, before logical bindings are applied.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "eal_collector_contracts::deserialize_optional_value_exact"
+    )]
+    pub operator_arguments: Option<serde_json::Value>,
 }
 
 /// Compile the logical graph using only qualified output-pointer mappings.
@@ -98,6 +110,24 @@ fn expected_graph(
             ));
         }
         let step = actual[route.blueprint_id.as_str()];
+        let (expected_arguments, gaps) = materialise_source_arguments(
+            blueprint,
+            &route.capability,
+            route.operator_arguments.as_ref(),
+            &route.input_bindings,
+        )?;
+        if canonical_digest(&expected_arguments).map_err(Error::InvalidInput)?
+            != canonical_digest(&step.arguments).map_err(Error::InvalidInput)?
+        {
+            return Err(invalid(
+                "physical arguments differ from the original logical inputs and operator projection",
+            ));
+        }
+        if matches!(step.availability, SourceAvailability::Configured) && !gaps.is_empty() {
+            return Err(invalid(
+                "a configured source has unresolved logical input projection requirements",
+            ));
+        }
         if route.input_bindings.values().collect::<BTreeSet<_>>().len()
             != route.input_bindings.len()
             || route.input_bindings.iter().any(|(physical, logical)| {
@@ -114,6 +144,13 @@ fn expected_graph(
         }
         let descriptor = &route.capability;
         let source = &step.source;
+        let mut expected_scope = descriptor
+            .semantics
+            .as_ref()
+            .expect("compatible route is qualified")
+            .scope_constraints
+            .clone();
+        expected_scope.extend(blueprint.contract.scope.selectors.clone());
         if source.provider_id != descriptor.provider.id
             || source.capability_id != descriptor.id
             || source.capability_version != descriptor.version
@@ -124,12 +161,11 @@ fn expected_graph(
                     .measurement_identity()
                     .map_err(Error::InvalidInput)?
             || source.configuration_sha256 != descriptor.provider.configuration_sha256
-            || blueprint
-                .contract
-                .scope
-                .selectors
-                .iter()
-                .any(|(key, value)| source.scope.get(key) != Some(value))
+            || source.authentication_scope_sha256
+                != canonical_identity(&descriptor.provider.authentication_scope)
+                    .map_err(Error::InvalidInput)?
+            || canonical_digest(&source.scope).map_err(Error::InvalidInput)?
+                != canonical_digest(&expected_scope).map_err(Error::InvalidInput)?
         {
             return Err(invalid(
                 "execution source identity differs from its qualified route proof or required scope",
@@ -173,7 +209,11 @@ fn expected_graph(
                         step_id: route.blueprint_id.clone(),
                         pointer: String::new(),
                     }],
-                    operation: DerivationOperation::Project { fields },
+                    operation: if blueprint.for_each.is_some() {
+                        DerivationOperation::Project { fields }
+                    } else {
+                        DerivationOperation::ProjectValue { fields }
+                    },
                 },
             );
         }
@@ -195,9 +235,36 @@ fn expected_graph(
     let mut result = execution.clone();
     for step in &mut result.acquisitions {
         let blueprint = logical[step.id.as_str()];
+        if !admitted_routes.contains_key(step.id.as_str())
+            && canonical_digest(&step.arguments).map_err(Error::InvalidInput)?
+                != canonical_digest(&blueprint.arguments).map_err(Error::InvalidInput)?
+        {
+            return Err(invalid(
+                "an unavailable source without a route proof must retain its logical arguments",
+            ));
+        }
         // This source limit is independent of downstream evaluation ages and
         // remains binding even for unavailable operations without route proofs.
         step.max_age_seconds = blueprint.contract.time.max_age_seconds;
+        step.source.historical_interval = historical_interval(&blueprint.contract)?;
+        if matches!(step.availability, SourceAvailability::Configured)
+            && let Some(interval) = &step.source.historical_interval
+        {
+            let route = admitted_routes
+                .get(step.id.as_str())
+                .expect("configured source has a route proof");
+            validate_historical_input(
+                &route.capability,
+                &step.arguments,
+                &interval.start,
+                &interval.end,
+            )
+            .map_err(|error| {
+                invalid(&format!(
+                    "historical input differs from its original acquisition contract: {error}"
+                ))
+            })?;
+        }
         step.bindings = blueprint.bindings.clone();
         step.for_each = blueprint.for_each.clone();
         for binding in &mut step.bindings {
@@ -222,6 +289,9 @@ fn expected_graph(
                 binding.argument_pointer = physical.clone();
             }
             if let Some(predicate) = &mut binding.stop_on_witness {
+                if let Some(output) = &mut predicate.equals_output {
+                    rewrite(output);
+                }
                 let quantity=blueprint.contract.quantities.iter().find(|quantity|logical_quantity_pointer(&quantity.name)==predicate.pointer).ok_or_else(||invalid("a witness predicate must select one complete declared logical quantity"))?;
                 if let Some(route) = admitted_routes.get(step.id.as_str()) {
                     let qualified = route
@@ -257,7 +327,7 @@ fn expected_graph(
         .derivations
         .iter()
         .filter_map(|step| match &step.operation {
-            DerivationOperation::Project { .. }
+            DerivationOperation::Project { .. } | DerivationOperation::ProjectValue { .. }
                 if step.inputs.len() == 1
                     && admitted_routes
                         .get(step.inputs[0].step_id.as_str())
@@ -290,4 +360,28 @@ fn invalid(message: &str) -> Error {
 
 fn logical_quantity_pointer(name: &str) -> String {
     format!("/{}", name.replace('~', "~0").replace('/', "~1"))
+}
+
+/// The original observation interval is independent of physical request details.
+pub fn historical_interval(
+    contract: &SupportContract,
+) -> Result<Option<eal_collector_contracts::execution::HistoricalInterval>, Error> {
+    contract
+        .time
+        .historical_interval
+        .as_ref()
+        .map(|interval| {
+            let encode = |seconds| {
+                chrono::DateTime::from_timestamp(seconds, 0)
+                    .map(|time| time.to_rfc3339())
+                    .ok_or_else(|| {
+                        invalid("historical interval is outside supported timestamp range")
+                    })
+            };
+            Ok(eal_collector_contracts::execution::HistoricalInterval {
+                start: encode(interval.start_unix)?,
+                end: encode(interval.end_unix)?,
+            })
+        })
+        .transpose()
 }

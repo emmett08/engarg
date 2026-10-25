@@ -29,6 +29,15 @@ pub enum FixtureKind {
     Negative,
     AcquisitionError,
 }
+impl FixtureKind {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Positive => "positive",
+            Self::Negative => "negative",
+            Self::AcquisitionError => "acquisition_error",
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

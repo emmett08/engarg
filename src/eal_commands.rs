@@ -10,8 +10,9 @@ use engarg::{
     eal_acquisition::{export_with_policy, reconstruct_bundle},
     eal_export::EalExport,
     eal_host::{HostConfig, invoke},
-    engine::CallRecord,
+    engine::{CallRecord, RouteResolver},
     provider::Role,
+    report::{self, EvidencePlanningReport},
     support_export::{self, SupportExport, SupportExportLocations},
 };
 use serde::Deserialize;
@@ -27,6 +28,10 @@ const MAX_INPUT_BYTES: usize = 16 * 1_048_576;
 
 #[derive(Subcommand)]
 pub enum EalCommand {
+    /// Admit operator-qualified verified tools into a new connection configuration.
+    RegisterTools(super::tooling_commands::registration::RegisterToolsArgs),
+    /// Rebuild evidence routes from a saved graph report without model calls.
+    Replan(ReplanArgs),
     /// Implement missing collectors from a saved analysis using frozen fixtures.
     Implement(super::tooling_commands::ImplementArgs),
     /// Internal launcher for a verified generated collector package.
@@ -53,6 +58,19 @@ pub enum EalCommand {
     /// Internal bounded adapter for an explicitly configured EAL collector.
     #[command(hide = true)]
     Observe(ObserveArgs),
+}
+
+#[derive(Args)]
+pub struct ReplanArgs {
+    /// Saved graph analysis; its request, argument and requirements are preserved.
+    #[arg(long)]
+    input: PathBuf,
+    /// Current operator capability planning configuration.
+    #[arg(long)]
+    evidence_config: PathBuf,
+    /// New report retaining the prior planning and tooling provenance.
+    #[arg(short, long)]
+    output: PathBuf,
 }
 
 #[derive(Args)]
@@ -614,7 +632,11 @@ fn export_inputs(
     Error,
 > {
     let raw: Value = super::read_json(input, MAX_INPUT_BYTES)?;
-    if raw.get("evidence_planning").is_some() {
+    report::validate_replanning(&raw, &std::env::current_exe()?)?;
+    if matches!(
+        report::classify_evidence_planning(&raw)?,
+        EvidencePlanningReport::Graph(_)
+    ) {
         engarg::tooling::capability::revalidate_report(&raw, &std::env::current_exe()?)?;
         let report: CanonicalReport = serde_json::from_value(raw)?;
         return Ok((report, Vec::new(), None));
@@ -858,6 +880,57 @@ fn support_artifacts(
     )
 }
 
+async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
+    let raw: Value = super::read_json(&args.input, MAX_INPUT_BYTES)?;
+    let EvidencePlanningReport::Graph(previous) = report::classify_evidence_planning(&raw)? else {
+        return Err(Error::InvalidInput(
+            "eal replan requires a saved graph analysis with unchanged support requirements".into(),
+        ));
+    };
+    let executable = std::env::current_exe()?;
+    report::validate_replanning(&raw, &executable)?;
+    engarg::tooling::capability::revalidate_report(&raw, &executable)?;
+    let canonical: CanonicalReport = serde_json::from_value(raw.clone())?;
+    engarg::domain::validate_request(&canonical.request)
+        .map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
+    engarg::domain::validate_argument(&canonical.request, &canonical.argument).map_err(
+        |errors| {
+            Error::InvalidInput(
+                errors
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            )
+        },
+    )?;
+    let errors = engarg::support_requirements::validate_elaboration(
+        &canonical.argument,
+        &previous.elaboration,
+    );
+    if !errors.is_empty() {
+        return Err(Error::InvalidInput(errors.join("; ")));
+    }
+    let mut output = PendingFile::create(new_path(&args.output)?)?;
+    let planner = super::support_commands::admit(&args.evidence_config).await?;
+    let routes = planner
+        .resolve(&canonical.argument, &previous.elaboration)
+        .await?;
+    let mut updated = raw.clone();
+    updated["evidence_planning"]["routes"] = serde_json::to_value(routes)?;
+    report::retain_replanning(&raw, &mut updated)?;
+    report::validate_replanning(&updated, &executable)?;
+    let bytes = json_bytes(&updated)?;
+    if bytes.len() > MAX_INPUT_BYTES {
+        return Err(Error::Budget(
+            "replanned report exceeds its 16 MiB retained-input allowance".into(),
+        ));
+    }
+    output.write(&bytes)?;
+    output.keep = true;
+    Ok(())
+}
+
 fn support_evidence_plan(
     report: &CanonicalReport,
     artifacts: &engarg::support_export::SupportExportArtifacts,
@@ -865,7 +938,9 @@ fn support_evidence_plan(
     json!({"schema":"engarg.support-evidence-plan/1","case_digest":artifacts.bundle.authored.revision,
         "execution_plan_sha256":artifacts.bundle.execution_plan_sha256,"evidence_needs":report.argument.evidence_plan,
         "support_elaboration":artifacts.bundle.support_elaboration,"routes":report.evidence_planning.as_ref().expect("support path selected").routes,
-        "pending":artifacts.bundle.pending,"independent_review_obligations":artifacts.bundle.authored.obligations})
+        "pending":artifacts.bundle.pending,"independent_review_obligations":artifacts.bundle.authored.obligations,
+        "alternative_projection":artifacts.bundle.alternative_projection,
+        "collection_budget":engarg::support_export::collection_budget(&artifacts.bundle)})
 }
 
 fn execute_support_export(
@@ -1078,6 +1153,10 @@ async fn host_operation(destination: HostOutput, request: Value) -> Result<(), E
 
 pub async fn execute(command: EalCommand) -> Result<(), Error> {
     match command {
+        EalCommand::RegisterTools(args) => {
+            super::tooling_commands::registration::register_tools(args).await
+        }
+        EalCommand::Replan(args) => execute_replan(args).await,
         EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
         EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
         EalCommand::Prepare(args) => {

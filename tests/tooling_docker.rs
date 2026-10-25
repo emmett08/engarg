@@ -15,6 +15,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "common/support.rs"]
+mod support_fixture;
+
 const PYTHON_COLLECTOR: &str = r###"import json
 import sys
 
@@ -1077,6 +1080,256 @@ async fn capability_contract_generates_rust_and_reuses_it_for_different_claims()
         assert_eq!(observation["value"]["present"], mode == "positive");
     }
     assert!(model.0.lock().unwrap().is_empty());
+}
+
+fn generated_operation_fixture(
+    root: &Path,
+    collector: &Path,
+) -> (Value, engarg::route_planning::PlanningConfig, Value) {
+    use eal_collector_contracts::{
+        capability::{CAPABILITY_CATALOGUE_SCHEMA, CapabilityCatalogue},
+        execution::SchedulingPolicy,
+    };
+    use engarg::{
+        route_planning::{self, DiscoverySnapshot, PlanningConfig},
+        support_requirements::validate_elaboration,
+    };
+    let (request, case, mut elaboration, _, _, _) = support_fixture::fixture();
+    for alternative in &mut elaboration.alternative_support {
+        alternative.claim_ids = vec!["current_claim".into(), "stronger_target".into()];
+    }
+    let mut contract = elaboration.acquisitions[0].contract.clone();
+    contract.scope.kind = "synthetic_flag".into();
+    contract.scope.subject = "Synthetic supplied mode".into();
+    contract.scope.selectors =
+        std::collections::BTreeMap::from([("mode".into(), json!("positive"))]);
+    contract.scope.identity_dimensions = vec!["mode".into()];
+    contract.acceptable_methods = vec!["synthetic_flag/1".into()];
+    contract.quantities =
+        serde_json::from_value(json!([{"name":"present","unit":"boolean"}])).unwrap();
+    contract.time.require_original_observation_time = false;
+    let input = json!({"type":"object","additionalProperties":false,"properties":{"mode":{"type":"string","enum":["positive","negative","error"]}},"required":["mode"]});
+    let output = json!({"type":"object","additionalProperties":false,"properties":{"present":{"type":"boolean"}},"required":["present"]});
+    elaboration.acquisitions[0].contract = contract.clone();
+    elaboration.acquisitions[0].arguments = json!({"mode":"positive"});
+    elaboration.acquisitions[0].operation_spec=Some(serde_json::from_value(json!({
+        "schema":engarg::support_requirements::OPERATION_SPECIFICATION_SCHEMA,"definition":"Return present=true exactly when caller mode is positive; return false for negative and fail for error.",
+        "input_conditions":["mode is positive, negative or error"],"output_guarantees":["Do not infer or certify any real deployment state."],
+        "input_schema":input,"output_schema":output
+    })).unwrap());
+    for requirement in &mut elaboration.requirements {
+        if requirement.id.starts_with("shared_requirement_") {
+            requirement.contract = Some(contract.clone());
+            requirement.acceptance =
+                serde_json::from_value(json!({"kind":"equals","expected":true})).unwrap();
+        }
+    }
+    for evaluation in &mut elaboration.evaluations {
+        if evaluation.requirement_id.starts_with("shared_requirement_") {
+            evaluation.inputs[0].pointer = "/present".into();
+            evaluation.criterion =
+                serde_json::from_value(json!({"kind":"equals","expected":true})).unwrap();
+        }
+    }
+    assert!(
+        validate_elaboration(&case, &elaboration).is_empty(),
+        "{:?}",
+        validate_elaboration(&case, &elaboration)
+    );
+    let connections = root.join("connections.json");
+    fs::write(&connections,json!({"schema":"eal.evidence-config/1","connections":[],"native_providers":[],"local_catalogues":[],"approved_catalogues":[]}).to_string()).unwrap();
+    let config:PlanningConfig=serde_json::from_value(json!({"schema":"engarg.capability-planning-config/1","collector":collector,"connections":connections,"store":root.join("observations"),"environment":[],"ranking":{"dimensions":["execution_requests"]},"scheduling":SchedulingPolicy::default(),"bindings":[]})).unwrap();
+    let planning = root.join("planning.json");
+    fs::write(&planning, serde_json::to_vec_pretty(&config).unwrap()).unwrap();
+    let routes = route_planning::compile(
+        &case,
+        &elaboration,
+        &CapabilityCatalogue {
+            schema: CAPABILITY_CATALOGUE_SCHEMA.into(),
+            capabilities: vec![],
+        },
+        &config,
+        &DiscoverySnapshot::default(),
+    )
+    .unwrap();
+    let implementation = routes
+        .gaps
+        .iter()
+        .find_map(|gap| gap.implementation.as_ref())
+        .expect("explicit operation must be a genuine implementation gap");
+    let mut draft = draft_response();
+    draft["purpose"] = json!(implementation.operation_purpose);
+    draft["input_schema_json"] = json!(implementation.input_schema.to_string());
+    draft["result_schema_json"] = json!(implementation.output_schema.to_string());
+    draft["arguments"] = json!([]);
+    draft["unresolved_arguments"] = json!(["mode"]);
+    (
+        json!({"request":request,"argument":case,"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":routes}}),
+        config,
+        draft,
+    )
+}
+
+#[test]
+fn generated_operation_fixture_keeps_an_explicit_parameterized_algorithm_and_units() {
+    let directory = tempfile::tempdir().unwrap();
+    let (report, _, draft) =
+        generated_operation_fixture(directory.path(), Path::new("/operator/eal-collector"));
+    let output: Value =
+        serde_json::from_str(draft["result_schema_json"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        output["properties"]["present"]["x-engarg-quantity"]["unit"],
+        "boolean"
+    );
+    assert!(
+        draft["purpose"]
+            .as_str()
+            .unwrap()
+            .contains("Return present=true exactly")
+    );
+    assert!(
+        report["evidence_planning"]["routes"]["gaps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|gap| gap["kind"] == "operation_implementation")
+    );
+}
+
+/// This exercises normal commands and the authoritative native config loader;
+/// neither hand-edited package receipts nor a test-only registration path is used.
+#[test]
+#[ignore = "requires preloaded Rust SDK Docker image and installed EAL_COLLECTOR"]
+fn generated_package_can_be_qualified_registered_and_replanned_without_reanalysis() {
+    let collector = PathBuf::from(
+        std::env::var_os("EAL_COLLECTOR")
+            .expect("EAL_COLLECTOR must select the installed matching runtime"),
+    )
+    .canonicalize()
+    .unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let (report, config, draft) = generated_operation_fixture(root, &collector);
+    let server = MockServer::new(vec![
+        draft,
+        json!({"language":"rust","files":[{"path":"main.rs","content":RUST_COLLECTOR}]}),
+    ]);
+    let analysis = root.join("analysis.json");
+    fs::write(&analysis, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+    let toolchain = root.join("toolchain.json");
+    profile(&toolchain, "rust", "engarg-rust-tools:1.99.1", "main.rs");
+    let store = root.join("tools");
+    let attempt = root.join("attempt");
+    successful(&implement(
+        &analysis,
+        &toolchain,
+        &store,
+        &attempt,
+        &server.endpoint,
+        "rust",
+    ));
+    let with_tools = attempt.join("analysis.with-tools.json");
+    let generated: Value = serde_json::from_slice(&fs::read(&with_tools).unwrap()).unwrap();
+    assert_eq!(generated["tooling"]["model_calls"], 2);
+    let pending_path = attempt.join("generated-native-providers.json");
+    let mut pending: Value = serde_json::from_slice(&fs::read(&pending_path).unwrap()).unwrap();
+    assert!(pending["native_providers"][0]["capability"]["semantics"].is_null());
+    let id = pending["native_providers"][0]["capability"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut pending_config = config.clone();
+    pending_config.connections = pending_path;
+    let pending_planning = root.join("pending-planning.json");
+    fs::write(
+        &pending_planning,
+        serde_json::to_vec_pretty(&pending_config).unwrap(),
+    )
+    .unwrap();
+    let pending_report = root.join("pending-report.json");
+    successful(
+        &Command::new(env!("CARGO_BIN_EXE_engarg"))
+            .args(["eal", "replan", "--input"])
+            .arg(&with_tools)
+            .arg("--evidence-config")
+            .arg(&pending_planning)
+            .arg("--output")
+            .arg(&pending_report)
+            .output()
+            .unwrap(),
+    );
+    let unresolved: Value = serde_json::from_slice(&fs::read(&pending_report).unwrap()).unwrap();
+    assert!(
+        unresolved["evidence_planning"]["routes"]["gaps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|gap| gap["kind"] == "qualification")
+    );
+    assert!(unresolved.get("tooling").is_none());
+    assert_eq!(unresolved["replanning"]["model_calls"], 0);
+    // This is an explicit independent synthetic operator qualification, not a
+    // scientific conclusion inferred from contract tests.
+    let provider = &mut pending["native_providers"][0];
+    provider["capability"]["semantics"] = json!({"qualification_reference":"synthetic-operator-review/1","support_types":["observation"],"subject_kinds":["synthetic_flag"],"methods":["synthetic_flag/1"],"identity_dimensions":["mode"],"scope_constraints":{},"scope_bindings":{"mode":"/mode"},"quantities":[{"name":"present","unit":"boolean","output_pointer":"/present"}],"coverage":[{"strength":"existential_witness","population":null,"completeness_pointer":null}],"time":{"historical_intervals":false,"historical_input":null,"original_observation_time":false,"uncertainty_seconds":0},"provenance":{"authorities":["fixture"],"transformation_history":true},"limitations":["Synthetic operator fixture only, no private claim truth established."]});
+    provider["mapping"]["observation_time"] = json!({"kind":"collection_time"});
+    provider["mapping"]["scope_pointers"] = json!({"mode":"/request/input/mode"});
+    let qualified = root.join("qualified.json");
+    fs::write(&qualified, serde_json::to_vec_pretty(&pending).unwrap()).unwrap();
+    let registered = root.join("registered-planning.json");
+    successful(
+        &Command::new(env!("CARGO_BIN_EXE_engarg"))
+            .args(["eal", "register-tools", "--input"])
+            .arg(&pending_report)
+            .arg("--qualifications")
+            .arg(&qualified)
+            .arg("--evidence-config")
+            .arg(&pending_planning)
+            .arg("--output")
+            .arg(&registered)
+            .output()
+            .unwrap(),
+    );
+    let final_report = root.join("replanned.json");
+    successful(
+        &Command::new(env!("CARGO_BIN_EXE_engarg"))
+            .args(["eal", "replan", "--input"])
+            .arg(&pending_report)
+            .arg("--evidence-config")
+            .arg(&registered)
+            .arg("--output")
+            .arg(&final_report)
+            .output()
+            .unwrap(),
+    );
+    let selected: Value = serde_json::from_slice(&fs::read(final_report).unwrap()).unwrap();
+    let route = selected["evidence_planning"]["routes"]["routes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|route| route["acquisition_id"] == "shared_source")
+        .unwrap();
+    assert_eq!(route["selected"], id);
+    assert!(route["configuration_gaps"].as_array().unwrap().is_empty());
+    assert_eq!(
+        selected["evidence_planning"]["elaboration"],
+        generated["evidence_planning"]["elaboration"]
+    );
+    assert_eq!(selected["replanning"]["model_calls"], 0);
+    let second = root.join("second-attempt");
+    successful(&implement(
+        &analysis,
+        &toolchain,
+        &store,
+        &second,
+        &server.endpoint,
+        "rust",
+    ));
+    let reused: Value =
+        serde_json::from_slice(&fs::read(second.join("analysis.with-tools.json")).unwrap())
+            .unwrap();
+    assert_eq!(reused["tooling"]["model_calls"], 0);
+    assert_eq!(server.received.lock().unwrap().len(), 2);
 }
 
 #[test]

@@ -68,7 +68,7 @@ pub struct CliPlanner {
 impl RouteResolver for CliPlanner {
     type Plan = engarg::route_planning::RoutePlan;
     fn preview(&self, plan: &Self::Plan) -> Result<Value, Error> {
-        self.initial.preview(plan)
+        self.expanded.get().unwrap_or(&self.initial).preview(plan)
     }
     async fn resolve(
         &self,
@@ -156,6 +156,8 @@ impl RouteResolver for CliPlanner {
 pub async fn admit(path: &Path) -> Result<CliPlanner, Error> {
     let mut config: PlanningConfig = super::read_json(path, 4 * 1_048_576)?;
     config.validate()?;
+    eal_collector_contracts::validate_environment_names(&config.environment, 64)
+        .map_err(Error::InvalidInput)?;
     let base = path
         .canonicalize()?
         .parent()

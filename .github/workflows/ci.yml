@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # Only a newer revision of this PR supersedes a running result. Main pushes
+  # retain independent groups so every accepted main revision remains checked.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   checks:
     strategy:
@@ -15,6 +21,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      # Keep filename/line backtraces and normal test assertions/overflow checks.
+      # Cache dependency outputs without retaining large incremental sessions.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_INCREMENTAL: '0'
     # Cold toolchain builds and installation verify all pinned native packages.
     timeout-minutes: 40
     steps:
@@ -23,6 +35,10 @@ jobs:
           persist-credentials: false
       - name: Install pinned toolchain
         run: rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt
+      - uses: ./.github/actions/cargo-cache
+        with:
+          scope: checks
+          toolchains: 1.99.1
       - name: Check authoring script preflight
         run: |
           bash -n scripts/run-catalog-sync-authoring.sh
@@ -31,13 +47,6 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked --all-targets
-      - name: Exercise generated collectors in isolated language toolchains
-        if: runner.os == 'Linux'
-        run: |
-          docker pull python:3.13-slim
-          docker pull node:24-slim
-          docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
-          cargo test --locked --test tooling_docker -- --include-ignored
       - run: cargo build --locked --release
       - name: Verify the installed pinned runtime and cached startup
         run: |
@@ -50,6 +59,15 @@ jobs:
             --workspace "$RUNNER_TEMP/engarg-eal-probe" \
             --output "$RUNNER_TEMP/engarg-eal-probe/describe.json"
           python3 -c 'import json, os; from pathlib import Path; response=json.loads((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-probe/describe.json").read_text()); assert response["is_error"] is False; assert response["result"]["source_syntax"] == "EAL/3"; assert "structured/1" in response["result"]["methods"]'
+          printf 'EAL_COLLECTOR=%s\nENGARG_EAL_HOST=%s\n' \
+            "$engarg_runtime_root/bin/eal-collector" "$engarg_runtime_host" >> "$GITHUB_ENV"
+      - name: Exercise generated collectors in isolated language toolchains
+        if: runner.os == 'Linux'
+        run: |
+          docker pull python:3.13-slim
+          docker pull node:24-slim
+          docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
+          cargo test --locked --test tooling_docker -- --include-ignored
 
   eal-compatibility:
     name: EAL producer and consumer contracts
@@ -57,7 +75,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: 2a6f260ee35f095e6aa724176a1e6a30eea79c36
+      EAL_REVISION: cb5013c37ef79331e79ee0337862aec58d1ee5cb
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -75,6 +93,13 @@ jobs:
         run: |
           rustup toolchain install 1.99.1 --profile minimal
           rustup toolchain install 1.90.0 --profile minimal
+      - uses: ./.github/actions/cargo-cache
+        with:
+          scope: eal-contracts
+          toolchains: 1.99.1 1.90.0
+          targets: |
+            target
+            .eal-producer/target
       - name: Build the pinned EAL producer and native companions
         working-directory: .eal-producer
         run: cargo +1.90.0 build --workspace --bins --locked
@@ -92,4 +117,4 @@ jobs:
           export EAL_CORE="$PWD/.eal-producer/target/debug/eal-core"
           test -x "$ENGARG_EAL_HOST"
           test -x "$EAL_CORE"
-          cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test export_v3 --test support_cli --test support_export -- --include-ignored
+          cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test export_v3 --test support_cli --test support_export --test support_batch -- --include-ignored

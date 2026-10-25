@@ -50,28 +50,44 @@ with pathlib.Path(os.environ['STUB_TRACE']).open('a') as trace:
 if args[0] == 'metadata':
     print(pathlib.Path(os.environ['STUB_METADATA']).read_text())
     raise SystemExit(0)
-if args[:2] != ['+1.90.0', 'install']:
+if args[:2] != ['+1.90.0', 'build']:
     raise SystemExit(91)
-package = args[-1]
-if os.environ.get('STUB_BLOCK_PACKAGE') == package:
+packages = [args[index + 1] for index, value in enumerate(args) if value == '--package']
+if os.environ.get('STUB_BLOCK_PACKAGE') in packages:
     import time
     pathlib.Path(os.environ['STUB_CHILD_PID']).write_text(str(os.getpid()))
     release = pathlib.Path(os.environ['STUB_RELEASE'])
     while not release.exists():
         time.sleep(0.02)
-if os.environ.get('STUB_FAIL_PACKAGE') == package:
+if os.environ.get('STUB_FAIL_PACKAGE') in packages:
     raise SystemExit(42)
-prefix = pathlib.Path(args[args.index('--root') + 1])
-directory = prefix / 'bin'
-directory.mkdir(exist_ok=True)
-names = {'eal-process': ['eal-process-supervisor'],
-         'eal-runtime': ['eal-method-worker', 'eal-command-supervisor'],
-         'eal-mcp': ['eal-host', 'eal-mcp'], 'eal-collectors': ['eal-collector']}[package]
+directory = pathlib.Path(os.environ['CARGO_TARGET_DIR']) / 'release'
+directory.mkdir(parents=True, exist_ok=True)
+expected = {'eal-process', 'eal-runtime', 'eal-mcp', 'eal-collectors'}
+if set(packages) != expected or len(packages) != len(expected):
+    raise SystemExit(92)
+names = ['eal-process-supervisor', 'eal-method-worker', 'eal-command-supervisor',
+         'eal-host', 'eal-mcp', 'eal-collector']
 for name in names:
+    if os.environ.get('STUB_MISSING_BINARY') == name:
+        continue
     binary = directory / name
     binary.write_text('#!/bin/sh\\n# Pinned fixture ' + name + '\\nexit 0\\n')
     binary.chmod(0o700)
-print('Synthetic compiler progress on stdout')
+    artifact = str(binary)
+    if os.environ.get('STUB_OUTSIDE_ARTIFACT') == name:
+        artifact = str(directory.parent.parent.parent / name)
+    print(json.dumps({'reason': 'compiler-artifact', 'target': {'name': name, 'kind': ['bin']},
+                      'executable': artifact}))
+print('Synthetic compiler progress on stderr', file=sys.stderr)
+""")
+        self.stub(self.commands / "git", """#!/usr/bin/env python3
+import json, os, pathlib, sys
+args = sys.argv[1:]
+with pathlib.Path(os.environ['STUB_TRACE']).open('a') as trace:
+    trace.write(json.dumps({'program': 'git', 'args': args}) + '\\n')
+if args[-2:] == ['rev-parse', 'HEAD']:
+    print(os.environ.get('STUB_SOURCE_REVISION', 'a' * 40))
 """)
         self.stub(self.commands / "rustup", """#!/usr/bin/env python3
 import json, os, pathlib, sys
@@ -137,10 +153,21 @@ print('Synthetic toolchain progress on stdout')
                                           "--manifest-path", str(self.repo / "Cargo.toml")])
         self.assertEqual(self.calls("rustup"), [{"program": "rustup", "args": [
             "toolchain", "install", "1.90.0", "--profile", "minimal"]}])
-        self.assertEqual([call["args"] for call in self.installs()], [
-            ["+1.90.0", "install", "--git", URL, "--rev", REVISION, "--locked",
-             "--root", str(prefix), "--force", package]
-            for package in ("eal-process", "eal-runtime", "eal-mcp", "eal-collectors")])
+        builds = self.installs()
+        self.assertEqual(len(builds), 1)
+        command = builds[0]['args']
+        source = Path(command[command.index('--manifest-path') + 1]).parent
+        self.assertEqual(source.parent, prefix)
+        self.assertFalse(source.exists(), 'temporary source checkout must be removed')
+        self.assertEqual(command, [
+            '+1.90.0', 'build', '--manifest-path', str(source / 'Cargo.toml'),
+            '--locked', '--release', '--bins', '--message-format=json-render-diagnostics',
+            '--package', 'eal-process', '--package', 'eal-runtime',
+            '--package', 'eal-mcp', '--package', 'eal-collectors'])
+        git = [record['args'][2:] for record in self.calls('git')]
+        self.assertEqual(git, [['init', '--quiet'], ['remote', 'add', 'origin', URL],
+                              ['fetch', '--quiet', '--depth', '1', '--no-tags', 'origin', REVISION],
+                              ['checkout', '--quiet', '--detach', 'FETCH_HEAD'], ['rev-parse', 'HEAD']])
         self.assertEqual({call["target"] for call in self.installs()}, {str(prefix / "target")})
 
     def test_valid_cache_checks_binaries_without_reinstalling_or_requiring_rustup(self):
@@ -148,10 +175,28 @@ print('Synthetic toolchain progress on stdout')
         self.assert_success(self.run_script(), prefix)
         original_calls = self.calls()
         (self.commands / "rustup").unlink()
+        (self.commands / "git").unlink()
         self.assert_success(self.run_script(), prefix)
         self.assertEqual(self.calls()[:-1], original_calls)
         self.assertEqual(self.calls()[-1]["args"][0], "metadata")
-        self.assertEqual(len(self.installs()), 4)
+        self.assertEqual(len(self.installs()), 1)
+
+    def test_wrong_checkout_identity_stops_before_build_or_success_receipt(self):
+        result = self.run_script(STUB_SOURCE_REVISION='b' * 40)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('differs from the admitted revision', result.stderr)
+        self.assertEqual(self.installs(), [])
+        self.assertFalse((self.default_prefix() / '.engarg-eal-runtime.json').exists())
+
+    def test_build_must_report_all_six_binaries_inside_the_owned_target(self):
+        for environment in [dict(STUB_MISSING_BINARY='eal-collector'),
+                            dict(STUB_OUTSIDE_ARTIFACT='eal-host')]:
+            with self.subTest(environment=environment):
+                result = self.run_script(**environment)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, '')
+                self.assertFalse((self.default_prefix() / '.engarg-eal-runtime.json').exists())
+        self.assert_success(self.run_script(), self.default_prefix())
 
     def test_tampered_or_missing_companion_reinstalls_every_package(self):
         prefix = self.root / "custom EAL prefix"
@@ -159,9 +204,7 @@ print('Synthetic toolchain progress on stdout')
         (prefix / "bin/eal-host").write_text("unverified replacement\n")
         (prefix / "bin/eal-command-supervisor").unlink()
         self.assert_success(self.run_script("--root", prefix), prefix)
-        self.assertEqual(len(self.installs()), 8)
-        self.assertEqual([call["args"][-1] for call in self.installs()[-4:]],
-                         ["eal-process", "eal-runtime", "eal-mcp", "eal-collectors"])
+        self.assertEqual(len(self.installs()), 2)
 
     def test_partial_install_has_no_success_receipt_and_can_be_retried(self):
         prefix = self.default_prefix()
@@ -177,9 +220,7 @@ print('Synthetic toolchain progress on stdout')
         self.assert_success(self.run_script(), prefix)
         (prefix / 'bin/eal-collector').unlink()
         self.assert_success(self.run_script(), prefix)
-        self.assertEqual(len(self.installs()), 8)
-        self.assertEqual([call['args'][-1] for call in self.installs()[-4:]],
-                         ['eal-process', 'eal-runtime', 'eal-mcp', 'eal-collectors'])
+        self.assertEqual(len(self.installs()), 2)
 
     def test_failed_repair_invalidates_the_old_receipt(self):
         prefix = self.default_prefix()
@@ -254,7 +295,7 @@ print('Synthetic toolchain progress on stdout')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("regular directory", result.stderr)
         self.assertEqual({path.name: path.read_bytes() for path in original.iterdir()}, before)
-        self.assertEqual(len(self.installs()), 4)
+        self.assertEqual(len(self.installs()), 1)
         self.assertFalse((prefix / ".engarg-eal-runtime.json").exists())
 
     def test_linked_companion_is_replaced_without_changing_the_external_target(self):

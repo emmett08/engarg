@@ -2,10 +2,13 @@
 //!
 //! The outer version binds the source graph, collector locations and generated
 //! gates. The inner v3 projection retains its historical identity and semantics.
+mod alternatives;
+mod budget;
 mod projection;
 mod types;
 
 pub use crate::support_graph::{AcquisitionRouteProof, project_execution_graph};
+pub use budget::{CollectionBudget, DEFAULT_COLLECTION_EVIDENCE_LIMIT, collection_budget};
 pub use types::*;
 
 use crate::{
@@ -66,7 +69,11 @@ pub fn reconstruct(bundle: &SupportExport) -> Result<SupportExportArtifacts, Err
     let rebuilt = projection::build(
         authored,
         &bundle.support_elaboration,
-        &bundle.execution_plan,
+        bundle
+            .alternative_projection
+            .as_ref()
+            .map(|projection| &projection.original_execution_plan)
+            .unwrap_or(&bundle.execution_plan),
         &bundle.route_proofs,
         &bundle.locations,
         &bundle.exporter_version,
@@ -74,7 +81,7 @@ pub fn reconstruct(bundle: &SupportExport) -> Result<SupportExportArtifacts, Err
     if canonical_digest(&rebuilt.bundle).map_err(Error::InvalidInput)?
         != canonical_digest(bundle).map_err(Error::InvalidInput)?
     {
-        return Err(Error::InvalidInput("SUPPORT_EXPORT_IDENTITY_MISMATCH: source, graph, bindings or metadata differ from the deterministic support projection".into()));
+        return Err(Error::InvalidInput("SUPPORT_EXPORT_IDENTITY_MISMATCH: source, graph, bindings or metadata differ from the deterministic support projection; re-export the saved canonical analysis with current support requirement coverage".into()));
     }
     Ok(rebuilt)
 }

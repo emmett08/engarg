@@ -19,8 +19,8 @@ use std::{
 };
 
 mod eal_commands;
-mod support_commands;
 mod glossary_command;
+mod support_commands;
 mod tooling_commands;
 
 #[derive(Parser)]

@@ -179,8 +179,19 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
             def write(path, value):
                 pathlib.Path(path).write_text(json.dumps(value) + '\n')
             if args[:2] == ['eal', 'describe']:
-                write(option('--output'), {'is_error': False, 'result': {
-                    'source_syntax': 'EAL/3', 'methods': {'structured/1': {}}}})
+                description = {'source_syntax': 'EAL/3', 'methods': {'structured/1': {}}}
+                if os.environ.get('HOST_COLLECTION_LIMIT'):
+                    description[os.environ.get('HOST_COLLECTION_PATH', 'execution_limits')] = {
+                        'collection_evidence': json.loads(os.environ['HOST_COLLECTION_LIMIT'])}
+                write(option('--output'), {'is_error': False, 'result': description})
+            elif args[:2] == ['eal', 'replan']:
+                if os.environ.get('FAIL_REPLAN'):
+                    raise SystemExit('Synthetic replan failure')
+                report = json.loads(pathlib.Path(option('--input')).read_text())
+                report['evidence_planning']['routes']['configuration'] = json.loads(
+                    pathlib.Path(option('--evidence-config')).read_text())
+                report['replanning'] = {'schema': 'engarg.replanning/1', 'model_calls': 0}
+                write(option('--output'), report)
             elif args[0] == 'analyse':
                 request = json.loads(pathlib.Path(option('--input')).read_text())
                 report = {'request': request, 'argument': {'status': 'supported'}, 'transcript': []}
@@ -197,6 +208,9 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                             'description': 'A producing operation is missing.', 'implementation': {'operation_purpose': 'fixture operation'}}]
                     if os.environ.get('GRAPH_DISCOVERY_INCOMPLETE'):
                         routes['discovery']['incomplete'] = True
+                    if os.environ.get('GRAPH_READY_ROUTES'):
+                        routes['gaps'] = []
+                        routes['routes'][0]['configuration_gaps'] = []
                 if '--implement-tools' in args:
                     directory = pathlib.Path(option('--tool-output-dir'))
                     assert not directory.exists(), 'Tool output must be a new directory'
@@ -263,6 +277,12 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                     stem = pathlib.Path(option('--output'))
                     revision, plan_digest = 'a' * 64, 'c' * 64
                     pending = [{'kind': 'judgement', 'description': 'Independent review remains pending.'}]
+                    emitted = int(os.environ.get('GRAPH_EMITTED_EVIDENCE', '1'))
+                    budget = {'schema': 'engarg.collection-budget/1', 'assumed_default_limit': 128,
+                              'limit_source': 'EAL default collection_evidence; the selected host may advertise an override',
+                              'total_emitted_evidence': emitted, 'claim_evidence_counts': {'current_claim': 1}}
+                    if emitted > 128:
+                        pending.append({'kind': 'collection_budget_exceeded', 'description': 'Assumed default exceeded.'})
                     bundle = {'schema_version': 'engarg.support-export/1', 'authored': {'revision': revision},
                               'execution_plan_sha256': plan_digest, 'pending': pending}
                     write(option('--manifest'), bundle)
@@ -273,6 +293,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                                 'execution_plan_sha256': 'd' * 64 if os.environ.get('GRAPH_STALE_PLAN') else plan_digest,
                                 'support_elaboration': report['evidence_planning']['elaboration'],
                                 'routes': report['evidence_planning']['routes'], 'pending': pending,
+                                'collection_budget': budget,
                                 'independent_review_obligations': [{'id': 'independent-review'}]}
                     if not os.environ.get('GRAPH_MISSING_PLAN'):
                         write(stem.with_suffix('.evidence-plan.json'), exported)
@@ -343,7 +364,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
 
     def pipeline_directory(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Authoring, rendering, export and EAL planning passed", result.stdout)
+        self.assertIn("rendering, export and EAL planning passed", result.stdout)
         return Path(result.stdout.split("Artifacts: ", 1)[1].splitlines()[0])
 
     def invocations(self):
@@ -872,7 +893,121 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(readiness['gaps'][0]['kind'], 'configuration')
         summary = json.loads((directory / 'run-summary.json').read_text())
         self.assertEqual(summary['evidence_planning'], 'graph')
+        self.assertEqual(summary['presentations'], {
+            name: str(directory / filename) for name, filename in {
+                'json': 'analysis.json', 'markdown': 'argument.md', 'text': 'argument.txt',
+                'html': 'argument.html', 'prose': 'prose.md',
+            }.items()
+        })
+        for path in summary['presentations'].values():
+            self.assertTrue(Path(path).is_file())
         self.assertIn('Evidence truth and inferential soundness remain unverified', result.stdout)
+
+    def test_replanning_reuses_saved_argument_without_authoring_or_api_key(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        first = self.pipeline_directory(self.run_script('--evidence-config', config, self.inputs, graph=True))
+        retained = first / 'analysis.json'
+        saved = json.loads(retained.read_text())
+        saved['transcript'] = [{'retained_fixture_call': number} for number in range(6)]
+        retained.write_text(json.dumps(saved))
+        original_bytes = retained.read_bytes()
+        original = json.loads(original_bytes)
+        updated = json.loads(config.read_text())
+        updated['ranking']['dimensions'] = ['execution_latency_ms']
+        updated['prefer_configured'] = True
+        config.write_text(json.dumps(updated))
+        self.log.write_text('')
+        environment = dict(self.env)
+        environment.pop('OPENAI_API_KEY')
+        second = self.pipeline_directory(self.run_script(
+            '--replan-analysis', retained, '--evidence-config', config, self.inputs,
+            graph=True, env=environment))
+        calls = self.invocations()
+        self.assertFalse(any(call[0] == 'analyse' for call in calls))
+        self.assertEqual(sum(call[:2] == ['eal', 'replan'] for call in calls), 1)
+        replanned = json.loads((second / 'analysis.json').read_text())
+        for key in ['request', 'argument', 'transcript']:
+            self.assertEqual(replanned[key], original[key])
+        self.assertEqual(replanned['evidence_planning']['elaboration'], original['evidence_planning']['elaboration'])
+        self.assertEqual(replanned['evidence_planning']['routes']['configuration']['ranking'], updated['ranking'])
+        self.assertIs(replanned['evidence_planning']['routes']['configuration']['prefer_configured'], True)
+        self.assertEqual(retained.read_bytes(), original_bytes)
+        self.assertEqual((second / 'retained-analysis.snapshot.json').read_bytes(), original_bytes)
+        summary = json.loads((second / 'run-summary.json').read_text())
+        self.assertEqual(summary['model_calls_this_run'], 0)
+        self.assertEqual(summary['recorded_model_calls'], 6)
+        self.assertEqual(summary['analysis_reuse']['sha256'], hashlib.sha256(original_bytes).hexdigest())
+        self.assertEqual(len(summary['presentations']), 5)
+
+    def test_graph_collection_readiness_uses_actual_host_cap_for_all_emitted_evidence(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        for limit, emitted, expected, field in [
+            (256, 129, True, 'execution_limits'),
+            (64, 65, False, 'execution_limits'),
+            (64, 64, True, 'execution_limits'),
+            (None, 129, False, 'execution_limits'),
+            (None, 128, True, 'execution_limits'),
+            (256, 129, True, 'budgets'),
+        ]:
+            with self.subTest(limit=limit, emitted=emitted, field=field):
+                environment = dict(self.env, GRAPH_READY_ROUTES='1', GRAPH_EMITTED_EVIDENCE=str(emitted))
+                if limit is not None:
+                    environment.update(HOST_COLLECTION_LIMIT=str(limit), HOST_COLLECTION_PATH=field)
+                directory = self.pipeline_directory(self.run_script(
+                    '--evidence-config', config, self.inputs, graph=True, env=environment))
+                exported = json.loads((directory / 'argument.evidence-plan.json').read_text())
+                readiness = json.loads((directory / 'graph-readiness.json').read_text())
+                self.assertEqual(readiness['collection_budget'], exported['collection_budget'])
+                self.assertEqual(readiness['pending'], exported['pending'])
+                self.assertTrue(any(item['kind'] == 'judgement' for item in readiness['pending']))
+                self.assertEqual(any(item['kind'] == 'collection_budget_exceeded' for item in readiness['pending']), emitted > 128)
+                admission = readiness['collection_admission']
+                self.assertEqual(admission['selection'], 'all_emitted_evidence')
+                self.assertEqual(admission['evidence_count'], emitted)
+                self.assertEqual(readiness['collection_budget']['claim_evidence_counts'], {'current_claim': 1})
+                self.assertEqual(admission['limit'], 128 if limit is None else limit)
+                self.assertEqual(admission['limit_is_assumed'], limit is None)
+                self.assertEqual(admission['within_limit'], expected)
+                self.assertEqual(readiness['ready_for_collection'], expected)
+                self.assertEqual(admission['limit_source'], 'exported.collection_budget.assumed_default_limit'
+                                 if limit is None else 'eal-preflight.result.' + field + '.collection_evidence')
+                summary = json.loads((directory / 'run-summary.json').read_text())
+                self.assertEqual(summary['graph_readiness'], readiness)
+                if not expected:
+                    self.assertIn('Default collect-all selects', summary['next_step'])
+
+    def test_graph_collection_readiness_rejects_malformed_advertised_cap(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        for limit in [0, True, '256']:
+            with self.subTest(limit=limit):
+                self.log.write_text('')
+                result = self.run_script('--evidence-config', config, self.inputs, graph=True,
+                    env=dict(self.env, GRAPH_READY_ROUTES='1', HOST_COLLECTION_LIMIT=json.dumps(limit)))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('collection_evidence budget must be a positive integer', result.stderr)
+                self.assertFalse(any(call[0] == 'analyse' for call in self.invocations()))
+
+    def test_replanning_rejects_changed_requests_and_failure_stops_before_export(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        first = self.pipeline_directory(self.run_script('--evidence-config', config, self.inputs, graph=True))
+        retained = first / 'analysis.json'
+        original = retained.read_bytes()
+        changed = json.loads(original)
+        changed['request']['claim'] = 'Different engineering claim'
+        retained.write_text(json.dumps(changed))
+        self.log.write_text('')
+        result = self.run_script('--replan-analysis', retained, '--evidence-config', config, self.inputs, graph=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.invocations(), [])
+        retained.write_bytes(original)
+        result = self.run_script('--replan-analysis', retained, '--evidence-config', config, self.inputs,
+                                 graph=True, env=dict(self.env, FAIL_REPLAN='1'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(call[:2] == ['eal', 'export'] for call in self.invocations()))
 
     def test_graph_implementation_zero_calls_does_not_close_configuration_or_judgement_gaps(self):
         config = self.write_evidence_config()

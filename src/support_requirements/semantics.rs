@@ -1,314 +1,10 @@
-//! Conservative admission of semantic information through the closed graph algebra.
-use super::SupportElaboration;
-use eal_collector_contracts::{
-    capability::{LogicalStrength, SupportContract, SupportType},
-    execution::{DerivationOperation, OutputReference},
+//! Requirement adequacy preserves source scope, methods and population guarantees.
+use super::{
+    SupportElaboration,
+    lineage::{ValueSemantics, infer_outputs, selected},
 };
+use eal_collector_contracts::capability::{LogicalStrength, SupportContract, SupportType};
 use std::collections::{BTreeMap, BTreeSet};
-
-#[derive(Clone)]
-enum Shape {
-    Object(BTreeMap<String, Shape>),
-    Quantity { name: String, unit: String },
-    Collection(Box<Shape>),
-}
-
-#[derive(Clone)]
-struct ValueSemantics<'a> {
-    origins: BTreeMap<&'a str, &'a SupportContract>,
-    /// Sources selecting the measured records remain a separate lineage: their
-    /// methods need not equal a detail read's method, but their scope and coverage
-    /// cannot disappear when the detail read is evaluated.
-    selection: BTreeMap<&'a str, &'a SupportContract>,
-    shape: Shape,
-    calculation: Option<&'static str>,
-}
-
-impl Shape {
-    fn select(&self, pointer: &str) -> Option<Self> {
-        if pointer.is_empty() {
-            return Some(self.clone());
-        }
-        // A quantity may itself contain a complete sample. Selecting an element
-        // would silently discard coverage, so only logical quantity fields are admitted.
-        let mut selected = self;
-        for segment in pointer.strip_prefix('/')?.split('/') {
-            let name = segment.replace("~1", "/").replace("~0", "~");
-            selected = match selected {
-                Self::Object(fields) => fields.get(&name)?,
-                _ => return None,
-            };
-        }
-        Some(selected.clone())
-    }
-    fn quantity(&self) -> Option<(&str, &str)> {
-        match self {
-            Self::Quantity { name, unit } => Some((name, unit)),
-            Self::Collection(inner) => match inner.as_ref() {
-                Self::Quantity { name, unit } => Some((name, unit)),
-                _ => None,
-            },
-            Self::Object(_) => None,
-        }
-    }
-    fn quantities<'a>(&'a self, output: &mut BTreeSet<(&'a str, &'a str)>) {
-        match self {
-            Self::Quantity { name, unit } => {
-                output.insert((name, unit));
-            }
-            Self::Object(fields) => {
-                for shape in fields.values() {
-                    shape.quantities(output);
-                }
-            }
-            Self::Collection(inner) => inner.quantities(output),
-        }
-    }
-}
-
-fn selected<'a>(
-    reference: &OutputReference,
-    outputs: &BTreeMap<&str, ValueSemantics<'a>>,
-) -> Result<ValueSemantics<'a>, String> {
-    let value = outputs
-        .get(reference.step_id.as_str())
-        .ok_or("upstream semantic contract is unavailable")?;
-    Ok(ValueSemantics {
-        origins: value.origins.clone(),
-        selection: value.selection.clone(),
-        calculation: value.calculation,
-        shape: value.shape.select(&reference.pointer).ok_or_else(|| {
-            format!(
-                "{}{} does not select a complete declared logical quantity",
-                reference.step_id, reference.pointer
-            )
-        })?,
-    })
-}
-
-fn same_quantity<'a>(values: &'a [ValueSemantics<'_>]) -> Result<(&'a str, &'a str), String> {
-    let first = values
-        .first()
-        .and_then(|value| value.shape.quantity())
-        .ok_or("operation requires declared scalar or sample quantities")?;
-    if values
-        .iter()
-        .any(|value| value.shape.quantity() != Some(first))
-    {
-        return Err("operation inputs must preserve the same logical quantity and unit".into());
-    }
-    Ok(first)
-}
-
-fn scale_valid(numerator: &str, denominator: &str, from: &str, to: &str) -> bool {
-    // These are multiplicative conversions only. Offset or domain-dependent
-    // conversions require an explicitly qualified calculation source.
-    fn canonical(unit: &str) -> Option<(&'static str, u128, u128)> {
-        Some(match unit {
-            "s" => ("time", 1, 1),
-            "ms" => ("time", 1, 1000),
-            "us" | "µs" => ("time", 1, 1_000_000),
-            "ns" => ("time", 1, 1_000_000_000),
-            "B" => ("bytes", 1, 1),
-            "kB" => ("bytes", 1000, 1),
-            "MB" => ("bytes", 1_000_000, 1),
-            "GB" => ("bytes", 1_000_000_000, 1),
-            "KiB" => ("bytes", 1024, 1),
-            "MiB" => ("bytes", 1_048_576, 1),
-            "GiB" => ("bytes", 1_073_741_824, 1),
-            "m" => ("length", 1, 1),
-            "mm" => ("length", 1, 1000),
-            "cm" => ("length", 1, 100),
-            "km" => ("length", 1000, 1),
-            "1" => ("ratio", 1, 1),
-            "%" => ("ratio", 1, 100),
-            _ => return None,
-        })
-    }
-    let (Ok(n), Ok(d)) = (numerator.parse::<u128>(), denominator.parse::<u128>()) else {
-        return false;
-    };
-    if n == 0 || d == 0 {
-        return false;
-    }
-    if from == to {
-        return n == d;
-    }
-    let (Some((from_kind, from_n, from_d)), Some((to_kind, to_n, to_d))) =
-        (canonical(from), canonical(to))
-    else {
-        return false;
-    };
-    from_kind == to_kind
-        && n.checked_mul(from_d)
-            .and_then(|value| value.checked_mul(to_n))
-            .zip(
-                d.checked_mul(from_n)
-                    .and_then(|value| value.checked_mul(to_d)),
-            )
-            .is_some_and(|(left, right)| left == right)
-}
-
-fn derive<'a>(
-    operation: &DerivationOperation,
-    values: &[ValueSemantics<'a>],
-) -> Result<ValueSemantics<'a>, String> {
-    let origins = values
-        .iter()
-        .flat_map(|value| value.origins.iter().map(|(id, contract)| (*id, *contract)))
-        .collect();
-    let selection = values
-        .iter()
-        .flat_map(|value| {
-            value
-                .selection
-                .iter()
-                .map(|(id, contract)| (*id, *contract))
-        })
-        .collect();
-    let calculation = match operation {
-        DerivationOperation::Sum => Some("engarg.sum/1"),
-        DerivationOperation::Mean => Some("engarg.mean/1"),
-        DerivationOperation::Count => Some("engarg.count/1"),
-        DerivationOperation::Minimum => Some("engarg.minimum/1"),
-        DerivationOperation::Maximum => Some("engarg.maximum/1"),
-        DerivationOperation::IdentityEqual => Some("engarg.identity-equal/1"),
-        DerivationOperation::AnyIdentityEqual => Some("engarg.any-identity-equal/1"),
-        DerivationOperation::Scale { .. } => Some("engarg.scale/1"),
-        _ => values.first().and_then(|value| value.calculation),
-    };
-    let shape = match operation {
-        DerivationOperation::Extract { pointer } => match values {
-            [value] => value
-                .shape
-                .select(pointer)
-                .ok_or("extraction must select a declared logical quantity")?,
-            _ => return Err("extraction requires exactly one input".into()),
-        },
-        DerivationOperation::Project { fields } => match values {
-            [value] => Shape::Object(
-                fields
-                    .iter()
-                    .map(|(name, pointer)| {
-                        value
-                            .shape
-                            .select(pointer)
-                            .map(|shape| (name.clone(), shape))
-                            .ok_or_else(|| {
-                                "projection must preserve declared logical quantity identities"
-                                    .to_owned()
-                            })
-                    })
-                    .collect::<Result<_, _>>()?,
-            ),
-            _ => return Err("projection requires exactly one input".into()),
-        },
-        DerivationOperation::Collect => {
-            same_quantity(values)?;
-            Shape::Collection(Box::new(values[0].shape.clone()))
-        }
-        DerivationOperation::IdentityEqual => {
-            if values.len() < 2 || values.iter().any(|value| value.shape.quantity().is_none()) {
-                return Err("identity comparison requires at least two declared quantities".into());
-            }
-            let unit = values[0].shape.quantity().expect("checked quantity").1;
-            if values.iter().any(|value| {
-                value
-                    .shape
-                    .quantity()
-                    .is_none_or(|(_, selected)| selected != unit)
-            }) {
-                return Err("identity comparison requires the same identity unit".into());
-            }
-            let collection = matches!(values[0].shape, Shape::Collection(_));
-            if values
-                .iter()
-                .any(|value| matches!(value.shape, Shape::Collection(_)) != collection)
-            {
-                return Err("IdentityEqual requires the same scalar/collection shape for every operand; use AnyIdentityEqual for scalar membership in a collection".into());
-            }
-            Shape::Quantity {
-                name: "identity_equal".into(),
-                unit: "boolean".into(),
-            }
-        }
-        DerivationOperation::AnyIdentityEqual => {
-            let [identity, collection] = values else {
-                return Err("AnyIdentityEqual requires exactly two inputs: scalar identity then identity collection".into());
-            };
-            // A declared quantity may itself be the complete array returned by
-            // an existing batch operation. Its physical array shape is checked
-            // by the runtime; for_each makes that cardinality explicit here.
-            if !matches!(identity.shape, Shape::Quantity { .. })
-                || !matches!(
-                    collection.shape,
-                    Shape::Collection(_) | Shape::Quantity { .. }
-                )
-            {
-                return Err("AnyIdentityEqual requires a scalar identity followed by an identity collection or a declared batch quantity; runtime checks the collection shape".into());
-            }
-            let Some((_, unit)) = identity.shape.quantity() else {
-                return Err("AnyIdentityEqual needs a declared scalar identity".into());
-            };
-            if collection
-                .shape
-                .quantity()
-                .is_none_or(|(_, selected)| selected != unit)
-            {
-                return Err("AnyIdentityEqual requires matching explicit identity units".into());
-            }
-            Shape::Quantity {
-                name: "any_identity_equal".into(),
-                unit: "boolean".into(),
-            }
-        }
-        DerivationOperation::Scale {
-            numerator,
-            denominator,
-            from_unit,
-            to_unit,
-        } => {
-            let [value] = values else {
-                return Err("unit scaling requires exactly one quantity".into());
-            };
-            let (name, unit) = value
-                .shape
-                .quantity()
-                .ok_or("unit scaling requires a declared scalar quantity")?;
-            if matches!(value.shape, Shape::Collection(_))
-                || unit != from_unit
-                || !scale_valid(numerator, denominator, from_unit, to_unit)
-            {
-                return Err("unit scaling requires an exact supported conversion factor matching its declared input unit".into());
-            }
-            Shape::Quantity {
-                name: name.into(),
-                unit: to_unit.clone(),
-            }
-        }
-        operation => {
-            let (name, unit) = same_quantity(values)?;
-            let (prefix, unit) = match operation {
-                DerivationOperation::Count => ("count", "1"),
-                DerivationOperation::Sum => ("sum", unit),
-                DerivationOperation::Mean => ("mean", unit),
-                DerivationOperation::Minimum => ("minimum", unit),
-                DerivationOperation::Maximum => ("maximum", unit),
-                _ => unreachable!("closed derivation operations"),
-            };
-            Shape::Quantity {
-                name: format!("{prefix}_{name}"),
-                unit: unit.into(),
-            }
-        }
-    };
-    Ok(ValueSemantics {
-        origins,
-        selection,
-        shape,
-        calculation,
-    })
-}
 
 fn clock_errors(required: &SupportContract, offered: &SupportContract) -> bool {
     required.time.require_original_observation_time
@@ -438,7 +134,7 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
     }
     let methods = values
         .iter()
-        .filter_map(|value| value.calculation)
+        .flat_map(|value| value.calculation.methods())
         .collect::<BTreeSet<_>>();
     if methods.is_empty()
         || methods.iter().any(|method| {
@@ -462,6 +158,10 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
                 .iter()
                 .map(|(id, contract)| (*id, *contract))
         })
+        .collect::<BTreeMap<_, _>>();
+    let controls = values
+        .iter()
+        .flat_map(|value| value.controls.iter().map(|(id, contract)| (*id, *contract)))
         .collect::<BTreeMap<_, _>>();
     let identity = methods.contains("engarg.identity-equal/1")
         || methods.contains("engarg.any-identity-equal/1");
@@ -487,6 +187,7 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
         let expected_times = origins
             .iter()
             .chain(&selection)
+            .chain(&controls)
             .map(|(id, contract)| {
                 (
                     (*id).to_owned(),
@@ -570,11 +271,16 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
         .chain(&selection)
         .map(|(_, contract)| *contract)
         .collect::<Vec<_>>();
+    let provenance_sources = all
+        .iter()
+        .copied()
+        .chain(controls.values().copied())
+        .collect::<Vec<_>>();
     if !identity && all.iter().any(|contract| time_errors(required, contract)) {
         errors.push("derived input historical interval or observation-time uncertainty differs from the result contract".into());
     }
     if identity
-        && all.iter().any(|contract| {
+        && provenance_sources.iter().any(|contract| {
             required.time.require_original_observation_time
                 && !contract.time.require_original_observation_time
                 || required
@@ -599,7 +305,14 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
     {
         errors.push("population calculation requires complete enumeration of the same population and selectors through every measurement and selection ancestor".into());
     }
-    let authorities = all
+    if !identity
+        && controls
+            .values()
+            .any(|contract| clock_errors(required, contract))
+    {
+        errors.push("calculation witness controls do not preserve original observation clocks and uncertainty".into());
+    }
+    let authorities = provenance_sources
         .iter()
         .flat_map(|contract| contract.provenance.required_authorities.iter())
         .collect::<BTreeSet<_>>();
@@ -609,7 +322,7 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
         .iter()
         .any(|authority| !authorities.contains(authority))
         || required.provenance.transformation_history
-            && all
+            && provenance_sources
                 .iter()
                 .any(|contract| !contract.provenance.transformation_history)
     {
@@ -624,57 +337,12 @@ fn calculation_errors(required: &SupportContract, values: &[ValueSemantics<'_>])
 /// Validate qualified measurements, explicit closed calculations and selection
 /// ancestry without promoting a measured sample into a new empirical method.
 pub fn validate_semantic_flow(elaboration: &SupportElaboration) -> Vec<String> {
-    let mut errors = Vec::new();
-    let mut outputs = BTreeMap::<&str, ValueSemantics<'_>>::new();
-    let mut processed = BTreeSet::new();
-    loop {
-        let before = processed.len();
-        for acquisition in &elaboration.acquisitions {
-            if processed.contains(acquisition.id.as_str()) {
-                continue;
-            }
-            let references = acquisition
-                .bindings
-                .iter()
-                .map(|binding| &binding.output)
-                .chain(acquisition.for_each.iter().map(|binding| &binding.output))
-                .collect::<Vec<_>>();
-            if references
-                .iter()
-                .any(|reference| !outputs.contains_key(reference.step_id.as_str()))
-            {
-                continue;
-            }
-            processed.insert(acquisition.id.as_str());
-            let upstream = match references
-                .iter()
-                .map(|reference| selected(reference, &outputs))
-                .collect::<Result<Vec<_>, _>>()
-            {
-                Ok(values) => values,
-                Err(error) => {
-                    errors.push(format!(
-                        "logical acquisition {} cannot establish selector lineage: {error}",
-                        acquisition.id
-                    ));
-                    continue;
-                }
-            };
-            let selection = upstream
-                .iter()
-                .flat_map(|value| {
-                    value
-                        .origins
-                        .iter()
-                        .chain(&value.selection)
-                        .map(|(id, contract)| (*id, *contract))
-                })
-                .collect::<BTreeMap<_, _>>();
-            let mut invalid = false;
-            for (source, contract) in &selection {
+    let (outputs, mut errors) = infer_outputs(elaboration);
+    for acquisition in &elaboration.acquisitions {
+        if let Some(value) = outputs.get(acquisition.id.as_str()) {
+            for (source, contract) in &value.selection {
                 let mismatches = selection_errors(&acquisition.contract, contract);
                 if !mismatches.is_empty() {
-                    invalid = true;
                     errors.push(format!(
                         "logical acquisition {} selector ancestor {} does not preserve {}",
                         acquisition.id,
@@ -683,68 +351,6 @@ pub fn validate_semantic_flow(elaboration: &SupportElaboration) -> Vec<String> {
                     ));
                 }
             }
-            if invalid {
-                continue;
-            }
-            let shape = Shape::Object(
-                acquisition
-                    .contract
-                    .quantities
-                    .iter()
-                    .map(|quantity| {
-                        let value = Shape::Quantity {
-                            name: quantity.name.clone(),
-                            unit: quantity.unit.clone(),
-                        };
-                        (
-                            quantity.name.clone(),
-                            if acquisition.for_each.is_some() {
-                                Shape::Collection(Box::new(value))
-                            } else {
-                                value
-                            },
-                        )
-                    })
-                    .collect(),
-            );
-            outputs.insert(
-                acquisition.id.as_str(),
-                ValueSemantics {
-                    origins: BTreeMap::from([(acquisition.id.as_str(), &acquisition.contract)]),
-                    selection,
-                    shape,
-                    calculation: None,
-                },
-            );
-        }
-        for step in &elaboration.derivations {
-            if processed.contains(step.id.as_str())
-                || step
-                    .inputs
-                    .iter()
-                    .any(|reference| !outputs.contains_key(reference.step_id.as_str()))
-            {
-                continue;
-            }
-            processed.insert(step.id.as_str());
-            match step
-                .inputs
-                .iter()
-                .map(|reference| selected(reference, &outputs))
-                .collect::<Result<Vec<_>, _>>()
-                .and_then(|values| derive(&step.operation, &values))
-            {
-                Ok(semantic) => {
-                    outputs.insert(step.id.as_str(), semantic);
-                }
-                Err(error) => errors.push(format!(
-                    "logical derivation {} cannot establish semantic flow: {error}",
-                    step.id
-                )),
-            }
-        }
-        if processed.len() == before {
-            break;
         }
     }
     let requirements = elaboration
@@ -777,12 +383,11 @@ pub fn validate_semantic_flow(elaboration: &SupportElaboration) -> Vec<String> {
                 continue;
             }
         };
-        let calculated = values.iter().any(|value| {
-            value
-                .calculation
-                .is_some_and(|method| method != "engarg.scale/1")
-        }) || required.support_type == SupportType::Calculation
-            && values.iter().any(|value| value.calculation.is_some());
+        let calculated = values
+            .iter()
+            .any(|value| value.calculation.requires_calculation())
+            || required.support_type == SupportType::Calculation
+                && values.iter().any(|value| !value.calculation.is_empty());
         if calculated {
             errors.extend(
                 calculation_errors(required, &values)
@@ -804,6 +409,18 @@ pub fn validate_semantic_flow(elaboration: &SupportElaboration) -> Vec<String> {
                         requirement.id,
                         mismatches.join(", ")
                     ));
+                }
+            }
+            for (source, offered) in values
+                .iter()
+                .flat_map(|value| &value.controls)
+                .collect::<BTreeMap<_, _>>()
+            {
+                if clock_errors(required, offered)
+                    || required.provenance.transformation_history
+                        && !offered.provenance.transformation_history
+                {
+                    errors.push(format!("evaluation {} witness control {} does not preserve observation clocks or transformation provenance",evaluation.id,source));
                 }
             }
             for (source, offered) in values

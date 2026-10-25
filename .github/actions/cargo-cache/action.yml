@@ -1,0 +1,44 @@
+name: Compatible Cargo cache
+description: Reuse downloads and compatible build outputs without skipping verification.
+inputs:
+  scope:
+    description: Separate incompatible build workloads.
+    required: true
+  toolchains:
+    description: Installed Rust toolchains used by the workload.
+    required: true
+  targets:
+    description: Cargo target directories owned by this workload.
+    default: target
+runs:
+  using: composite
+  steps:
+    - name: Identify compatible build environment
+      id: environment
+      shell: bash
+      env:
+        CACHE_SCOPE: ${{ inputs.scope }}
+        CACHE_TOOLCHAINS: ${{ inputs.toolchains }}
+        CACHE_CONFIGURATION: ${{ hashFiles('Cargo.lock', '.eal-producer/Cargo.lock', '**/Cargo.toml', '**/build.rs', 'rust-toolchain.toml', '.cargo/config*', '.github/workflows/ci.yml', '.github/actions/cargo-cache/action.yml') }}
+      run: |
+        fingerprint=$(
+          {
+            for toolchain in $CACHE_TOOLCHAINS; do rustup run "$toolchain" rustc -vV; done
+            cc --version
+            printf '%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+          } | shasum -a 256 | cut -d ' ' -f 1
+        )
+        printf 'prefix=%s-%s-cargo-v1-%s-%s-%s\n' \
+          "$RUNNER_OS" "$RUNNER_ARCH" "$CACHE_SCOPE" "$fingerprint" \
+          "$CACHE_CONFIGURATION" >> "$GITHUB_OUTPUT"
+    - name: Restore Cargo downloads and build outputs
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, Node.js 24
+      with:
+        path: |
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/registry/src
+          ~/.cargo/git/db
+          ${{ inputs.targets }}
+        key: ${{ steps.environment.outputs.prefix }}-${{ github.sha }}
+        restore-keys: ${{ steps.environment.outputs.prefix }}-

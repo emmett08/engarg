@@ -11,29 +11,12 @@ use super::{
         CodeCandidate, FixtureKind, NeedContract, contract_digest, digest_json, validate_candidate,
         validate_contract,
     },
+    protocol::{REJECTION_CASES, rejected},
     runner::{ExecutionMode, FixtureRunner, RunOutcome, RunnerIdentity},
 };
 use crate::Error;
 
-/// Version 2 requires exact opaque reserved-key objects in every successful
-/// fixture's metadata. Any change to mandatory protocol probes needs a new version.
-pub const TEST_SCHEMA: &str = "engarg.tool-tests/2";
-
-/// Mandatory metadata is independent of model-authored fixtures and their oracle.
-pub fn protocol_precision_context() -> Result<Value, Error> {
-    eal_collector_contracts::strict_json_exact(
-        br#"{
-            "integer":90071992547409931234567890,
-            "decimal":1.234567890123456789,
-            "escaped":"quote \" slash \\ CRLF\r\n\u2028",
-            "opaque_number":{"$serde_json::private::Number":"literal object"},
-            "opaque_numeric_number":{"$serde_json::private::Number":"123456789012345678901234567890"},
-            "opaque_raw_value":{"$serde_json::private::RawValue":"{\"literal\":true}"},
-            "nested_opaque":[{"$serde_json::private::Number":"opaque"},{"$serde_json::private::RawValue":{"literal":"object"}}]
-        }"#,
-        Default::default(),
-    ).map_err(Error::InvalidInput)
-}
+pub use super::protocol::{TEST_SCHEMA, protocol_precision_context};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -247,16 +230,12 @@ pub fn verify<R: FixtureRunner + ?Sized>(
             ExecutionMode::Fixture,
             cancellation,
         );
-        let kind = match &fixture.kind {
-            FixtureKind::Positive => "positive",
-            FixtureKind::Negative => "negative",
-            FixtureKind::AcquisitionError => "acquisition_error",
-        };
+        let kind = fixture.kind.label();
         let record = match outcome {
             Err(_) => failed_run(&fixture.name, kind),
             Ok(outcome) => {
                 let passed = if matches!(&fixture.kind, FixtureKind::AcquisitionError) {
-                    outcome.returncode != 0 && outcome.stdout.is_empty()
+                    rejected(outcome.returncode, outcome.stdout.is_empty())
                 } else if outcome.returncode == 0 {
                     validate_observation(contract, &request, &outcome.stdout)
                         .is_ok_and(|envelope| Some(envelope.value) == fixture.expected_value)
@@ -281,19 +260,9 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         "tool":"engarg_generated_fixture","tool_version":"1",
         "input":first.input,"context":{"precision":precision}
     });
-    let mut missing_identity = valid_request.clone();
-    missing_identity
-        .as_object_mut()
-        .expect("object")
-        .remove("evidence_id");
-    let mut invalid_context = valid_request.clone();
-    invalid_context["context"] = json!("invalid");
-    let probes = [
-        ("malformed_json", b"{".to_vec()),
-        ("missing_identity", serde_json::to_vec(&missing_identity)?),
-        ("invalid_context", serde_json::to_vec(&invalid_context)?),
-    ];
-    for (name, input) in probes {
+    for probe in REJECTION_CASES {
+        let name = probe.name();
+        let input = probe.request(&valid_request)?;
         if cancellation.is_cancelled() {
             receipt.results.push(failed_run(name, "cancelled"));
             break;
@@ -308,7 +277,7 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         ) {
             Err(_) => failed_run(name, "protocol"),
             Ok(outcome) => {
-                let passed = outcome.returncode != 0 && outcome.stdout.is_empty();
+                let passed = rejected(outcome.returncode, outcome.stdout.is_empty());
                 result(
                     name,
                     "protocol",
@@ -321,7 +290,7 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         receipt.results.push(record);
     }
     receipt.passed = !cancellation.is_cancelled()
-        && receipt.results.len() == contract.draft.fixtures.len() + 3
+        && receipt.results.len() == contract.draft.fixtures.len() + REJECTION_CASES.len()
         && receipt.results.iter().all(|entry| entry.passed);
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);

@@ -22,6 +22,7 @@ pub fn compile(
     }
     catalogue.validate().map_err(Error::InvalidInput)?;
     config.validate()?;
+    let (prepared, selection) = selection::prepare(elaboration, catalogue, config, discovery)?;
     let mut result = RoutePlan {
         schema: ROUTE_PLAN_SCHEMA.into(),
         execution: EvidenceExecutionPlan {
@@ -36,7 +37,20 @@ pub fn compile(
         gaps: vec![],
         discovery: discovery.clone(),
         configuration: config.clone(),
+        selection: Some(selection),
     };
+    for alternative in crate::support_requirements::legacy_alternative_gaps(case, elaboration) {
+        result.gaps.push(PlanningGap {
+            acquisition_id: None,
+            requirement_id: None,
+            kind: GapKind::Clarification,
+            description: format!(
+                "Legacy support planning has no obligation for {}: {}",
+                alternative.alternative_id, alternative.distinguishing_test
+            ),
+            implementation: None,
+        });
+    }
     for requirement in &elaboration.requirements {
         for gap in &requirement.gaps {
             result.gaps.push(PlanningGap {
@@ -59,46 +73,29 @@ pub fn compile(
             });
         }
     }
-    for blueprint in &elaboration.acquisitions {
-        let ranked = rank_adequate(
-            &blueprint.contract,
-            &catalogue.capabilities,
-            &config.ranking,
-        )
-        .map_err(Error::InvalidInput)?;
-        let assessments: Vec<_> = catalogue
-            .capabilities
-            .iter()
-            .map(|cap| {
-                let compatibility=compatible(&blueprint.contract,cap);
-                let binding=config.bindings.iter().find(|binding|binding.capability_id==cap.id);
-                let mut configuration_gaps=if compatibility.adequate {arguments::materialise(blueprint,cap,binding)?.1}else{vec![]};
-                if compatibility.adequate&&!discovery.admitted_capabilities.contains(&cap.id) {configuration_gaps.push("Live source admission or its connection/credential references remain unresolved".into());}
-                let executable=compatibility.adequate&&configuration_gaps.is_empty();
-                Ok(CandidateAssessment {capability_id:cap.id.clone(),compatibility,configuration_gaps,executable})
-            })
-            .collect::<Result<_,Error>>()?;
-        let selected_rank = ranked
-            .iter()
-            .find(|rank| {
-                assessments.iter().any(|candidate| {
-                    candidate.capability_id == rank.capability_id && candidate.executable
-                })
-            })
-            .or_else(|| ranked.first());
-        let selected = selected_rank.and_then(|rank| {
-            catalogue
-                .capabilities
-                .iter()
-                .find(|cap| cap.id == rank.capability_id)
-        });
+    for (blueprint, prepared) in elaboration.acquisitions.iter().zip(prepared) {
+        let ranked = prepared.ranked;
+        let assessments = prepared.assessments;
+        let selected = prepared
+            .selected
+            .as_ref()
+            .and_then(|id| catalogue.capabilities.iter().find(|cap| cap.id == *id));
         let Some(capability) = selected else {
-            let (kind, description) = candidates::missing(blueprint, catalogue, discovery);
+            let (mut kind, description) = candidates::missing(blueprint, catalogue, discovery);
+            let mut description = description.to_owned();
             let implementation = if matches!(
                 kind,
                 GapKind::OperationImplementation | GapKind::TransformationImplementation
             ) {
-                Some(implementation::request(blueprint)?)
+                match implementation::request(blueprint, elaboration) {
+                    Ok(request) => Some(request),
+                    Err(Error::InvalidInput(reason)) => {
+                        kind = GapKind::Clarification;
+                        description = reason;
+                        None
+                    }
+                    Err(error) => return Err(error),
+                }
             } else {
                 None
             };
@@ -106,7 +103,7 @@ pub fn compile(
                 acquisition_id: Some(blueprint.id.clone()),
                 requirement_id: None,
                 kind,
-                description: description.into(),
+                description: description.clone(),
                 implementation,
             });
             result.execution.acquisitions.push(AcquisitionStep {
@@ -123,13 +120,13 @@ pub fn compile(
                     configuration_sha256: "0".repeat(64),
                     authentication_scope_sha256: "0".repeat(64),
                     scope: json!(blueprint.contract.scope.selectors),
-                    historical_interval: None,
+                    historical_interval: arguments::historical_interval(&blueprint.contract)?,
                 },
                 arguments: blueprint.arguments.clone(),
                 bindings: blueprint.bindings.clone(),
                 for_each: blueprint.for_each.clone(),
                 availability: SourceAvailability::Unavailable {
-                    reason: description.into(),
+                    reason: description.clone(),
                 },
                 reuse: ReusePolicy::FreshOrAcquire,
             });
@@ -138,7 +135,7 @@ pub fn compile(
                 selected: None,
                 candidates: assessments,
                 ranked,
-                configuration_gaps: vec![description.into()],
+                configuration_gaps: vec![description],
             });
             continue;
         };
@@ -230,6 +227,7 @@ pub fn compile(
             result.projections.push(AcquisitionRouteProof {
                 blueprint_id: blueprint.id.clone(),
                 capability: capability.clone(),
+                operator_arguments: binding.map(|binding| binding.arguments.clone()),
                 input_bindings: binding
                     .map(|b| b.input_bindings.clone())
                     .unwrap_or_default(),

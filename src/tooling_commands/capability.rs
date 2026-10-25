@@ -10,17 +10,17 @@ use engarg::{
             CapabilityImplementationConfig, CapabilityToolingReport, ImplementationGapKind,
             ImplementedCapability, implement_capability,
         },
+        completion::{CompletionBudget, CompletionLimits},
         contracts::digest_json,
     },
 };
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU32, Ordering},
     time::Duration,
 };
 
@@ -54,31 +54,20 @@ fn retain<T: Serialize>(path: &Path, value: &T) -> Result<(), Error> {
 struct AuditModel<'a, M> {
     inner: &'a M,
     path: PathBuf,
-    calls: AtomicU32,
+    budget: CompletionBudget,
 }
 impl<M: LanguageModel> LanguageModel for AuditModel<'_, M> {
     async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
-        let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
-        append_audit(
-            &self.path,
-            &json!({"event":"capability_request","call":call,"request":request}),
-        )?;
-        match self.inner.complete(request).await {
-            Ok(completion) => {
-                append_audit(
-                    &self.path,
-                    &json!({"event":"capability_completion","call":call,"completion":completion}),
-                )?;
-                Ok(completion)
-            }
-            Err(error) => {
-                append_audit(
-                    &self.path,
-                    &json!({"event":"capability_provider_failure","call":call}),
-                )?;
-                Err(error)
-            }
-        }
+        self.budget
+            .complete(self.inner, request, |event| {
+                let mut record = event.record();
+                record["event"] = json!(format!(
+                    "capability_{}",
+                    record["event"].as_str().unwrap_or("unknown")
+                ));
+                append_audit(&self.path, &record)
+            })
+            .await
     }
 }
 
@@ -101,10 +90,15 @@ impl Drop for AuditGuard {
 }
 
 fn routes(original: &Value) -> Result<RoutePlan, Error> {
-    let value = original
-        .pointer("/evidence_planning/routes")
-        .ok_or_else(|| invalid("capability tooling requires typed evidence planning routes"))?;
-    let routes: RoutePlan = serde_json::from_value(value.clone())?;
+    engarg::report::validate_replanning(original, &std::env::current_exe()?)?;
+    let engarg::report::EvidencePlanningReport::Graph(planning) =
+        engarg::report::classify_evidence_planning(original)?
+    else {
+        return Err(invalid(
+            "capability tooling requires typed evidence planning routes",
+        ));
+    };
+    let routes = planning.routes;
     if routes.schema != ROUTE_PLAN_SCHEMA {
         return Err(invalid("unsupported capability route plan schema"));
     }
@@ -152,9 +146,7 @@ async fn implement<M: LanguageModel>(
         let identity = request.identity()?;
         if !generated.contains_key(&identity) {
             let mut selected = config.clone();
-            selected.max_calls = config
-                .max_calls
-                .saturating_sub(model.calls.load(Ordering::SeqCst));
+            selected.max_calls = config.max_calls.saturating_sub(model.budget.calls()?);
             append_audit(
                 &model.path,
                 &json!({"event":"capability_admission","capability_sha256":identity,"gap_kind":gap.kind,"remaining_calls":selected.max_calls}),
@@ -183,18 +175,57 @@ async fn implement<M: LanguageModel>(
     } else {
         "Retained source passed frozen synthetic function-contract tests. Measurement-method adequacy, source authority and availability require separate qualification; original requirements and route gaps remain unchanged."
     };
-    Ok(CapabilityToolingReport {
+    let report = CapabilityToolingReport {
         schema: CAPABILITY_TOOLING_SCHEMA.into(),
         original_planning_sha256: digest_json(&original["evidence_planning"])?,
         language: config.language.clone(),
         capabilities: generated.into_values().collect(),
         bindings,
-        model_calls: model.calls.load(Ordering::SeqCst),
+        model_calls: model.budget.calls()?,
         skipped_non_implementation_gaps: skipped,
         deferred_implementation_gaps: deferred,
         audit_path: model.path.clone(),
         note: note.into(),
-    })
+    };
+    if !report.capabilities.is_empty() {
+        let present = std::env::vars_os()
+            .map(|(name, _)| name.to_string_lossy().into_owned())
+            .collect::<BTreeSet<_>>();
+        let mut providers = Vec::new();
+        let mut operations = BTreeMap::new();
+        for package in &report.capabilities {
+            let template = engarg::tooling::generated_registration::native_provider_template(
+                package,
+                &config.engarg_executable,
+                &config.supervisor,
+                &present,
+            )?;
+            let prepared = super::native_provider::prepare(
+                &routes.configuration.collector,
+                &config.supervisor,
+                &template,
+                &model.path.with_file_name(format!(
+                    "provider-{}.request.json",
+                    package.capability_sha256
+                )),
+            )
+            .await?;
+            operations.insert(
+                package.collector.id.clone(),
+                engarg::tooling::generated_registration::operation_contract(package)?,
+            );
+            providers.push(prepared);
+        }
+        retain(
+            &model.path.with_file_name("generated-native-providers.json"),
+            &json!({"schema":"eal.evidence-config/1","connections":[],"native_providers":providers,"local_catalogues":[],"approved_catalogues":[]}),
+        )?;
+        retain(
+            &model.path.with_file_name("operation-contracts.json"),
+            &operations,
+        )?;
+    }
+    Ok(report)
 }
 
 /// The caller may have already admitted a legacy ToolingSession solely for profile,
@@ -246,7 +277,11 @@ pub async fn run_capability_fallback<M: LanguageModel>(
     let model = AuditModel {
         inner: model,
         path: audit_path.clone(),
-        calls: AtomicU32::new(0),
+        budget: CompletionBudget::new(CompletionLimits {
+            max_calls: config.max_calls,
+            max_input_bytes: config.max_input_bytes,
+            max_response_bytes: config.max_response_bytes,
+        })?,
     };
     append_audit(
         &audit_path,
@@ -265,7 +300,7 @@ pub async fn run_capability_fallback<M: LanguageModel>(
     }.and_then(|result| result);
     append_audit(
         &audit_path,
-        &json!({"event":"capability_stage_finished","passed":result.is_ok(),"model_calls":model.calls.load(Ordering::SeqCst)}),
+        &json!({"event":"capability_stage_finished","passed":result.is_ok(),"model_calls":model.budget.calls()?}),
     )?;
     guard.finished = true;
     let report = result?;
@@ -289,11 +324,60 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn graph_audit_omits_oversized_completion_before_retaining_it() {
+        struct Oversized;
+        impl LanguageModel for Oversized {
+            async fn complete(&self, _: CompletionRequest) -> Result<Completion, Error> {
+                Ok(Completion {
+                    content: "oversized-private-code".repeat(100),
+                    model: "fixture".into(),
+                    input_tokens: None,
+                    output_tokens: None,
+                    request_id: None,
+                    service_tier: None,
+                    reasoning_effort: None,
+                })
+            }
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("audit.jsonl");
+        let model = AuditModel {
+            inner: &Oversized,
+            path: path.clone(),
+            budget: CompletionBudget::new(CompletionLimits {
+                max_calls: 1,
+                max_input_bytes: 1024,
+                max_response_bytes: 8,
+            })
+            .unwrap(),
+        };
+        let request = CompletionRequest {
+            role: engarg::provider::Role::Single,
+            system: "bounded".into(),
+            user: "operation".into(),
+            schema: json!({}),
+        };
+        assert!(matches!(
+            model.complete(request).await,
+            Err(Error::Budget(_))
+        ));
+        let raw = fs::read_to_string(path).unwrap();
+        assert!(!raw.contains("oversized-private-code"));
+        let records = raw
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(records[1]["event"], "capability_response_limit");
+        assert_eq!(records[1]["response_content_omitted"], true);
+        assert_eq!(model.budget.calls().unwrap(), 1);
+    }
+
     fn original(incomplete: bool) -> Value {
         json!({
             "argument":{"sentinel":"Original acceptance wording stays exact"},
             "evidence_planning":{
-                "schema":"engarg.support-planning/1","elaboration":{"sentinel":"No edits"},
+                "schema":"engarg.support-planning/1","elaboration":{"schema":"engarg.support-elaboration/1","requirements":[],"acquisitions":[],"derivations":[],"evaluations":[],"revisions":[]},
                 "routes":{
                     "schema":ROUTE_PLAN_SCHEMA,
                     "execution":{"schema":"eal.evidence-execution-plan/1","acquisitions":[],"derivations":[],"evaluations":[],"scheduling":{"maximum_concurrent_sources":4,"per_provider":{}}},

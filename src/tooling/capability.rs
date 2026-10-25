@@ -2,21 +2,24 @@
 //!
 //! Frozen synthetic fixtures qualify the declared function on those cases only.
 //! They never qualify a scientific method, source authority, or engineering claim.
+#[cfg(test)]
+use super::verification;
 use super::{
+    completion::{CompletionBudget, CompletionLimits},
     contracts::{
-        CONTRACT_SCHEMA, CodeCandidate, ContractDraft, NeedContract, digest_json,
-        validate_candidate, validate_contract, validate_language,
+        CONTRACT_SCHEMA, ContractDraft, NeedContract, digest_json, validate_contract,
+        validate_language,
     },
-    generation::{code_request, draft_request, parse_candidate, parse_draft},
+    generation::{code_request, draft_request, parse_draft},
     package::{PackageStore, VerifiedPackage},
     profile::ToolchainProfile,
     runner::{DockerRunner, FixtureRunner},
-    verification,
+    verified_build::VerifiedBuild,
 };
 use crate::{
     Error,
     domain::{EvidenceNeed, Request},
-    provider::{CompletionRequest, LanguageModel},
+    provider::LanguageModel,
 };
 use eal_collector_contracts::{
     CollectorDescriptor,
@@ -357,7 +360,11 @@ async fn implement_with_runner<M: LanguageModel>(
             config.max_calls
         )));
     }
-    let mut calls = 0;
+    let calls = CompletionBudget::new(CompletionLimits {
+        max_calls: config.max_calls,
+        max_input_bytes: config.max_input_bytes,
+        max_response_bytes: config.max_response_bytes,
+    })?;
     let contract = if let Some(contract) = frozen {
         ensure_fixed_contract(request, &contract)?;
         contract
@@ -375,60 +382,32 @@ async fn implement_with_runner<M: LanguageModel>(
             "Do not select claim acceptance thresholds or consumer identifiers. All input parameters remain unresolved; arguments must be empty. ",
             "Respect every declared operation limit. Draft synthetic function-contract fixtures, not scientific qualification or evidence."
         ));
-        let response = complete(model, draft, &config, &mut calls).await?;
+        let response = calls.complete(model, draft, |_| Ok(())).await?;
         let contract = NeedContract {
             schema: CONTRACT_SCHEMA.into(),
             language: config.language.clone(),
             need,
             request_context: context,
             toolchain_description: description,
-            draft: parse_draft(response.as_bytes())?,
+            draft: parse_draft(response.content.as_bytes())?,
         };
         ensure_fixed_contract(request, &contract)?;
         validate_contract(&contract)?;
         store.freeze_contract(&key, &contract, &identity)?
     };
-    let response = complete(model, code_request(&contract), &config, &mut calls).await?;
-    let candidate: CodeCandidate = parse_candidate(response.as_bytes())?;
-    validate_candidate(&contract, &candidate)?;
-    let attempt = store.new_attempt(&key)?;
-    store.save_candidate(&attempt, &contract, &candidate, &config.profile, &identity)?;
-    let task_contract = contract.clone();
-    let task_candidate = candidate.clone();
-    let task_attempt = attempt.clone();
-    let task_cancel = cancellation.clone();
-    let receipt = tokio::task::spawn_blocking(move || {
-        verification::verify(
-            runner.as_ref(),
-            &task_contract,
-            &task_candidate,
-            &task_attempt,
-            &task_cancel,
-        )
-    })
-    .await
-    .map_err(|_| Error::Provider("capability fixture worker failed".into()))??;
-    if cancellation.is_cancelled() {
-        return Err(Error::Provider(
-            "capability implementation cancelled".into(),
-        ));
+    let response = calls
+        .complete(model, code_request(&contract), |_| Ok(()))
+        .await?;
+    let package = VerifiedBuild {
+        store: &store,
+        key: &key,
+        profile: &config.profile,
+        runner,
+        cancellation: &cancellation,
     }
-    if !receipt.passed {
-        return Err(Error::InvalidOutput(format!(
-            "generated capability failed contract fixtures; inspect {}",
-            attempt.join("test-results.json").display()
-        )));
-    }
-    let package = store.commit_verified(
-        &key,
-        &attempt,
-        contract,
-        candidate,
-        config.profile.clone(),
-        identity,
-        receipt,
-    )?;
-    registration(request, &config, &package, false, calls)
+    .commit(contract, response.content.as_bytes(), |_| Ok(()))
+    .await?;
+    registration(request, &config, &package, false, calls.calls()?)
 }
 
 fn ensure_fixed_contract(
@@ -454,27 +433,6 @@ fn ensure_fixed_contract(
         ));
     }
     Ok(())
-}
-
-async fn complete<M: LanguageModel>(
-    model: &M,
-    request: CompletionRequest,
-    config: &CapabilityImplementationConfig,
-    calls: &mut u32,
-) -> Result<String, Error> {
-    if *calls >= config.max_calls || serde_json::to_vec(&request)?.len() > config.max_input_bytes {
-        return Err(Error::Budget(
-            "capability implementation call or input budget exceeded".into(),
-        ));
-    }
-    *calls += 1;
-    let completion = model.complete(request).await?;
-    if completion.content.len() > config.max_response_bytes {
-        return Err(Error::Budget(
-            "capability implementation response byte budget exceeded".into(),
-        ));
-    }
-    Ok(completion.content)
 }
 
 fn file_digest(path: &std::path::Path) -> Result<String, Error> {

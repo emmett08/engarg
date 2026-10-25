@@ -5,6 +5,7 @@ use super::{
         validate_contract,
     },
     profile::ToolchainProfile,
+    protocol::{REJECTION_CASES, rejected},
     runner::{DOCKER_ENVIRONMENT, RunnerIdentity},
     verification::{TEST_SCHEMA, VerificationReceipt},
 };
@@ -438,7 +439,7 @@ fn validate_receipt(
         || receipt.candidate_sha256 != digest_json(candidate)?
         || receipt.source_sha256 != digest_json(&candidate.files)?
         || receipt.fixtures_sha256 != digest_json(&contract.draft.fixtures)?
-        || receipt.results.len() != contract.draft.fixtures.len() + 3
+        || receipt.results.len() != contract.draft.fixtures.len() + REJECTION_CASES.len()
         || receipt.results.iter().any(|result| {
             !result.passed || !hash(&result.stdout_sha256) || !hash(&result.stderr_sha256)
         })
@@ -448,15 +449,11 @@ fn validate_receipt(
         ));
     }
     for (fixture, result) in contract.draft.fixtures.iter().zip(&receipt.results) {
-        let kind = match &fixture.kind {
-            super::contracts::FixtureKind::Positive => "positive",
-            super::contracts::FixtureKind::Negative => "negative",
-            super::contracts::FixtureKind::AcquisitionError => "acquisition_error",
-        };
+        let kind = fixture.kind.label();
         if result.name != fixture.name
             || result.kind != kind
             || (kind == "acquisition_error"
-                && (result.returncode == 0 || result.stdout_sha256 != empty_digest()))
+                && !rejected(result.returncode, result.stdout_sha256 == empty_digest()))
             || (kind != "acquisition_error" && result.returncode != 0)
         {
             return Err(invalid(
@@ -464,14 +461,13 @@ fn validate_receipt(
             ));
         }
     }
-    for (name, result) in ["malformed_json", "missing_identity", "invalid_context"]
+    for (probe, result) in REJECTION_CASES
         .iter()
         .zip(&receipt.results[contract.draft.fixtures.len()..])
     {
-        if result.name != *name
+        if result.name != probe.name()
             || result.kind != "protocol"
-            || result.returncode == 0
-            || result.stdout_sha256 != empty_digest()
+            || !rejected(result.returncode, result.stdout_sha256 == empty_digest())
         {
             return Err(invalid("tool test receipt omits a required protocol probe"));
         }

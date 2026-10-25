@@ -15,7 +15,7 @@ pub(crate) fn case() -> ArgumentCase {
 
 /// Unknown acquisition details remain explicit gaps rather than invented facts.
 pub(crate) fn pending(case: &ArgumentCase) -> SupportElaboration {
-    let requirements = material_targets(case)
+    let mut requirements = material_targets(case)
         .into_iter()
         .enumerate()
         .map(|(index, target_id)| {
@@ -50,6 +50,21 @@ pub(crate) fn pending(case: &ArgumentCase) -> SupportElaboration {
             }
         })
         .collect::<Vec<_>>();
+    let alternative_support = alternative_obligations(case)
+        .into_iter()
+        .map(|alternative| {
+            let requirement = requirements.last_mut().expect("case has material support");
+            requirement
+                .discriminating_evidence
+                .push(alternative.distinguishing_test.clone());
+            AlternativeSupport {
+                alternative_id: alternative.alternative_id,
+                distinguishing_test: alternative.distinguishing_test,
+                claim_ids: alternative.claim_ids,
+                requirement_ids: vec![requirement.id.clone()],
+            }
+        })
+        .collect();
     let evaluations = requirements
         .iter()
         .enumerate()
@@ -71,6 +86,8 @@ pub(crate) fn pending(case: &ArgumentCase) -> SupportElaboration {
         derivations: vec![],
         evaluations,
         revisions: vec![],
+
+        alternative_support,
     }
 }
 
@@ -91,7 +108,7 @@ pub(crate) fn contract(
     })).unwrap()
 }
 
-fn with_measurement(
+pub(crate) fn with_measurement(
     case: &ArgumentCase,
     contract: SupportContract,
     criterion: EvaluationCriterion,
@@ -106,6 +123,8 @@ fn with_measurement(
         arguments: json!({"revision":"frozen-revision"}),
         bindings: vec![],
         for_each: None,
+
+        operation_spec: None,
     });
     elaboration.evaluations[0].inputs = vec![OutputReference {
         step_id: "source".into(),
@@ -678,6 +697,8 @@ fn measured_observations_transfer_to_explicit_sum_and_count_without_becoming_mea
             arguments: json!({"revision":"frozen-revision"}),
             bindings: vec![],
             for_each: None,
+
+            operation_spec: None,
         },
     );
     elaboration.derivations.push(DerivationStep {
@@ -692,7 +713,7 @@ fn measured_observations_transfer_to_explicit_sum_and_count_without_becoming_mea
         step_id: "total".into(),
         pointer: "".into(),
     }];
-    elaboration.evaluations[0].required_coverage = RequiredCoverage::Unspecified;
+    elaboration.evaluations[0].required_coverage = RequiredCoverage::CompleteEnumeration;
     let required = elaboration.requirements[0].contract.as_mut().unwrap();
     required.support_type = SupportType::Calculation;
     required.logical_strength = LogicalStrength::ExactCalculation;
@@ -700,6 +721,14 @@ fn measured_observations_transfer_to_explicit_sum_and_count_without_becoming_mea
     required.scope.subject = "Sum of the enumerated latency values".into();
     required.acceptable_methods = vec!["engarg.sum/1".into(), "fixture.complete-read/1".into()];
     required.quantities[0].name = "sum_latency".into();
+    let mut unchecked = elaboration.clone();
+    unchecked.evaluations[0].required_coverage = RequiredCoverage::Unspecified;
+    assert!(
+        validate_elaboration(&case, &unchecked)
+            .iter()
+            .any(|error| error.contains("logical coverage")),
+        "population totals must demand actual complete runtime coverage"
+    );
     assert!(
         validate_elaboration(&case, &elaboration).is_empty(),
         "{:?}",
@@ -740,6 +769,7 @@ fn measured_observations_transfer_to_explicit_sum_and_count_without_becoming_mea
     );
     let required = elaboration.requirements[0].contract.as_mut().unwrap();
     required.population = None;
+    elaboration.evaluations[0].required_coverage = RequiredCoverage::Unspecified;
     required
         .scope
         .selectors
@@ -792,6 +822,8 @@ fn identity_fixture() -> (ArgumentCase, SupportElaboration) {
         arguments: json!({"trace_id":"trace-1"}),
         bindings: vec![],
         for_each: None,
+
+        operation_spec: None,
     });
     elaboration.derivations.push(DerivationStep {
         id: "same_uid".into(),
@@ -906,6 +938,8 @@ fn exhaustive_production_selector_cannot_be_relabelled_as_development_detail_cov
             arguments: json!({"cluster":"prod"}),
             bindings: vec![],
             for_each: None,
+
+            operation_spec: None,
         },
     );
     elaboration.evaluations[0].inputs = vec![OutputReference {
@@ -998,6 +1032,8 @@ fn resource_identity_matches_foreach_trace_collection_with_explicit_time_and_sco
         arguments: json!({"cluster":"dev"}),
         bindings: vec![],
         for_each: None,
+
+        operation_spec: None,
     });
     let trace_scope = elaboration.acquisitions[1].contract.scope.clone();
     let trace_time = elaboration.acquisitions[1].contract.time.clone();

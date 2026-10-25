@@ -1,11 +1,8 @@
 //! The new support bundle leaves the historical authored projection unchanged.
 use eal_collector_contracts::{
-    capability::{
-        CapabilityDescriptor, SUPPORT_CONTRACT_SCHEMA, SupportContract, SupportType,
-        schema_identity,
-    },
+    capability::{CapabilityDescriptor, SupportType},
     execution::{
-        AcquisitionStep, EvaluationCriterion, EvidenceExecutionPlan, PLAN_SCHEMA, SourceIdentity,
+        AcquisitionStep, EvaluationCriterion, EvidenceExecutionPlan, SourceIdentity,
         canonical_digest,
     },
 };
@@ -13,182 +10,14 @@ use engarg::{
     domain::{ArgumentCase, ArgumentIndex, Request},
     export_policy::ExportPolicy,
     support_export::{self, AcquisitionRouteProof, SupportExportArtifacts, SupportExportLocations},
-    support_requirements::{
-        AcquisitionBlueprint, RequirementGap, RequirementGapKind, SupportElaboration,
-        SupportRequirement, material_targets,
-    },
+    support_requirements::{AcquisitionBlueprint, SupportElaboration, SupportRequirement},
 };
 use serde_json::json;
 use std::path::PathBuf;
 
-fn fixture() -> (
-    Request,
-    ArgumentCase,
-    SupportElaboration,
-    EvidenceExecutionPlan,
-    Vec<AcquisitionRouteProof>,
-    SupportExportLocations,
-) {
-    let request: Request = serde_json::from_str(include_str!("../examples/request.json")).unwrap();
-    let case: ArgumentCase = serde_json::from_str(include_str!("../examples/case.json")).unwrap();
-    let mut requirements = Vec::new();
-    let mut evaluations = Vec::new();
-    for target in material_targets(&case) {
-        let mut needs: Vec<_> = case
-            .evidence_plan
-            .iter()
-            .filter(|need| need.target_id == target)
-            .collect();
-        needs.sort_by_key(|need| &need.id);
-        let id = format!("requirement_{target}");
-        let criterion = EvaluationCriterion::Unavailable {
-            reason: "The independent source is not yet supplied".into(),
-        };
-        requirements.push(SupportRequirement {
-            id: id.clone(),
-            target_id: target,
-            evidence_need_ids: needs.iter().map(|need| need.id.clone()).collect(),
-            original_acceptance_criteria: needs
-                .iter()
-                .map(|need| need.acceptance_criterion.clone())
-                .collect(),
-            contract: None,
-            discriminating_evidence: vec![
-                "Check the opposing result against the same scope".into(),
-            ],
-            acceptance: criterion.clone(),
-            acceptance_rationale: "Unavailable support must remain an explicit gap".into(),
-            gaps: vec![RequirementGap {
-                kind: RequirementGapKind::SourceUnavailable,
-                description: "The independent source is not yet supplied".into(),
-            }],
-        });
-        evaluations.push(serde_json::from_value(json!({"id":format!("evaluation_{id}"),"requirement_id":id,"inputs":[],"criterion":criterion,"max_age_seconds":null})).unwrap());
-    }
-    let contract:SupportContract = serde_json::from_value(json!({
-        "schema":SUPPORT_CONTRACT_SCHEMA,"support_type":"observation",
-        "scope":{"kind":"fixture","subject":"one bounded source","selectors":{"case":"dev"},"identity_dimensions":["case"]},
-        "acceptable_methods":["fixture/1"],"quantities":[{"name":"value","unit":"count"}],"logical_strength":"existential_witness","population":null,
-        "time":{"historical_interval":null,"max_age_seconds":300,"max_uncertainty_seconds":null,"require_original_observation_time":true},
-        "provenance":{"required_authorities":["fixture"],"transformation_history":true},"expected_output_schema_sha256":null,
-    })).unwrap();
-    let source:SourceIdentity = serde_json::from_value(json!({
-        "provider_id":"fixture","capability_id":"bounded_source","capability_version":"1",
-        "input_schema_sha256":"a".repeat(64),"output_schema_sha256":"b".repeat(64),
-        "qualified_contract_sha256":"e".repeat(64),
-        "configuration_sha256":"c".repeat(64),"authentication_scope_sha256":"d".repeat(64),"scope":{"case":"dev"},
-    })).unwrap();
-    let acquisition: AcquisitionStep = serde_json::from_value(
-        json!({"id":"shared_source","source":source,"arguments":{"case":"dev"}}),
-    )
-    .unwrap();
-    for index in 0..3 {
-        let id = format!("shared_requirement_{index}");
-        let criterion = EvaluationCriterion::Equals {
-            expected: json!(index),
-        };
-        requirements.push(SupportRequirement {
-            id: id.clone(),
-            target_id: "G1".into(),
-            evidence_need_ids: Vec::new(),
-            original_acceptance_criteria: Vec::new(),
-            contract: Some(contract.clone()),
-            discriminating_evidence: vec![
-                "Evaluate the same source under a distinct bounded criterion".into(),
-            ],
-            acceptance: criterion.clone(),
-            acceptance_rationale: "A separate machine predicate evaluates this source".into(),
-            gaps: Vec::new(),
-        });
-        evaluations.push(serde_json::from_value(json!({"id":format!("evaluation_{id}"),"requirement_id":id,"inputs":[{"step_id":"shared_source","pointer":"/value"}],"criterion":criterion,"max_age_seconds":300,"required_coverage":"witness"})).unwrap());
-    }
-    for (id, support_type) in [
-        ("typed_calculation", SupportType::Calculation),
-        ("typed_proof", SupportType::ProofCheck),
-    ] {
-        let mut typed = contract.clone();
-        typed.support_type = support_type;
-        let criterion = EvaluationCriterion::Unavailable {
-            reason: "The separately qualified typed source has not been supplied".into(),
-        };
-        requirements.push(SupportRequirement{id:id.into(),target_id:"G1".into(),evidence_need_ids:vec![],original_acceptance_criteria:vec![],contract:Some(typed),discriminating_evidence:vec![],acceptance:criterion.clone(),acceptance_rationale:"A shared empirical observation cannot stand in for a separately qualified calculation or proof".into(),gaps:vec![]});
-        evaluations.push(serde_json::from_value(json!({"id":format!("evaluation_{id}"),"requirement_id":id,"inputs":[],"criterion":criterion,"max_age_seconds":300,"required_coverage":"witness"})).unwrap());
-    }
-    let judgement_id = "retained_judgement";
-    let criterion = EvaluationCriterion::Judgement {
-        criterion: "Independent adequacy review with retained reasons".into(),
-        scope: None,
-    };
-    requirements.push(SupportRequirement {
-        id: judgement_id.into(),
-        target_id: "W1".into(),
-        evidence_need_ids: Vec::new(),
-        original_acceptance_criteria: Vec::new(),
-        contract: None,
-        discriminating_evidence: Vec::new(),
-        acceptance: criterion.clone(),
-        acceptance_rationale: "Arbitrary interpretation is not a machine predicate".into(),
-        gaps: vec![RequirementGap {
-            kind: RequirementGapKind::Judgement,
-            description: "A retained independent assessment is required".into(),
-        }],
-    });
-    evaluations.push(serde_json::from_value(json!({"id":"evaluation_retained_judgement","requirement_id":judgement_id,"inputs":[],"criterion":criterion})).unwrap());
-    let elaboration = SupportElaboration {
-        schema: engarg::support_requirements::SUPPORT_ELABORATION_SCHEMA.into(),
-        requirements,
-        acquisitions: vec![AcquisitionBlueprint {
-            id: "shared_source".into(),
-            contract,
-            arguments: json!({"case":"dev"}),
-            bindings: Vec::new(),
-            for_each: None,
-        }],
-        derivations: Vec::new(),
-        evaluations: evaluations.clone(),
-        revisions: Vec::new(),
-    };
-    let mut plan = EvidenceExecutionPlan {
-        schema: PLAN_SCHEMA.into(),
-        acquisitions: vec![acquisition],
-        derivations: Vec::new(),
-        evaluations,
-        scheduling: Default::default(),
-    };
-    let locations = SupportExportLocations {
-        collector: "/operator/bin/eal-collector".into(),
-        execution_plan: "/operator/run/execution.json".into(),
-        connections: "/operator/run/evidence-connections.json".into(),
-        store: "/operator/evidence-store".into(),
-        environment: Vec::new(),
-        review_binding: None,
-    };
-    let capability = descriptor();
-    plan.acquisitions[0].source.input_schema_sha256 = capability.input_schema_sha256.clone();
-    plan.acquisitions[0].source.output_schema_sha256 = capability.output_schema_sha256.clone();
-    plan.acquisitions[0].source.qualified_contract_sha256 =
-        capability.measurement_identity().unwrap();
-    let routes = vec![AcquisitionRouteProof {
-        blueprint_id: "shared_source".into(),
-        capability,
-        projection_id: Some("qualified_quantities".into()),
-        input_bindings: Default::default(),
-    }];
-    support_export::project_execution_graph(&elaboration, &routes, &mut plan).unwrap();
-    (request, case, elaboration, plan, routes, locations)
-}
-fn descriptor() -> CapabilityDescriptor {
-    let schema = json!({"type":"object"});
-    let estimate = json!({"value":null,"basis":"unknown","reference":"fixture qualification"});
-    serde_json::from_value(json!({
-        "id":"bounded_source","version":"1","description":"Qualified bounded source",
-        "provider":{"id":"fixture","version":"1","transport":"command","connection":null,"tool":null,"authentication_scope":"fixture","configuration_sha256":"c".repeat(64)},
-        "input_schema":schema,"input_schema_sha256":schema_identity(&schema).unwrap(),"output_schema":schema,"output_schema_sha256":schema_identity(&schema).unwrap(),
-        "semantics":{"qualification_reference":"fixture-contract/1","support_types":["observation"],"subject_kinds":["fixture"],"methods":["fixture/1"],"identity_dimensions":["case"],"scope_constraints":{},"scope_bindings":{"case":"/case"},"quantities":[{"name":"value","unit":"count","output_pointer":"/raw/measured"}],"coverage":[{"strength":"existential_witness","population":null,"completeness_pointer":null}],"time":{"historical_intervals":false,"historical_input":null,"original_observation_time":true,"uncertainty_seconds":0},"provenance":{"authorities":["fixture"],"transformation_history":true},"limitations":[]},
-        "configuration_requirements":[],"limits":{"timeout_seconds":30,"output_bytes":1048576,"concurrency":1,"requests_per_minute":null},
-        "costs":{"configuration_effort_seconds":estimate,"implementation_effort_seconds":estimate,"execution_requests":estimate,"execution_latency_ms":estimate,"monetary_microunits":estimate,"transfer_bytes":estimate},
-    })).unwrap()
-}
+#[path = "common/support.rs"]
+mod support_fixture;
+use support_fixture::{descriptor, fixture};
 
 fn search_detail_fixture() -> (
     Request,
@@ -211,7 +40,8 @@ fn search_detail_fixture() -> (
         maximum_items: 3,
         stop_on_witness: Some(eal_collector_contracts::execution::WitnessPredicate {
             pointer: "/match".into(),
-            equals: json!(true),
+            equals: Some(json!(true)),
+            equals_output: None,
         }),
     };
     elaboration.acquisitions.push(AcquisitionBlueprint {
@@ -220,6 +50,8 @@ fn search_detail_fixture() -> (
         arguments: json!({"case":"dev","trace_id":null}),
         bindings: vec![],
         for_each: Some(fanout.clone()),
+
+        operation_spec: None,
     });
     for requirement in elaboration
         .requirements
@@ -262,7 +94,10 @@ fn search_detail_fixture() -> (
         output_schema_sha256: capability.output_schema_sha256.clone(),
         qualified_contract_sha256: capability.measurement_identity().unwrap(),
         configuration_sha256: capability.provider.configuration_sha256.clone(),
-        authentication_scope_sha256: "d".repeat(64),
+        authentication_scope_sha256: eal_collector_contracts::capability::canonical_identity(
+            &capability.provider.authentication_scope,
+        )
+        .unwrap(),
         scope: json!({"case":"dev"}),
         historical_interval: None,
     };
@@ -287,6 +122,7 @@ fn search_detail_fixture() -> (
             "/query/trace_id".into(),
             "/trace_id".into(),
         )]),
+        operator_arguments: Some(json!({"case":"dev","query":{"trace_id":null}})),
     });
     support_export::project_execution_graph(&elaboration, &routes, &mut plan).unwrap();
     (request, case, elaboration, plan, routes, locations)
@@ -303,7 +139,10 @@ fn search_detail_witness_and_project_nodes_use_qualified_nested_output_pointers(
         fanout.stop_on_witness.as_ref().unwrap().pointer,
         "/data/matched"
     );
-    assert_eq!(fanout.stop_on_witness.as_ref().unwrap().equals, json!(true));
+    assert_eq!(
+        fanout.stop_on_witness.as_ref().unwrap().equals,
+        Some(json!(true))
+    );
     assert_eq!(
         elaboration.acquisitions[1]
             .for_each
@@ -386,6 +225,108 @@ fn search_detail_witness_and_project_nodes_use_qualified_nested_output_pointers(
         );
     }
 }
+#[test]
+fn dynamic_witness_references_are_projected_and_retained_in_requirement_lineage() {
+    let (request, case, mut elaboration, mut execution, routes, locations) =
+        search_detail_fixture();
+    let mut expected_blueprint = elaboration.acquisitions[0].clone();
+    expected_blueprint.id = "expected_source".into();
+    expected_blueprint.contract.quantities =
+        vec![serde_json::from_value(json!({"name":"expected_match","unit":"boolean"})).unwrap()];
+    elaboration.acquisitions.push(expected_blueprint);
+    let mut routes = routes;
+    let mut expected_route = routes[0].clone();
+    expected_route.blueprint_id = "expected_source".into();
+    expected_route.projection_id = Some("expected_quantities".into());
+    expected_route.capability.id = "expected_match_source".into();
+    expected_route.capability.semantics.as_mut().unwrap().quantities = vec![serde_json::from_value(json!({"name":"expected_match","unit":"boolean","output_pointer":"/results/expected_match"})).unwrap()];
+    let mut expected_step = execution.acquisitions[0].clone();
+    expected_step.id = "expected_source".into();
+    expected_step.source.capability_id = expected_route.capability.id.clone();
+    expected_step.source.qualified_contract_sha256 =
+        expected_route.capability.measurement_identity().unwrap();
+    execution.acquisitions.push(expected_step);
+    routes.push(expected_route);
+    let witness = elaboration.acquisitions[1]
+        .for_each
+        .as_mut()
+        .unwrap()
+        .stop_on_witness
+        .as_mut()
+        .unwrap();
+    witness.equals = None;
+    witness.equals_output = Some(
+        serde_json::from_value(json!({"step_id":"expected_source","pointer":"/expected_match"}))
+            .unwrap(),
+    );
+    support_export::project_execution_graph(&elaboration, &routes, &mut execution).unwrap();
+    let witness = execution.acquisitions[1]
+        .for_each
+        .as_ref()
+        .unwrap()
+        .stop_on_witness
+        .as_ref()
+        .unwrap();
+    assert_eq!(witness.pointer, "/data/matched");
+    assert!(witness.equals.is_none());
+    assert_eq!(
+        serde_json::to_value(&witness.equals_output).unwrap(),
+        json!({"step_id":"expected_quantities","pointer":"/expected_match"})
+    );
+    let artifacts = support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    for requirement in artifacts
+        .bundle
+        .requirements
+        .iter()
+        .filter(|requirement| requirement.requirement_id.starts_with("shared_requirement"))
+    {
+        assert!(
+            requirement
+                .source_step_ids
+                .contains(&"expected_source".into())
+        );
+        assert!(
+            requirement
+                .derived_step_ids
+                .contains(&"expected_quantities".into())
+        );
+    }
+    support_export::reconstruct(&artifacts.bundle).unwrap();
+    let mut tampered = execution;
+    tampered.acquisitions[1]
+        .for_each
+        .as_mut()
+        .unwrap()
+        .stop_on_witness
+        .as_mut()
+        .unwrap()
+        .equals_output
+        .as_mut()
+        .unwrap()
+        .step_id = "shared_source".into();
+    assert!(
+        support_export::export(
+            &request,
+            &case,
+            &elaboration,
+            &tampered,
+            &routes,
+            &locations,
+            &ExportPolicy::default()
+        )
+        .is_err()
+    );
+}
+
 fn exported() -> SupportExportArtifacts {
     let (request, case, elaboration, plan, routes, locations) = fixture();
     support_export::export(
@@ -507,6 +448,8 @@ fn gates_follow_selected_dependency_cones_and_keep_generated_nodes_distinct() {
     let artifacts = exported();
     let bundle = &artifacts.bundle;
     let index = ArgumentIndex::new(&bundle.authored.original_case);
+    let alternative_gates =
+        engarg::support_requirements::alternative_requirement_gates(&bundle.support_elaboration);
     for requirement in &bundle.requirements {
         for id in bundle.claim_names.keys() {
             assert_eq!(
@@ -514,6 +457,9 @@ fn gates_follow_selected_dependency_cones_and_keep_generated_nodes_distinct() {
                 index
                     .selected_dependency(id)
                     .contains(requirement.target_id.as_str())
+                    || alternative_gates
+                        .get(&requirement.requirement_id)
+                        .is_some_and(|claims| claims.contains(id))
             );
         }
     }
@@ -631,7 +577,7 @@ fn qualified_quantity_pointers_are_compiled_without_changing_acceptance() {
     let projected = serde_json::to_value(&plan).unwrap();
     assert_eq!(
         projected["derivations"][0]["operation"],
-        json!({"kind":"project","fields":{"value":"/raw/measured"}})
+        json!({"kind":"project_value","fields":{"value":"/raw/measured"}})
     );
     for evaluation in plan
         .evaluations
@@ -670,7 +616,7 @@ fn qualified_quantity_pointers_are_compiled_without_changing_acceptance() {
     )
     .unwrap();
     let mut tampered = plan.clone();
-    if let eal_collector_contracts::execution::DerivationOperation::Project { fields } =
+    if let eal_collector_contracts::execution::DerivationOperation::ProjectValue { fields } =
         &mut tampered.derivations[0].operation
     {
         fields.insert("value".into(), "/unqualified".into());
@@ -756,6 +702,7 @@ fn operator_input_mappings_preserve_dependency_values_and_only_change_declared_s
     proof.projection_id = Some("downstream_quantities".into());
     proof.input_bindings =
         std::collections::BTreeMap::from([("/request/lookup".into(), "/lookup".into())]);
+    proof.operator_arguments = Some(json!({"case":"dev","request":{"lookup":null}}));
     routes.push(proof);
     support_export::project_execution_graph(&elaboration, &routes, &mut plan).unwrap();
     assert_eq!(
@@ -912,6 +859,300 @@ fn acquisition_freshness_cannot_be_weakened_by_downstream_ages_or_missing_routes
             assert_eq!(changed.acquisitions[0].max_age_seconds, Some(60));
         }
     }
+}
+
+#[test]
+fn historical_contract_and_physical_window_cannot_be_dropped_during_export() {
+    let (request, case, mut elaboration, mut execution, mut routes, locations) = fixture();
+    let history: eal_collector_contracts::capability::HistoricalInterval =
+        serde_json::from_value(json!({"start_unix":1761264000,"end_unix":1761350400})).unwrap();
+    elaboration.acquisitions[0]
+        .contract
+        .time
+        .historical_interval = Some(history.clone());
+    elaboration.acquisitions[0].arguments["start"] = json!(history.start_unix);
+    elaboration.acquisitions[0].arguments["end"] = json!(history.end_unix);
+    for requirement in elaboration
+        .requirements
+        .iter_mut()
+        .filter(|requirement| requirement.id.starts_with("shared_requirement"))
+    {
+        requirement
+            .contract
+            .as_mut()
+            .unwrap()
+            .time
+            .historical_interval = Some(history.clone());
+    }
+    execution.acquisitions[0].arguments = elaboration.acquisitions[0].arguments.clone();
+    let semantics = routes[0].capability.semantics.as_mut().unwrap();
+    semantics.time.historical_intervals = true;
+    semantics.time.historical_input = Some(
+        serde_json::from_value(
+            json!({"start_pointer":"/start","end_pointer":"/end","encoding":"unix_seconds"}),
+        )
+        .unwrap(),
+    );
+    execution.acquisitions[0].source.qualified_contract_sha256 =
+        routes[0].capability.measurement_identity().unwrap();
+    support_export::project_execution_graph(&elaboration, &routes, &mut execution).unwrap();
+    let baseline = support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    support_export::reconstruct_bundle(&baseline.bundle).unwrap();
+    for interval in [
+        None,
+        Some(
+            serde_json::from_value(
+                json!({"start":"2000-01-01T00:00:00Z","end":"2000-01-02T00:00:00Z"}),
+            )
+            .unwrap(),
+        ),
+    ] {
+        let mut changed = execution.clone();
+        changed.acquisitions[0].source.historical_interval = interval;
+        assert!(
+            support_export::export(
+                &request,
+                &case,
+                &elaboration,
+                &changed,
+                &routes,
+                &locations,
+                &ExportPolicy::default()
+            )
+            .is_err()
+        );
+    }
+    execution.acquisitions[0].arguments["start"] = json!(0);
+    execution.acquisitions[0].arguments["end"] = json!(1);
+    assert!(
+        support_export::export(
+            &request,
+            &case,
+            &elaboration,
+            &execution,
+            &routes,
+            &locations,
+            &ExportPolicy::default()
+        )
+        .is_err()
+    );
+    assert!(
+        support_export::project_execution_graph(&elaboration, &routes, &mut execution).is_err()
+    );
+}
+
+#[test]
+fn unmapped_static_arguments_and_changed_operator_projections_are_rejected() {
+    let (request, case, mut elaboration, mut execution, mut routes, locations) = fixture();
+    elaboration.acquisitions[0].arguments["query"] = json!("the exact original query");
+    execution.acquisitions[0].arguments = elaboration.acquisitions[0].arguments.clone();
+    support_export::project_execution_graph(&elaboration, &routes, &mut execution).unwrap();
+    execution.acquisitions[0].arguments["query"] = json!("a different query");
+    assert!(
+        support_export::export(
+            &request,
+            &case,
+            &elaboration,
+            &execution,
+            &routes,
+            &locations,
+            &ExportPolicy::default()
+        )
+        .is_err()
+    );
+    routes[0].operator_arguments = Some(execution.acquisitions[0].arguments.clone());
+    assert!(
+        support_export::project_execution_graph(&elaboration, &routes, &mut execution).is_err(),
+        "operator constants cannot silently replace known original logical values"
+    );
+    routes[0].operator_arguments =
+        Some(json!({"case":"dev","request":{"query":null},"read_only":true}));
+    routes[0].input_bindings =
+        std::collections::BTreeMap::from([("/request/query".into(), "/query".into())]);
+    execution.acquisitions[0].arguments =
+        json!({"case":"dev","request":{"query":"the exact original query"},"read_only":true});
+    support_export::project_execution_graph(&elaboration, &routes, &mut execution).unwrap();
+    support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    execution.acquisitions[0].arguments["read_only"] = json!(false);
+    assert!(
+        support_export::export(
+            &request,
+            &case,
+            &elaboration,
+            &execution,
+            &routes,
+            &locations,
+            &ExportPolicy::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn planned_authentication_and_complete_qualified_scope_must_match_route_proofs() {
+    let (request, case, mut elaboration, mut execution, mut routes, locations) = fixture();
+    elaboration.acquisitions[0]
+        .contract
+        .scope
+        .selectors
+        .insert("tenant".into(), json!("development-reader"));
+    for requirement in &mut elaboration.requirements {
+        if let Some(contract) = &mut requirement.contract {
+            contract
+                .scope
+                .selectors
+                .insert("tenant".into(), json!("development-reader"));
+        }
+    }
+    routes[0]
+        .capability
+        .semantics
+        .as_mut()
+        .unwrap()
+        .scope_constraints
+        .insert("tenant".into(), json!("development-reader"));
+    execution.acquisitions[0].source.scope["tenant"] = json!("development-reader");
+    execution.acquisitions[0].source.qualified_contract_sha256 =
+        routes[0].capability.measurement_identity().unwrap();
+    support_export::project_execution_graph(&elaboration, &routes, &mut execution).unwrap();
+    support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    for mutation in 0..3 {
+        let mut changed = execution.clone();
+        match mutation {
+            0 => changed.acquisitions[0].source.authentication_scope_sha256 = "0".repeat(64),
+            1 => {
+                changed.acquisitions[0]
+                    .source
+                    .scope
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("tenant");
+            }
+            _ => changed.acquisitions[0].source.scope["injected_scope"] = json!("foreign"),
+        }
+        assert!(
+            support_export::export(
+                &request,
+                &case,
+                &elaboration,
+                &changed,
+                &routes,
+                &locations,
+                &ExportPolicy::default()
+            )
+            .is_err(),
+            "mutation{mutation} must not survive re-export"
+        );
+    }
+}
+
+#[test]
+fn alternative_requirements_gate_explicit_claims_and_legacy_imports_remain_pending() {
+    let (request, case, mut elaboration, execution, routes, locations) = fixture();
+    elaboration.schema = engarg::support_requirements::SUPPORT_ELABORATION_SCHEMA.into();
+    let bundle = support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap()
+    .bundle;
+    let requirement = bundle
+        .requirements
+        .iter()
+        .find(|requirement| requirement.requirement_id == "requirement_G2")
+        .unwrap();
+    assert!(
+        requirement
+            .gated_claim_ids
+            .contains(&"current_claim".into()),
+        "explicit alternative testing survives target placement outside the selected cone"
+    );
+    elaboration.schema = engarg::support_requirements::LEGACY_SUPPORT_ELABORATION_SCHEMA.into();
+    elaboration.alternative_support.clear();
+    let artifacts = support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    let projection = artifacts.bundle.alternative_projection.as_ref().unwrap();
+    assert_eq!(projection.guards.len(), case.alternatives.len());
+    assert_eq!(
+        projection.original_execution_plan.evaluations.len(),
+        execution.evaluations.len()
+    );
+    assert_eq!(
+        artifacts.execution_plan.evaluations.len(),
+        execution.evaluations.len() + case.alternatives.len()
+    );
+    for guard in &projection.guards {
+        assert!(
+            artifacts
+                .execution_plan
+                .evaluations
+                .iter()
+                .any(
+                    |evaluation| evaluation.requirement_id == guard.requirement_id
+                        && matches!(
+                            evaluation.criterion,
+                            EvaluationCriterion::Unavailable { .. }
+                        )
+                )
+        );
+        assert!(guard.claim_ids.contains(&"current_claim".into()));
+    }
+    assert!(
+        artifacts
+            .bundle
+            .pending
+            .iter()
+            .any(|pending| pending.kind == "legacy_alternative_support")
+    );
+    support_export::reconstruct_bundle(&artifacts.bundle).unwrap();
+    let mut tampered = artifacts.bundle.clone();
+    tampered
+        .alternative_projection
+        .as_mut()
+        .unwrap()
+        .guards
+        .clear();
+    assert!(support_export::reconstruct_bundle(&tampered).is_err());
 }
 
 fn saved_graph_report(path: &std::path::Path) {
@@ -1125,6 +1366,11 @@ async fn actual_eal_parser_validates_support_source_and_plans_the_canonical_gate
         .iter()
         .filter_map(|value| value.as_str())
         .collect();
+    assert_eq!(
+        ids.len(),
+        support_export::collection_budget(&artifacts.bundle).claim_evidence_counts["current_claim"],
+        "metadata must count the actual host selected-claim plan"
+    );
     for requirement in artifacts.bundle.requirements.iter().filter(|requirement| {
         requirement
             .gated_claim_ids
@@ -1136,6 +1382,125 @@ async fn actual_eal_parser_validates_support_source_and_plans_the_canonical_gate
             requirement.requirement_id
         );
     }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+#[ignore = "requires real EAL binaries including eal-collector; set ENGARG_EAL_HOST"]
+async fn actual_legacy_alternative_guard_is_planned_unavailable_support() {
+    use engarg::eal_host::{HostConfig, invoke};
+    use std::io::Write;
+    let directory = tempfile::tempdir().unwrap();
+    let host = PathBuf::from(std::env::var_os("ENGARG_EAL_HOST").expect("set ENGARG_EAL_HOST"));
+    let (request, case, mut elaboration, mut execution, routes, mut locations) = fixture();
+    elaboration.alternative_support.clear();
+    execution.acquisitions[0].availability =
+        eal_collector_contracts::execution::SourceAvailability::Unavailable {
+            reason: "This fixture retains no instrument source".into(),
+        };
+    locations.collector = host.with_file_name("eal-collector");
+    locations.execution_plan = directory.path().join("execution.json");
+    locations.connections = directory.path().join("connections.json");
+    locations.store = directory.path().join("store");
+    std::fs::write(&locations.connections,serde_json::to_vec(&json!({"schema":"eal.evidence-config/1","connections":[],"native_providers":[],"local_catalogues":[],"approved_catalogues":[]})).unwrap()).unwrap();
+    let artifacts = support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    std::fs::write(
+        &locations.execution_plan,
+        serde_json::to_vec(&artifacts.execution_plan).unwrap(),
+    )
+    .unwrap();
+    let tools = directory.path().join("tools.toml");
+    std::fs::write(&tools, &artifacts.tools_toml).unwrap();
+    let config = HostConfig {
+        executable: host,
+        workspace: directory.path().into(),
+        database: Some(directory.path().join("case.sqlite")),
+        registry: Some(tools),
+        collector_env: vec![],
+        public_collector_env: vec![],
+        url: None,
+        token_env: None,
+        timeout: std::time::Duration::from_secs(30),
+    };
+    let validation = invoke(
+        &config,
+        &json!({"operation":"validate","source":artifacts.bundle.source}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(validation["result"]["valid"], true, "{validation}");
+    let collection=invoke(&config,&json!({"operation":"collect_claim","source":artifacts.bundle.source,"claim":artifacts.bundle.claim_names["current_claim"],"context":artifacts.bundle.context})).await.unwrap();
+    assert_eq!(collection["is_error"], false, "{collection}");
+    let now = String::from_utf8(
+        std::process::Command::new("date")
+            .args(["-u", "+%Y-%m-%dT%H:%M:%SZ"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    let assessment=invoke(&config,&json!({"operation":"reason","source":artifacts.bundle.source,"context":artifacts.bundle.context,"collection_id":collection["result"]["collection_id"],"now":now.trim()})).await.unwrap();
+    assert_eq!(
+        assessment["result"]["claims"][&artifacts.bundle.claim_names["current_claim"]]["status"],
+        "unsupported"
+    );
+    for guard in &artifacts
+        .bundle
+        .alternative_projection
+        .as_ref()
+        .unwrap()
+        .guards
+    {
+        let record = &collection["result"]["records"][&guard.evidence_name];
+        assert_eq!(record["status"], "error");
+        assert!(record.get("value").is_none());
+        assert_eq!(
+            assessment["result"]["evidence"][&guard.evidence_name]["status"],
+            "unavailable"
+        );
+    }
+    let guard = &artifacts
+        .bundle
+        .alternative_projection
+        .as_ref()
+        .unwrap()
+        .guards[0];
+    let request = artifacts
+        .acquisition_requests
+        .iter()
+        .find(|request| request.evidence_id == guard.evidence_name)
+        .unwrap();
+    let binding = &artifacts.registry.tools["engarg_support_graph"];
+    let mut child = std::process::Command::new(&binding.argv[0])
+        .args(&binding.argv[1..])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&serde_json::to_vec(request).unwrap())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        diagnostic.contains("Legacy support extraction"),
+        "{diagnostic}"
+    );
+    assert!(!diagnostic.contains("absent or ambiguous"));
 }
 
 /// A retained instrument fixture plus separately supplied review fixtures exercise
@@ -1175,8 +1540,14 @@ fn actual_eal_collection_reuses_one_source_and_can_support_the_reviewed_canonica
         .retain(|evaluation| ids.contains(&evaluation.requirement_id));
     let cone = ArgumentIndex::new(&case).selected_dependency("current_claim");
     let contract = elaboration.acquisitions[0].contract.clone();
+    let alternative_gates =
+        engarg::support_requirements::alternative_requirement_gates(&elaboration);
     for requirement in &mut elaboration.requirements {
-        if !cone.contains(requirement.target_id.as_str()) {
+        if !cone.contains(requirement.target_id.as_str())
+            && !alternative_gates
+                .get(&requirement.id)
+                .is_some_and(|claims| claims.contains("current_claim"))
+        {
             continue;
         }
         requirement.contract = Some(contract.clone());
@@ -1211,7 +1582,7 @@ fn actual_eal_collection_reuses_one_source_and_can_support_the_reviewed_canonica
     }
     let artifact = directory.path().join("instrument.json");
     let observation = serde_json::to_vec(
-        &json!({"measurement":{"case":"dev","raw":{"measured":0}},"observed_at":observed_at}),
+        &json!({"measurement":[{"case":"dev","raw":{"measured":0}}],"observed_at":observed_at}),
     )
     .unwrap();
     std::fs::write(&artifact, &observation).unwrap();
@@ -1220,7 +1591,15 @@ fn actual_eal_collection_reuses_one_source_and_can_support_the_reviewed_canonica
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     let transport = json!({"kind":"retained_artifact","path":artifact,"sha256":artifact_sha256});
-    let mapping = json!({"tool":"bounded_source","raw_output_schema_sha256":null,"response_format":{"kind":"structured"},"value_pointer":"/measurement","observation_time":{"kind":"pointer","pointer":"/observed_at"},"scope_pointers":{"case":"/case"}});
+    let mapping = json!({"tool":"bounded_source","raw_output_schema_sha256":null,"response_format":{"kind":"structured"},"value_pointer":"/measurement","observation_time":{"kind":"pointer","pointer":"/observed_at"},"scope_pointers":{"case":"/0/case"}});
+    routes[0].capability.semantics.as_mut().unwrap().quantities[0].output_pointer =
+        "/0/raw/measured".into();
+    routes[0].capability.output_schema = json!({"type":"array","items":{"type":"object"}});
+    routes[0].capability.output_schema_sha256 =
+        eal_collector_contracts::capability::schema_identity(&routes[0].capability.output_schema)
+            .unwrap();
+    execution.acquisitions[0].source.output_schema_sha256 =
+        routes[0].capability.output_schema_sha256.clone();
     let configuration_sha256 = canonical_digest(&json!([transport, mapping, [], []])).unwrap();
     routes[0].capability.provider.transport =
         eal_collector_contracts::capability::TransportKind::RetainedArtifact;
@@ -1249,6 +1628,8 @@ fn actual_eal_collection_reuses_one_source_and_can_support_the_reviewed_canonica
         arguments: json!({"case":"dev"}),
         bindings: vec![],
         for_each: None,
+
+        operation_spec: None,
     });
     let judgement_record = json!({"schema":"eal.retained-judgement/1","criterion":"The independent fixture review finds the bounded source interpretation adequate","scope":judgement_contract.scope,"reviewer_identity":"independent fixture reviewer","reviewed_at":observed_at,"verdict":"supported","reasons":["The fixture reviewer retained this scoped decision separately from instrument acquisition"],"provenance":{"record_id":"fixture-review-1","source":"independent review fixture"}});
     let judgement_path = directory.path().join("retained-judgement.json");
@@ -1280,6 +1661,8 @@ fn actual_eal_collection_reuses_one_source_and_can_support_the_reviewed_canonica
     let mut judgement_source = execution.acquisitions[0].clone();
     judgement_source.id = "judgement_source".into();
     judgement_source.source.capability_id = judgement_descriptor.id.clone();
+    judgement_source.source.output_schema_sha256 =
+        judgement_descriptor.output_schema_sha256.clone();
     judgement_source.source.configuration_sha256 =
         judgement_descriptor.provider.configuration_sha256.clone();
     judgement_source.source.qualified_contract_sha256 =
@@ -1290,6 +1673,7 @@ fn actual_eal_collection_reuses_one_source_and_can_support_the_reviewed_canonica
         capability: judgement_descriptor,
         projection_id: Some("judgement_quantities".into()),
         input_bindings: Default::default(),
+        operator_arguments: None,
     });
     support_export::project_execution_graph(&elaboration, &routes, &mut execution).unwrap();
     let connections = directory.path().join("connections.json");
@@ -1722,4 +2106,82 @@ async fn actual_eal_search_detail_fanout_stops_at_a_nested_qualified_witness() {
         source_requests, 3,
         "one retained search and two detail reads serve all three requirement evaluations"
     );
+}
+
+#[test]
+fn collection_budget_reports_all_emitted_evidence_without_truncating_shared_requirements() {
+    let (request, case, mut elaboration, mut execution, routes, locations) = fixture();
+    let baseline = support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    let baseline_count = support_export::collection_budget(&baseline.bundle).total_emitted_evidence;
+    let template = elaboration
+        .requirements
+        .iter()
+        .find(|requirement| requirement.id == "shared_requirement_0")
+        .unwrap()
+        .clone();
+    let evaluation = elaboration
+        .evaluations
+        .iter()
+        .find(|evaluation| evaluation.requirement_id == template.id)
+        .unwrap()
+        .clone();
+    for index in 0..(129 - baseline_count) {
+        let mut requirement = template.clone();
+        requirement.id = format!("additional_requirement_{index}");
+        let mut evaluation = evaluation.clone();
+        evaluation.id = format!("additional_evaluation_{index}");
+        evaluation.requirement_id = requirement.id.clone();
+        elaboration.requirements.push(requirement);
+        elaboration.evaluations.push(evaluation);
+    }
+    support_export::project_execution_graph(&elaboration, &routes, &mut execution).unwrap();
+    let artifacts = support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    let budget = support_export::collection_budget(&artifacts.bundle);
+    assert_eq!(budget.total_emitted_evidence, 129);
+    assert_eq!(budget.assumed_default_limit, 128);
+    assert_eq!(
+        artifacts
+            .bundle
+            .source
+            .lines()
+            .filter(|line| line.starts_with("evidence "))
+            .count(),
+        129
+    );
+    assert_eq!(
+        artifacts.bundle.requirements.len(),
+        elaboration.requirements.len()
+    );
+    assert_eq!(
+        artifacts.execution_plan.acquisitions.len(),
+        1,
+        "sharing remains intact"
+    );
+    assert!(
+        artifacts
+            .bundle
+            .pending
+            .iter()
+            .any(|pending| pending.kind == "collection_budget_exceeded"
+                && pending.description.contains("Default collect-all"))
+    );
+    support_export::reconstruct(&artifacts.bundle).unwrap();
 }

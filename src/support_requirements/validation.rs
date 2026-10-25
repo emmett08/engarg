@@ -1,5 +1,5 @@
 //! Coverage and logical graph admission preserve the argument's source obligations.
-use super::{SUPPORT_ELABORATION_SCHEMA, SupportElaboration, SupportRequirement};
+use super::{SupportElaboration, SupportRequirement};
 use crate::domain::{ArgumentCase, ArgumentIndex, DefeaterStatus};
 use eal_collector_contracts::{
     capability::{LogicalStrength, canonical_identity},
@@ -170,7 +170,7 @@ fn criterion_errors(requirement: &SupportRequirement) -> Vec<String> {
 
 pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboration) -> Vec<String> {
     let mut errors = Vec::new();
-    if elaboration.schema != SUPPORT_ELABORATION_SCHEMA {
+    if !super::supported_schema(&elaboration.schema) {
         errors.push("unsupported support elaboration schema".into());
     }
     if elaboration.requirements.is_empty()
@@ -294,6 +294,7 @@ pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboratio
         ));
     }
     errors.extend(graph_errors(elaboration, &requirements));
+    errors.extend(super::alternatives::validate(case, elaboration));
     errors.extend(super::validate_semantic_flow(elaboration));
     let mut revisions = BTreeSet::new();
     for revision in &elaboration.revisions {
@@ -319,6 +320,14 @@ fn graph_errors(
     let mut errors = Vec::new();
     let mut nodes = BTreeMap::<&str, Vec<&OutputReference>>::new();
     for acquisition in &elaboration.acquisitions {
+        if let Some(spec) = &acquisition.operation_spec
+            && let Err(error) = spec.validate()
+        {
+            errors.push(format!(
+                "logical acquisition {} has invalid operation specification: {error}",
+                acquisition.id
+            ));
+        }
         if !id(&acquisition.id)
             || !acquisition.arguments.is_object()
             || nodes
@@ -329,6 +338,9 @@ fn graph_errors(
                         .iter()
                         .map(|binding| &binding.output)
                         .chain(acquisition.for_each.iter().map(|binding| &binding.output))
+                        .chain(acquisition.for_each.iter().filter_map(|binding| {
+                            binding.stop_on_witness.as_ref()?.equals_output.as_ref()
+                        }))
                         .collect(),
                 )
                 .is_some()
@@ -371,10 +383,10 @@ fn graph_errors(
                     .arguments
                     .pointer(&binding.argument_pointer)
                     .is_none()
-                || binding
-                    .stop_on_witness
-                    .as_ref()
-                    .is_some_and(|predicate| !valid_pointer(&predicate.pointer))
+                || binding.stop_on_witness.as_ref().is_some_and(|predicate| {
+                    !valid_pointer(&predicate.pointer)
+                        || predicate.equals.is_some() == predicate.equals_output.is_some()
+                })
         }) {
             errors.push(format!(
                 "logical acquisition {} requires bounded fan-out and explicit pointers",
@@ -399,6 +411,7 @@ fn graph_errors(
                 ))
             }
             DerivationOperation::Project { fields }
+            | DerivationOperation::ProjectValue { fields }
                 if derivation.inputs.len() != 1
                     || fields.is_empty()
                     || fields.len() > 256
@@ -510,7 +523,12 @@ fn graph_errors(
                     ));
                 }
                 if let Some(contract) = &requirement.contract {
-                    let expected = if contract
+                    let expected = if contract.support_type
+                        == eal_collector_contracts::capability::SupportType::Calculation
+                        && contract.population.is_some()
+                    {
+                        RequiredCoverage::CompleteEnumeration
+                    } else if contract
                         .acceptable_methods
                         .iter()
                         .any(|method| method == "engarg.any-identity-equal/1")
@@ -628,6 +646,12 @@ pub fn validate_revision(
         .map(|need| (need.id.as_str(), need))
         .collect();
     let current_index = ArgumentIndex::new(current_case);
+    let changed_alternatives = super::alternatives::changed_requirement_bindings(
+        previous_case,
+        previous,
+        current_case,
+        current,
+    );
     for need in &previous_case.evidence_plan {
         if current_index.node(&need.target_id).is_some()
             && current_needs.get(need.id.as_str()).is_none_or(|current| {
@@ -655,7 +679,7 @@ pub fn validate_revision(
     }
     for (id, requirement) in previous_requirements {
         match current_requirements.get(id) {
-            None if current_index.node(&requirement.target_id).is_some() =>
+            None if current_index.node(&requirement.target_id).is_some() && !super::alternatives::retired_alternative_requirement(previous_case,previous,current_case,requirement) =>
             {
                 errors.push(format!(
                     "support revision dropped requirement {id} for a retained target"
@@ -663,7 +687,7 @@ pub fn validate_revision(
             }
             None if !revisions.contains_key(id)=>errors.push(format!("support revision removed requirement {id} without its prior-digest disposition and reason")),
             Some(current)
-                if !same(requirement, *current)
+                if (!same(requirement, *current) || changed_alternatives.contains(id))
                     && canonical_identity(requirement)
                         .map(|digest| {
                             revisions.get(id).is_none_or(|revision| {

@@ -20,6 +20,18 @@ pub struct SupportElaboration {
     pub derivations: Vec<DerivationStep>,
     pub evaluations: Vec<RequirementEvaluation>,
     pub revisions: Vec<RequirementRevision>,
+    /// Explicit discriminating obligations for the case's ordered alternatives.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub alternative_support: Vec<AlternativeSupport>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AlternativeSupport {
+    pub alternative_id: String,
+    pub distinguishing_test: String,
+    pub claim_ids: Vec<String>,
+    pub requirement_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -47,6 +59,22 @@ pub struct AcquisitionBlueprint {
     pub arguments: Value,
     pub bindings: Vec<DependencyBinding>,
     pub for_each: Option<ForEachBinding>,
+    /// A reusable operation definition, required only when an implementation is missing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_spec: Option<OperationSpecification>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct OperationSpecification {
+    pub schema: String,
+    pub definition: String,
+    pub input_conditions: Vec<String>,
+    pub output_guarantees: Vec<String>,
+    #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_exact")]
+    pub input_schema: Value,
+    #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_exact")]
+    pub output_schema: Value,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -19,6 +19,7 @@ pub mod presentations;
 pub mod prompts;
 pub mod provider;
 pub mod render;
+pub mod report;
 pub mod retained_collectors;
 pub mod route_planning;
 pub mod scoped_collectors;

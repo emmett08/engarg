@@ -18,6 +18,9 @@ pub struct PlanningConfig {
     #[serde(default)]
     pub environment: Vec<String>,
     pub ranking: RankingPolicy,
+    /// Explicit feasibility preference. Cost ranking is the default.
+    #[serde(default)]
+    pub prefer_configured: bool,
     pub scheduling: SchedulingPolicy,
     pub bindings: Vec<CapabilityInputBinding>,
 }
@@ -54,6 +57,26 @@ pub struct RoutePlan {
     pub gaps: Vec<PlanningGap>,
     pub discovery: DiscoverySnapshot,
     pub configuration: PlanningConfig,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<PlanSelection>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlanSelection {
+    pub method: String,
+    pub search_complete: bool,
+    pub candidate_states: usize,
+    /// Exact static request-group count; dynamic arguments or fan-out remain unknown.
+    pub estimated_distinct_acquisitions: Option<usize>,
+    /// Source-operation invocation bound without reuse discount; excludes provider-internal requests.
+    /// Fan-out contributes its configured maximum.
+    #[serde(default)]
+    pub estimated_distinct_acquisitions_upper_bound: Option<usize>,
+    #[serde(default)]
+    pub dynamic_acquisition_groups: usize,
+    /// Unknown estimates remain counted separately from known values.
+    pub total_costs: Vec<(usize, u128)>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

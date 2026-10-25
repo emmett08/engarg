@@ -2,7 +2,7 @@
 
 [`scripts/run-catalog-sync-authoring.sh`](../scripts/run-catalog-sync-authoring.sh)
 authors a claim about one Kubernetes resource in context `dev` and one literal
-Grafana TraceQL query. It renders three views, exports an EAL bundle, validates
+Grafana TraceQL query. It renders the argument presentations, exports an EAL bundle, validates
 the domain case and EAL source, and obtains an evidence plan. Collection and
 assessment remain separate operator actions.
 
@@ -22,6 +22,37 @@ typed gaps. It prepares the default Rust image only for a genuine unsupported
 operation or transformation. Configuration-only runs need no Docker or coding
 calls. Graph evidence plans, native/MCP configuration, scoped reviews and the
 function-test qualification boundary are documented in that guide.
+
+Graph readiness retains the exporter's complete collection-budget metadata,
+including its assumed default of 128 evidence declarations and per-claim counts.
+Default collection selects all emitted declarations. The readiness check uses
+the selected host's advertised `execution_limits.collection_evidence` when
+available, accepts `budgets.collection_evidence` as a compatibility alias, and
+otherwise labels the exporter default as an assumption. A larger actual host
+limit can admit a graph whose conservative default-limit pending record remains
+visible; a smaller actual limit can block collection below 128 declarations.
+Independent review obligations remain visible and do not themselves block
+acquiring the source evidence.
+
+After correcting connection bindings or approving a catalogue, reuse the saved
+argument and support requirements rather than paying for authoring again:
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh \
+  --replan-analysis engarg-runs/PREVIOUS-RUN/analysis.json \
+  --evidence-config operator-planning.json .engarg-local/collector-inputs.json
+```
+
+The operator inputs must produce the same request as the retained report. A
+changed claim or scope requires fresh authoring. Replanning reads a private,
+bounded snapshot and invokes `engarg eal replan` with the current configuration.
+It preserves the argument, support requirements and prior transcript, then
+renders and exports the refreshed plan into a new run directory. It makes no
+authoring model calls and needs no API key unless `--implement-tools` is also
+requested. `run-summary.json` distinguishes retained `recorded_model_calls` from
+`model_calls_this_run` and records the reused report's source and SHA-256.
+Replanning refreshes discovery and route selection; it does not collect evidence
+or turn missing independent judgements into observations.
 
 The catalogue and per-need preparation workflow below remains available through
 the explicit `--legacy-flat` switch. Its examples select that compatibility mode.
@@ -316,7 +347,8 @@ and reused package counts. Synthetic fixture results remain separate from live
 engineering observations.
 
 The script renders each presentation from the same saved analysis without further
-model calls. The `presentations` map in `run-summary.json` records their paths.
+model calls. The shared `presentations` map in `run-summary.json` records their
+paths in graph and legacy modes, including replanning runs.
 
 | File | Presentation |
 | --- | --- |

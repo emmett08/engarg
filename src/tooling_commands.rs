@@ -13,7 +13,9 @@ use std::{
 };
 
 pub mod capability;
+mod native_provider;
 pub mod provider;
+pub mod registration;
 
 #[derive(Args, Default)]
 pub struct ToolOptions {
@@ -189,7 +191,11 @@ pub async fn implement(args: ImplementArgs) -> Result<(), Error> {
     if output.exists() {
         return Err(Error::InvalidInput("output file already exists".into()));
     }
-    let graph = original.get("evidence_planning").is_some();
+    engarg::report::validate_replanning(&original, &std::env::current_exe()?)?;
+    let graph = matches!(
+        engarg::report::classify_evidence_planning(&original)?,
+        engarg::report::EvidencePlanningReport::Graph(_)
+    );
     // Graph routes classify genuine implementation gaps before admitting Docker.
     // The flat stage retains its existing image/runner/directory preflight.
     let session = if graph {
