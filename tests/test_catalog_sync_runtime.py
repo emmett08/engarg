@@ -137,6 +137,18 @@ raise SystemExit(91)
     def test_canonical_supervisor_and_complete_host_are_probed_before_model_call(self):
         self.assert_probe_precedes_inference(self.run_script())
 
+    def test_terminal_progress_enables_model_status_and_reports_the_failed_phase(self):
+        result = self.run_script()
+        self.assert_probe_precedes_inference(result)
+        arguments = json.loads(self.analyse_args.read_text())
+        self.assertIn('--progress', arguments)
+        for phase in ['input preflight', 'release build', 'EAL host startup preflight', 'model analysis']:
+            self.assertIn(phase, result.stderr)
+        self.assertIn('[authoring +', result.stderr)
+        self.assertIn('during model analysis', result.stderr)
+        self.assertNotIn('[authoring +', result.stdout)
+        self.assertNotIn('synthetic-key', result.stdout + result.stderr)
+
     def installer(self, source):
         path = self.fixture.repo / "scripts/install-eal-runtime.sh"
         self.executable(path, source)

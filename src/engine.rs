@@ -146,13 +146,26 @@ struct Assessment {
     evidence_gaps: Vec<String>,
 }
 
+/// The same finite list bound applies to all specialist and final-critic assessments.
+pub(crate) const MAX_ASSESSMENT_ENTRIES: usize = 32;
+
+// Spell out Unicode White_Space rather than using \S: ECMAScript and Rust differ
+// on NEL and BOM. This supported JSON Schema pattern matches str::trim exactly.
+const ASSESSMENT_NONBLANK_PATTERN: &str =
+    r"[^\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]";
+
 fn assessment_schema() -> Value {
+    let entries = json!({
+        "type": "array",
+        "maxItems": MAX_ASSESSMENT_ENTRIES,
+        "items": {"type": "string", "pattern": ASSESSMENT_NONBLANK_PATTERN}
+    });
     json!({
         "type": "object",
         "properties": {
-            "findings": {"type":"array", "items":{"type":"string"}},
-            "objections": {"type":"array", "items":{"type":"string"}},
-            "evidence_gaps": {"type":"array", "items":{"type":"string"}}
+            "findings": entries,
+            "objections": entries,
+            "evidence_gaps": entries
         },
         "required": ["findings", "objections", "evidence_gaps"],
         "additionalProperties": false
@@ -166,11 +179,24 @@ fn parse_assessment(record: &CallRecord) -> Result<Assessment, Error> {
             record.role.as_str()
         ))
     })?;
-    for values in [&result.findings, &result.objections, &result.evidence_gaps] {
-        if values.len() > 32 || values.iter().any(|value| value.trim().is_empty()) {
+    for (field, values) in [
+        ("findings", &result.findings),
+        ("objections", &result.objections),
+        ("evidence_gaps", &result.evidence_gaps),
+    ] {
+        if values.len() > MAX_ASSESSMENT_ENTRIES {
             return Err(Error::InvalidOutput(format!(
-                "{} assessment lists must contain at most 32 nonblank entries",
-                record.role.as_str()
+                "{} assessment.{field} contains {} entries (maximum {MAX_ASSESSMENT_ENTRIES})",
+                record.role.as_str(),
+                values.len()
+            )));
+        }
+        if let Some(index) = values.iter().position(|value| value.trim().is_empty()) {
+            return Err(Error::InvalidOutput(format!(
+                "{} assessment.{field}[{index}] is blank (entry {} of {})",
+                record.role.as_str(),
+                index + 1,
+                values.len()
             )));
         }
     }
@@ -592,6 +618,177 @@ mod tests {
 
     use super::*;
 
+    const ASSESSMENT_ROLES: [Role; 4] = [
+        Role::Constructor,
+        Role::Sceptic,
+        Role::EvidenceAuditor,
+        Role::FinalCritic,
+    ];
+    const ASSESSMENT_FIELDS: [&str; 3] = ["findings", "objections", "evidence_gaps"];
+
+    fn assessment_record(role: Role, value: &Value) -> CallRecord {
+        let content = value.to_string();
+        CallRecord {
+            role,
+            prompt: CompletionRequest {
+                role,
+                system: String::new(),
+                user: String::new(),
+                schema: assessment_schema(),
+            },
+            response_content_bytes: content.len(),
+            response_content_sha256: sha256_hex(content.as_bytes()),
+            response_content_omitted: false,
+            response: Completion {
+                content,
+                model: "assessment-regression-fixture".into(),
+                input_tokens: None,
+                output_tokens: None,
+                request_id: None,
+                service_tier: None,
+                reasoning_effort: None,
+            },
+            elapsed_ms: 0,
+        }
+    }
+
+    #[test]
+    fn assessment_schema_and_validator_agree_at_each_list_boundary_for_every_role() {
+        let schema = assessment_schema();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        for role in ASSESSMENT_ROLES {
+            for field in ASSESSMENT_FIELDS {
+                for count in [0, MAX_ASSESSMENT_ENTRIES, MAX_ASSESSMENT_ENTRIES + 1] {
+                    let mut value = json!({"findings": [], "objections": [], "evidence_gaps": []});
+                    value[field] = json!(
+                        (0..count)
+                            .map(|index| format!(
+                                "  Complete obligation {index} with its qualification.\n"
+                            ))
+                            .collect::<Vec<_>>()
+                    );
+                    let accepted = count <= MAX_ASSESSMENT_ENTRIES;
+                    assert_eq!(
+                        validator.is_valid(&value),
+                        accepted,
+                        "{role} {field} {count}"
+                    );
+                    let record = assessment_record(role, &value);
+                    let parsed = parse_assessment(&record);
+                    assert_eq!(parsed.is_ok(), accepted, "{role} {field} {count}");
+                    if let Ok(parsed) = parsed {
+                        // Admission preserves every entry and its exact spelling.
+                        for (name, entries) in [
+                            ("findings", parsed.findings),
+                            ("objections", parsed.objections),
+                            ("evidence_gaps", parsed.evidence_gaps),
+                        ] {
+                            assert_eq!(json!(entries), value[name]);
+                        }
+                    } else {
+                        assert_eq!(
+                            parsed.unwrap_err().to_string(),
+                            format!(
+                                "invalid model output: {} assessment.{field} contains {count} entries (maximum {MAX_ASSESSMENT_ENTRIES})",
+                                role.as_str()
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn final_critic_rejects_41_evidence_gaps_with_the_field_count_and_bound() {
+        // Reproduce the reported list counts without retaining the private argument.
+        let value = json!({
+            "findings": vec!["A qualified finding."; 11],
+            "objections": vec!["A material challenge with its target."; 28],
+            "evidence_gaps": vec!["A distinct evidence obligation."; 41],
+        });
+        let validator = jsonschema::validator_for(&assessment_schema()).unwrap();
+        assert!(!validator.is_valid(&value));
+        let record = assessment_record(Role::FinalCritic, &value);
+        assert_eq!(
+            parse_assessment(&record).unwrap_err().to_string(),
+            "invalid model output: final_critic assessment.evidence_gaps contains 41 entries (maximum 32)"
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&record.response.content).unwrap(),
+            value
+        );
+    }
+
+    #[test]
+    fn assessment_nonblank_pattern_matches_unicode_whitespace_admission() {
+        let validator = jsonschema::validator_for(&assessment_schema()).unwrap();
+        // Unicode White_Space includes NEL. BOM, zero-width space and the
+        // Mongolian vowel separator remain nonblank under the existing rule.
+        let whitespace: String = [
+            0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003,
+            0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f,
+            0x3000,
+        ]
+        .into_iter()
+        .map(|code| char::from_u32(code).unwrap())
+        .collect();
+        let mut examples = vec![(String::new(), false), (whitespace.clone(), false)];
+        examples.extend(
+            whitespace
+                .chars()
+                .map(|character| (character.to_string(), false)),
+        );
+        for text in [
+            "A complete finding.",
+            "line one\nline two",
+            "\u{feff}",
+            "\u{200b}",
+            "\u{180e}",
+            "\u{1f50e}",
+        ] {
+            examples.push((format!("{whitespace}{text}{whitespace}"), true));
+        }
+        for field in ASSESSMENT_FIELDS {
+            for (text, accepted) in &examples {
+                let mut value = json!({"findings": [], "objections": [], "evidence_gaps": []});
+                value[field] = json!([text]);
+                assert_eq!(!text.trim().is_empty(), *accepted, "{text:?}");
+                assert_eq!(validator.is_valid(&value), *accepted, "{field} {text:?}");
+                assert_eq!(
+                    parse_assessment(&assessment_record(Role::FinalCritic, &value)).is_ok(),
+                    *accepted,
+                    "{field} {text:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn blank_assessment_errors_identify_the_role_field_and_entry_without_echoing_content() {
+        for role in ASSESSMENT_ROLES {
+            for field in ASSESSMENT_FIELDS {
+                let mut value = json!({"findings": [], "objections": [], "evidence_gaps": []});
+                value[field] = json!([
+                    "Private argument content.",
+                    " \u{0085}\n",
+                    "Retained qualification."
+                ]);
+                let error = parse_assessment(&assessment_record(role, &value))
+                    .unwrap_err()
+                    .to_string();
+                assert_eq!(
+                    error,
+                    format!(
+                        "invalid model output: {} assessment.{field}[1] is blank (entry 2 of 3)",
+                        role.as_str()
+                    )
+                );
+                assert!(!error.contains("Private argument"));
+            }
+        }
+    }
+
     struct MockModel {
         calls: Mutex<Vec<CompletionRequest>>,
         active: AtomicUsize,
@@ -876,6 +1073,12 @@ mod tests {
         assert!(!graph["compositions"].as_array().unwrap().is_empty());
         assert_eq!(model.peak.load(Ordering::SeqCst), 3);
         let calls = model.calls.lock().unwrap();
+        for call in calls
+            .iter()
+            .filter(|call| ASSESSMENT_ROLES.contains(&call.role))
+        {
+            assert_eq!(call.schema, assessment_schema(), "{}", call.role);
+        }
         for call in &calls[..3] {
             let data: Value = serde_json::from_str(&call.user).unwrap();
             assert!(data.get("request").is_some());

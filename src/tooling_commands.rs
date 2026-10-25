@@ -179,6 +179,9 @@ pub struct ImplementArgs {
     /// Saved canonical analysis or supported EAL export bundle.
     #[arg(long)]
     input: PathBuf,
+    /// Report phases, model calls and a ten-second waiting heartbeat on stderr.
+    #[arg(long)]
+    progress: bool,
     #[command(flatten)]
     provider: provider::ProviderArgs,
     #[command(flatten)]
@@ -186,6 +189,20 @@ pub struct ImplementArgs {
 }
 
 pub async fn implement(args: ImplementArgs) -> Result<(), Error> {
+    let progress = crate::progress::Progress::new(args.progress);
+    progress
+        .run(
+            "tool implementation",
+            implement_with_progress(args, &progress),
+        )
+        .await
+}
+
+async fn implement_with_progress(
+    args: ImplementArgs,
+    progress: &crate::progress::Progress,
+) -> Result<(), Error> {
+    progress.phase("tool implementation configuration checks");
     let original: Value = super::read_json(&args.input, 16 * 1_048_576)?;
     let output = args.tools.output_dir()?.join("analysis.with-tools.json");
     if output.exists() {
@@ -212,7 +229,8 @@ pub async fn implement(args: ImplementArgs) -> Result<(), Error> {
             args.provider.max_response_bytes,
         )?
     };
-    let model = args.provider.model()?;
+    let model = progress.model(args.provider.model()?);
+    progress.phase("implementing and verifying missing tools");
     let report = if graph {
         capability::run_capability_fallback(
             &model,
@@ -228,6 +246,7 @@ pub async fn implement(args: ImplementArgs) -> Result<(), Error> {
             .ok_or_else(|| Error::InvalidInput("implementation stage was not enabled".into()))?;
         run_stage(session, &model, &original, args.tools.deadline()).await?
     };
+    progress.phase("writing implemented analysis");
     let bytes = serde_json::to_vec_pretty(&report)?;
     let mut file = super::private_file(&output)?;
     if let Err(error) = file

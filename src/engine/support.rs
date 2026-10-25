@@ -482,6 +482,14 @@ mod tests {
                 .is_some()
         );
         let calls = model.calls.lock().unwrap();
+        for call in calls.iter().filter(|call| {
+            matches!(
+                call.role,
+                Role::Constructor | Role::Sceptic | Role::EvidenceAuditor | Role::FinalCritic
+            )
+        }) {
+            assert_eq!(call.schema, assessment_schema(), "{}", call.role);
+        }
         for call in calls.iter().filter(|call| call.role != Role::FinalCritic) {
             let data: Value = serde_json::from_str(&call.user).unwrap();
             for forbidden in [

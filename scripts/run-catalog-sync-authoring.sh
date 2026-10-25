@@ -8,6 +8,12 @@
 set -euo pipefail
 umask 077
 
+progress_started=$SECONDS
+set_stage() {
+  stage=$1
+  printf '[authoring +%ss] %s\n' "$((SECONDS - progress_started))" "$stage" >&2
+}
+
 fail() { printf '%s\n' "$*" >&2; exit 2; }
 usage() {
   cat <<'HELP'
@@ -121,7 +127,7 @@ cd "$repo"
 
 mkdir -p "$repo/engarg-runs"
 run_dir=$(mktemp -d "$repo/engarg-runs/catalog-sync-operator-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
-stage='input preflight'
+set_stage 'input preflight'
 host_report=''
 on_exit() {
   status=$?
@@ -342,7 +348,7 @@ if [[ $check_only -eq 1 ]]; then
 fi
 # A full run identifies its build by commit. Input-only checks remain available
 # while tracked edits are staged or unstaged.
-stage='full-run prerequisites'
+set_stage 'full-run prerequisites'
 git diff --quiet HEAD -- || fail 'Full runs require a clean tracked checkout. --check-only accepts tracked changes; commit or stash them before inference.'
 model=${ENGARG_MODEL:-gpt-6.1-sol}
 service_tier=${ENGARG_SERVICE_TIER:-default}
@@ -365,15 +371,15 @@ if [[ -z $replan_analysis || $implement_tools -eq 1 ]]; then
   : "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
 fi
 if [[ $prepare_rust_image -eq 1 && $evidence_planning == flat ]]; then
-  stage='Rust tooling prerequisites'
+  set_stage 'Rust tooling prerequisites'
   command -v docker >/dev/null || fail 'Docker is required with --implement-tools. Install and start Docker before generating Rust collectors.'
   docker info >/dev/null || fail 'Docker must be running before generating Rust collectors.'
 fi
 if [[ -z $eal_host ]]; then
-  stage='EAL runtime installation'
+  set_stage 'EAL runtime installation'
   eal_host=$(bash "$repo/scripts/install-eal-runtime.sh")
 fi
-stage='full-run prerequisites'
+set_stage 'full-run prerequisites'
 [[ -n $eal_host ]] || fail 'The EAL runtime installation did not return a host executable.'
 eal_host=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve())' "$eal_host")
 printf 'Selected EAL host (%s): %s\n' "$eal_host_selection" "$eal_host" >&2
@@ -390,7 +396,7 @@ if [[ -f $eal_runtime_dir/eal-command-supervisor ]]; then eal_supervisor="$eal_r
 [[ -f $eal_supervisor && -x $eal_supervisor ]] ||
   fail "Missing executable EAL companion: $eal_supervisor. Install the pinned EAL runtime/process packages; see README.md."
 if [[ $evidence_planning == graph ]]; then
-  stage='evidence collector admission'
+  set_stage 'evidence collector admission'
   [[ -f $eal_runtime_dir/eal-collector && -x $eal_runtime_dir/eal-collector ]] ||
     fail "Missing executable EAL companion: $eal_runtime_dir/eal-collector. Install the coherent pinned runtime including eal-collector."
   python3 - "$run_dir/evidence-config.json" "$eal_runtime_dir/eal-collector" <<'PY'
@@ -420,7 +426,7 @@ path.write_text(exact_json(config) + '\n')
 PY
 fi
 
-stage='release build'
+set_stage 'release build'
 cargo build --locked --release --bin engarg --bin engarg-process-supervisor
 target_dir=$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
 engarg_bin="$target_dir/release/engarg"
@@ -460,7 +466,7 @@ PY
 
 # Initialise the actual server and inspect its required authoring interface
 # before any paid inference.
-stage='EAL host startup preflight'
+set_stage 'EAL host startup preflight'
 host_report="$run_dir/eal-preflight.json"
 "$engarg_bin" eal describe --eal-host "$eal_host" --workspace "$run_dir" \
   --timeout-secs "$eal_timeout" --output "$host_report"
@@ -484,7 +490,7 @@ PY
 host_report=''
 
 if [[ $prepare_rust_image -eq 1 && $evidence_planning == flat ]]; then
-  stage='Rust tooling image preparation'
+  set_stage 'Rust tooling image preparation'
   docker build --tag engarg-rust-tools:1.99.1 "$repo/examples/toolchains/rust"
 fi
 
@@ -499,7 +505,7 @@ with_catalogue() {
 }
 run_analysis() {
   if [[ -n $replan_analysis ]]; then
-    stage='retained analysis route planning'
+    set_stage 'retained analysis route planning'
     "$engarg_bin" eal replan --input "$run_dir/retained-analysis.snapshot.json" \
       --evidence-config "$run_dir/evidence-config.json" --output "$analysis_output"
     return
@@ -515,11 +521,11 @@ run_analysis() {
   fi
   with_catalogue analyse "$@"
 }
-stage='model analysis'
+set_stage 'model analysis'
 analysis_output="$run_dir/analysis.json"
-if [[ $implement_tools -eq 1 && $evidence_planning == flat ]]; then stage='model analysis and tool implementation'; fi
+if [[ $implement_tools -eq 1 && $evidence_planning == flat ]]; then set_stage 'model analysis and tool implementation'; fi
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then analysis_output="$run_dir/analysis.original.json"; fi
-run_analysis --input "$run_dir/request.json" \
+run_analysis --progress --input "$run_dir/request.json" \
   --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
   --api responses --api-key-env OPENAI_API_KEY --mode hybrid --argument-depth 2 \
   --max-calls "$max_calls" --max-repairs "$repairs" \
@@ -529,7 +535,7 @@ run_analysis --input "$run_dir/request.json" \
   --format json --audit "$run_dir/analysis.audit.jsonl" --output "$analysis_output"
 
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then
-  stage='tool implementation gap admission'
+  set_stage 'tool implementation gap admission'
   eligible_tool_gaps=$(python3 - "$analysis_output" "$run_dir/tooling-selection.json" <<'PY'
 import json, pathlib, sys
 report = json.loads(pathlib.Path(sys.argv[1]).read_text())
@@ -563,14 +569,14 @@ print(len(eligible))
 PY
 )
   if [[ $eligible_tool_gaps -gt 0 && $prepare_rust_image -eq 1 ]]; then
-    stage='Rust tooling prerequisites'
+    set_stage 'Rust tooling prerequisites'
     command -v docker >/dev/null || fail 'Docker is required to implement the identified missing operations. The original analysis has been retained.'
     docker info >/dev/null || fail 'Docker must be running to implement the identified missing operations.'
-    stage='Rust tooling image preparation'
+    set_stage 'Rust tooling image preparation'
     docker build --tag engarg-rust-tools:1.99.1 "$repo/examples/toolchains/rust"
   fi
-  stage='tool implementation'
-  "$engarg_bin" eal implement --input "$analysis_output" \
+  set_stage 'tool implementation'
+  "$engarg_bin" eal implement --progress --input "$analysis_output" \
     --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
     --api responses --api-key-env OPENAI_API_KEY \
     --http-retries 3 --retry-max-delay-secs 120 --request-timeout-secs "$request_timeout" \
@@ -604,19 +610,19 @@ if report['request'] != expected:
     raise SystemExit('Saved analysis changed the supplied request')
 (directory/'case.json').write_text(json.dumps(report['argument'], indent=2)+'\n')
 PY
-stage='argument validation'
+set_stage 'argument validation'
 "$engarg_bin" validate --input "$run_dir/request.json" --case "$run_dir/case.json"
-stage='argument rendering'
+set_stage 'argument rendering'
 "$engarg_bin" render --input "$run_dir/analysis.json" --format markdown --no-audit-appendix --output "$run_dir/argument.md"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format argument --outline-depth 3 --display-depth 2 --output "$run_dir/argument.txt"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format prose --display-depth 2 --output "$run_dir/prose.md"
 "$engarg_bin" render --input "$run_dir/analysis.json" --format html --display-depth 2 --output "$run_dir/argument.html"
-stage='EAL export'
+set_stage 'EAL export'
 if [[ $evidence_planning == graph ]]; then
   "$engarg_bin" eal export --input "$run_dir/analysis.json" --export-policy "$run_dir/export-policy.json" \
     --output "$run_dir/argument.eal" --tools-output "$run_dir/argument.tools.toml" --manifest "$run_dir/argument.bundle.json"
 else
-  stage='current-case collector preparation and EAL export'
+  set_stage 'current-case collector preparation and EAL export'
   with_catalogue eal export --input "$run_dir/analysis.json" \
     --export-policy "$run_dir/export-policy.json" \
     --operator-inputs "$run_dir/collector-inputs.snapshot.json" \
@@ -625,16 +631,16 @@ else
     --output "$run_dir/argument.eal" --tools-output "$run_dir/argument.tools.toml" --manifest "$run_dir/argument.bundle.json"
 fi
 # Prepared stubs are intentionally not passed as an executable registry to the host.
-stage='EAL validation'
+set_stage 'EAL validation'
 host_report="$run_dir/eal-validation.json"
 "$engarg_bin" eal validate --input "$run_dir/argument.bundle.json" --input-format json \
   --eal-host "$eal_host" --workspace "$run_dir" --timeout-secs "$eal_timeout" --output "$host_report"
-stage='EAL evidence planning'
+set_stage 'EAL evidence planning'
 host_report="$run_dir/evidence-plan.json"
 "$engarg_bin" eal plan --input "$run_dir/argument.bundle.json" --input-format json --claim current_claim \
   --eal-host "$eal_host" --workspace "$run_dir" --timeout-secs "$eal_timeout" --output "$host_report"
 host_report=''
-stage='run summary'
+set_stage 'run summary'
 python3 - "$run_dir" <<'PY'
 import json, pathlib, sys
 directory = pathlib.Path(sys.argv[1])
