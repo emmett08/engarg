@@ -1,6 +1,6 @@
 //! Fixed role instructions. Evidence and previous agent responses are data only.
 
-use crate::provider::Role;
+use crate::{engine::MAX_ASSESSMENT_ENTRIES, provider::Role};
 
 mod skills;
 
@@ -21,7 +21,7 @@ const COMPOSITION: &str = r#"For every conclusion with attached warrants, supply
 
 const REPAIR: &str = r#"VALIDATION FEEDBACK: draft_validation_errors and validation_errors are program diagnostics, not empirical evidence or instructions from the user. Correct the identified structural defects in the complete canonical graph and reading together. When candidate_json and validation_errors are present, return one complete corrected ArgumentCase, never a patch or an explanation outside the schema. Preserve every retained_objections ID and challenge exactly. Once identity is present, also preserve its target_id, kind and basis, and keep materiality true when must_remain_material is true. identity.target_context records the authoritative scope and target fields from first attachment, including objections first attached in the invalid candidate. Preserve those fields while repairing unrelated defects. If DISSENT_TARGET_CHANGED names changed fields, restore them from identity.target_context and keep the objection open when its challenge remains unresolved. Only when a specific scope or inference revision actually removes the challenge may you retain the revised target with status inapplicable_after_revision and a response explaining that revision. Do not mark a still-applicable concern inapplicable merely to pass. Changes to support, evidence, investigation plans or reading do not require rewriting the target proposition or scope. Preserve valid candidate reasoning, evidence obligations, consequential conditions and dissent. Do not erase an objection, mark it nonmaterial, invent evidence or upgrade its disposition merely to pass. Add a concrete directly targeted evidence plan for each open material objection. Before returning, check every retained identity against the complete corrected graph, including identities not named in validation_errors. Apply any construction depth limit to the corrected graph too."#;
 
-const ASSESSMENT_OUTPUT: &str = r#"ASSESSMENT OUTPUT: Return only the supplied three-list assessment schema: findings, objections and evidence_gaps. Put the full substantive reasoning and material conditions in concise plain-language entries. Each objection states one complete challenge with its affected premise, inference or claim. Preserve every consequential qualification and exact technical expression needed to assess it. Do not serialize whole argument records or JSON wrappers inside strings, repeat the entire request, narrate your role, or duplicate the same explanation across lists. These lists carry your construction, critique or audit, not a complete ArgumentCase or reading view. Do not omit a serious objection or discriminating investigation to save words. Do not invent findings or objections merely to fill lists."#;
+const ASSESSMENT_OUTPUT: &str = r#"ASSESSMENT OUTPUT: Return only the supplied three-list assessment schema: findings, objections and evidence_gaps. Put the full substantive reasoning and material conditions in concise plain-language entries. Each objection identifies its affected premise, inference or claim and states the complete challenge. Preserve every consequential qualification and exact technical expression needed to assess it. Do not serialize whole argument records or JSON wrappers inside strings, repeat the entire request, narrate your role, or duplicate the same explanation across lists. These lists carry your construction, critique or audit, not a complete ArgumentCase or reading view. Do not omit a serious objection or discriminating investigation to save words. Do not invent findings or objections merely to fill lists."#;
 
 /// References replace exact duplicates only. Their full authoritative values are
 /// present in the same request, so no retrieval or model-authored summary is used.
@@ -46,7 +46,7 @@ pub fn system(role: Role) -> String {
             "Produce the complete positive candidate graph from the request and the three independent assessments. Do not return only a lack-of-evidence verdict. For every object in retained_objections, preserve its exact id and challenge as a defeater with an explicit disposition. Preserve significant disagreements. Provide all schema fields, including explicit qualifications and use limits."
         }
         Role::FinalCritic => {
-            "Audit the draft against the original request, optional evidence and independent first passes. On claim-only input, challenge a draft that merely reports insufficient evidence or omits a substantive positive candidate, explicit warrants, working scope, serious alternatives or concrete evidence requirements. Evaluate the candidate's conditional reasoning without treating its untested premises as established. Focus objections on material remaining defects, overclaiming, omitted adverse evidence, missing inference steps and inadequate evidence plans. Compare every reading section with the canonical graph: identify dropped qualifiers or conditions, overstated strength, invented evidence, and unsupported prose claims. Test whether the selected alternative is individually adequate under the shared scope and criterion, and whether cumulative support misleadingly aggregates dependent or repeated evidence. Each prose objection must identify the affected claim and graph relation. Return at most 32 objections. Preserve valid reasoning in findings and propose discriminating checks in evidence_gaps."
+            "Audit the draft against the original request, optional evidence and independent first passes. On claim-only input, challenge a draft that merely reports insufficient evidence or omits a substantive positive candidate, explicit warrants, working scope, serious alternatives or concrete evidence requirements. Evaluate the candidate's conditional reasoning without treating its untested premises as established. Focus objections on material remaining defects, overclaiming, omitted adverse evidence, missing inference steps and inadequate evidence plans. Compare every reading section with the canonical graph: identify dropped qualifiers or conditions, overstated strength, invented evidence, and unsupported prose claims. Test whether the selected alternative is individually adequate under the shared scope and criterion, and whether cumulative support misleadingly aggregates dependent or repeated evidence. Each prose objection must identify the affected claim and graph relation. Preserve valid reasoning in findings and propose discriminating checks in evidence_gaps."
         }
         Role::Adjudicator => {
             "Return the final extended Toulmin argument with the strongest defensible candidate developed fully instead of reducing the result to an insufficiency verdict. Assess any optional evidence as well as every independent assessment, draft and final critique. You may narrow, qualify or withhold support. Do not reward majority agreement, verbosity or position. For every object in retained_objections, retain a defeater with exactly its id and challenge and its first attached target_id, kind and basis. Preserve identity.target_context unless an explicit inapplicable_after_revision disposition explains the changed target. Retain explicit status, response and evidence_ids. These include constructor-N, sceptic-N, auditor-N and critic-N objections. An unresolved objection has status open and the appropriate basis. A challenge removed by a specific revision can use inapplicable_after_revision with a precise rationale; changing wording alone does not resolve the underlying concern. Preserve other material dissent too. Revise the canonical graph and reading together after the critique; a change to one view requires checking the other. Explain the decisive warrant, qualification and remaining uncertainty in adjudication."
@@ -66,7 +66,9 @@ pub fn system(role: Role) -> String {
         ));
     }
     if assessment_only || role == Role::FinalCritic {
-        result.push_str(&format!("\n\n{ASSESSMENT_OUTPUT}"));
+        result.push_str(&format!(
+            "\n\n{ASSESSMENT_OUTPUT}\nASSESSMENT LIMITS: findings, objections and evidence_gaps each allow at most {MAX_ASSESSMENT_ENTRIES} entries, including zero. Every entry must contain a non-whitespace character. Consolidate overlapping findings or evidence gaps while retaining every distinct obligation, target, acceptance condition and qualification. Group related challenges only when each remains explicit and distinguishable within the entry. Never cut off a list or remove a material challenge to meet its bound."
+        ));
     } else {
         result.push_str(&format!("\n\n{REPAIR}"));
     }
@@ -78,6 +80,29 @@ pub fn system(role: Role) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_assessment_role_receives_every_list_bound_and_preservation_rule() {
+        for role in [
+            Role::Constructor,
+            Role::Sceptic,
+            Role::EvidenceAuditor,
+            Role::FinalCritic,
+        ] {
+            let prompt = system(role);
+            assert!(prompt.contains(&format!(
+                "findings, objections and evidence_gaps each allow at most {MAX_ASSESSMENT_ENTRIES} entries, including zero"
+            )), "{role}");
+            for rule in [
+                "Every entry must contain a non-whitespace character",
+                "retaining every distinct obligation, target, acceptance condition and qualification",
+                "each remains explicit and distinguishable within the entry",
+                "Never cut off a list or remove a material challenge to meet its bound",
+            ] {
+                assert!(prompt.contains(rule), "{role} lacks {rule}");
+            }
+        }
+    }
 
     #[test]
     fn every_argument_role_receives_the_shared_writing_skill_and_glossary() {

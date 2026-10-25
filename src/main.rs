@@ -20,6 +20,7 @@ use std::{
 
 mod eal_commands;
 mod glossary_command;
+mod progress;
 mod support_commands;
 mod tooling_commands;
 
@@ -152,6 +153,9 @@ struct Analyse {
     /// Private JSONL audit, including completed calls even if a later stage fails.
     #[arg(long)]
     audit: Option<PathBuf>,
+    /// Report phases, model calls and a ten-second waiting heartbeat on stderr.
+    #[arg(long)]
+    progress: bool,
     /// Omit acquisition tool planning when only the canonical argument is needed.
     #[arg(long)]
     no_tool_planning: bool,
@@ -358,7 +362,15 @@ fn audit_event(file: &Mutex<Option<File>>, event: &impl Serialize) -> Result<(),
 }
 
 async fn analyse(args: Analyse) -> Result<(), Error> {
+    let progress = progress::Progress::new(args.progress);
+    progress
+        .run("analysis", analyse_with_progress(args, &progress))
+        .await
+}
+
+async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> Result<(), Error> {
     let started = std::time::Instant::now();
+    progress.phase("input and configuration checks");
     if args.max_input_bytes == 0 || args.max_response_bytes == 0 || args.timeout_secs == 0 {
         return Err(Error::InvalidInput(
             "resource limits must be positive".into(),
@@ -479,10 +491,14 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
     };
     let audit = Arc::new(Mutex::new(None::<File>));
     let transport_audit = Arc::clone(&audit);
+    let transport_progress = progress.clone();
+    let show_progress = args.progress;
     let http_observer = Arc::new(move |record: &engarg::provider::HttpEvent| {
         let event = json!({"event":"http_attempt","record":record});
         audit_event(&transport_audit, &event)?;
-        if record.kind != "response" {
+        if show_progress {
+            transport_progress.http(record);
+        } else if record.kind != "response" {
             eprintln!("{event}");
         }
         Ok(())
@@ -506,10 +522,14 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         .implement_tools
         .then(|| {
             tooling_commands::provider::independent_model(http_config(), transport_config.clone())
+                .map(|model| progress.model(model))
         })
         .transpose()?;
-    let model =
-        HttpModel::new_with_transport(http_config(), transport_config.clone(), http_observer)?;
+    let model = progress.model(HttpModel::new_with_transport(
+        http_config(),
+        transport_config.clone(),
+        http_observer,
+    )?);
     *audit
         .lock()
         .map_err(|_| Error::Provider("audit lock poisoned".into()))? = args
@@ -529,8 +549,27 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
         },
     )?;
     let observer = |record: &engarg::engine::CallRecord| {
-        audit_event(&audit, &json!({"event":"completion","record":record}))
+        audit_event(&audit, &json!({"event":"completion","record":record}))?;
+        for warning in engarg::engine::assessment_warnings(record) {
+            audit_event(
+                &audit,
+                &json!({
+                    "event": "warning",
+                    "code": "assessment_list_limit_exceeded",
+                    "warning": warning,
+                }),
+            )?;
+            // Warnings remain visible when routine progress is disabled. Only
+            // fixed role/field names and counts enter terminal diagnostics.
+            let _ = writeln!(
+                std::io::stderr().lock(),
+                "engarg: warning: {}",
+                warning.message()
+            );
+        }
+        Ok(())
     };
+    progress.phase("argument authoring and evidence planning");
     let run = async {
         if let Some(planner) = &graph_planner {
             serde_json::to_value(
@@ -563,6 +602,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
             let input_sha256 = original["input_sha256"].clone();
             let final_report = match (&tooling_session, &tooling_model) {
                 (session, Some(model)) => {
+                    progress.phase("implementing and verifying missing tools");
                     let stage_result = if graph_planner.is_some() {
                         tooling_commands::capability::run_capability_fallback(
                             model,
@@ -606,6 +646,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
                 }
                 _ => original,
             };
+            progress.phase("writing argument report");
             let content = report_content(&args.output, &request, &argument, &final_report)?;
             match emit(&args.output, content) {
                 Ok(()) => audit_event(

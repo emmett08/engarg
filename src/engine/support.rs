@@ -1,7 +1,7 @@
 //! Catalogue-independent case construction followed by qualified route planning.
 use super::{
-    CallRecord, Mode, RunConfig, RunReport, assessment_schema, check_prompt, context, execute,
-    limitations, parse_assessment, prompt, sha256_hex,
+    CallRecord, Mode, RunConfig, RunReport, assessment_schema, assessment_warnings, check_prompt,
+    context, execute, limitations, parse_assessment, prompt, sha256_hex,
 };
 use crate::{
     Error,
@@ -205,6 +205,12 @@ where
         .resolve(&candidate.argument, &candidate.support_elaboration)
         .await?;
     let mut run_limitations = limitations(config.mode);
+    run_limitations.extend(
+        transcript
+            .iter()
+            .flat_map(assessment_warnings)
+            .map(|warning| warning.message()),
+    );
     run_limitations.push("Evidence requirements were extracted independently of capability discovery. Qualified route previews describe acquisition possibilities; they are not acquired evidence or verified support.".into());
     Ok(SupportRunReport {
         report: RunReport {
@@ -482,6 +488,14 @@ mod tests {
                 .is_some()
         );
         let calls = model.calls.lock().unwrap();
+        for call in calls.iter().filter(|call| {
+            matches!(
+                call.role,
+                Role::Constructor | Role::Sceptic | Role::EvidenceAuditor | Role::FinalCritic
+            )
+        }) {
+            assert_eq!(call.schema, assessment_schema(), "{}", call.role);
+        }
         for call in calls.iter().filter(|call| call.role != Role::FinalCritic) {
             let data: Value = serde_json::from_str(&call.user).unwrap();
             for forbidden in [

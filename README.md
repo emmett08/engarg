@@ -360,8 +360,10 @@ engarg analyse --claim 'YOUR CLAIM' \
   --http-retries 6 --retry-max-delay-secs 120 --max-concurrent-requests 1 \
   --request-timeout-secs 1800 --timeout-secs 10800 \
   --max-output-tokens 65536 --max-response-bytes 1048576 \
-  --format json --audit run.audit.jsonl --output run.json
+  --format json --audit run.audit.jsonl --output run.json --progress
 ```
+
+`--progress` reports model-call starts, received responses and elapsed time on stderr. A waiting update is scheduled every ten seconds while the operation remains active. The same option is available for `engarg eal implement`. The catalog sync authoring script enables progress for both operations and reports its phase transitions. JSON output and the private audit remain separate from terminal status messages.
 
 Each call's deadline includes time waiting for admission, all HTTP attempts, response reads and retry waits. The run deadline and cancellation still bound the whole analysis. A permit remains held during backoff, so one admitted sequence occupies one concurrency slot until it completes or stops. Serial execution preserves the specialists' separate inputs. Select a sufficiently long call deadline when serialising slow calls.
 
@@ -372,6 +374,10 @@ Only explicit 429 responses are retried. Network failures and other HTTP statuse
 The audit starts with a typed `transport_config`. Each received HTTP status has a credential-free `http_attempt` receipt and 429 decisions record their reason and any retry delay. Retry decisions also appear on stderr. Audit failures stop transport before another request. Remote error messages and arbitrary codes stay private. The saved report retains its existing schema and describes the transport settings in its limitations.
 
 ## Checks and resource bounds
+
+The constructor, sceptic, evidence auditor and final critic each return three assessment lists: `findings`, `objections` and `evidence_gaps`. The schema and role instructions request at most 32 entries per list, using the `maxItems` and `pattern` constraints documented in [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas). Empty lists are permitted; each entry must contain a non-whitespace character. Related entries can be consolidated while preserving their distinct conditions and checks.
+
+If a provider nevertheless returns more than 32 entries in an otherwise valid assessment, processing continues with every entry retained and passed to the next stage. A warning identifies the role, field, received count and requested maximum on stderr, in the private audit and in the report's limitations. Terminal warnings appear even without `--progress`. This recovery neither truncates the list nor repeats the completed model call. Invalid JSON, blank entries, byte budgets and final argument validation still apply. Within the configured response-byte bound, the private audit retains the returned content even if a later stage fails.
 
 New model runs must return represented grounds and an attached warrant concluding the current claim or stronger target. A bare assessment and investigation list fails construction checks. Saved assessment-only cases remain available through `validate` and `render`. These structural checks establish the presence of reasoning, while its substantive adequacy remains a review question.
 

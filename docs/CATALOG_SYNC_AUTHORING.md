@@ -17,6 +17,23 @@ bash scripts/run-catalog-sync-authoring.sh --implement-tools \
   --evidence-config operator-planning.json .engarg-local/collector-inputs.json
 ```
 
+The script reports phase transitions on stderr and enables terminal progress for
+authoring and tool implementation. Model calls report their role, response receipt
+and elapsed time. A waiting update is scheduled every ten seconds during an active
+operation, including long provider waits. Redirect stderr to retain the terminal
+status log. The private `analysis.audit.jsonl` retains completed provider exchanges
+for diagnosis, including responses rejected by later validation.
+
+The provider schema and role instructions request at most 32 entries separately
+for `findings`, `objections` and `evidence_gaps` in every specialist and final-critic
+assessment. If an otherwise valid list exceeds that request, processing continues
+with all entries retained and passed to the next stage. A warning reports the
+role, field and received count on stderr, in the private audit and in the report's
+limitations. No entries are silently dropped and no extra model call is spent
+repairing the list count. Invalid JSON, blank entries, byte budgets and final
+argument validation remain enforced. This continuation handles an oversized list
+in the active run; it does not add automatic resume from an older failed audit.
+
 Graph implementation first retains `analysis.original.json` and inspects its
 typed gaps. It prepares the default Rust image only for a genuine unsupported
 operation or transformation. Configuration-only runs need no Docker or coding

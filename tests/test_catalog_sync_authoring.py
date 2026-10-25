@@ -1032,6 +1032,8 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         calls = self.invocations()
         analysis = next(call for call in calls if call[0] == 'analyse')
         implementation = next(call for call in calls if call[:2] == ['eal', 'implement'])
+        self.assertIn('--progress', analysis)
+        self.assertIn('--progress', implementation)
         self.assertNotIn('--implement-tools', analysis)
         self.assertNotIn('--toolchain', analysis)
         self.assertEqual(analysis[analysis.index('--output') + 1], str(directory / 'analysis.original.json'))
