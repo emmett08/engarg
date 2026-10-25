@@ -115,28 +115,34 @@ fn outline_depth_limits_indentation_and_retains_deeper_argument_records() {
 }
 
 #[test]
-fn collapsed_html_summaries_retain_qualifiers_and_consequential_conditions() {
+fn collapsed_html_summaries_retain_qualifiers_and_warn_about_disclosed_conditions() {
     let (request, case) = fixtures();
     let output = presentations::html(&request, &case).unwrap();
-    let first_summary = output
-        .split_once("<summary>")
-        .unwrap()
-        .1
-        .split_once("</summary>")
-        .unwrap()
-        .0;
+    let mut disclosures = output.split("<details id=\"").skip(1).map(|record| {
+        record
+            .split_once("<summary>")
+            .unwrap()
+            .1
+            .split_once("</details>")
+            .unwrap()
+            .0
+            .split_once("</summary>")
+            .unwrap()
+    });
+    let (first_summary, first_body) = disclosures.next().unwrap();
     assert!(first_summary.contains(&escaped(&case.current_claim.text)));
     assert!(first_summary.contains(&escaped(&case.current_claim.qualifier)));
-    assert!(first_summary.contains("Critical condition A1"));
-    assert!(first_summary.contains(&escaped(&case.assumptions[0].statement)));
-    let target_summary = output
-        .split("<summary>")
-        .nth(2)
-        .unwrap()
-        .split_once("</summary>")
-        .unwrap()
-        .0;
-    assert!(target_summary.contains("Outstanding challenge D1"));
+    assert!(first_summary.contains("Reliance conditions to inspect: 1."));
+    assert!(!first_summary.contains(&escaped(&case.assumptions[0].statement)));
+    assert!(first_body.contains(&escaped(&case.assumptions[0].statement)));
+    assert!(first_body.contains("Selected route(s): W2."));
+    let (target_summary, target_body) = disclosures.next().unwrap();
+    assert!(target_summary.contains("Reliance conditions to inspect: 3."));
+    assert!(!target_summary.contains(&escaped(&case.defeaters[0].challenge)));
+    assert!(target_body.contains(&escaped(&case.defeaters[0].challenge)));
+    assert!(target_body.contains("Selected route(s): W3."));
+    let (unconditioned_summary, _) = disclosures.next().unwrap();
+    assert!(!unconditioned_summary.contains("Reliance conditions to inspect:"));
     assert_eq!(output.matches("<details id=\"node-5331\">").count(), 1);
 }
 

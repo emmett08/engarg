@@ -42,7 +42,7 @@ summary{cursor:pointer;font-weight:650;line-height:1.5}
 summary::marker{color:var(--accent)}
 summary:hover .claim-title,summary:hover .record-title{text-decoration:underline;text-underline-offset:.18em}
 .claim-title,.record-title{font-size:1.08rem}
-summary>.claim-title,summary>.record-title,summary>.record-question,summary>.qualifier,summary>.condition,summary>.toggle-label{display:block}
+summary>.record-question,summary>.qualifier,summary>.condition,summary>.toggle-label{display:block}
 summary>.qualifier{margin:.8rem 0}
 .qualifier,.condition{font-weight:400;color:var(--muted)}
 .condition{background:var(--condition);border-left:3px solid #a76713;border-radius:0 .3rem .3rem 0;padding:.6rem .85rem;margin:.65rem 0;font-size:.95rem}
@@ -124,8 +124,8 @@ pub fn html(request: &Request, case: &ArgumentCase) -> Result<String, RenderErro
     html_with_depth(request, case, None)
 }
 
-/// Omit deeper claim bodies and reading sections while keeping their summaries,
-/// canonical anchors, qualifications and consequential unresolved conditions.
+/// Omit deeper supporting arguments and reading sections while keeping summaries,
+/// canonical anchors, qualifications and disclosable reliance conditions.
 pub fn html_with_depth(
     request: &Request,
     case: &ArgumentCase,
@@ -152,19 +152,31 @@ pub fn html_with_limits(
         )
         .unwrap();
     }
-    write!(output, "<div class=\"assessment\"><strong>Current assessment: {}.</strong><p>{}</p></div><h2>Requested claim</h2><p class=\"requested-claim\">{}</p><dl class=\"scope-grid\"><dt>Scope</dt><dd>{}</dd><dt>Configuration</dt><dd>{}</dd><dt>Operating conditions</dt><dd>{}</dd><dt>Time horizon</dt><dd>{}</dd></dl><nav aria-label=\"Report sections\"><a href=\"#argument-view\">Argument</a><a href=\"#reading-view\">Connected reading</a><a href=\"#sources\">Sources</a><a href=\"#investigations\">Investigation register</a></nav><p class=\"browser-note\">Open this file in a web browser for its styling and disclosure controls. Document previews may simplify the page.</p><section id=\"argument-view\"><h2>Expandable argument view</h2><p class=\"disclosure-help\">Select a heading or focus it and press Enter or Space to show supporting detail. Qualifications and critical conditions stay visible when a claim is closed.</p>", escape_html(&label(&case.status)), escape_html(&case.adjudication), escape_html(&request.claim), escape_html(&case.scope.system_boundary), escape_html(&case.scope.configuration), escape_html(&case.scope.operating_conditions), escape_html(&case.scope.time_horizon)).unwrap();
+    write!(output, "<div class=\"assessment\"><strong>Current assessment: {}.</strong><p>{}</p></div><h2>Requested claim</h2><p class=\"requested-claim\">{}</p><dl class=\"scope-grid\"><dt>Scope</dt><dd>{}</dd><dt>Configuration</dt><dd>{}</dd><dt>Operating conditions</dt><dd>{}</dd><dt>Time horizon</dt><dd>{}</dd></dl><nav aria-label=\"Report sections\"><a href=\"#argument-view\">Argument</a><a href=\"#reading-view\">Connected reading</a><a href=\"#sources\">Sources</a><a href=\"#investigations\">Investigation register</a></nav><p class=\"browser-note\">Open this file in a web browser for its styling and disclosure controls. Document previews may simplify the page.</p><section id=\"argument-view\"><h2>Expandable argument view</h2><p class=\"disclosure-help\">Select a heading or focus it and press Enter or Space to show supporting detail and full reliance conditions. Qualifications and a count of reliance conditions stay visible when a claim is closed.</p>", escape_html(&label(&case.status)), escape_html(&case.adjudication), escape_html(&request.claim), escape_html(&case.scope.system_boundary), escape_html(&case.scope.configuration), escape_html(&case.scope.operating_conditions), escape_html(&case.scope.time_horizon)).unwrap();
     if let Some(depth) = display_depth {
-        write!(output, "<p>Detailed claim levels: {depth}. Deeper claim bodies and reading sections are omitted from this view. Summaries, conditions and investigation registers remain visible. The canonical JSON retains the complete graph.</p>").unwrap();
+        write!(output, "<p>Detailed claim levels: {depth}. Deeper supporting arguments and reading sections are omitted from this view. Claim summaries and complete investigation registers remain available. Reliance conditions remain expandable. The canonical JSON retains the complete graph.</p>").unwrap();
     }
     for id in claim_ids(case) {
         let Some((text, qualifier)) = claim(&view, id) else {
             continue;
         };
         write!(output, "<details id=\"{}\"><summary><span class=\"claim-title\">{} — {}</span><span class=\"qualifier\">Qualification: {}</span>", anchor(id), escape_html(id), escape_html(text), escape_html(qualifier)).unwrap();
+        let claim_conditions = conditions(&view, id);
+        if !claim_conditions.is_empty() {
+            write!(
+                output,
+                "<span class=\"condition\">Reliance conditions to inspect: {}.</span>",
+                claim_conditions.len()
+            )
+            .unwrap();
+        }
+        // Only the compact heading belongs in the always-visible summary.
+        // Long condition statements must be siblings so native disclosure hides them.
+        output.push_str("<span class=\"toggle-label\" aria-hidden=\"true\">supporting argument and conditions</span></summary>");
         if let Some(item) = composition(&view, id) {
             write!(
                 output,
-                "<span class=\"qualifier\">{}. Selected route(s): {}.</span>",
+                "<p class=\"qualifier\">{}. Selected route(s): {}.</p>",
                 relationship(item.relationship),
                 if item.selected_warrant_ids.is_empty() {
                     "none".to_owned()
@@ -174,15 +186,14 @@ pub fn html_with_limits(
             )
             .unwrap();
         }
-        for condition in conditions(&view, id) {
+        for condition in claim_conditions {
             write!(
                 output,
-                "<span class=\"condition\">{}</span>",
+                "<p class=\"condition\">{}</p>",
                 escape_html(&condition)
             )
             .unwrap();
         }
-        output.push_str("<span class=\"toggle-label\" aria-hidden=\"true\">supporting argument</span></summary>");
         if !depths.visible(id, display_depth) {
             output.push_str("<p>Supporting detail collapsed by display-depth; retained in the canonical JSON.</p></details>");
             continue;

@@ -58,7 +58,11 @@ Shared targets and attachment cycles expand once per traversal.
 Claim indentation is bounded.
 Deeper support appears in shallow detail records or in the explicitly selected
 display-depth summary.
-Consequential selected-route conditions remain visible at a collapsed boundary.
+Consequential selected-route conditions remain available at a display-depth boundary.
+In HTML, the closed heading retains the qualification and a reliance-condition count.
+The full condition statements sit outside `summary` so the native disclosure
+control can hide and reveal them with the supporting argument.
+Those statements remain in the disclosed body when display depth omits deeper support.
 
 `with_audit` now accepts decoded `serde_json::Value`.
 It checks JSON depth and work iteratively before pretty printing.
