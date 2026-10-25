@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 const INPUT_SCHEMA: &str = "engarg.reasoning-input/1";
+const SCOPE_TRANSFER_REQUIRED: &str = "scope_transfer_required";
 
 pub(super) struct MethodProjection<'a> {
     pub authored: &'a EalExport,
@@ -74,7 +75,7 @@ pub(super) fn project_inputs(
             requirement_id: None,
             output: None,
         };
-        let selected = (|| {
+        let selected = (|| -> Result<_, String> {
             let requirement = requirement_for_need(elaboration, &bound.input_evidence_need_id)?;
             let evaluation = execution
                 .evaluations
@@ -95,9 +96,11 @@ pub(super) fn project_inputs(
                         .into(),
                 );
             };
+            ensure_method_scope(bound, requirement)?;
             let premise_bindings = bound.formal_premises.iter().map(|premise| {
                 let required = requirement_for_need(elaboration, &premise.evidence_need_id)?;
                 ensure_evidence_requirement(required, execution)?;
+                ensure_method_scope(bound, required)?;
                 ensure_identity_units(premise, bound, required, execution)?;
                 Ok(json!({"premise_id":premise.premise_id,"input_pointer":premise.input_pointer,"requirement_id":required.id,"correspondence":premise.correspondence}))
             }).collect::<Result<Vec<_>,String>>()?;
@@ -144,7 +147,11 @@ pub(super) fn project_inputs(
             projection.output = Some(output.clone());
         } else if let Err(reason) = selected {
             pending.push(PendingSupport {
-                kind: "reasoning_method_input".into(),
+                kind: if reason.starts_with(SCOPE_TRANSFER_REQUIRED) {
+                    SCOPE_TRANSFER_REQUIRED.into()
+                } else {
+                    "reasoning_method_input".into()
+                },
                 requirement_id: None,
                 target_id: warrant.id.clone(),
                 description: reason,
@@ -153,6 +160,54 @@ pub(super) fn project_inputs(
         projections.push(projection);
     }
     Ok(projections)
+}
+
+/// Bind the formal target to declared measurement identity. A source may add a
+/// sample/run selector while retaining the same target population. Changing a
+/// target identity needs a separately implemented scope-transfer argument.
+fn ensure_method_scope(
+    bound: &BoundReasoningMethod,
+    requirement: &SupportRequirement,
+) -> Result<(), String> {
+    let target = &bound.conclusion.scope;
+    let required = requirement.contract.as_ref().ok_or_else(|| {
+        format!(
+            "{SCOPE_TRANSFER_REQUIRED}: requirement {} has no structured source scope for the formal target",
+            requirement.id
+        )
+    })?;
+    let source = &required.scope;
+    if source.kind != target.kind {
+        return Err(format!(
+            "{SCOPE_TRANSFER_REQUIRED}: requirement {} source kind {:?} differs from formal target kind {:?}; native scope transfer is unavailable",
+            requirement.id, source.kind, target.kind
+        ));
+    }
+    if target.identity_dimensions.iter().any(|dimension| {
+        !source.identity_dimensions.contains(dimension) || !source.selectors.contains_key(dimension)
+    }) {
+        return Err(format!(
+            "{SCOPE_TRANSFER_REQUIRED}: requirement {} does not preserve every formal target identity dimension; native scope transfer is unavailable",
+            requirement.id
+        ));
+    }
+    for selector in &target.selectors {
+        let expected = serde_json::to_value(&selector.value)
+            .map_err(|_| "cannot encode the checked method scope selector".to_owned())?;
+        if source.selectors.get(&selector.name).is_none_or(|actual| {
+            !eal_core::canonical::same_json(
+                actual,
+                &expected,
+                &eal_core::ExecutionLimits::default(),
+            )
+        }) {
+            return Err(format!(
+                "{SCOPE_TRANSFER_REQUIRED}: requirement {} has a missing or conflicting formal target selector {:?}; native scope transfer is unavailable",
+                requirement.id, selector.name
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn requirement_for_need<'a>(

@@ -34,7 +34,34 @@ pub fn contract(support_type: &str, strength: &str, quantity: &str, unit: &str) 
 }
 
 pub fn capability(id: &str, contract: &SupportContract) -> CapabilityDescriptor {
-    let input_schema = json!({"type":"object","properties":{"fixture":{"type":"string"}},"required":["fixture"],"additionalProperties":false});
+    let properties: serde_json::Map<_, _> = contract
+        .scope
+        .selectors
+        .iter()
+        .map(|(name, value)| {
+            let kind = if value.is_boolean() {
+                "boolean"
+            } else if value.is_number() {
+                "number"
+            } else {
+                "string"
+            };
+            (name.clone(), json!({"type":kind}))
+        })
+        .collect();
+    let required = contract.scope.selectors.keys().collect::<Vec<_>>();
+    let scope_bindings: serde_json::Map<_, _> = contract
+        .scope
+        .selectors
+        .keys()
+        .map(|name| {
+            (
+                name.clone(),
+                json!(format!("/{}", name.replace('~', "~0").replace('/', "~1"))),
+            )
+        })
+        .collect();
+    let input_schema = json!({"type":"object","properties":properties,"required":required,"additionalProperties":false});
     let output_schema = json!({"type":"object","properties":{"value":{}},"required":["value"]});
     let estimate = json!({"value":null,"basis":"unknown","reference":"deterministic test bench"});
     serde_json::from_value(json!({
@@ -42,7 +69,7 @@ pub fn capability(id: &str, contract: &SupportContract) -> CapabilityDescriptor 
         "provider":{"id":"fixture","version":"1","transport":"command","connection":null,"tool":null,"authentication_scope":"fixture","configuration_sha256":"c".repeat(64)},
         "input_schema":input_schema,"input_schema_sha256":schema_identity(&input_schema).unwrap(),
         "output_schema":output_schema,"output_schema_sha256":schema_identity(&output_schema).unwrap(),
-        "semantics":{"qualification_reference":"fixture-retained-record/1","support_types":[contract.support_type],"subject_kinds":["fixture"],"methods":contract.acceptable_methods,"identity_dimensions":["fixture"],"scope_constraints":{},"scope_bindings":{"fixture":"/fixture"},"quantities":contract.quantities.iter().map(|q|json!({"name":q.name,"unit":q.unit,"output_pointer":"/value"})).collect::<Vec<_>>(),"coverage":[{"strength":contract.logical_strength,"population":null,"completeness_pointer":null}],"time":{"historical_intervals":false,"historical_input":null,"original_observation_time":true,"uncertainty_seconds":0},"provenance":{"authorities":["fixture"],"transformation_history":true},"limitations":["A frozen test-bench record establishes only the identified fixture, not a physical deployment."]},
+        "semantics":{"qualification_reference":"fixture-retained-record/1","support_types":[contract.support_type],"subject_kinds":[contract.scope.kind],"methods":contract.acceptable_methods,"identity_dimensions":contract.scope.identity_dimensions,"scope_constraints":{},"scope_bindings":scope_bindings,"quantities":contract.quantities.iter().map(|q|json!({"name":q.name,"unit":q.unit,"output_pointer":"/value"})).collect::<Vec<_>>(),"coverage":[{"strength":contract.logical_strength,"population":null,"completeness_pointer":null}],"time":{"historical_intervals":false,"historical_input":null,"original_observation_time":true,"uncertainty_seconds":0},"provenance":{"authorities":["fixture"],"transformation_history":true},"limitations":["A frozen test-bench record establishes only the identified fixture, not a physical deployment."]},
         "configuration_requirements":[],"limits":{"timeout_seconds":30,"output_bytes":1048576,"concurrency":1,"requests_per_minute":null},
         "costs":{"configuration_effort_seconds":estimate,"implementation_effort_seconds":estimate,"execution_requests":estimate,"execution_latency_ms":estimate,"monetary_microunits":estimate,"transfer_bytes":estimate},
     })).unwrap()

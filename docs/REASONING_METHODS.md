@@ -21,10 +21,18 @@ named argument node and its evidence need. `evidence_requirements` distinguish
 formal-input admission, premise observation, design/model evidence and
 applicability. `assumption_ids` retain named model assumptions as dependencies.
 
-`conclusion` identifies the conclusion claim, subject, quantity, unit, scope,
-validity interval and exact result predicate. EAL checks the acquired envelope
-against these declarations before computing. The source acquisition's observation
-age remains a separate constraint from the proposition's interval.
+`conclusion` identifies the conclusion claim, subject, quantity, unit, structured
+target scope, validity interval and exact result predicate. EAL's scope identifier
+is derived from the target's kind, selectors and identity dimensions. It cannot be
+relabelled by replacing an opaque scope string. Formal input and premise evidence
+must retain those target identities. Additional sample selectors within the same
+population are allowed. A conflicting or missing target identity produces
+`scope_transfer_required`; this profile does not infer cross-population transfer.
+Sampling and model applicability remain separate evidence obligations.
+
+EAL checks the acquired envelope against these declarations before computing.
+The source acquisition's observation age remains separate from the proposition's
+interval. A timestamp does not prove physical continuity throughout that interval.
 
 There are two explicit premise correspondences:
 

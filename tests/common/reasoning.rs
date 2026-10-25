@@ -1,13 +1,21 @@
 //! Coherent, deterministic test-bench claims for the five native method profiles.
 
-use engarg::domain::{ArgumentCase, Request, validate_case};
+use engarg::domain::{ArgumentCase, MethodScope, Request, validate_case};
 use serde_json::{Value, json};
 
 pub const NOW: &str = "2026-10-25T12:00:00Z";
 const START: &str = "2026-10-25T00:00:00Z";
 const END: &str = "2026-10-26T00:00:00Z";
 const SUBJECT: &str = "mode-acceptance-test-bench";
-const SCOPE: &str = "frozen-fixture-v1";
+
+pub fn method_scope() -> MethodScope {
+    serde_json::from_value(json!({
+        "kind":"fixture",
+        "selectors":[{"name":"fixture","value":"frozen-fixture-v1"}],
+        "identity_dimensions":["fixture"]
+    }))
+    .unwrap()
+}
 
 #[derive(Clone)]
 pub struct ModeCase {
@@ -120,7 +128,7 @@ fn binding(mode: &ModeCase) -> Value {
         "assumption_ids":["A1"],
         "conclusion":{
             "claim_id":"current_claim","subject":SUBJECT,"quantity":mode.quantity,"unit":mode.unit,
-            "scope":SCOPE,"valid_from":START,"valid_until":END,"result":mode.result
+            "scope":method_scope(),"valid_from":START,"valid_until":END,"result":mode.result
         }
     })
 }
@@ -183,7 +191,7 @@ pub fn envelope(mode: &ModeCase) -> Value {
     json!({
         "schema":"EAL/typed-input/1","method":format!("{}/1",mode.kind),
         "subject":SUBJECT,"quantity":mode.quantity,"unit":mode.unit,
-        "scope":SCOPE,"valid_from":START,"valid_until":END,"payload":premise_source(mode)
+        "scope":method_scope().identity().unwrap(),"valid_from":START,"valid_until":END,"payload":premise_source(mode)
     })
 }
 

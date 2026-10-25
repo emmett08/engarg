@@ -55,6 +55,10 @@ fn support_prompt(
     mut data: Value,
     config: &RunConfig,
 ) -> Result<CompletionRequest, Error> {
+    let scope_identities = method_scope_identities(&data);
+    if !scope_identities.is_empty() {
+        data["method_scope_identities"] = serde_json::to_value(scope_identities)?;
+    }
     let produces_case = matches!(role, Role::Single | Role::Synthesiser | Role::Adjudicator);
     if produces_case {
         data["support_elaboration_schema"] = support_requirements::elaboration_schema();
@@ -87,6 +91,31 @@ fn support_prompt(
             .push_str(support_requirements::CRITIC_INSTRUCTIONS);
     }
     Ok(request)
+}
+
+/// A model can copy an exact host-computed identity for a retained scope. An
+/// altered scope needs a newly computed identity, never a guessed digest.
+fn method_scope_identities(data: &Value) -> BTreeMap<String, Value> {
+    let mut identities = BTreeMap::new();
+    for argument in [&data["draft"], &data["candidate_json"]["argument"]] {
+        for warrant in argument["warrants"].as_array().into_iter().flatten() {
+            let Some(id) = warrant["id"].as_str() else {
+                continue;
+            };
+            let Ok(scope) = serde_json::from_value::<crate::domain::MethodScope>(
+                warrant["reasoning_method"]["conclusion"]["scope"].clone(),
+            ) else {
+                continue;
+            };
+            if let Ok(identity) = scope.identity() {
+                identities.insert(
+                    id.into(),
+                    json!({"scope":scope,"eal_scope_identity":identity}),
+                );
+            }
+        }
+    }
+    identities
 }
 
 fn validation_errors(
@@ -433,6 +462,23 @@ mod tests {
         Mutex,
         atomic::{AtomicUsize, Ordering},
     };
+
+    #[test]
+    fn scope_identities_are_computed_from_the_retained_structure_for_model_copying() {
+        let scope = json!({"kind":"catalogue_snapshot",
+            "selectors":[{"name":"snapshot","value":"fixture-v1"}],
+            "identity_dimensions":["snapshot"]});
+        let argument = json!({"warrants":[{"id":"W1",
+            "reasoning_method":{"status":"bound","conclusion":{"scope":scope}}}]});
+        let draft = method_scope_identities(&json!({"draft":argument}));
+        let candidate = method_scope_identities(&json!({"candidate_json":{"argument":argument}}));
+        assert_eq!(draft, candidate);
+        let typed: crate::domain::MethodScope = serde_json::from_value(scope).unwrap();
+        assert_eq!(draft["W1"]["eal_scope_identity"], typed.identity().unwrap());
+        assert!(
+            method_scope_identities(&json!({"request":{"claim":"No retained scopes"}})).is_empty()
+        );
+    }
 
     struct Model {
         calls: Mutex<Vec<CompletionRequest>>,

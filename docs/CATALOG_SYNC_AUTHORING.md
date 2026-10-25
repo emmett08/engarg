@@ -48,6 +48,8 @@ failed method or an unmatched formal input remains unresolved. Collection,
 assessment, generated code, audits and rendered arguments remain available.
 An unresolved completed assessment returns status 3. A failed stage returns a
 nonzero status and identifies the retained run directory.
+Rendered arguments retain the authored case and its status. The result after
+collection is recorded in `execution-result.json` and `eal-assessment.json`.
 
 The positional-input workflow below retains the existing Kubernetes and Grafana
 example. Add `--collect-and-assess` to execute its selected current claim after

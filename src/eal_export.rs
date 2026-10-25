@@ -478,7 +478,7 @@ impl<'a> Exporter<'a> {
         self.source.push_str(&format!(
             "claim {declaration} {{\n  statement {}\n  environment {ENVIRONMENT}\n  proposition {{\n    subject {}\n    quantity {}\n    unit {}\n    scope {}\n    valid_from {}\n    valid_until {}\n    query {}\n    result {} {} {}\n  }}\n}}\n\n",
             quoted(statement), quoted(&conclusion.subject), quoted(&conclusion.quantity),
-            quoted(&conclusion.unit), quoted(&conclusion.scope), quoted(&conclusion.valid_from),
+            quoted(&conclusion.unit), quoted(&conclusion.scope.identity().map_err(Error::InvalidInput)?), quoted(&conclusion.valid_from),
             quoted(&conclusion.valid_until), serde_json::to_string(&bound.method.query())?,
             conclusion.result.path, conclusion.result.operator.as_str(),
             serde_json::to_string(&conclusion.result.expected)?,

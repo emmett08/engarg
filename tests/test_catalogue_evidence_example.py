@@ -38,6 +38,10 @@ class CatalogueExampleTests(unittest.TestCase):
         self.assertFalse(context['observations_supplied'])
         self.assertEqual(context['subject_scope']['selectors'], {'snapshot': 'demonstration-v1'})
         self.assertEqual(context['formal_input']['payload']['premises'], ['count_is_three', 'identifiers_distinct'])
+        self.assertEqual(context['formal_scope'], EXAMPLE.METHOD_SCOPE)
+        self.assertEqual(context['formal_input']['scope'], EXAMPLE.method_scope_identity(context['formal_scope']))
+        self.assertEqual(context['formal_input']['scope'],
+                         'engarg.scope:e4573ab176d50fdfebebee9913448452898c9ad953abd8b22ae3ba2e9efb02a8')
         self.assertIn('separately evaluated support requirements', context['required_workflow'])
         with self.assertRaises(ValueError):
             EXAMPLE.request_for({'schema': 'engarg.catalogue-evidence-example/1', 'snapshot': 'demonstration-v1', 'claim': 'unrelated'})

@@ -18,9 +18,31 @@ import tempfile
 import time
 
 
+def canonical(value):
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
+
+
+def digest(value):
+    return hashlib.sha256(canonical(value)).hexdigest()
+
+
+def method_scope_identity(scope):
+    """The host derives the EAL scope identity, rather than asking a model to hash it."""
+    return 'engarg.scope:' + digest({
+        'schema': 'engarg.method-scope/1', 'kind': scope['kind'],
+        'selectors': {item['name']: item['value'] for item in scope['selectors']},
+        'identity_dimensions': sorted(scope['identity_dimensions']),
+    })
+
+
 SNAPSHOT = "demonstration-v1"
 METHOD = "catalogue.identifier-audit/1"
 CLAIM = "The demonstration-v1 catalogue snapshot contains three entries with distinct identifiers."
+METHOD_SCOPE = {
+    'kind': 'catalogue_snapshot',
+    'selectors': [{'name': 'snapshot', 'value': SNAPSHOT}],
+    'identity_dimensions': ['snapshot'],
+}
 STRING = {"type": "string", "minLength": 1, "maxLength": 64}
 ITEMS = {"type": "array", "maxItems": 32, "items": {
     "type": "object", "properties": {"id": STRING}, "required": ["id"], "additionalProperties": False}}
@@ -29,7 +51,7 @@ READ_INPUT = {"type": "object", "properties": {"snapshot": SNAPSHOT_PROPERTY},
               "required": ["snapshot"], "additionalProperties": False}
 FORMAL_INPUT = {
     "schema": "EAL/typed-input/1", "method": "deductive/1", "subject": "catalogue_snapshot",
-    "quantity": "proposition", "unit": "1", "scope": "snapshot=demonstration-v1",
+    "quantity": "proposition", "unit": "1", "scope": method_scope_identity(METHOD_SCOPE),
     "valid_from": "2000-01-01T00:00:00Z", "valid_until": "2100-01-01T00:00:00Z",
     "payload": {"premises": ["count_is_three", "identifiers_distinct"],
                 "conclusion": {"and": ["count_is_three", "identifiers_distinct"]}},
@@ -46,14 +68,6 @@ AUDIT_OUTPUT = {"type": "object", "properties": {
 READ_OUTPUT = {"type": "object", "properties": {
     "snapshot": SNAPSHOT_PROPERTY, "items": ITEMS, "complete": {"type": "boolean"}},
     "required": ["snapshot", "items", "complete"], "additionalProperties": False}
-
-
-def canonical(value):
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
-
-
-def digest(value):
-    return hashlib.sha256(canonical(value)).hexdigest()
 
 
 def read(path):
@@ -100,6 +114,7 @@ def operation_specification():
             "distinct is true exactly when the supplied id strings are pairwise distinct using exact string equality.",
             "snapshot and complete are returned without change. No empirical completeness is inferred from distinctness.",
             "typed_input exactly echoes formal_input. It encodes only a formal conjunction and does not establish the truth of either empirical premise.",
+            "The acquisition envelope includes observed_at as the actual UTC RFC3339 time of this fresh calculation ending in Z, with the original request and context unchanged. The graph executor retains upstream observation ages separately.",
         ],
         "input_schema": AUDIT_INPUT,
         "output_schema": AUDIT_OUTPUT,
@@ -125,6 +140,7 @@ def request_for(inputs):
                                   "coverage": "The named local fixture snapshot is read completely at the returned observation time."},
         "required_custom_operation": operation_specification(),
         "formal_input": FORMAL_INPUT,
+        "formal_scope": METHOD_SCOPE,
         "required_workflow": (
             "Retrieve the named snapshot through the configured additional MCP. Pass its exact items and completeness "
             "into the custom catalogue.identifier-audit/1 operation using dependency bindings. Use its computed count "
@@ -137,6 +153,10 @@ def request_for(inputs):
             "selector and preserves observation time and provenance. Use source retrieval and complete enumeration "
             "for the snapshot, and calculation/exact_calculation for the audit. Use a typed deductive warrant whose "
             "formal premises correspond to count == 3 and distinct == true, with the conjunction as the conclusion. "
+            "Copy formal_scope into the typed warrant conclusion.scope and copy the supplied formal_input.scope "
+            "identity exactly into the acquired envelope. That identity is host-derived from the structured scope, "
+            "not a scope label invented by the model. All formal-input and empirical premise requirements have "
+            "kind catalogue_snapshot, snapshot selector demonstration-v1 and identity dimension snapshot. "
             "Do not invent observations, introduce deployment claims, self-certify arbitrary prose or silently turn "
             "missing evidence into support. Missing model or formal correspondence remains explicitly unresolved. "
             "The generated collector response must include a valid original UTC RFC3339 observed_at timestamp "

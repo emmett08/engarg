@@ -63,8 +63,14 @@ pub(super) fn validate(case: &ArgumentCase, errors: &mut Vec<String>) {
                 "{label} exceeds bounded premise, evidence or assumption lists"
             ));
         }
-        let proposition = bound.conclusion.proposition(&bound.method);
-        match serde_json::from_value::<eal_core::semantic::Proposition>(proposition) {
+        let proposition = bound
+            .conclusion
+            .proposition(&bound.method)
+            .and_then(|value| {
+                serde_json::from_value::<eal_core::semantic::Proposition>(value)
+                    .map_err(|error| error.to_string())
+            });
+        match proposition {
             Ok(proposition) => {
                 errors.extend(
                     eal_core::propositions::proposition_errors(

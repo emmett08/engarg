@@ -312,6 +312,162 @@ fn equal_numbers_with_a_different_declared_input_unit_remain_unresolved() {
     );
 }
 
+fn replace_source_scope(
+    fixture: &mut reasoning_graph::GraphFixture,
+    source_id: &str,
+    requirement_id: &str,
+    selectors: serde_json::Value,
+) {
+    let (_, _, elaboration, plan, routes, _) = fixture;
+    let source = elaboration
+        .acquisitions
+        .iter_mut()
+        .find(|source| source.id == source_id)
+        .unwrap();
+    source.contract.scope.selectors = serde_json::from_value(selectors.clone()).unwrap();
+    source.contract.scope.identity_dimensions =
+        source.contract.scope.selectors.keys().cloned().collect();
+    source.arguments = selectors.clone();
+    let contract = source.contract.clone();
+    elaboration
+        .requirements
+        .iter_mut()
+        .find(|required| required.id == requirement_id)
+        .unwrap()
+        .contract = Some(contract.clone());
+    let route = routes
+        .iter_mut()
+        .find(|route| route.blueprint_id == source_id)
+        .unwrap();
+    route.capability = reasoning_graph::capability(source_id, &contract);
+    let source = plan
+        .acquisitions
+        .iter_mut()
+        .find(|source| source.id == source_id)
+        .unwrap();
+    source.source = reasoning_graph::source(&route.capability);
+    source.source.scope = selectors.clone();
+    source.arguments = selectors;
+}
+
+#[test]
+fn development_evidence_cannot_be_relabelled_as_a_production_method_scope() {
+    let mode = reasoning::cases().remove(1);
+    for (source_id, requirement_id) in [
+        ("formal_source", "requirement_W1"),
+        ("premise_source", "requirement_G1"),
+    ] {
+        let mut fixture = reasoning_graph::graph_fixture(&mode);
+        replace_source_scope(
+            &mut fixture,
+            "formal_source",
+            "requirement_W1",
+            json!({"fixture":"production"}),
+        );
+        replace_source_scope(
+            &mut fixture,
+            "premise_source",
+            "requirement_G1",
+            json!({"fixture":"production"}),
+        );
+        replace_source_scope(
+            &mut fixture,
+            source_id,
+            requirement_id,
+            json!({"fixture":"development"}),
+        );
+        let (request, mut case, elaboration, mut plan, routes, locations) = fixture;
+        let engarg::domain::ReasoningMethodBinding::Bound(bound) =
+            case.warrants[0].reasoning_method.as_mut().unwrap()
+        else {
+            panic!("expected bound test method");
+        };
+        bound.conclusion.scope.selectors[0].value =
+            engarg::domain::MethodScopeScalar::String("production".into());
+        support_export::project_execution_graph(&elaboration, &routes, &mut plan).unwrap();
+        let artifacts = support_export::export(
+            &request,
+            &case,
+            &elaboration,
+            &plan,
+            &routes,
+            &locations,
+            &ExportPolicy::default(),
+        )
+        .unwrap();
+        compile(&artifacts);
+        assert!(artifacts.bundle.reasoning_inputs[0].output.is_none());
+        assert!(artifacts.bundle.pending.iter().any(|pending| {
+            pending.kind == "scope_transfer_required"
+                && pending.description.contains(requirement_id)
+        }));
+        assert!(
+            !artifacts
+                .bundle
+                .source
+                .contains("argument native_method_argument_5731")
+        );
+        support_export::reconstruct(&artifacts.bundle).unwrap();
+    }
+}
+
+#[test]
+fn sample_identifiers_can_narrow_evidence_within_the_same_target_population() {
+    let mode = reasoning::cases().remove(1);
+    let mut fixture = reasoning_graph::graph_fixture(&mode);
+    for (source_id, requirement_id) in [
+        ("formal_source", "requirement_W1"),
+        ("premise_source", "requirement_G1"),
+    ] {
+        replace_source_scope(
+            &mut fixture,
+            source_id,
+            requirement_id,
+            json!({"fixture":"frozen-fixture-v1","sample_id":"retained-sample-17"}),
+        );
+    }
+    let (request, case, elaboration, mut plan, routes, locations) = fixture;
+    support_export::project_execution_graph(&elaboration, &routes, &mut plan).unwrap();
+    let artifacts = support_export::export(
+        &request,
+        &case,
+        &elaboration,
+        &plan,
+        &routes,
+        &locations,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    compile(&artifacts);
+    assert!(artifacts.bundle.reasoning_inputs[0].output.is_some());
+    assert!(
+        !artifacts
+            .bundle
+            .pending
+            .iter()
+            .any(|pending| pending.kind == "scope_transfer_required")
+    );
+    assert!(
+        artifacts
+            .bundle
+            .source
+            .contains("argument native_method_argument_5731")
+    );
+    let engarg::domain::ReasoningMethodBinding::Bound(bound) =
+        case.warrants[0].reasoning_method.as_ref().unwrap()
+    else {
+        panic!("expected bound test method");
+    };
+    let scope_identity = bound.conclusion.scope.identity().unwrap();
+    assert!(
+        artifacts
+            .bundle
+            .source
+            .contains(&format!("scope \"{scope_identity}\""))
+    );
+    support_export::reconstruct(&artifacts.bundle).unwrap();
+}
+
 fn with_challenge(target: &str) -> SupportExportArtifacts {
     let mode = reasoning::cases().remove(0);
     let (request, mut case, mut elaboration, mut plan, routes, locations) =

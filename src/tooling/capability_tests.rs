@@ -182,6 +182,33 @@ impl FixtureRunner for FakeRunner {
         cancellation: &CancellationToken,
     ) -> Result<RunOutcome, Error> {
         self.executions.fetch_add(1, Ordering::SeqCst);
+        match source[0].content.as_str() {
+            "runner_provider" => return Err(Error::Provider("runner unavailable".into())),
+            "runner_io" => return Err(Error::Io(std::io::Error::other("runner IO unavailable"))),
+            "runner_budget" => return Err(Error::Budget("runner output budget exhausted".into())),
+            "runner_cancel" => {
+                cancellation.cancel();
+            }
+            "runner_timeout" => {
+                return Ok(RunOutcome {
+                    stdout: Vec::new(),
+                    stderr: b"watchdog expired".to_vec(),
+                    returncode: 124,
+                    execution_error: Some("timeout".into()),
+                    elapsed_ms: 30_000,
+                });
+            }
+            "compile_error" => {
+                return Ok(RunOutcome {
+                    stdout: Vec::new(),
+                    stderr: b"error[E0425]: cannot find value `missing` in this scope".repeat(128),
+                    returncode: 1,
+                    execution_error: None,
+                    elapsed_ms: 1,
+                });
+            }
+            _ => {}
+        }
         let fail = || RunOutcome {
             stdout: Vec::new(),
             stderr: Vec::new(),
@@ -196,6 +223,15 @@ impl FixtureRunner for FakeRunner {
             .ok()
             .and_then(|value| serde_json::from_value::<AcquisitionRequest>(value).ok());
         let Some(request) = parsed.filter(|request| request.validate().is_ok()) else {
+            if source[0].content == "protocol_echo" {
+                return Ok(RunOutcome {
+                    stdout: b"{}".to_vec(),
+                    stderr: b"held-out protocol payload: reserved-oracle-probe".to_vec(),
+                    returncode: 0,
+                    execution_error: None,
+                    elapsed_ms: 1,
+                });
+            }
             return Ok(fail());
         };
         let mode = request.input["mode"].as_str().unwrap_or("error");
@@ -560,6 +596,233 @@ async fn retry_uses_frozen_fixtures_and_only_one_coding_call() {
     assert_eq!(result.model_calls, 1);
     assert_eq!(result.qualification.contract_sha256, digest);
     assert_eq!(retry.requests.lock().unwrap()[0].role, Role::Single);
+}
+
+fn retained_attempts(root: &Path) -> Vec<PathBuf> {
+    std::fs::read_dir(root.join("attempts"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect()
+}
+
+#[tokio::test]
+async fn bounded_coding_repair_reuses_frozen_contract_and_observed_diagnostics() {
+    let directory = tempfile::tempdir().unwrap();
+    let request = operation();
+    let mut selected = config(directory.path());
+    selected.max_calls = 3;
+    let runner = Arc::new(FakeRunner::new(&selected));
+    let model = Model::new(vec![
+        draft_response(&request),
+        code_response("compile_error"),
+        code_response("correct"),
+    ]);
+    let result = implement_with_runner(
+        &request,
+        ImplementationGapKind::Transformation,
+        selected,
+        &model,
+        runner,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.model_calls, 3);
+    let attempts = retained_attempts(directory.path());
+    assert_eq!(attempts.len(), 2);
+    let failed = attempts
+        .iter()
+        .find(|attempt| attempt.join("build-failure.json").exists())
+        .unwrap();
+    assert!(failed.join("candidate-response.json").exists());
+    assert!(failed.join("test-results.json").exists());
+    let requests = model.requests.lock().unwrap();
+    let initial: Value = serde_json::from_str(&requests[1].user).unwrap();
+    let repair: Value = serde_json::from_str(&requests[2].user).unwrap();
+    assert_eq!(repair["repair_attempt"], 1);
+    assert_eq!(repair["repair_limit"], 1);
+    for field in [
+        "input_schema",
+        "result_schema",
+        "language",
+        "fixtures",
+        "request_context",
+        "purpose",
+    ] {
+        assert_eq!(
+            repair[field], initial[field],
+            "frozen field changed: {field}"
+        );
+    }
+    assert_eq!(repair["coding_repair"]["contract_frozen"], true);
+    let feedback = &repair["coding_repair"]["observed_failure"];
+    assert_eq!(
+        feedback["contract_sha256"],
+        result.qualification.contract_sha256
+    );
+    assert!(
+        feedback["failed_tests"][0]["stderr"]
+            .as_str()
+            .unwrap()
+            .contains("error[E0425]")
+    );
+    assert!(
+        feedback["failed_tests"][0]["stderr"]
+            .as_str()
+            .unwrap()
+            .len()
+            <= 1024
+    );
+    assert!(!requests[2].user.contains("expected_value"));
+    assert!(requests[2].system.contains("untrusted data"));
+}
+
+#[tokio::test]
+async fn malformed_candidate_can_be_repaired_without_redrafting_fixtures() {
+    let directory = tempfile::tempdir().unwrap();
+    let request = operation();
+    let mut selected = config(directory.path());
+    selected.max_calls = 3;
+    let runner = Arc::new(FakeRunner::new(&selected));
+    let model = Model::new(vec![
+        draft_response(&request),
+        "this is not source-package JSON".into(),
+        code_response("correct"),
+    ]);
+    let result = implement_with_runner(
+        &request,
+        ImplementationGapKind::Transformation,
+        selected,
+        &model,
+        runner,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.model_calls, 3);
+    let attempts = retained_attempts(directory.path());
+    assert_eq!(attempts.len(), 2);
+    let failed = attempts
+        .iter()
+        .find(|attempt| attempt.join("build-failure.json").exists())
+        .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(failed.join("candidate-response.json")).unwrap(),
+        "this is not source-package JSON"
+    );
+    let requests = model.requests.lock().unwrap();
+    let repair: Value = serde_json::from_str(&requests[2].user).unwrap();
+    assert_eq!(
+        repair["coding_repair"]["observed_failure"]["stage"],
+        "candidate"
+    );
+}
+
+#[tokio::test]
+async fn automatic_coding_repair_stops_at_budget_without_registering_failed_source() {
+    let directory = tempfile::tempdir().unwrap();
+    let request = operation();
+    let mut selected = config(directory.path());
+    selected.max_calls = 3;
+    let runner = Arc::new(FakeRunner::new(&selected));
+    let model = Model::new(vec![
+        draft_response(&request),
+        code_response("lie"),
+        code_response("lie"),
+    ]);
+    let result = implement_with_runner(
+        &request,
+        ImplementationGapKind::Transformation,
+        selected,
+        &model,
+        runner.clone(),
+    )
+    .await;
+    assert!(matches!(result, Err(Error::InvalidOutput(_))));
+    assert_eq!(model.calls.load(Ordering::SeqCst), 3);
+    assert_eq!(retained_attempts(directory.path()).len(), 2);
+    let store = PackageStore::new(directory.path()).unwrap();
+    let key = PackageStore::key_for(
+        &request.need().unwrap(),
+        &request.context().unwrap(),
+        "rust",
+        runner.identity(),
+    )
+    .unwrap();
+    assert!(store.lookup(&key, runner.identity()).unwrap().is_none());
+    assert!(
+        store
+            .frozen_contract(&key, runner.identity())
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn coding_repair_does_not_reveal_held_out_protocol_streams() {
+    let directory = tempfile::tempdir().unwrap();
+    let request = operation();
+    let mut selected = config(directory.path());
+    selected.max_calls = 3;
+    let runner = Arc::new(FakeRunner::new(&selected));
+    let model = Model::new(vec![
+        draft_response(&request),
+        code_response("protocol_echo"),
+        code_response("correct"),
+    ]);
+    implement_with_runner(
+        &request,
+        ImplementationGapKind::Transformation,
+        selected,
+        &model,
+        runner,
+    )
+    .await
+    .unwrap();
+    let requests = model.requests.lock().unwrap();
+    assert!(!requests[2].user.contains("reserved-oracle-probe"));
+    let repair: Value = serde_json::from_str(&requests[2].user).unwrap();
+    let failures = repair["coding_repair"]["observed_failure"]["failed_tests"]
+        .as_array()
+        .unwrap();
+    assert!(!failures.is_empty());
+    assert!(
+        failures
+            .iter()
+            .all(|failure| failure["kind"] == "protocol" && failure["stderr"] == "")
+    );
+}
+
+#[tokio::test]
+async fn coding_repair_does_not_retry_infrastructure_limits_or_cancellation() {
+    for failure in [
+        "runner_provider",
+        "runner_io",
+        "runner_budget",
+        "runner_timeout",
+        "runner_cancel",
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let request = operation();
+        let mut selected = config(directory.path());
+        selected.max_calls = 4;
+        let runner = Arc::new(FakeRunner::new(&selected));
+        let model = Model::new(vec![draft_response(&request), code_response(failure)]);
+        let result = implement_with_runner(
+            &request,
+            ImplementationGapKind::Transformation,
+            selected,
+            &model,
+            runner.clone(),
+        )
+        .await;
+        match failure {
+            "runner_io" => assert!(matches!(result, Err(Error::Io(_)))),
+            "runner_budget" => assert!(matches!(result, Err(Error::Budget(_)))),
+            _ => assert!(matches!(result, Err(Error::Provider(_)))),
+        }
+        assert_eq!(model.calls.load(Ordering::SeqCst), 2);
+        assert_eq!(runner.executions.load(Ordering::SeqCst), 1);
+        assert_eq!(retained_attempts(directory.path()).len(), 1);
+    }
 }
 
 #[tokio::test]

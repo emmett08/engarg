@@ -16,6 +16,11 @@ A bound method identifies:
 
 Validate identifiers, inference/method agreement, bounded input shapes, correspondence, units, scope, time, assumptions and result predicates. An explanatory sentence cannot supply a missing observation or prove a formal correspondence. Incomplete bindings retain the missing model or evidence as unresolved.
 
+Derive the EAL scope identity from a closed structured target scope. Match its
+identity dimensions and selectors against the formal-input and premise evidence
+contracts. Extra sample selectors may narrow the same population. Missing or
+conflicting identities require an explicit unresolved scope-transfer obligation.
+
 Export bound warrants using the actual EAL method. Export absent or explicitly unresolved formalisation without claiming computational verification. Ground acquisition and model-applicability obligations remain independent of successful method execution.
 
 Add an acquisition projection that selects the exact declared method-input reference from an already evaluated support requirement. The collector must check the request, requirement, input reference, satisfied criterion and source lineage. It must retain original observation times and provenance and return the acquired typed envelope, never an envelope invented by the exporter.
@@ -44,6 +49,9 @@ The workflow is:
 2. Generate the argument and evidence requirements for the simple claim.
 3. Discover the additional MCP server and identify the custom-tool implementation gap.
 4. Generate and fixture-test the custom tool in the configured isolated toolchain.
+   Require original observation timestamps before registration where specified,
+   and repair source/build/fixture failures within the existing call and time
+   allowances without changing the frozen contract or test oracle.
 5. Integrate the verified tool, replan the retained argument and export EAL/3.
 6. Automatically acquire evidence from both sources, run EAL and retain the argument, tool package, registry, observations and assessment.
 7. Report the queried claim as supported only if the actual assessment supports it and all required acquisitions and method computations completed. Otherwise retain an explicit unresolved or unsupported outcome with diagnostics.

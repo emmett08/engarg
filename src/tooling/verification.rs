@@ -52,6 +52,21 @@ fn digest(bytes: &[u8]) -> String {
         .collect()
 }
 
+/// Capability contracts retain their time obligation in the frozen request.
+/// Earlier flat collector contexts have no such contract and keep their
+/// established optional observation-time behavior.
+pub(super) fn requires_original_observation_time(contract: &NeedContract) -> bool {
+    serde_json::from_str::<super::capability::CapabilityImplementationRequest>(
+        &contract.request_context,
+    )
+    .is_ok_and(|request| {
+        request
+            .support_contract
+            .time
+            .require_original_observation_time
+    })
+}
+
 /// Preserve correspondence before allowing an observation into the registry path.
 pub fn validate_observation(
     contract: &NeedContract,
@@ -86,6 +101,12 @@ pub fn validate_observation(
     if !validator.is_valid(&envelope.value) {
         return Err(Error::InvalidOutput(
             "collector value differs from the frozen result schema".into(),
+        ));
+    }
+    if requires_original_observation_time(contract) && envelope.observed_at.is_none() {
+        return Err(Error::InvalidOutput(
+            "the frozen operation contract requires original observed_at in the acquisition envelope"
+                .into(),
         ));
     }
     if envelope
@@ -555,5 +576,120 @@ pub(crate) mod tests {
         assert!(!valid_timestamp("2024-01-01T24:00:00Z"));
         assert!(!valid_timestamp("2024-01-01T00:00:00+00:00"));
         assert!(!valid_timestamp("2024-01-01T00:00:00.Z"));
+    }
+
+    fn capability_contract(require_original_time: bool) -> NeedContract {
+        let mut contract = contract();
+        contract.request_context = json!({
+            "support_contract": {
+                "schema":"eal.support-contract/1","support_type":"calculation",
+                "scope":{"kind":"synthetic_flag","subject":"One supplied fixture mode",
+                    "selectors":{},"identity_dimensions":["mode"]},
+                "acceptable_methods":["synthetic_flag/1"],"quantities":[],
+                "logical_strength":"exact_calculation","population":null,
+                "time":{"historical_interval":null,"max_age_seconds":null,
+                    "max_uncertainty_seconds":null,
+                    "require_original_observation_time":require_original_time},
+                "provenance":{"required_authorities":[],"transformation_history":false},
+                "expected_output_schema_sha256":null
+            },
+            "input_schema":contract.draft.input_schema,
+            "output_schema":contract.draft.result_schema,
+            "operation_purpose":"Return whether the supplied synthetic mode is positive",
+            "declared_limits":{}
+        })
+        .to_string();
+        contract
+    }
+
+    fn successful_observation() -> (AcquisitionRequest, Value) {
+        let request = AcquisitionRequest {
+            evidence_id: "time_fixture".into(),
+            environment: "engarg_tool_fixture".into(),
+            tool: "engarg_generated_fixture".into(),
+            tool_version: "1".into(),
+            input: json!({"mode":"positive"}),
+            context: json!({"fixture":"required_original_time"}),
+        };
+        let envelope = json!({
+            "value":{"collected":true,"present":true},
+            "context":request.context,"request":request.acquisition()
+        });
+        (request, envelope)
+    }
+
+    #[test]
+    fn required_original_time_rejects_absent_and_invalid_times_but_accepts_valid_time() {
+        let contract = capability_contract(true);
+        assert!(requires_original_observation_time(&contract));
+        let (request, mut envelope) = successful_observation();
+        let rejected =
+            validate_observation(&contract, &request, &serde_json::to_vec(&envelope).unwrap())
+                .unwrap_err();
+        assert!(
+            rejected
+                .to_string()
+                .contains("requires original observed_at")
+        );
+        for invalid in ["2023-02-29T12:00:00Z", "2026-10-25T12:00:00+00:00", ""] {
+            envelope["observed_at"] = json!(invalid);
+            let error =
+                validate_observation(&contract, &request, &serde_json::to_vec(&envelope).unwrap())
+                    .unwrap_err();
+            assert!(error.to_string().contains("valid UTC RFC3339"));
+        }
+        envelope["observed_at"] = json!("2026-10-25T12:00:00.123Z");
+        let admitted =
+            validate_observation(&contract, &request, &serde_json::to_vec(&envelope).unwrap())
+                .unwrap();
+        assert_eq!(
+            admitted.observed_at.as_deref(),
+            Some("2026-10-25T12:00:00.123Z")
+        );
+    }
+
+    #[test]
+    fn legacy_and_explicit_optional_time_contracts_keep_optional_time_behavior() {
+        let (request, envelope) = successful_observation();
+        for contract in [contract(), capability_contract(false)] {
+            assert!(!requires_original_observation_time(&contract));
+            validate_observation(&contract, &request, &serde_json::to_vec(&envelope).unwrap())
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn frozen_verification_rejects_missing_required_time_before_package_registration() {
+        let directory = tempfile::tempdir().unwrap();
+        let contract = capability_contract(true);
+        let receipt = verify(
+            &FakeRunner {
+                identity: identity(),
+                fault: Fault::None,
+            },
+            &contract,
+            &candidate(),
+            directory.path(),
+            &CancellationToken::default(),
+        )
+        .unwrap();
+        assert!(!receipt.passed);
+        for name in ["positive", "negative"] {
+            assert!(
+                !receipt
+                    .results
+                    .iter()
+                    .find(|result| result.name == name)
+                    .unwrap()
+                    .passed
+            );
+        }
+        let prompt = super::super::generation::code_request(&contract);
+        let supplied: Value = serde_json::from_str(&prompt.user).unwrap();
+        assert_eq!(supplied["original_observation_time_required"], true);
+        assert!(prompt.system.contains("observed_at is mandatory"));
+        let optional = super::super::generation::code_request(&capability_contract(false));
+        let supplied: Value = serde_json::from_str(&optional.user).unwrap();
+        assert_eq!(supplied["original_observation_time_required"], false);
     }
 }

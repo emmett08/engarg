@@ -7,6 +7,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::InferenceKind;
 
@@ -297,10 +298,106 @@ pub struct MethodConclusionBinding {
     pub subject: String,
     pub quantity: String,
     pub unit: String,
-    pub scope: String,
+    pub scope: MethodScope,
     pub valid_from: String,
     pub valid_until: String,
     pub result: MethodResultPredicate,
+}
+
+/// The method's target identity is checked against each acquired premise scope.
+/// Extra source selectors, such as an actual sample identifier, do not change
+/// the target population. Transport to a different identity remains unresolved.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MethodScope {
+    #[schemars(length(min = 1, max = 64))]
+    #[schemars(regex(pattern = "^[A-Za-z_][A-Za-z0-9_.-]*$"))]
+    pub kind: String,
+    #[schemars(length(min = 1, max = 32))]
+    pub selectors: Vec<MethodScopeSelector>,
+    #[schemars(length(min = 1, max = 32))]
+    pub identity_dimensions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MethodScopeSelector {
+    #[schemars(length(min = 1, max = 128))]
+    pub name: String,
+    pub value: MethodScopeScalar,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum MethodScopeScalar {
+    String(#[schemars(length(min = 1, max = 4096))] String),
+    Boolean(bool),
+    Number(f64),
+}
+
+impl MethodScope {
+    pub fn validate(&self) -> Result<(), String> {
+        let text = |value: &str, maximum| {
+            !value.trim().is_empty()
+                && value.len() <= maximum
+                && !value.chars().any(char::is_control)
+        };
+        if !text(&self.kind, 64)
+            || !eal_collector_contracts::identifier(&self.kind)
+            || !(1..=32).contains(&self.selectors.len())
+            || !(1..=32).contains(&self.identity_dimensions.len())
+        {
+            return Err(
+                "method scope requires a bounded kind and 1–32 selectors and identity dimensions"
+                    .into(),
+            );
+        }
+        let mut selectors = BTreeSet::new();
+        for selector in &self.selectors {
+            if !text(&selector.name, 128) || !selectors.insert(selector.name.as_str()) {
+                return Err(
+                    "method scope selector names must be unique bounded nonblank text".into(),
+                );
+            }
+            let valid = match &selector.value {
+                MethodScopeScalar::String(value) => text(value, 4096),
+                MethodScopeScalar::Boolean(_) => true,
+                MethodScopeScalar::Number(value) => value.is_finite(),
+            };
+            if !valid {
+                return Err("method scope selectors require nonblank bounded strings, booleans or finite numbers".into());
+            }
+        }
+        let mut dimensions = BTreeSet::new();
+        if self.identity_dimensions.iter().any(|dimension| {
+            !text(dimension, 128)
+                || !dimensions.insert(dimension.as_str())
+                || !selectors.contains(dimension.as_str())
+        }) {
+            return Err(
+                "method scope identity dimensions must be unique and name declared selectors"
+                    .into(),
+            );
+        }
+        Ok(())
+    }
+
+    /// Stable across selector and identity-dimension ordering. The EAL field is
+    /// an identity of this record, never a free-text scope interpretation.
+    pub fn identity(&self) -> Result<String, String> {
+        self.validate()?;
+        let selectors: BTreeMap<_, _> = self
+            .selectors
+            .iter()
+            .map(|selector| (selector.name.as_str(), &selector.value))
+            .collect();
+        let dimensions: BTreeSet<_> = self.identity_dimensions.iter().collect();
+        eal_collector_contracts::capability::canonical_identity(&json!({
+            "schema":"engarg.method-scope/1", "kind":self.kind,
+            "selectors":selectors, "identity_dimensions":dimensions
+        }))
+        .map(|digest| format!("engarg.scope:{digest}"))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -348,16 +445,16 @@ pub enum MethodScalar {
 }
 
 impl MethodConclusionBinding {
-    pub fn proposition(&self, method: &MethodSpecification) -> Value {
-        json!({
+    pub fn proposition(&self, method: &MethodSpecification) -> Result<Value, String> {
+        Ok(json!({
             "subject": self.subject, "quantity": self.quantity, "unit": self.unit,
-            "scope": self.scope, "valid_from": self.valid_from,
+            "scope": self.scope.identity()?, "valid_from": self.valid_from,
             "valid_until": self.valid_until, "query": method.query(),
             "result": {
                 "path": self.result.path, "operator": self.result.operator.as_str(),
                 "expected": self.result.expected, "expression": null
             }
-        })
+        }))
     }
 }
 
@@ -374,6 +471,53 @@ mod tests {
         ] {
             assert!(serde_json::from_value::<LogicalFormula>(malformed).is_err());
         }
+    }
+
+    #[test]
+    fn method_scope_identity_is_canonical_and_rejects_ambiguous_identities() {
+        let mut scope: MethodScope = serde_json::from_value(json!({
+            "kind":"population", "selectors":[
+                {"name":"population","value":"production"},
+                {"name":"enabled","value":true},
+                {"name":"revision","value":1.0}
+            ], "identity_dimensions":["population","revision"]
+        }))
+        .unwrap();
+        let identity = scope.identity().unwrap();
+        scope.selectors.reverse();
+        scope.identity_dimensions.reverse();
+        assert_eq!(scope.identity().unwrap(), identity);
+        assert!(identity.starts_with("engarg.scope:"));
+
+        let mut duplicate = scope.clone();
+        duplicate.selectors.push(duplicate.selectors[0].clone());
+        assert!(duplicate.identity().is_err());
+        let mut duplicate = scope.clone();
+        duplicate.identity_dimensions.push("population".into());
+        assert!(duplicate.identity().is_err());
+        let mut missing = scope.clone();
+        missing
+            .identity_dimensions
+            .push("unobserved_environment".into());
+        assert!(missing.identity().is_err());
+        let mut invalid = scope;
+        invalid.selectors[0].value = MethodScopeScalar::Number(f64::NAN);
+        assert!(invalid.identity().is_err());
+        assert!(serde_json::from_value::<MethodScope>(json!("production")).is_err());
+    }
+
+    #[test]
+    fn catalogue_scope_identity_matches_the_independent_python_host_policy() {
+        let scope: MethodScope = serde_json::from_value(json!({
+            "kind":"catalogue_snapshot",
+            "selectors":[{"name":"snapshot","value":"demonstration-v1"}],
+            "identity_dimensions":["snapshot"]
+        }))
+        .unwrap();
+        assert_eq!(
+            scope.identity().unwrap(),
+            "engarg.scope:e4573ab176d50fdfebebee9913448452898c9ad953abd8b22ae3ba2e9efb02a8"
+        );
     }
 
     #[test]
