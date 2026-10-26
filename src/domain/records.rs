@@ -47,6 +47,10 @@ pub struct ArgumentCase {
     pub residual_risks: Vec<String>,
     pub decision_limits: Vec<String>,
     pub adjudication: String,
+    /// Explicit application of retained objections after a target revision.
+    /// Historical cases omit this field and retain the conservative exact policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dissent_revisions: Option<super::DissentRevisions>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

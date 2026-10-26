@@ -84,22 +84,22 @@ pub(super) fn parse(source: &Value) -> Result<SavedInput, Error> {
             )
             .map_err(invalid)?;
             if response.get("acquisition_plan").is_some() || response.get("argument").is_some() {
-                let planned: acquisition::PlannedArgument = serde_json::from_value(response)?;
-                if serde_json::to_value(&planned.argument)?
-                    != serde_json::to_value(&report.argument)?
-                {
-                    return Err(invalid(
-                        "retained acquisition plan belongs to a different canonical argument",
-                    ));
-                }
+                let mut planned: acquisition::PlannedArgument = serde_json::from_value(response)?;
+                crate::engine::reconcile_retained_argument(
+                    &report.request,
+                    &mut planned.argument,
+                    &report.argument,
+                    &report.transcript,
+                )?;
                 plans = planned.acquisition_plan;
             } else {
-                let direct: ArgumentCase = serde_json::from_value(response)?;
-                if serde_json::to_value(direct)? != serde_json::to_value(&report.argument)? {
-                    return Err(invalid(
-                        "retained final case differs from the canonical argument",
-                    ));
-                }
+                let mut direct: ArgumentCase = serde_json::from_value(response)?;
+                crate::engine::reconcile_retained_argument(
+                    &report.request,
+                    &mut direct,
+                    &report.argument,
+                    &report.transcript,
+                )?;
             }
         }
         let selected = report
@@ -250,5 +250,36 @@ mod tests {
     #[test]
     fn rejects_incomplete_canonical_source_instead_of_inventing_request() {
         assert!(parse(&json!({"argument":report()["argument"]})).is_err());
+    }
+
+    #[test]
+    fn host_enriched_saved_plans_replay_origins_and_reject_mutated_provenance() {
+        let mut source = report();
+        let mut argument: ArgumentCase =
+            serde_json::from_value(source["argument"].clone()).unwrap();
+        let plans: Vec<_> = argument
+            .evidence_plan
+            .iter()
+            .map(|need| AcquisitionPlan {
+                input_preparation: None,
+                need_id: need.id.clone(),
+                tool_id: "custom".into(),
+                arguments: vec![],
+                unresolved_arguments: vec!["adapter".into()],
+            })
+            .collect();
+        let content = json!({"argument":argument,"acquisition_plan":plans}).to_string();
+        let mut completion = record("single", content.clone());
+        completion["response_content_sha256"] =
+            json!(crate::engine::sha256_hex(content.as_bytes()));
+        completion["prompt"]["user"] = json!(json!({"request":source["request"]}).to_string());
+        source["transcript"] = json!([completion]);
+        let mut retained = Vec::new();
+        crate::output_validation::retain_objections(&argument, Role::Single, &mut retained);
+        crate::output_validation::install_history(&mut argument, &retained);
+        source["argument"] = json!(argument);
+        assert_eq!(parse(&source).unwrap().plans.len(), plans.len());
+        source["argument"]["dissent_revisions"]["origins"][0]["source_role"] = json!("adjudicator");
+        assert!(parse(&source).is_err());
     }
 }

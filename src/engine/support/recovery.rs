@@ -63,15 +63,18 @@ where
         );
         calls.push(call);
         match parsed {
-            Ok(repaired) => {
+            Ok(mut repaired) => {
                 errors = support_requirements::validate_revision(
                     &original.argument,
                     &original.support_elaboration,
                     &repaired.argument,
                     &repaired.support_elaboration,
                 );
-                if serde_json::to_value(&repaired.argument)?
-                    != serde_json::to_value(&original.argument)?
+                if output_validation::restore_host_fields(
+                    &mut repaired.argument,
+                    &original.argument,
+                )
+                .is_err()
                 {
                     errors.push("targeted support repair must preserve frozen_argument exactly, including every objection, status, scope and acceptance clause".into());
                 }

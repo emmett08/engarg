@@ -104,10 +104,23 @@ impl LanguageModel for Model {
         let is_repair = data.get("repair_attempt").is_some();
         self.calls.lock().unwrap().push(request);
         let content = match role {
-            Role::Adjudicator | Role::Single => serde_json::to_string(&critic_case(
-                is_repair.then_some(self.repair),
-                matches!(self.repair, Repair::RefineInvestigation),
-            ))?,
+            Role::Adjudicator | Role::Single => {
+                let mut case = critic_case(
+                    is_repair.then_some(self.repair),
+                    matches!(self.repair, Repair::RefineInvestigation),
+                );
+                if is_repair && matches!(self.repair, Repair::ExplicitRevision) {
+                    let applications: Vec<_> = data["dissent_revision_candidates"].as_array().unwrap().iter().filter(|choice| {
+                        let context = &data["dissent_revision_contexts"][choice["original_context_sha256"].as_str().unwrap()];
+                        choice["target_id"] == "current_claim" || context["related_targets"].get("current_claim").is_some()
+                    }).map(|choice| json!({"objection_id":choice["objection_id"],"origin_context_sha256":choice["original_context_sha256"],
+                        "effect":if choice["objection_id"] == "critic-3" {"removed_by_revision"} else {"still_applies"},
+                        "rationale":"The revision restricts the runner configuration. The generalisation challenge becomes inapplicable while inference applicability retains its evidence obligations."
+                    })).collect();
+                    case.dissent_revisions = Some(serde_json::from_value(json!({"schema":"engarg.dissent-revisions/1","applications":applications})).unwrap());
+                }
+                serde_json::to_string(&case)?
+            }
             Role::Synthesiser => serde_json::to_string(&fixture().1)?,
             _ => json!({
                 "findings": [],

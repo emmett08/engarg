@@ -1,6 +1,6 @@
 //! Generation checks and retained-dissent checks used by adjudication and repair.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
@@ -12,9 +12,13 @@ use crate::{
     provider::Role,
 };
 
+mod revisions;
 mod target_context;
+pub(crate) use revisions::{
+    dissent_changes, install_history, prompt_revisions, restore_host_fields, validate_history,
+};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct RetainedObjection {
     /// None only before a specialist challenge has first been attached to a case.
     pub(crate) identity: Option<ObjectionIdentity>,
@@ -26,7 +30,7 @@ pub(crate) struct RetainedObjection {
 }
 
 /// Semantic identity is fixed at first attachment, while disposition may evolve.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ObjectionIdentity {
     target_id: String,
     kind: DefeaterKind,
@@ -88,12 +92,24 @@ pub(crate) fn errors(
     objections: &[RetainedObjection],
     max_depth: Option<u8>,
 ) -> Vec<String> {
+    // Generated applications omit host-owned snapshots and computed fields.
+    // Compare supplied values before filling absent host-owned values.
+    let (prepared, mut history_errors) = revisions::prepare(case, objections);
+    let case = &prepared;
     let validated = validate_argument(request, case);
     let mut errors: Vec<String> = validated
         .as_ref()
         .err()
         .map(|diagnostics| diagnostics.iter().map(ToString::to_string).collect())
         .unwrap_or_default();
+    errors.append(&mut history_errors);
+    for defeater in &case.defeaters {
+        if defeater.status == DefeaterStatus::InapplicableAfterRevision
+            && !revisions::application_covers(case, &defeater.id)
+        {
+            errors.push(format!("DISSENT_REVISION_REQUIRED objection {} needs an explicit removed_by_revision application linked to a real retained target change", defeater.id));
+        }
+    }
     if errors.is_empty()
         && let Some(limit) = max_depth
     {
@@ -150,11 +166,11 @@ pub(crate) fn errors(
                         &original.target_context,
                         &target_context::capture(index, &defeater.target_id),
                     );
-                    if !changed.is_empty()
-                        && !(defeater.status == DefeaterStatus::InapplicableAfterRevision
-                            && !defeater.response.trim().is_empty())
+                    if (!changed.is_empty()
+                        || defeater.status == DefeaterStatus::InapplicableAfterRevision)
+                        && !revisions::application_covers(case, &objection.id)
                     {
-                        errors.push(format!("DISSENT_TARGET_CHANGED retained objection {} changed {}; restore these fields from identity.target_context, or use an explicit inapplicable_after_revision disposition with a response explaining the specific revision that removes the challenge", objection.id, changed.join(", ")));
+                        errors.push(format!("DISSENT_TARGET_CHANGED retained objection {} changed {}; restore these fields from identity.target_context, or supply an explicit dissent_revisions application retaining its applicability or explaining the specific revision that removes the challenge", objection.id, changed.join(", ")));
                     }
                 }
             }
@@ -209,6 +225,13 @@ mod identity_tests {
         );
         revised.defeaters[0].status = DefeaterStatus::InapplicableAfterRevision;
         revised.defeaters[0].response = "The revised proposition removes the original quantitative target and limits reliance to measured runners.".into();
+        let choice = dissent_changes(&revised, &retained).remove(0);
+        revised.dissent_revisions = Some(serde_json::from_value(serde_json::json!({
+            "schema":"engarg.dissent-revisions/1", "applications":[{
+                "objection_id":choice.objection_id,"origin_context_sha256":choice.original_context_sha256,
+                "effect":"removed_by_revision","rationale":"The identified revision removes the original quantitative target."
+            }]
+        })).unwrap());
         assert!(
             !errors(&request, &revised, &retained, None)
                 .iter()

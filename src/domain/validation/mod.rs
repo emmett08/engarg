@@ -160,6 +160,7 @@ pub fn validate_argument<'a>(
     let mut structural = Vec::new();
     structure::routes(case, &context, &index, &mut structural);
     reasoning::validate(case, &mut structural);
+    structural.extend(crate::output_validation::validate_history(case));
     diagnostics.extend(record(
         DiagnosticCode::InvalidStructure,
         "argument.support",
