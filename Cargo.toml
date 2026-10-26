@@ -48,3 +48,8 @@ all = "warn"
 lto = "off"
 strip = true
 
+# Executable identity checks deliberately reread and hash every byte. Optimise
+# the measured SHA hot path while keeping EngArg's debug assertions and checks.
+[profile.dev.package."sha2:0.11.1"]
+opt-level = 3
+

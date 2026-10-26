@@ -8,7 +8,7 @@ inputs:
     description: Installed Rust toolchains used by the workload.
     required: true
   targets:
-    description: Cargo target directories owned by this workload.
+    description: Compatible build outputs owned by this workload.
     default: target
 runs:
   using: composite
@@ -19,7 +19,7 @@ runs:
       env:
         CACHE_SCOPE: ${{ inputs.scope }}
         CACHE_TOOLCHAINS: ${{ inputs.toolchains }}
-        CACHE_CONFIGURATION: ${{ hashFiles('Cargo.lock', '.eal-producer/Cargo.lock', '**/Cargo.toml', '**/build.rs', 'rust-toolchain.toml', '.cargo/config*', '.github/workflows/ci.yml', '.github/actions/cargo-cache/action.yml') }}
+        CACHE_CONFIGURATION: ${{ hashFiles('Cargo.lock', '.eal-producer/Cargo.lock', '**/Cargo.toml', '**/build.rs', 'rust-toolchain.toml', 'scripts/install-eal-runtime.sh', '.cargo/config*', '.github/workflows/ci.yml', '.github/actions/cargo-cache/action.yml') }}
       run: |
         fingerprint=$(
           {
