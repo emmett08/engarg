@@ -4,6 +4,7 @@
 //! borrows the source and owns the index used by downstream operations.
 
 mod diagnostics;
+mod dissent;
 mod identifiers;
 mod index;
 mod reasoning;
@@ -11,6 +12,7 @@ mod records;
 mod validation;
 
 pub use diagnostics::{DiagnosticCode, DomainDiagnostic};
+pub use dissent::*;
 pub use identifiers::{ArgumentId, EvidenceId, NeedId};
 pub use index::{ArgumentIndex, ArgumentNode, Traversal, TraversalStats, ValidatedArgument};
 pub use reasoning::*;

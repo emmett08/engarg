@@ -406,7 +406,7 @@ where
             &record.response.content,
             config.max_response_bytes,
         ) {
-            Ok(candidate) => {
+            Ok(mut candidate) => {
                 let mut errors = validation_errors(request, &candidate, retained, config, draft);
                 if errors.is_empty()
                     && let Err(error) = support_requirements::review_acquisition_design(
@@ -418,6 +418,12 @@ where
                     errors.push(error.to_string());
                 }
                 if errors.is_empty() {
+                    output_validation::retain_objections(
+                        &candidate.argument,
+                        record.role,
+                        retained,
+                    );
+                    output_validation::install_history(&mut candidate.argument, retained);
                     return Ok(candidate);
                 }
                 output_validation::retain_objections(&candidate.argument, record.role, retained);

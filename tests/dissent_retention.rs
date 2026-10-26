@@ -16,6 +16,7 @@ enum Revision {
     Drop,
     Downgrade,
     NarrowScope,
+    StillApplies,
 }
 
 struct Model {
@@ -34,6 +35,7 @@ fn fixture() -> (Request, ArgumentCase) {
 impl LanguageModel for Model {
     async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
         let role = request.role;
+        let prompt: Value = serde_json::from_str(&request.user).unwrap();
         self.calls.lock().unwrap().push(request);
         let content = if matches!(role, Role::Synthesiser | Role::Adjudicator) {
             let (request, mut case) = fixture();
@@ -50,6 +52,30 @@ impl LanguageModel for Model {
                     case.current_claim.qualifier =
                         "Restricted to paired runs on the identified runner configuration.".into();
                 }
+                if role == Role::Adjudicator
+                    && matches!(
+                        self.revision,
+                        Revision::StillApplies | Revision::NarrowScope
+                    )
+                {
+                    if matches!(self.revision, Revision::StillApplies) {
+                        case.current_claim.qualifier.push_str(
+                            " Applicability still depends on the identified runner configuration.",
+                        );
+                    }
+                    let origin = prompt["dissent_revision_candidates"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|choice| choice["objection_id"] == "sceptic-1")
+                        .unwrap();
+                    case.dissent_revisions = Some(serde_json::from_value(json!({
+                        "schema":"engarg.dissent-revisions/1", "applications":[{
+                            "objection_id":"sceptic-1", "origin_context_sha256":origin["original_context_sha256"],
+                            "effect":if matches!(self.revision, Revision::StillApplies) {"still_applies"} else {"removed_by_revision"}, "rationale":defeater.response
+                        }]
+                    })).unwrap());
+                }
                 let mut need = case.evidence_plan[0].clone();
                 need.id = "scope-review".into();
                 need.target_id = defeater.id.clone();
@@ -59,7 +85,9 @@ impl LanguageModel for Model {
             }
             // Each revision is structurally valid. The workflow must additionally
             // enforce dissent preservation across these otherwise valid cases.
-            assert_eq!(validate_case(&request, &case), Ok(()));
+            if case.dissent_revisions.is_none() {
+                assert_eq!(validate_case(&request, &case), Ok(()));
+            }
             serde_json::to_string(&case)?
         } else {
             json!({
@@ -146,4 +174,32 @@ async fn a_scope_revision_can_change_disposition_while_preserving_the_material_c
     assert!(defeater.material);
     assert_eq!(defeater.status, DefeaterStatus::InapplicableAfterRevision);
     assert!(defeater.response.contains("identified runner"));
+}
+
+#[tokio::test]
+async fn a_revised_target_can_retain_open_dissent_with_persisted_original_context() {
+    let model = model(false, Revision::StillApplies);
+    let report = run(&model, &fixture().0, &RunConfig::default())
+        .await
+        .unwrap();
+    let history = report.argument.dissent_revisions.as_ref().unwrap();
+    let origin = history
+        .origins
+        .iter()
+        .find(|origin| origin.objection_id == "sceptic-1")
+        .unwrap();
+    assert_eq!(
+        origin.target_context["target"]["qualifier"],
+        fixture().1.current_claim.qualifier
+    );
+    assert!(!history.applications[0].current_context_sha256.is_empty());
+    assert!(
+        report
+            .argument
+            .defeaters
+            .iter()
+            .any(|d| d.id == "sceptic-1" && d.status == DefeaterStatus::Open && d.material)
+    );
+    assert_eq!(validate_case(&report.request, &report.argument), Ok(()));
+    assert_eq!(report.transcript.len(), 6);
 }
