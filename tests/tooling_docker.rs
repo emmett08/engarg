@@ -528,6 +528,123 @@ fn successful(output: &Output) {
     );
 }
 
+fn snapshot_volume_names(mounts: &Value) -> Vec<String> {
+    let mut volumes = mounts
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|mount| matches!(mount["Destination"].as_str(), Some("/src" | "/fixtures")))
+        .map(|mount| {
+            assert_eq!(mount["Type"], "volume", "{mounts}");
+            let name = mount["Name"].as_str().unwrap();
+            assert!(!name.is_empty() && name.len() <= 200);
+            assert!(
+                name.bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"_.-".contains(&byte))
+            );
+            name.to_owned()
+        })
+        .collect::<Vec<_>>();
+    volumes.sort();
+    volumes.dedup();
+    assert_eq!(volumes.len(), 2, "{mounts}");
+    volumes
+}
+
+fn assert_snapshot_volumes_removed(docker: &str, volumes: &[String]) {
+    let mut retained = Vec::new();
+    for volume in volumes {
+        let inspection = Command::new(docker)
+            .args(["volume", "inspect", volume])
+            .output()
+            .unwrap();
+        let absent = !inspection.status.success()
+            && String::from_utf8_lossy(&inspection.stderr)
+                .to_lowercase()
+                .contains("no such volume");
+        if !absent {
+            // A regression cleans up only the volume IDs captured from its own
+            // staging container, without comparing or pruning global Docker state.
+            let _ = Command::new(docker).args(["volume", "rm", volume]).output();
+            retained.push(format!(
+                "{volume}: {}",
+                String::from_utf8_lossy(&inspection.stderr)
+            ));
+        }
+    }
+    assert!(
+        retained.is_empty(),
+        "snapshot volumes were not removed: {retained:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+#[ignore = "requires Docker and the preloaded python:3.13-slim image"]
+fn model_free_preflight_uploads_real_snapshots_and_removes_its_anonymous_volumes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let directory = tempfile::tempdir().unwrap();
+    let docker = std::env::var("ENGARG_TOOL_DOCKER").unwrap_or_else(|_| "docker".into());
+    let log = directory.path().join("snapshot-mounts.jsonl");
+    let wrapper = directory.path().join("logged-docker");
+    let config = json!({"docker":docker,"log":log});
+    let encoded = serde_json::to_string(&serde_json::to_string(&config).unwrap()).unwrap();
+    let script = r#"
+import subprocess
+import sys
+
+args = sys.argv[1:]
+capture = args[:2] == ["container", "inspect"] and ".Mounts" in " ".join(args)
+stdin = sys.stdin.buffer if args[0] in ["cp", "run"] else subprocess.DEVNULL
+if capture:
+    child = subprocess.Popen([CONFIG["docker"], *args], stdin=stdin, stdout=subprocess.PIPE)
+    output = child.stdout.read(65537)
+    if len(output) > 65536:
+        child.kill()
+        child.wait()
+        raise SystemExit("snapshot inspection exceeds its test bound")
+    status = child.wait()
+    if status == 0:
+        mounts = json.loads(output)
+        with open(CONFIG["log"], "a", encoding="utf-8") as target:
+            target.write(json.dumps(mounts) + "\n")
+    sys.stdout.buffer.write(output)
+    raise SystemExit(status)
+raise SystemExit(subprocess.run([CONFIG["docker"], *args], stdin=stdin).returncode)
+"#;
+    fs::write(
+        &wrapper,
+        format!("#!/usr/bin/env python3\nimport json\nCONFIG = json.loads({encoded})\n{script}"),
+    )
+    .unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o755)).unwrap();
+    let toolchain = directory.path().join("toolchain.json");
+    profile(&toolchain, "python", "python:3.13-slim", "collector.py");
+    let mut settings: Value = serde_json::from_slice(&fs::read(&toolchain).unwrap()).unwrap();
+    settings["docker"] = json!(wrapper);
+    fs::write(&toolchain, serde_json::to_vec(&settings).unwrap()).unwrap();
+    let receipt = directory.path().join("toolchain-check.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["eal", "toolchain-check", "--toolchain"])
+        .arg(toolchain)
+        .arg("--output")
+        .arg(&receipt)
+        .env_remove("OPENAI_API_KEY")
+        .output()
+        .unwrap();
+    let captures = fs::read_to_string(&log).unwrap_or_default();
+    let volumes = captures
+        .lines()
+        .flat_map(|line| snapshot_volume_names(&serde_json::from_str::<Value>(line).unwrap()))
+        .collect::<Vec<_>>();
+    assert_snapshot_volumes_removed(&docker, &volumes);
+    successful(&output);
+    assert_eq!(volumes.len(), 2, "expected one real snapshot inspection");
+    let receipt: Value = serde_json::from_slice(&fs::read(receipt).unwrap()).unwrap();
+    assert_eq!(receipt["passed"], true);
+}
+
 fn replay_synthetic_fixture(attempt: &Path) -> Result<String, Box<dyn std::error::Error>> {
     use engarg::tooling::{
         ToolchainProfile,
@@ -2040,17 +2157,27 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
         // The trusted preflight also starts a container. Wait for both model
         // responses so cancellation targets generated-source verification.
         if server.requests().len() == 2
-            && String::from_utf8_lossy(&running.stdout)
+            && let Some(name) = String::from_utf8_lossy(&running.stdout)
                 .lines()
-                .any(|name| name.starts_with(&prefix))
+                .find(|name| name.starts_with(&prefix))
         {
-            break true;
+            break Some(name.to_owned());
         }
         if child.try_wait().unwrap().is_some() || Instant::now() >= startup_deadline {
-            break false;
+            break None;
         }
         thread::sleep(Duration::from_millis(200));
     };
+
+    // Capture the daemon's mount identities before cancellation. Defer their
+    // assertions until after termination so a failed inspection still stops
+    // the test's own collector and attempts its resource cleanup.
+    let snapshot_inspection = observed_running.as_ref().map(|name| {
+        Command::new(&docker)
+            .args(["container", "inspect", "--format", "{{json .Mounts}}", name])
+            .output()
+            .unwrap()
+    });
 
     let cancellation_started = Instant::now();
     if child.try_wait().unwrap().is_none() {
@@ -2089,12 +2216,20 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
                 .output();
         }
     }
+    let snapshot_volumes = snapshot_inspection
+        .as_ref()
+        .map(|inspection| {
+            successful(inspection);
+            snapshot_volume_names(&serde_json::from_slice(&inspection.stdout).unwrap())
+        })
+        .unwrap_or_default();
+    assert_snapshot_volumes_removed(&docker, &snapshot_volumes);
     assert!(
         exited_in_time,
         "launcher did not finish within 20 seconds of SIGTERM"
     );
     assert!(
-        observed_running,
+        observed_running.is_some(),
         "no running collector container was observed for {prefix}; stderr:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );

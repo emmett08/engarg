@@ -191,10 +191,18 @@ Applicability, measurement truth and inferential sufficiency retain their separa
 ## Isolated execution
 
 Fixture containers use a read-only root filesystem and read-only source and fixture mounts.
-They run as an unprivileged user with dropped capabilities, no new privileges, bounded processes, memory and CPU, and bounded temporary filesystems.
+EngArg streams bounded source and fixture archives into two fresh Docker-managed
+volumes through a stopped staging container. The worker receives those volumes
+read-only. This transport works with Docker Desktop and remote daemons without
+sharing the client's temporary directories. The staging container never runs
+generated code and receives no runtime credentials. Ownership-labelled staging
+containers and their anonymous volumes are removed after execution or failure.
+Fixture workers run as an unprivileged user with dropped capabilities, no new privileges, bounded processes, memory and CPU, and bounded temporary filesystems.
 Fixture networking is disabled and production credentials are not forwarded.
 The supervisor bounds elapsed time and captured output.
 Explicit container cleanup also covers daemon-owned execution after timeout or cancellation.
+Snapshot creation, upload and execution share the profile's execution deadline
+with a two-second supervisor allowance. Cleanup has a separate bounded allowance.
 
 Automatic preflight supplies one trusted source file for the selected language.
 The bundled profiles and direct compiler or interpreter profiles are supported.
