@@ -1336,7 +1336,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         second = self.successful_run_directory(self.run_script('--simple-example', '--check-only',
                                                                '--replan-analysis', saved, graph=True))
         self.assertEqual(json.loads((second/'retained-analysis.snapshot.json').read_text()), json.loads(saved.read_text()))
-        self.assertEqual(json.loads((second/'input-identity.json').read_text())['analysis_reuse']['source'], str(saved))
+        self.assertEqual(json.loads((second/'input-identity.json').read_text())['analysis_reuse']['source'], str(saved.resolve()))
         self.assertFalse((self.commands/'cargo').exists())
 
 
