@@ -20,6 +20,9 @@ mod context;
 mod coordination;
 mod debate;
 mod repair;
+mod repair_scope;
+mod retained;
+pub use retained::reconcile_retained_argument;
 pub mod support;
 pub mod topology;
 pub use config::{CoordinatorConfig, Mode, RunConfig};
@@ -257,6 +260,7 @@ fn prompt(
     } else {
         prompts::system(role)
     };
+    output_validation::prompt_revisions(&mut data)?;
     if context::uses_references(&data) {
         system.push_str("\n\n");
         system.push_str(prompts::REFERENCE_CONTEXT);
@@ -430,7 +434,7 @@ where
         }
         Mode::Hybrid => hybrid(model, request, config, observer, tool_planning).await?,
     };
-    let final_case = repair::validate_or_repair(
+    let mut final_case = repair::validate_or_repair(
         model,
         request,
         config,
@@ -440,6 +444,12 @@ where
         tool_planning,
     )
     .await?;
+    output_validation::retain_objections(
+        &final_case,
+        transcript.last().expect("final call").role,
+        &mut retained_objections,
+    );
+    output_validation::install_history(&mut final_case, &retained_objections);
     let mut run_limitations = limitations(config.mode);
     run_limitations.extend(
         transcript

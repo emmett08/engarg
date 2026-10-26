@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::domain::{ArgumentIndex, ArgumentNode};
+use crate::domain::{ArgumentIndex, ArgumentNode, DissentFieldChange};
 
 fn semantic_fields<T: Serialize>(value: &T, mutable: &[&str], sets: &[&str]) -> Value {
     let mut value = serde_json::to_value(value).expect("target serialises");
@@ -45,7 +45,106 @@ fn semantic_node(node: Option<ArgumentNode<'_>>) -> Value {
     }
 }
 
-pub(super) fn capture(index: &ArgumentIndex<'_>, id: &str) -> Value {
+/// Admit the exact serialised shapes produced by capture, including every direct
+/// endpoint. Invalid historical candidates may have a missing (null) endpoint.
+pub(super) fn valid_snapshot(context: &Value, id: &str) -> bool {
+    fn target(value: &Value, id: &str) -> Option<Vec<String>> {
+        use crate::domain::{Assumption, ClaimNode, ClaimVersion, Defeater, Ground, Warrant};
+        if value.is_null() {
+            return Some(Vec::new());
+        }
+        let mut full = value.clone();
+        let object = full.as_object_mut()?;
+        let (canonical, related) = if matches!(id, "current_claim" | "stronger_target") {
+            let node: ClaimVersion = serde_json::from_value(full).ok()?;
+            (semantic_fields(&node, &[], &[]), Vec::new())
+        } else if object.contains_key("rule") {
+            object.insert("backing_evidence_ids".into(), json!([]));
+            let node: Warrant = serde_json::from_value(full).ok()?;
+            if node.id != id {
+                return None;
+            }
+            let related = node
+                .premise_ids
+                .iter()
+                .cloned()
+                .chain(std::iter::once(node.conclusion_id.clone()))
+                .collect();
+            (semantic_node(Some(ArgumentNode::Warrant(&node))), related)
+        } else if object.contains_key("critical") {
+            object.insert("status".into(), json!("untested"));
+            object.insert("evidence_ids".into(), json!([]));
+            object.insert("validation".into(), json!("historical snapshot"));
+            let node: Assumption = serde_json::from_value(full).ok()?;
+            if node.id != id {
+                return None;
+            }
+            (
+                semantic_node(Some(ArgumentNode::Assumption(&node))),
+                node.applies_to.clone(),
+            )
+        } else if object.contains_key("challenge") {
+            object.insert("status".into(), json!("open"));
+            object.insert("evidence_ids".into(), json!([]));
+            object.insert("response".into(), json!("historical snapshot"));
+            let node: Defeater = serde_json::from_value(full).ok()?;
+            if node.id != id {
+                return None;
+            }
+            (
+                semantic_node(Some(ArgumentNode::Defeater(&node))),
+                vec![node.target_id.clone()],
+            )
+        } else if object.contains_key("statement") {
+            object.insert("status".into(), json!("missing"));
+            object.insert("evidence_ids".into(), json!([]));
+            let node: Ground = serde_json::from_value(full).ok()?;
+            if node.id != id {
+                return None;
+            }
+            (semantic_node(Some(ArgumentNode::Ground(&node))), Vec::new())
+        } else {
+            let node: ClaimNode = serde_json::from_value(full).ok()?;
+            if node.id != id {
+                return None;
+            }
+            (semantic_node(Some(ArgumentNode::Claim(&node))), Vec::new())
+        };
+        (canonical == *value).then_some(related)
+    }
+    let Some(object) = context.as_object() else {
+        return false;
+    };
+    if object
+        .keys()
+        .any(|key| !matches!(key.as_str(), "scope" | "target" | "related_targets"))
+        || serde_json::from_value::<crate::domain::EngineeringScope>(context["scope"].clone())
+            .is_err()
+        || !context["target"].is_object()
+    {
+        return false;
+    }
+    let Some(related) = target(&context["target"], id) else {
+        return false;
+    };
+    let related: BTreeSet<_> = related.iter().map(String::as_str).collect();
+    if related.is_empty() {
+        return !object.contains_key("related_targets");
+    }
+    let Some(endpoints) = context["related_targets"].as_object() else {
+        return false;
+    };
+    endpoints
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>()
+        == related
+        && endpoints
+            .iter()
+            .all(|(id, value)| target(value, id).is_some())
+}
+
+pub(crate) fn capture(index: &ArgumentIndex<'_>, id: &str) -> Value {
     let node = index.node(id);
     // Bind the propositions at direct relation endpoints as well as their IDs.
     // One hop preserves these local relations without copying dependency closures
@@ -126,4 +225,69 @@ pub(super) fn changed_fields(original: &Value, current: &Value) -> Vec<String> {
         }
     }
     changed
+}
+
+/// Complete nested differences over exactly the fields protected by capture.
+pub(super) fn differences(original: &Value, current: &Value) -> Vec<DissentFieldChange> {
+    fn walk(
+        path: String,
+        before: Option<&Value>,
+        after: Option<&Value>,
+        changes: &mut Vec<DissentFieldChange>,
+    ) {
+        if before == after {
+            return;
+        }
+        if let (Some(Value::Object(before)), Some(Value::Object(after))) = (before, after) {
+            let keys: BTreeSet<_> = before.keys().chain(after.keys()).collect();
+            for key in keys {
+                let escaped = key.replace('~', "~0").replace('/', "~1");
+                walk(
+                    format!("{path}/{escaped}"),
+                    before.get(key),
+                    after.get(key),
+                    changes,
+                );
+            }
+        } else {
+            changes.push(DissentFieldChange {
+                path,
+                before_present: before.is_some(),
+                before: before.cloned().unwrap_or(Value::Null),
+                after_present: after.is_some(),
+                after: after.cloned().unwrap_or(Value::Null),
+            });
+        }
+    }
+    let mut changes = Vec::new();
+    for group in ["scope", "target", "related_targets"] {
+        let before = &original[group];
+        if group != "scope" && before.is_null() {
+            continue;
+        }
+        if group == "related_targets"
+            && let Some(related) = before.as_object()
+        {
+            let mut completed = before.clone();
+            for (id, value) in related {
+                if value.is_null() {
+                    completed[id] = current[group][id].clone();
+                }
+            }
+            walk(
+                format!("/{group}"),
+                Some(&completed),
+                current.get(group),
+                &mut changes,
+            );
+        } else {
+            walk(
+                format!("/{group}"),
+                original.get(group),
+                current.get(group),
+                &mut changes,
+            );
+        }
+    }
+    changes
 }

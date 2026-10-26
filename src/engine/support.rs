@@ -1,4 +1,5 @@
 //! Catalogue-independent case construction followed by qualified route planning.
+pub mod authoring;
 pub mod recovery;
 use super::{
     CallRecord, Mode, RunConfig, RunReport, assessment_schema, assessment_warnings, context,
@@ -368,24 +369,48 @@ async fn validate_or_repair<M: LanguageModel, O>(
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
+    let mut repair_scope = None;
     for attempt in 0..=config.max_repairs {
+        let mut scope_feedback = Value::Null;
         let record = transcript.last().expect("workflow has a final call");
+        // The initial candidate has already passed its producing call's byte
+        // admission. A resumed history may use a larger original bound than
+        // the allowance for new calls. Later attempts use the current bound.
+        let candidate_limit = config.max_response_bytes.max(record.response_content_bytes);
         let (errors, candidate_json) = match support_requirements::parse_supported_argument(
             &record.response.content,
-            config.max_response_bytes,
+            candidate_limit,
         ) {
-            Ok(candidate) => {
+            Ok(mut candidate) => {
                 let mut errors = validation_errors(request, &candidate, retained, config, draft);
                 if errors.is_empty()
                     && let Err(error) = support_requirements::review_acquisition_design(
                         &candidate.support_elaboration,
                         transcript,
-                        config.max_response_bytes,
+                        transcript
+                            .iter()
+                            .map(|call| call.response_content_bytes)
+                            .max()
+                            .unwrap_or(config.max_response_bytes)
+                            .max(config.max_response_bytes),
                     )
                 {
                     errors.push(error.to_string());
                 }
+                scope_feedback = super::repair_scope::constrain(
+                    &mut repair_scope,
+                    &candidate.argument,
+                    retained,
+                    &mut errors,
+                    serde_json::to_value(&candidate.support_elaboration)?,
+                )?;
                 if errors.is_empty() {
+                    output_validation::retain_objections(
+                        &candidate.argument,
+                        record.role,
+                        retained,
+                    );
+                    output_validation::install_history(&mut candidate.argument, retained);
                     return Ok(candidate);
                 }
                 output_validation::retain_objections(&candidate.argument, record.role, retained);
@@ -412,6 +437,7 @@ where
             "original_support_elaboration":draft.map(|draft|&draft.support_elaboration),
             "original_requirement_sha256":draft.map(|draft|requirement_identities(&draft.support_elaboration)).transpose()?,
             "original_step_sha256":draft.map(|draft|step_identities(&draft.support_elaboration)).transpose()?,
+            "repair_scope":scope_feedback,
         });
         let repair = support_prompt(record.role, data, config)?;
         transcript.push(execute(model, repair, config, observer).await?);

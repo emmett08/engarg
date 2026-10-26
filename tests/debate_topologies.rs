@@ -1,5 +1,7 @@
 //! Routed debates preserve engine contracts, final dissent and bounded execution.
 
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
 #[path = "common/live_output.rs"]
 mod live_output;
 
@@ -116,10 +118,9 @@ async fn every_topology_completes_the_public_engine_and_round_trips_its_report()
         let report = run(&model, &request, &config).await.unwrap();
         assert_eq!(report.transcript.len(), 11, "{name}");
         assert_eq!(model.calls.lock().unwrap().len(), 11, "{name}");
-        assert_eq!(
-            serde_json::to_value(&report.argument).unwrap(),
-            serde_json::to_value(&expected).unwrap(),
-            "{name}"
+        argument_assertions::assert_authored_argument(
+            &serde_json::to_value(&report).unwrap(),
+            &serde_json::to_value(&expected).unwrap(),
         );
         let restored: RunReport =
             serde_json::from_value(serde_json::to_value(&report).unwrap()).unwrap();

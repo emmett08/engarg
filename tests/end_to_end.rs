@@ -1,6 +1,8 @@
 //! Entire CLI and HTTP workflow against a deterministic local API double.
 //! This verifies integration, not live model quality.
 
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
 #[path = "common/live_output.rs"]
 mod live_output;
 
@@ -380,7 +382,7 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
         assert_eq!(events.last().unwrap()["event"], "success");
         let report: Value = serde_json::from_slice(&std::fs::read(&output).unwrap()).unwrap();
         if reading == ReadingFixture::Concise {
-            assert_eq!(report["argument"], expected_argument);
+            argument_assertions::assert_authored_argument(&report, &expected_argument);
             for section in report["argument"]["reading"].as_array().unwrap() {
                 let paragraphs = section["paragraphs"].as_array().unwrap();
                 assert_eq!(paragraphs.len(), 1);
@@ -393,9 +395,9 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
             .unwrap();
         if tool_planning {
             let planned = engarg::acquisition::parse_completion(final_content).unwrap();
-            assert_eq!(
-                serde_json::to_value(&planned.argument).unwrap(),
-                report["argument"]
+            argument_assertions::assert_authored_argument(
+                &report,
+                &serde_json::to_value(&planned.argument).unwrap(),
             );
             assert_eq!(
                 planned.acquisition_plan.len(),
@@ -407,9 +409,9 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
             );
             assert!(report.get("acquisition_plan").is_none());
         } else {
-            assert_eq!(
-                serde_json::from_str::<Value>(final_content).unwrap(),
-                report["argument"]
+            argument_assertions::assert_authored_argument(
+                &report,
+                &serde_json::from_str::<Value>(final_content).unwrap(),
             );
             assert!(
                 report["transcript"][calls - 1]["prompt"]["schema"]["properties"]

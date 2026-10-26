@@ -1,4 +1,7 @@
 //! Progress is visible while a provider is waiting and never enters JSON stdout.
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
+
 use serde_json::{Value, json};
 use std::{
     io::{BufRead, BufReader, Read, Write},
@@ -137,7 +140,7 @@ fn progress_precedes_provider_completion_and_stdout_remains_the_canonical_report
         server.join().unwrap();
         assert!(result.status.success(), "{stderr}");
         let report: Value = serde_json::from_slice(&result.stdout).unwrap();
-        assert_eq!(report["argument"], argument);
+        argument_assertions::assert_authored_argument(&report, &argument);
         assert_eq!(report["transcript"].as_array().unwrap().len(), 1);
         let events: Vec<Value> = std::fs::read_to_string(audit)
             .unwrap()

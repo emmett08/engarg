@@ -23,7 +23,9 @@ pub(super) async fn validate_or_repair<M: LanguageModel, O>(
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
+    let mut repair_scope = None;
     for attempt in 0..=config.max_repairs {
+        let mut scope_feedback = serde_json::Value::Null;
         let candidate = transcript.last().expect("workflow has a final call");
         let parsed = if tool_planning {
             planned_argument(candidate).map(|planned| (planned.argument, planned.acquisition_plan))
@@ -45,6 +47,13 @@ where
                         config.collector_catalogue.as_ref(),
                     ));
                 }
+                scope_feedback = super::repair_scope::constrain(
+                    &mut repair_scope,
+                    &case,
+                    retained_objections,
+                    &mut errors,
+                    serde_json::to_value(&plans)?,
+                )?;
                 if errors.is_empty() {
                     return Ok(case);
                 }
@@ -78,6 +87,7 @@ where
             "validation_errors": errors,
             "retained_objections": retained_objections,
             "repair_attempt": attempt + 1,
+            "repair_scope": scope_feedback,
         });
         if tool_planning {
             data["candidate_acquisition_plan"] = candidate_acquisition_plan;

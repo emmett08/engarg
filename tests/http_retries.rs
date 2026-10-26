@@ -1,4 +1,7 @@
 //! Exercise bounded HTTP recovery through a local provider with recorded requests.
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
+
 use engarg::{
     Error,
     provider::{
@@ -558,7 +561,7 @@ async fn cli_recovers_with_one_logical_call_and_audits_both_http_attempts() {
         String::from_utf8_lossy(&result.stderr)
     );
     let saved: Value = serde_json::from_slice(&std::fs::read(report).unwrap()).unwrap();
-    assert_eq!(saved["argument"], argument);
+    argument_assertions::assert_authored_argument(&saved, &argument);
     assert_eq!(saved["transcript"].as_array().unwrap().len(), 1);
     let audit = std::fs::read_to_string(audit).unwrap();
     assert!(!audit.contains("sensitive remote echo"));

@@ -102,6 +102,10 @@ Repairs use the same model role, reasoning settings, byte, output-token and dead
 
 `DISSENT_TARGET_CHANGED` identifies a retained objection whose scope or target fields changed after first attachment. The diagnostic names those fields. Restore them from `retained_objections[].identity.target_context` when correcting an unrelated defect, keeping an unresolved challenge open. Use `inapplicable_after_revision` only when the specific revision removes the challenge, with an explanation in `response`. Exact text comparison is conservative: EngArg cannot establish that rewritten propositions mean the same thing. Evidence, support status and assumption investigation plans can change without replacing the target. Reordering jointly required premises or assumption attachments also preserves target identity. A target missing from an invalid candidate acquires its context when supplied; its identifier, attack kind, basis and known scope remain fixed.
 
+New cases can retain a revised target while its objection remains applicable. `dissent_revisions` declares `engarg.dissent-revisions/1` and an application for each affected objection. `still_applies` retains applicability while the challenge stays open or receives an evidence-supported sustained or refuted disposition. `requires_review` keeps a material challenge open. `removed_by_revision` requires an identified nonempty revision and an `inapplicable_after_revision` disposition. Each application copies its original context identity from host-supplied choices and states an authored rationale. The host computes the current identity and exact nested differences. Every accepted new run persists its original snapshots in the canonical case, including runs with no target revision. Multiple objections can retain different first-attachment versions of the same warrant without requiring contradictory restoration. The links establish structural traceability. The rationale remains an authored judgement about applicability. Historical saved cases without this optional record remain readable under their original admission rules. New generation requires explicit application records for changed retained contexts and every inapplicable disposition.
+
+When target-change diagnostics are the only remaining defects, repairs receive an exact `repair_scope`. It permits the identified changed target properties, affected objection dispositions, revision records and reporting prose. Other argument fields, existing evidence plans and acquisition structures stay exact. An unrelated edit fails with `REPAIR_SCOPE_CHANGED`, and a further repair receives the protected values to restore. Broader structural defects, including reopening an objection that needs a new evidence plan, use the ordinary fully validated repair path. Every correction remains within the original repair allowance.
+
 To explore further decomposition later, rerun the same claim with `--argument-depth 4` and new output/audit filenames. This is a fresh assessment, not a continuation or automatic merge of the previous graph. Greater permitted depth does not guarantee greater actual depth or a stronger argument. Compare the reasoning and obligations, and supply acquired evidence when available. Display depth can instead change freely without inference, as shown below. Saved reports and audit start records retain the generation and repair settings. Old saved reports remain readable.
 
 ## Token use
@@ -430,6 +434,24 @@ cargo build --locked --release
 
 Rust 1.99.1 and the latest non-yanked stable direct dependencies were checked against the official stable manifest and crates.io index on 23 October 2026. `Cargo.lock` fixes the resolved dependency graph. Re-run the checks when updating it. See [VALIDATION.md](VALIDATION.md) for the actual verification performed and [EVALUATION.md](EVALUATION.md) for the evaluation needed before claiming an improvement in argument quality.
 
+## Performance checks
+
+Development and test builds optimise the measured `sha2` 0.11.1 dependency while retaining EngArg's normal debug assertions and overflow checks. Executable inspection continues to read every byte and check file identity. Release profile settings retain their existing behaviour.
+
+Checkpoint completion copies only the new exchange before persisting the complete record. Failed publication removes that append. A directory-sync failure after publication returns an error while retaining the published in-memory state.
+
+CI runs ordinary tests in the platform checks and selects ignored native cases for runtime integration. The cache also retains the installed runtime's binaries and ownership records. Every restored runtime passes the original source-ownership and binary-hash checks. Runtime build trees and installation locks stay outside that cache payload.
+
+The local probes use synthetic data and require no provider calls:
+
+```sh
+cargo build --locked --release --example performance_probe
+target/release/examples/performance_probe checkpoint 12 1048576
+cargo test --locked --lib -- --test-threads=4
+```
+
+The checkpoint probe reports write time, complete write-and-read validation time and Linux write-phase peak memory separately. Its payload is bounded for JSON record admission. The `digest EXECUTABLE ITERATIONS` probe measures the real bounded executable-inspection function. Compare independent runs with the same inputs, toolchain and build settings, and report cache-hit and cache-miss timings separately.
+
 ## Design sources
 
 - [Toulmin, *The Uses of Argument*](https://doi.org/10.1017/CBO9780511840005): the claim, grounds, warrant, backing, qualifier and rebuttal framework. The engineering extensions above are explicit design choices.
@@ -540,3 +562,45 @@ Ambiguous encoded JSON and exhausted inspection allowances fail safely.
 Unrelated prose beginning with JSON punctuation retains its exact text.
 Unresolved prepared registry paths require operator resolution before execution.
 The installed `engarg-process-supervisor` companion supplies bounded process execution and is installed with EngArg.
+
+## Resume initial argument authoring
+
+Graph authoring can retain a durable private checkpoint after each completed model
+exchange, before interpreting the returned argument. Add `--checkpoint PATH` to
+`engarg analyse --evidence-planning graph`. A failed final validation keeps that
+checkpoint and the audit while withholding the ordinary argument report.
+
+Inspect a checkpoint without credentials or inference:
+
+```sh
+engarg authoring inspect --checkpoint authoring.checkpoint.json
+```
+
+Give final validation a separate repair allowance without repeating completed
+specialist assessments, synthesis or critique:
+
+```sh
+engarg authoring resume --checkpoint authoring.checkpoint.json \
+  --evidence-config planning.json --max-repairs 1 --model YOUR_MODEL \
+  --audit resumed.audit.jsonl --next-checkpoint resumed.checkpoint.json \
+  --output resumed-analysis.json
+```
+
+Use `--run-dir engarg-runs/PREVIOUS-RUN` instead of `--checkpoint` to import a
+historical audit with its retained request, configuration and run settings.
+Import verifies duplicate keys, response digests, role order and configuration
+consistency. Historical runs lack a protocol fingerprint, so paid recovery
+requires `--accept-protocol-migration`. A checkpoint from a changed protocol
+requires the same explicit migration acknowledgement and full revalidation.
+Local digests establish consistency rather than authenticated provenance.
+
+Recovery accepts completed final authoring stages. Omitted responses and an
+interrupted request remain explicit blockers. Every recovery uses new audit,
+report and checkpoint paths. Checkpoints retain at most 32 completed calls and
+128 MiB, with at most three new repair calls per recovery. Accepted reports retain
+the existing 16 MiB consumer limit. A larger accepted result keeps its completed
+exchanges in the checkpoint and audit instead of publishing an unusable report.
+Checkpoints may contain
+private source material. A valid saved candidate can finish without another
+provider call. The existing `engarg eal repair` command continues to preserve an
+accepted argument while repairing its support design.

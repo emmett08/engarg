@@ -487,6 +487,8 @@ def launch(arguments):
     parser.add_argument("--debate-rounds", type=int, choices=range(1, 9))
     parser.add_argument("--eal-coordinate", type=Path)
     parser.add_argument("--coordination-run", type=Path)
+    parser.add_argument("--replan-analysis", type=Path,
+                        help="Reuse an accepted or resumed argument and continue the example without authoring calls.")
     options = parser.parse_args(arguments)
     if (options.debate_participants is not None or options.debate_rounds is not None) and options.topology is None:
         parser.error('participant and round options require --topology')
@@ -537,6 +539,8 @@ def launch(arguments):
                 value = value.resolve()
             command += ['--' + name.replace('_', '-'), str(value)]
     command += ["--check-only"] if options.check_only else ["--collect-and-assess"]
+    if options.replan_analysis:
+        command += ["--replan-analysis", str(options.replan_analysis.resolve())]
     command.append(str(directory / "inputs.json"))
     print("Catalogue demonstration inputs: " + str(directory), file=sys.stderr, flush=True)
     return subprocess.run(command, cwd=repo).returncode

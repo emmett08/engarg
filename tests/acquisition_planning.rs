@@ -1,3 +1,5 @@
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
 #[path = "common/live_output.rs"]
 mod live_output;
 
@@ -87,9 +89,27 @@ async fn tools_are_planned_with_the_graph_without_extra_calls_or_a_new_report_sc
         .await
         .unwrap();
     assert_eq!(report.transcript.len(), 6);
+    let mut expected = case.clone();
+    engarg::engine::reconcile_retained_argument(
+        &request,
+        &mut expected,
+        &report.argument,
+        &report.transcript,
+    )
+    .unwrap();
     assert_eq!(
         serde_json::to_value(&report.argument).unwrap(),
-        serde_json::to_value(&case).unwrap()
+        serde_json::to_value(expected).unwrap()
+    );
+    assert_eq!(
+        report
+            .argument
+            .dissent_revisions
+            .as_ref()
+            .unwrap()
+            .origins
+            .len(),
+        case.defeaters.len()
     );
     assert!(
         serde_json::to_value(&report)
@@ -144,9 +164,27 @@ async fn a_missing_binding_uses_the_existing_repair_budget_and_keeps_the_case() 
         .await
         .unwrap();
     assert_eq!(report.transcript.len(), 2);
+    let mut expected = case.clone();
+    engarg::engine::reconcile_retained_argument(
+        &request,
+        &mut expected,
+        &report.argument,
+        &report.transcript,
+    )
+    .unwrap();
     assert_eq!(
         serde_json::to_value(&report.argument).unwrap(),
-        serde_json::to_value(case).unwrap()
+        serde_json::to_value(expected).unwrap()
+    );
+    assert_eq!(
+        report
+            .argument
+            .dissent_revisions
+            .as_ref()
+            .unwrap()
+            .origins
+            .len(),
+        case.defeaters.len()
     );
     let repair: Value = serde_json::from_str(&report.transcript[1].prompt.user).unwrap();
     assert!(
@@ -209,10 +247,9 @@ async fn every_debate_topology_preserves_acquisition_plans_through_adjudication(
             .unwrap();
         assert_eq!(report.transcript.len(), 11, "{name}");
         assert_eq!(model.calls.lock().unwrap().len(), 11, "{name}");
-        assert_eq!(
-            serde_json::to_value(&report.argument).unwrap(),
-            serde_json::to_value(&expected).unwrap(),
-            "{name}"
+        argument_assertions::assert_authored_argument(
+            &serde_json::to_value(&report).unwrap(),
+            &serde_json::to_value(&expected).unwrap(),
         );
         let planned =
             parse_completion(&report.transcript.last().unwrap().response.content).unwrap();

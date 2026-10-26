@@ -581,12 +581,13 @@ fn retained_plan(report: &CanonicalReport) -> Result<Vec<AcquisitionPlan>, Error
     if response.get("acquisition_plan").is_none() && response.get("argument").is_none() {
         return Ok(Vec::new());
     }
-    let planned = acquisition::parse_completion(&record.response.content)?;
-    if serde_json::to_value(&planned.argument)? != serde_json::to_value(&report.argument)? {
-        return Err(Error::InvalidInput(
-            "retained acquisition plan belongs to a different canonical argument".into(),
-        ));
-    }
+    let mut planned = acquisition::parse_completion(&record.response.content)?;
+    engarg::engine::reconcile_retained_argument(
+        &report.request,
+        &mut planned.argument,
+        &report.argument,
+        &report.transcript,
+    )?;
     let errors = acquisition::validate_with_catalogue(
         &report.argument,
         &planned.acquisition_plan,

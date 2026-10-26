@@ -1,4 +1,7 @@
 //! Native discovery and the CLI graph path against a local deterministic provider.
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
+
 use engarg::{
     domain::{ArgumentCase, Request},
     engine::SupportRunReport,
@@ -236,10 +239,7 @@ fn graph_analyse_uses_native_discovery_six_local_calls_and_exports_without_flat_
         serde_json::to_value(&report.report.request).unwrap(),
         serde_json::to_value(request).unwrap()
     );
-    assert_eq!(
-        serde_json::to_value(&report.report.argument).unwrap(),
-        serde_json::to_value(&case).unwrap()
-    );
+    argument_assertions::assert_authored_argument(&saved, &serde_json::to_value(&case).unwrap());
     assert_eq!(
         serde_json::to_value(&report.evidence_planning.elaboration).unwrap(),
         serde_json::to_value(elaboration).unwrap()

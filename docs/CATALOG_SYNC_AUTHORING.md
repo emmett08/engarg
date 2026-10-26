@@ -129,6 +129,55 @@ counts emitted evidence declarations, including review obligations, rather than
 physical collector calls. No status in this report establishes evidence truth or
 inferential soundness.
 
+Initial graph authoring writes `authoring.checkpoint.json` before interpreting
+completed model responses. If validation fails, stderr prints inspection and
+resume commands with the run's model settings and resource bounds. Inspection
+uses no model calls:
+
+```sh
+engarg authoring inspect --checkpoint engarg-runs/PREVIOUS-RUN/authoring.checkpoint.json
+```
+
+Older runs retain their completed calls in `analysis.audit.jsonl`. Inspect one
+with `engarg authoring inspect --run-dir engarg-runs/PREVIOUS-RUN`. A legacy
+resume requires `--accept-protocol-migration` because its reasoning protocol was
+unrecorded. That flag acknowledges revalidation under the current protocol.
+The inspector reports whether the retained exchanges can reconstruct the final
+validation stage. Missing or omitted responses remain explicit recovery limits.
+
+Resume gives only the outstanding final repair a new allowance. Use new output,
+audit and checkpoint paths, and the same retained evidence configuration:
+
+```sh
+engarg authoring resume \
+  --run-dir engarg-runs/PREVIOUS-RUN --accept-protocol-migration \
+  --evidence-config engarg-runs/PREVIOUS-RUN/evidence-config.json \
+  --model gpt-6.1-sol --api-key-env OPENAI_API_KEY \
+  --max-repairs 1 --request-timeout-secs 1800 --timeout-secs 10800 \
+  --max-input-bytes 1048576 --max-response-bytes 16777216 \
+  --max-output-tokens 128000 --progress \
+  --output resumed-analysis.json --audit resumed-authoring.audit.jsonl \
+  --next-checkpoint resumed-authoring.checkpoint.json
+```
+
+For a current checkpoint, replace `--run-dir` and the migration flag with
+`--checkpoint PATH`. Completed assessments, synthesis and critique are replayed
+locally. Digests establish consistency of the retained records. Argument
+acceptance still requires complete validation, including every retained
+objection and its application to any revised target.
+
+Continue the demonstration from an accepted resumed report:
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh --simple-example \
+  --replan-analysis resumed-analysis.json
+```
+
+This reuses the argument and replans acquisition routes before tool generation,
+collection and assessment. The saved report must match the demonstration's
+exact request. New collection preserves the distinction between empirical
+premise support and the formal method result.
+
 For a saved run whose adjudication removed an earlier acquisition design, repair
 the support graph before route-only replanning:
 

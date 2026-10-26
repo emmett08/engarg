@@ -15,6 +15,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
 #[path = "common/live_output.rs"]
 mod live_output;
 #[allow(dead_code)]
@@ -1959,8 +1961,9 @@ fn coding_failure_preserves_the_original_analysis_output() {
     );
     let original: Value = serde_json::from_slice(&fs::read(&normal_output).unwrap()).unwrap();
     assert_eq!(original["request"], fixture["request"]);
-    assert_eq!(original["argument"], fixture["argument"]);
+    argument_assertions::assert_authored_argument(&original, &fixture["argument"]);
     assert_eq!(original["transcript"].as_array().unwrap().len(), 1);
+    assert_eq!(original["transcript"][0]["role"], "single");
     assert!(original.get("tooling").is_none());
     let checkpoint: Value =
         serde_json::from_slice(&fs::read(tool_output.join("argument.analysis.json")).unwrap())

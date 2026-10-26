@@ -19,6 +19,8 @@ use engarg::{
 };
 use serde_json::{Value, json};
 
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
 #[path = "common/reasoning.rs"]
 #[allow(dead_code)]
 mod reasoning;
@@ -69,10 +71,12 @@ impl LanguageModel for SchemaProvider {
             Role::Single | Role::Synthesiser | Role::Adjudicator
         );
         let value = if case_writer {
+            let mut case = serde_json::to_value(&self.case)?;
+            case["dissent_revisions"] = json!(null);
             match self.envelope {
-                Envelope::Case => serde_json::to_value(&self.case)?,
+                Envelope::Case => case.clone(),
                 Envelope::Acquisition => json!({
-                    "argument": self.case,
+                    "argument": case,
                     "acquisition_plan": self.case.evidence_plan.iter().map(|need| json!({
                         "need_id": need.id,
                         "tool_id": "custom",
@@ -89,7 +93,7 @@ impl LanguageModel for SchemaProvider {
                         "decoded support elaboration",
                     );
                     json!({
-                        "argument": self.case,
+                        "argument": case,
                         "support_elaboration_json": serde_json::to_string(&elaboration)?,
                     })
                 }
@@ -237,10 +241,9 @@ async fn every_topology_and_authoring_envelope_produces_schema_valid_native_eal(
                     (result.report, artifacts.bundle.source, claim)
                 }
             };
-            assert_eq!(
-                serde_json::to_value(report.argument).unwrap(),
-                canonical,
-                "{topology}"
+            argument_assertions::assert_authored_argument(
+                &serde_json::to_value(&report).unwrap(),
+                &canonical,
             );
             assert_eq!(provider.calls.load(Ordering::SeqCst), 11, "{topology}");
             assert_native_eal_plan(&source, &claim, "deductive/1");
@@ -252,11 +255,9 @@ async fn every_topology_and_authoring_envelope_produces_schema_valid_native_eal(
 fn all_native_method_bindings_survive_provider_schema_and_eal_planning() {
     for mode in reasoning::cases() {
         let (request, case): (Request, ArgumentCase) = reasoning::fixture(&mode);
-        assert_schema(
-            &engarg::domain::case_schema(),
-            &serde_json::to_value(&case).unwrap(),
-            mode.kind,
-        );
+        let mut generated = serde_json::to_value(&case).unwrap();
+        generated["dissent_revisions"] = json!(null);
+        assert_schema(&engarg::domain::case_schema(), &generated, mode.kind);
         let bundle = eal_export::export(&request, &case).unwrap();
         assert_native_eal_plan(
             &bundle.source,

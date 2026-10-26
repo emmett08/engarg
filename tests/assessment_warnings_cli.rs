@@ -1,4 +1,7 @@
 //! Oversized assessment lists remain complete and produce visible, durable warnings.
+#[path = "common/argument_assertions.rs"]
+mod argument_assertions;
+
 use serde_json::{Value, json};
 use std::{
     io::{Read, Write},
@@ -146,7 +149,7 @@ fn oversized_assessments_warn_with_or_without_progress_and_retain_every_gap() {
         let stderr = String::from_utf8(output.stderr).unwrap();
         assert!(output.status.success(), "{stderr}");
         let report: Value = serde_json::from_slice(&output.stdout).unwrap();
-        assert_eq!(report["argument"], argument);
+        argument_assertions::assert_authored_argument(&report, &argument);
         let transcript = report["transcript"].as_array().unwrap();
         assert_eq!(transcript.len(), 6);
         for index in [0, 1, 2, 4] {

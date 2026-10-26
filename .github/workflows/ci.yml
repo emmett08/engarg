@@ -39,6 +39,13 @@ jobs:
         with:
           scope: checks
           toolchains: 1.99.1
+          # Cache the admitted installation payload, not its build tree or lock.
+          # The installer checks the pinned owner and every binary on each hit.
+          targets: |
+            target
+            ${{ runner.temp }}/engarg-eal-runtime/bin
+            ${{ runner.temp }}/engarg-eal-runtime/.engarg-eal-runtime-owner.json
+            ${{ runner.temp }}/engarg-eal-runtime/.engarg-eal-runtime.json
       - name: Check authoring script preflight
         run: |
           bash -n scripts/run-catalog-sync-authoring.sh
@@ -67,7 +74,7 @@ jobs:
           docker pull python:3.13-slim
           docker pull node:24-slim
           docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
-          cargo test --locked --test tooling_docker -- --include-ignored
+          cargo test --locked --test tooling_docker -- --ignored
 
   eal-compatibility:
     name: EAL producer and consumer contracts
@@ -122,13 +129,13 @@ jobs:
           test -x "$ENGARG_EAL_COORDINATE"
           cargo +1.99.1 build --locked --example catalogue_mcp
           test -x "$ENGARG_CATALOGUE_MCP"
-          cargo +1.99.1 test --locked --bin engarg tooling_commands::native_provider -- --include-ignored
-          cargo +1.99.1 test --locked --test tooling_docker generated_interface_native_preflight -- --include-ignored
-          cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test export_v3 --test support_cli --test support_export --test support_batch -- --include-ignored
-          cargo +1.99.1 test --locked --test support_method_export --test catalogue_workflow_native -- --include-ignored
+          cargo +1.99.1 test --locked --bin engarg tooling_commands::native_provider -- --ignored
+          cargo +1.99.1 test --locked --test tooling_docker generated_interface_native_preflight -- --ignored
+          cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test support_cli --test support_export --test support_batch -- --ignored
+          cargo +1.99.1 test --locked --test support_method_export --test catalogue_workflow_native -- --ignored
 
           # Keep one real CLI/coordinator smoke check in automatic compatibility.
           # Exhaustive native graph/ticket sweeps run in ticket-acceptance.yml.
-          cargo +1.99.1 test --locked --test coordination_live the_actual_cli_coordinates_a_ring -- --include-ignored
-          cargo +1.99.1 test --locked --test ticket_native unavailable_new_mcp -- --include-ignored --nocapture
-          cargo +1.99.1 test --locked --test ticket_native measured_negative -- --include-ignored --nocapture
+          cargo +1.99.1 test --locked --test coordination_live the_actual_cli_coordinates_a_ring -- --ignored
+          cargo +1.99.1 test --locked --test ticket_native unavailable_new_mcp -- --ignored --nocapture
+          cargo +1.99.1 test --locked --test ticket_native measured_negative -- --ignored --nocapture
