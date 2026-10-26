@@ -539,7 +539,12 @@ mod tests {
         let prepared = admitted_review(root.path(), vec!["sh".into()]);
         let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
         let admitted = snapshot.configuration.review_binding.unwrap();
-        assert_ne!(admitted, root.path().join("review-binding.json"));
+        let original_binding = root
+            .path()
+            .join("review-binding.json")
+            .canonicalize()
+            .unwrap();
+        assert_ne!(admitted, original_binding);
         let binding: eal_collector_contracts::CommandBinding = read(&admitted).unwrap();
         let program = Path::new(&binding.argv[0]);
         assert!(program.is_absolute());
@@ -550,9 +555,12 @@ mod tests {
                 .iter()
                 .any(|pin| { pin.path == program && pin.retained.is_none() && pin.bytes > 0 })
         );
-        assert!(snapshot.pins.iter().any(|pin| {
-            pin.path == root.path().join("review-binding.json") && pin.retained.is_some()
-        }));
+        assert!(
+            snapshot
+                .pins
+                .iter()
+                .any(|pin| { pin.path == original_binding && pin.retained.is_some() })
+        );
     }
 
     #[cfg(unix)]
@@ -572,7 +580,10 @@ mod tests {
         let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
         let binding: eal_collector_contracts::CommandBinding =
             read(snapshot.configuration.review_binding.as_deref().unwrap()).unwrap();
-        assert_eq!(Path::new(&binding.argv[0]), original);
+        assert_eq!(
+            Path::new(&binding.argv[0]),
+            original.canonicalize().unwrap()
+        );
         let output = std::process::Command::new(&binding.argv[0])
             .output()
             .unwrap();
@@ -602,7 +613,10 @@ mod tests {
         let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
         let binding: eal_collector_contracts::CommandBinding =
             read(snapshot.configuration.review_binding.as_deref().unwrap()).unwrap();
-        assert_eq!(Path::new(&binding.argv[1]), original);
+        assert_eq!(
+            Path::new(&binding.argv[1]),
+            original.canonicalize().unwrap()
+        );
         let output = std::process::Command::new(&binding.argv[0])
             .args(&binding.argv[1..])
             .output()
