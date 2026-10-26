@@ -178,7 +178,12 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                 return args[args.index(name) + 1]
             def write(path, value):
                 pathlib.Path(path).write_text(json.dumps(value) + '\n')
-            if args[:2] == ['eal', 'describe']:
+            if args[:2] == ['eal', 'toolchain-check']:
+                failed = os.environ.get('FAIL_TOOLCHAIN_CHECK') == '1'
+                write(option('--output'), {'schema': 'engarg.toolchain-preflight/1', 'passed': not failed})
+                if failed:
+                    raise SystemExit('Synthetic isolated toolchain preflight failure')
+            elif args[:2] == ['eal', 'describe']:
                 description = {'source_syntax': 'EAL/3', 'methods': {'structured/1': {}}}
                 if os.environ.get('HOST_COLLECTION_LIMIT'):
                     description[os.environ.get('HOST_COLLECTION_PATH', 'execution_limits')] = {
@@ -412,6 +417,8 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         return Path(result.stdout.split("Artifacts: ", 1)[1].splitlines()[0])
 
     def invocations(self):
+        if not self.log.exists():
+            return []
         return [json.loads(line) for line in self.log.read_text().splitlines()]
 
     def test_topology_preflight_records_all_presets_without_runtime_dependencies(self):
@@ -1189,13 +1196,16 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertFalse(summary['graph_readiness']['ready_for_collection'])
         self.assertIn('Function fixtures do not qualify', summary['tool_implementation']['note'])
 
-    def test_graph_default_rust_implementation_needs_no_docker_for_configuration_only(self):
+    def test_graph_default_rust_preflights_before_configuration_only_analysis(self):
         config = self.write_evidence_config()
         self.install_pipeline_stubs()
+        self.install_docker_stub()
         result = self.run_script('--evidence-config', config, '--implement-tools', self.inputs, graph=True)
         directory = self.pipeline_directory(result)
-        self.assertFalse((self.commands / 'docker').exists())
         calls = self.invocations()
+        preflight_index = next(index for index, call in enumerate(calls) if call[:2] == ['eal', 'toolchain-check'])
+        analysis_index = next(index for index, call in enumerate(calls) if call[0] == 'analyse')
+        self.assertLess(preflight_index, analysis_index)
         analysis = next(call for call in calls if call[0] == 'analyse')
         implementation = next(call for call in calls if call[:2] == ['eal', 'implement'])
         self.assertIn('--progress', analysis)
@@ -1213,7 +1223,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         selection = json.loads((directory / 'tooling-selection.json').read_text())
         self.assertEqual(selection['eligible_count'], 0)
 
-    def test_graph_builds_default_rust_image_only_after_identifying_a_genuine_gap(self):
+    def test_graph_builds_and_checks_default_rust_image_once_before_authoring(self):
         config = self.write_evidence_config()
         self.install_pipeline_stubs()
         self.install_docker_stub()
@@ -1225,8 +1235,11 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         analysis_index = next(index for index, call in enumerate(calls) if call[0] == 'analyse')
         build_index = next(index for index, call in enumerate(calls) if call[:2] == ['docker', 'build'])
         implementation_index = next(index for index, call in enumerate(calls) if call[:2] == ['eal', 'implement'])
-        self.assertLess(analysis_index, build_index)
-        self.assertLess(build_index, implementation_index)
+        preflight_index = next(index for index, call in enumerate(calls) if call[:2] == ['eal', 'toolchain-check'])
+        self.assertLess(build_index, preflight_index)
+        self.assertLess(preflight_index, analysis_index)
+        self.assertLess(analysis_index, implementation_index)
+        self.assertEqual(sum(call[:2] == ['docker', 'build'] for call in calls), 1)
         implementation = calls[implementation_index]
         self.assertEqual(implementation[implementation.index('--tool-max-calls') + 1], '4')
         self.assertEqual(implementation[implementation.index('--tool-timeout-secs') + 1], '7200')
@@ -1235,9 +1248,10 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(json.loads((directory / 'tooling-selection.json').read_text())['eligible_count'], 1)
         self.assertEqual(json.loads((directory / 'analysis.json').read_text())['tooling']['model_calls'], 2)
 
-    def test_graph_defers_incomplete_discovery_and_qualification_without_docker(self):
+    def test_graph_defers_incomplete_discovery_and_qualification_after_preflight(self):
         config = self.write_evidence_config()
         self.install_pipeline_stubs()
+        self.install_docker_stub()
         for extra in [{'GRAPH_DISCOVERY_INCOMPLETE': '1'}, {'GRAPH_GAP_KIND': 'qualification'}]:
             with self.subTest(extra=extra):
                 result = self.run_script('--evidence-config', config, '--implement-tools', self.inputs,
@@ -1245,20 +1259,98 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                 directory = self.pipeline_directory(result)
                 self.assertEqual(json.loads((directory / 'tooling-selection.json').read_text())['eligible_count'], 0)
                 self.assertEqual(json.loads((directory / 'analysis.json').read_text())['tooling']['model_calls'], 0)
-        self.assertFalse((self.commands / 'docker').exists())
+        self.assertEqual(sum(call[:2] == ['eal', 'toolchain-check'] for call in self.invocations()), 2)
 
-    def test_graph_missing_docker_preserves_original_after_identifying_implementation_gap(self):
+    def test_graph_missing_docker_stops_before_authoring(self):
         config = self.write_evidence_config()
         self.install_pipeline_stubs()
         result = self.run_script('--evidence-config', config, '--implement-tools', self.inputs,
                                  graph=True, env=dict(self.env, GRAPH_IMPLEMENTATION_GAP='1'))
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('identified missing operations', result.stderr)
+        self.assertIn('Docker is required', result.stderr)
         directory, = (self.repo / 'engarg-runs').glob('*')
-        self.assertTrue((directory / 'analysis.original.json').is_file())
+        self.assertFalse((directory / 'analysis.original.json').exists())
         self.assertFalse((directory / 'analysis.json').exists())
         self.assertFalse(any(call[:2] == ['eal', 'implement'] for call in self.invocations()))
         self.assertFalse(any(call[:2] == ['eal', 'export'] for call in self.invocations()))
+
+    def test_graph_tool_settings_override_only_the_implementation_stage(self):
+        config = self.write_evidence_config()
+        profile = self.write_toolchain()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, '--implement-tools', '--toolchain', profile,
+                                 self.inputs, graph=True, env=dict(self.env,
+                                 ENGARG_TOOL_MODEL='operator-coding-model', ENGARG_TOOL_REASONING_EFFORT='max',
+                                 ENGARG_TOOL_MAX_OUTPUT_TOKENS='32000'))
+        directory = self.pipeline_directory(result)
+        analysis = next(call for call in self.invocations() if call[0] == 'analyse')
+        implementation = next(call for call in self.invocations() if call[:2] == ['eal', 'implement'])
+        for flag, authoring_value, tool_value in [
+                ('--model', 'gpt-6.1-sol', 'operator-coding-model'),
+                ('--reasoning-effort', 'high', 'max'),
+                ('--max-output-tokens', '128000', '32000')]:
+            self.assertEqual(analysis[analysis.index(flag) + 1], authoring_value)
+            self.assertEqual(implementation[implementation.index(flag) + 1], tool_value)
+        settings = json.loads((directory / 'run-settings.json').read_text())
+        self.assertEqual(settings['model'], 'gpt-6.1-sol')
+        self.assertEqual(settings['tool_implementation']['model'], 'operator-coding-model')
+        self.assertEqual(settings['tool_implementation']['reasoning_effort'], 'max')
+        self.assertEqual(settings['tool_implementation']['max_output_tokens'], 32000)
+
+    def test_graph_tool_settings_inherit_authoring_settings(self):
+        config = self.write_evidence_config()
+        profile = self.write_toolchain()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, '--implement-tools', '--toolchain', profile,
+                                 self.inputs, graph=True, env=dict(self.env,
+                                 ENGARG_MODEL='operator-shared-model', ENGARG_REASONING_EFFORT='medium',
+                                 ENGARG_MAX_OUTPUT_TOKENS='24000'))
+        directory = self.pipeline_directory(result)
+        implementation = next(call for call in self.invocations() if call[:2] == ['eal', 'implement'])
+        for flag, value in [('--model', 'operator-shared-model'), ('--reasoning-effort', 'medium'),
+                            ('--max-output-tokens', '24000')]:
+            self.assertEqual(implementation[implementation.index(flag) + 1], value)
+        tool_settings = json.loads((directory / 'run-settings.json').read_text())['tool_implementation']
+        self.assertEqual(tool_settings['model'], 'operator-shared-model')
+        self.assertEqual(tool_settings['reasoning_effort'], 'medium')
+        self.assertEqual(tool_settings['max_output_tokens'], 24000)
+
+    def test_invalid_tool_model_allowances_stop_before_inference(self):
+        config = self.write_evidence_config()
+        profile = self.write_toolchain()
+        self.install_pipeline_stubs()
+        for overrides, message in [
+                ({'ENGARG_TOOL_MODEL': 'operator-coding-model'}, 'ENGARG_TOOL_MAX_OUTPUT_TOKENS'),
+                ({'ENGARG_TOOL_MAX_OUTPUT_TOKENS': '128001'}, 'tool-stage gpt-6.1-sol'),
+                ({'ENGARG_TOOL_MAX_OUTPUT_TOKENS': '0'}, 'positive 32-bit integer')]:
+            with self.subTest(overrides=overrides):
+                result = self.run_script('--evidence-config', config, '--implement-tools', '--toolchain', profile,
+                                         self.inputs, graph=True, env=dict(self.env, **overrides))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+                self.assertEqual(self.invocations(), [])
+
+    def test_legacy_flat_rejects_separate_tool_provider_settings(self):
+        profile = self.write_toolchain()
+        self.install_pipeline_stubs()
+        result = self.run_script('--implement-tools', '--toolchain', profile, self.inputs,
+                                 env=dict(self.env, ENGARG_TOOL_REASONING_EFFORT='max'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Separate tool-stage model settings require graph planning', result.stderr)
+        self.assertEqual(self.invocations(), [])
+
+    def test_failed_toolchain_preflight_retains_receipt_and_stops_before_model_calls(self):
+        config = self.write_evidence_config()
+        profile = self.write_toolchain()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, '--implement-tools', '--toolchain', profile,
+                                 self.inputs, graph=True, env=dict(self.env, FAIL_TOOLCHAIN_CHECK='1'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('during isolated toolchain preflight', result.stderr)
+        directory, = (self.repo / 'engarg-runs').glob('*')
+        self.assertIs(json.loads((directory / 'toolchain-preflight.json').read_text())['passed'], False)
+        self.assertTrue((directory / 'run-settings.json').is_file())
+        self.assertFalse(any(call[0] == 'analyse' or call[:2] == ['eal', 'implement'] for call in self.invocations()))
 
     def test_graph_implementation_failure_or_changed_analysis_stops_before_export(self):
         config = self.write_evidence_config()

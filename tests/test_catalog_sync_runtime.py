@@ -48,9 +48,16 @@ raise SystemExit(90)
         self.executable(self.release / "engarg", """#!/usr/bin/env python3
 import json, os, pathlib, sys
 args = sys.argv[1:]
-operation = 'eal describe' if args[:2] == ['eal', 'describe'] else args[0]
+operation = ' '.join(args[:2]) if args[:2] in [['eal', 'describe'], ['eal', 'toolchain-check']] else args[0]
 with pathlib.Path(os.environ['STUB_TRACE']).open('a') as stream:
     stream.write(json.dumps(operation) + '\\n')
+if operation == 'eal toolchain-check':
+    failed = os.environ.get('STUB_TOOLCHAIN_FAIL') == '1'
+    pathlib.Path(args[args.index('--output') + 1]).write_text(json.dumps({
+        'schema': 'engarg.toolchain-preflight/1', 'passed': not failed}))
+    if failed:
+        raise SystemExit('Synthetic isolated toolchain preflight failure')
+    raise SystemExit(0)
 if operation == 'eal describe':
     expected = os.environ.get('STUB_EXPECT_HOST')
     if expected and args[args.index('--eal-host') + 1] != expected:
@@ -116,7 +123,10 @@ raise SystemExit(91)
 
     def assert_probe_precedes_inference(self, result):
         self.assertEqual(result.returncode, 97, result.stdout + result.stderr)
-        self.assertEqual(self.invocations(), ["eal describe", "analyse"])
+        expected = ["eal describe"]
+        if (self.run_directory() / "toolchain-preflight.json").exists():
+            expected.append("eal toolchain-check")
+        self.assertEqual(self.invocations(), [*expected, "analyse"])
         response = json.loads((self.run_directory() / "eal-preflight.json").read_text())
         self.assertIs(response["is_error"], False)
 
@@ -283,6 +293,15 @@ raise SystemExit(86 if failed_build or failed_daemon else 0)
         self.assertEqual(result.returncode, 86)
         self.assertEqual(self.invocations(), ["eal describe"])
         self.assertIn("during Rust tooling image preparation", result.stderr)
+
+    def test_failed_restricted_toolchain_check_stops_before_inference(self):
+        self.prepare_tooling()
+        result = self.run_with_tooling(STUB_TOOLCHAIN_FAIL="1")
+        self.assert_rejected_before_inference(result, "Synthetic isolated toolchain preflight failure")
+        self.assertEqual(self.invocations(), ["eal describe", "eal toolchain-check"])
+        self.assertIn("during isolated toolchain preflight", result.stderr)
+        receipt = json.loads((self.run_directory() / "toolchain-preflight.json").read_text())
+        self.assertIs(receipt['passed'], False)
 
     def test_invalid_tooling_budget_is_rejected_before_inference(self):
         self.prepare_tooling()

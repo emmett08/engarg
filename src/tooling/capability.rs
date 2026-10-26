@@ -333,6 +333,7 @@ pub async fn implement_capability<M: LanguageModel>(
         config.profile.clone(),
         config.supervisor.clone(),
     )?);
+    super::runner_preflight::check_runner(runner.as_ref(), &config.profile).ensure_passed()?;
     implement_with_runner(request, gap_kind, config, model, runner).await
 }
 

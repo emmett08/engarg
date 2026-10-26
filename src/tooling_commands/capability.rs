@@ -300,7 +300,8 @@ pub async fn run_capability_fallback<M: LanguageModel>(
     }.and_then(|result| result);
     append_audit(
         &audit_path,
-        &json!({"event":"capability_stage_finished","passed":result.is_ok(),"model_calls":model.budget.calls()?}),
+        &json!({"event":"capability_stage_finished","passed":result.is_ok(),"model_calls":model.budget.calls()?,
+            "execution_failure":match &result { Err(Error::ToolExecution(message)) => Some(message), _ => None }}),
     )?;
     guard.finished = true;
     let report = result?;

@@ -1,6 +1,7 @@
 //! Bounded Docker execution for operator-selected, immutable language toolchains.
 use super::{
     contracts::{SourceFile, digest_json},
+    execution_diagnostics::{bounded, feedback_redactions, redact_feedback},
     profile::ToolchainProfile,
     runner_snapshot::{Snapshot, mount_path},
 };
@@ -114,12 +115,24 @@ impl DockerRunner {
             16_384,
             host_environment()?,
         );
-        let outcome = supervisor
-            .run(request, None)
-            .map_err(|_| provider("Docker image admission could not run"))?;
+        let outcome = supervisor.run(request, None).map_err(|error| {
+            execution_failure(
+                &profile,
+                &format!("Docker image admission could not run: {error}"),
+            )
+        })?;
         if outcome.returncode != 0 || outcome.execution_error.is_some() {
-            return Err(invalid(
-                "selected toolchain image must already be installed and Docker must be available",
+            return Err(execution_failure(
+                &profile,
+                &format!(
+                    "Docker image admission failed; selected toolchain image must already be installed and Docker must be available; exit status {}; execution error {}; stderr: {}",
+                    outcome.returncode,
+                    outcome
+                        .execution_error
+                        .as_ref()
+                        .map_or("none", |error| error.label()),
+                    String::from_utf8_lossy(&outcome.stderr),
+                ),
             ));
         }
         let image_id = std::str::from_utf8(&outcome.stdout)
@@ -180,16 +193,37 @@ impl DockerRunner {
                 ),
                 None,
             )
-            .map_err(|_| provider("collector container cleanup failed"))?;
+            .map_err(|error| {
+                execution_failure(
+                    &self.profile,
+                    &format!("collector container cleanup failed: {error}"),
+                )
+            })?;
         if outcome.execution_error.is_some() {
-            return Err(provider("collector container cleanup did not complete"));
+            return Err(execution_failure(
+                &self.profile,
+                &format!(
+                    "collector container cleanup did not complete; exit status {}; execution error {}; stderr: {}",
+                    outcome.returncode,
+                    outcome
+                        .execution_error
+                        .as_ref()
+                        .map_or("none", |error| error.label()),
+                    String::from_utf8_lossy(&outcome.stderr),
+                ),
+            ));
         }
         // A failed start has no container. Other daemon failures cannot prove cleanup.
         if outcome.returncode != 0
             && !String::from_utf8_lossy(&outcome.stderr).contains("No such container")
         {
-            return Err(provider(
-                "collector container cleanup did not confirm termination",
+            return Err(execution_failure(
+                &self.profile,
+                &format!(
+                    "collector container cleanup did not confirm termination; exit status {}; stderr: {}",
+                    outcome.returncode,
+                    String::from_utf8_lossy(&outcome.stderr),
+                ),
             ));
         }
         Ok(())
@@ -215,7 +249,9 @@ impl FixtureRunner for DockerRunner {
             return Err(Error::Budget("collector request exceeds 1 MiB".into()));
         }
         if cancellation.is_cancelled() {
-            return Err(provider("collector execution was cancelled"));
+            return Err(Error::ToolExecution(
+                "collector execution was cancelled".into(),
+            ));
         }
         self.check_executables()?;
         let snapshot = Snapshot::new(source_files, fixture_files)?;
@@ -314,8 +350,32 @@ impl FixtureRunner for DockerRunner {
         );
         let cleanup = self.cleanup(&name, snapshot.root());
         // Always attempt cleanup before propagating a launch or supervisor error.
-        cleanup?;
-        let outcome = execution.map_err(|_| provider("bounded collector execution failed"))?;
+        if let Err(cleanup_error) = cleanup {
+            let execution_detail = match &execution {
+                Ok(outcome) => format!(
+                    "exit status {}; execution error {}; stderr: {}",
+                    outcome.returncode,
+                    outcome
+                        .execution_error
+                        .as_ref()
+                        .map_or("none", |error| error.label()),
+                    String::from_utf8_lossy(&outcome.stderr),
+                ),
+                Err(error) => format!("supervisor error: {error}"),
+            };
+            return Err(execution_failure(
+                &self.profile,
+                &format!(
+                    "collector execution {execution_detail}; cleanup also failed: {cleanup_error}"
+                ),
+            ));
+        }
+        let outcome = execution.map_err(|error| {
+            execution_failure(
+                &self.profile,
+                &format!("bounded collector execution failed: {error}"),
+            )
+        })?;
         let execution_error = if cancellation.is_cancelled() {
             Some("cancelled".into())
         } else if let Some(error) = outcome.execution_error {
@@ -561,8 +621,11 @@ fn invalid(message: &str) -> Error {
     Error::InvalidInput(message.into())
 }
 
-fn provider(message: &str) -> Error {
-    Error::Provider(message.into())
+fn execution_failure(profile: &ToolchainProfile, message: &str) -> Error {
+    Error::ToolExecution(bounded(
+        &redact_feedback(message, &feedback_redactions(profile)),
+        4096,
+    ))
 }
 
 #[cfg(test)]
