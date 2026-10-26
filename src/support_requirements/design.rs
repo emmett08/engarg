@@ -1,7 +1,6 @@
 //! Retain removed source designs for repair without admitting them to execution.
 use super::{
-    AcquisitionDisposition, SupportElaboration, parse_supported_argument,
-    validation::validate_historical_elaboration,
+    AcquisitionDisposition, SupportElaboration, parse_supported_argument, validate_elaboration,
 };
 use crate::{
     Error,
@@ -234,10 +233,7 @@ pub fn review_acquisition_design(
                 .filter(|(id, _)| unresolved.contains(id))
                 .collect(),
             disposition: "unresolved_revision".into(),
-            validation_errors: validate_historical_elaboration(
-                &prior.argument,
-                &prior.support_elaboration,
-            ),
+            validation_errors: validate_elaboration(&prior.argument, &prior.support_elaboration),
             elaboration: prior.support_elaboration,
         });
     }
@@ -422,8 +418,11 @@ mod tests {
             .time
             .max_age_seconds = None;
         proposed.evaluations[0].max_age_seconds = None;
-        let current_errors =
-            crate::support_requirements::validate_elaboration(&argument, &proposed);
+        assert!(
+            crate::support_requirements::validate_elaboration(&argument, &proposed).is_empty(),
+            "retained partial support must remain structurally loadable"
+        );
+        let current_errors = crate::support_requirements::validate_freshness(&proposed);
         assert!(
             current_errors
                 .iter()

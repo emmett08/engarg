@@ -625,6 +625,8 @@ def launch(arguments):
     parser.add_argument("--coordination-run", type=Path)
     parser.add_argument("--replan-analysis", type=Path,
                         help="Reuse an accepted or resumed argument and continue the example without authoring calls.")
+    parser.add_argument("--freshness-clarifications", type=Path,
+                        help="Apply explicit, scoped freshness revisions when replanning a retained argument.")
     options = parser.parse_args(arguments)
     if (options.debate_participants is not None or options.debate_rounds is not None) and options.topology is None:
         parser.error('participant and round options require --topology')
@@ -677,6 +679,8 @@ def launch(arguments):
     command += ["--check-only"] if options.check_only else ["--collect-and-assess"]
     if options.replan_analysis:
         command += ["--replan-analysis", str(options.replan_analysis.resolve())]
+    if options.freshness_clarifications:
+        command += ["--freshness-clarifications", str(options.freshness_clarifications.resolve())]
     command.append(str(directory / "inputs.json"))
     print("Catalogue demonstration inputs: " + str(directory), file=sys.stderr, flush=True)
     return subprocess.run(command, cwd=repo).returncode

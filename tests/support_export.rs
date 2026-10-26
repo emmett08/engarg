@@ -767,7 +767,7 @@ fn graph_freshness_matches_runtime_and_unbounded_machine_support_needs_clarifica
         .find(|evaluation| evaluation.requirement_id == "shared_requirement_0")
         .unwrap()
         .max_age_seconds = None;
-    let admission = engarg::support_requirements::validate_elaboration(&case, &elaboration);
+    let admission = engarg::support_requirements::validate_freshness(&elaboration);
     assert!(
         admission
             .iter()

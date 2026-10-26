@@ -271,7 +271,7 @@ fn coverage_original_clauses_units_freshness_and_evaluation_thresholds_are_enfor
 }
 
 #[test]
-fn machine_freshness_is_rejected_during_support_admission_without_changing_the_report() {
+fn machine_freshness_is_rejected_before_implementation_without_changing_the_report() {
     let case = case();
     for maximum in [None, Some(0), Some(315_360_001)] {
         let mut elaboration = with_measurement(
@@ -294,7 +294,7 @@ fn machine_freshness_is_rejected_during_support_admission_without_changing_the_r
             .max_age_seconds = maximum;
         elaboration.evaluations[0].max_age_seconds = maximum;
         let before = serde_json::to_value(&elaboration).unwrap();
-        let errors = validate_elaboration(&case, &elaboration).join(";");
+        let errors = validate_freshness(&elaboration).join(";");
         assert!(
             errors.contains("SUPPORT_FRESHNESS_CLARIFICATION"),
             "{errors}"
@@ -342,7 +342,7 @@ fn machine_freshness_accepts_exact_boundaries_and_preserves_a_stricter_source() 
     assert!(
         validate_freshness(&elaboration)
             .iter()
-            .any(|error| error.contains("changed its requirement freshness"))
+            .any(|error| error.contains("does not match requirement"))
     );
 }
 

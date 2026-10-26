@@ -191,21 +191,6 @@ fn criterion_errors(requirement: &SupportRequirement) -> Vec<String> {
 }
 
 pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboration) -> Vec<String> {
-    let mut errors = validate_historical_elaboration(case, elaboration);
-    for error in super::validate_freshness(elaboration) {
-        if !errors.contains(&error) {
-            errors.push(error);
-        }
-    }
-    errors
-}
-
-/// Retained design diagnostics form part of historical report identities.
-/// Current admission applies the stricter collection check in the public wrapper.
-pub(super) fn validate_historical_elaboration(
-    case: &ArgumentCase,
-    elaboration: &SupportElaboration,
-) -> Vec<String> {
     let mut errors = Vec::new();
     if !super::supported_schema(&elaboration.schema) {
         errors.push("unsupported support elaboration schema".into());

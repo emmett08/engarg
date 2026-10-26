@@ -40,6 +40,9 @@ where
         &original.argument,
         &original.support_elaboration,
     );
+    errors.extend(support_requirements::validate_freshness(
+        &original.support_elaboration,
+    ));
     if errors.is_empty() {
         errors.push("Review the retained pending acquisition designs and repair their representations. Preserve genuine source, method, configuration and judgement gaps explicitly; do not invent qualification or retire a design merely to pass validation.".into());
     }
@@ -71,6 +74,9 @@ where
                     &repaired.argument,
                     &repaired.support_elaboration,
                 );
+                errors.extend(support_requirements::validate_freshness(
+                    &repaired.support_elaboration,
+                ));
                 if output_validation::restore_host_fields(
                     &mut repaired.argument,
                     &original.argument,

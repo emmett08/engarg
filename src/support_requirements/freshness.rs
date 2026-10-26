@@ -47,8 +47,8 @@ pub fn validate_freshness(elaboration: &SupportElaboration) -> Vec<String> {
                 .and_then(|contract| contract.time.max_age_seconds)
         {
             errors.push(format!(
-                "evaluation {} changed its requirement freshness",
-                evaluation.id
+                "SUPPORT_FRESHNESS_CLARIFICATION: evaluation {} does not match requirement {} freshness",
+                evaluation.id, requirement.id
             ));
         }
         if let Err(error) = requirement_age_seconds(

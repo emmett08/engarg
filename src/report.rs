@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::Path};
 
+pub mod freshness;
+
 pub const REPLANNING_SCHEMA: &str = "engarg.evidence-replan/1";
 pub const MAX_REPLANNING_HISTORY: usize = 16;
 
@@ -70,10 +72,21 @@ pub struct ReplanningRecord {
     #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_map_exact")]
     pub previous_extensions: BTreeMap<String, Value>,
     pub model_calls: u32,
+    /// Explicit operator-authorised age additions. Older route-only records omit this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub freshness_clarification: Option<freshness::FreshnessClarification>,
 }
 
 /// Retain the original generation metadata without rebinding it to new routes.
 pub fn retain_replanning(previous: &Value, current: &mut Value) -> Result<(), Error> {
+    retain_replanning_with_freshness(previous, current, None)
+}
+
+pub fn retain_replanning_with_freshness(
+    previous: &Value,
+    current: &mut Value,
+    clarification: Option<freshness::FreshnessClarification>,
+) -> Result<(), Error> {
     let old = previous
         .get("evidence_planning")
         .filter(|value| !value.is_null())
@@ -88,16 +101,21 @@ pub fn retain_replanning(previous: &Value, current: &mut Value) -> Result<(), Er
         previous_planning_sha256: digest(old)?,
         current_planning_sha256: digest(new)?,
         previous_evidence_planning: old.clone(),
-        previous_extensions: ["tooling", "replanning"]
+        previous_extensions: ["tooling", "replanning", "support_recovery"]
             .into_iter()
+            .filter(|key| *key != "support_recovery" || clarification.is_some())
             .filter_map(|key| previous.get(key).map(|value| (key.into(), value.clone())))
             .collect(),
         model_calls: 0,
+        freshness_clarification: clarification,
     };
     let object = current
         .as_object_mut()
         .ok_or_else(|| invalid("saved analysis must be a JSON object"))?;
     object.remove("tooling");
+    if record.freshness_clarification.is_some() {
+        object.remove("support_recovery");
+    }
     object.insert("replanning".into(), serde_json::to_value(record)?);
     Ok(())
 }
@@ -262,7 +280,7 @@ fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> 
             || record
                 .previous_extensions
                 .keys()
-                .any(|key| !matches!(key.as_str(), "tooling" | "replanning"))
+                .any(|key| !matches!(key.as_str(), "tooling" | "replanning" | "support_recovery"))
         {
             return Err(invalid(
                 "invalid replanning provenance schema or extension fields",
@@ -277,9 +295,13 @@ fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> 
                 "previous replanning provenance requires graph planning",
             ));
         };
+        let mut expected_elaboration = prior.elaboration.clone();
+        if let Some(clarification) = &record.freshness_clarification {
+            freshness::apply(&mut expected_elaboration, clarification)?;
+        }
         if digest(&current["evidence_planning"])? != record.current_planning_sha256
             || digest(&record.previous_evidence_planning)? != record.previous_planning_sha256
-            || digest(&now.elaboration)? != digest(&prior.elaboration)?
+            || digest(&now.elaboration)? != digest(&expected_elaboration)?
         {
             return Err(invalid(
                 "replanning changed its original requirements or planning identities",
@@ -297,6 +319,7 @@ fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> 
             return Err(invalid("replanning changed the retained original report"));
         }
         crate::tooling::capability::revalidate_report(&current, executable)?;
+        validate_support_recovery(&current)?;
     }
     unreachable!("bounded replanning loop returns at its limit")
 }
