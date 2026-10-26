@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     domain::ArgumentIndex,
     eal_export::{EalDeclaration, EalSourceMapping, ExportProjection, ReviewRequest, name, quoted},
-    support_requirements::SupportRequirement,
+    support_requirements::requirement_age_seconds,
 };
 use eal_collector_contracts::{
     CommandBinding, CommandRegistry, ToolKind,
@@ -120,11 +120,12 @@ pub(super) fn build(
             "execution_plan_sha256": execution_plan_sha256,
             "requirement_id": requirement.id,
         });
-        let age = requirement_age(
+        let age = requirement_age_seconds(
             requirement,
             evaluation.max_age_seconds,
             !evaluation.inputs.is_empty(),
-        )?;
+        )
+        .map_err(Error::InvalidInput)?;
         source.push_str(&format!(
             "// Generated evaluation for support requirement {}.\nevidence {evidence_name} {{\n  tool {GRAPH_TOOL}\n  kind acquisition\n  environment {SUPPORT_ENVIRONMENT}\n  max_age {age}\n  input {}\n  require collected == true\n  require criterion_satisfied == true\n  require execution_plan_sha256 == {}\n}}\n\n",
             quoted(&requirement.id), serde_json::to_string(&input)?, quoted(&execution_plan_sha256),
@@ -412,29 +413,6 @@ pub(super) fn build(
         acquisition_requests,
         execution_plan: execution.clone(),
     })
-}
-
-fn requirement_age(
-    requirement: &SupportRequirement,
-    maximum: Option<u64>,
-    has_inputs: bool,
-) -> Result<u64, Error> {
-    match maximum {
-        Some(age) if (1..=315_360_000).contains(&age) => Ok(age),
-        // EAL/3 requires max_age. These stubs never emit an observation, so a
-        // zero-second bound cannot turn an unknown age into usable evidence.
-        None if matches!(
-            requirement.acceptance,
-            EvaluationCriterion::Unavailable { .. }
-        ) || matches!(&requirement.acceptance,EvaluationCriterion::Judgement{scope,..} if scope.is_none() || !has_inputs) =>
-        {
-            Ok(0)
-        }
-        _ => Err(Error::InvalidInput(format!(
-            "SUPPORT_FRESHNESS_CLARIFICATION: requirement {} needs an explicit positive bounded freshness contract before EAL/3 can collect it; this graph has no implicit acquisition-age default",
-            requirement.id
-        ))),
-    }
 }
 
 fn registry(

@@ -1,6 +1,7 @@
 //! Retain removed source designs for repair without admitting them to execution.
 use super::{
-    AcquisitionDisposition, SupportElaboration, parse_supported_argument, validate_elaboration,
+    AcquisitionDisposition, SupportElaboration, parse_supported_argument,
+    validation::validate_historical_elaboration,
 };
 use crate::{
     Error,
@@ -233,7 +234,10 @@ pub fn review_acquisition_design(
                 .filter(|(id, _)| unresolved.contains(id))
                 .collect(),
             disposition: "unresolved_revision".into(),
-            validation_errors: validate_elaboration(&prior.argument, &prior.support_elaboration),
+            validation_errors: validate_historical_elaboration(
+                &prior.argument,
+                &prior.support_elaboration,
+            ),
             elaboration: prior.support_elaboration,
         });
     }
@@ -292,7 +296,7 @@ mod tests {
     use super::*;
     use crate::{
         provider::{Completion, CompletionRequest},
-        support_requirements::tests::{case, contract, pending},
+        support_requirements::tests::{case, contract, pending, with_measurement},
     };
     use serde_json::json;
 
@@ -393,6 +397,51 @@ mod tests {
                 .warning()
                 .unwrap()
                 .contains("5 earlier acquisition designs and 2 derivations")
+        );
+    }
+
+    #[test]
+    fn historical_design_diagnostics_survive_missing_freshness_without_admitting_collection() {
+        let argument = case();
+        let mut proposed = with_measurement(
+            &argument,
+            contract(
+                "observation",
+                "existential_witness",
+                "measurement.read/1",
+                "boolean",
+            ),
+            eal_collector_contracts::execution::EvaluationCriterion::Equals {
+                expected: json!(true),
+            },
+        );
+        proposed.requirements[0]
+            .contract
+            .as_mut()
+            .unwrap()
+            .time
+            .max_age_seconds = None;
+        proposed.evaluations[0].max_age_seconds = None;
+        let current_errors =
+            crate::support_requirements::validate_elaboration(&argument, &proposed);
+        assert!(
+            current_errors
+                .iter()
+                .any(|error| error.contains("SUPPORT_FRESHNESS_CLARIFICATION")),
+            "current collection admission must reject the absent age: {current_errors:?}"
+        );
+        let review =
+            review_acquisition_design(&pending(&argument), &[record(&proposed)], 1_048_576)
+                .unwrap();
+        assert_eq!(review.status, AcquisitionDesignStatus::PendingRepair);
+        assert_eq!(review.pending_designs.len(), 1);
+        assert!(
+            review.pending_designs[0].validation_errors.is_empty(),
+            "the historical proposal had no structural diagnostics before collection admission was strengthened"
+        );
+        assert_eq!(
+            serde_json::to_value(&review.pending_designs[0].elaboration).unwrap(),
+            serde_json::to_value(&proposed).unwrap()
         );
     }
 

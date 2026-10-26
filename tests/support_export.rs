@@ -767,6 +767,13 @@ fn graph_freshness_matches_runtime_and_unbounded_machine_support_needs_clarifica
         .find(|evaluation| evaluation.requirement_id == "shared_requirement_0")
         .unwrap()
         .max_age_seconds = None;
+    let admission = engarg::support_requirements::validate_elaboration(&case, &elaboration);
+    assert!(
+        admission
+            .iter()
+            .any(|error| error.contains("SUPPORT_FRESHNESS_CLARIFICATION")),
+        "the same missing age must be rejected before discovery or coding: {admission:?}"
+    );
     support_export::project_execution_graph(&elaboration, &routes, &mut plan).unwrap();
     let error = support_export::export(
         &request,

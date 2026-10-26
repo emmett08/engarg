@@ -271,6 +271,101 @@ fn coverage_original_clauses_units_freshness_and_evaluation_thresholds_are_enfor
 }
 
 #[test]
+fn machine_freshness_is_rejected_during_support_admission_without_changing_the_report() {
+    let case = case();
+    for maximum in [None, Some(0), Some(315_360_001)] {
+        let mut elaboration = with_measurement(
+            &case,
+            contract(
+                "observation",
+                "existential_witness",
+                "measurement.read/1",
+                "boolean",
+            ),
+            EvaluationCriterion::Equals {
+                expected: json!(true),
+            },
+        );
+        elaboration.requirements[0]
+            .contract
+            .as_mut()
+            .unwrap()
+            .time
+            .max_age_seconds = maximum;
+        elaboration.evaluations[0].max_age_seconds = maximum;
+        let before = serde_json::to_value(&elaboration).unwrap();
+        let errors = validate_elaboration(&case, &elaboration).join(";");
+        assert!(
+            errors.contains("SUPPORT_FRESHNESS_CLARIFICATION"),
+            "{errors}"
+        );
+        assert!(errors.contains(&elaboration.requirements[0].id), "{errors}");
+        assert!(errors.contains("eal repair"), "{errors}");
+        assert_eq!(serde_json::to_value(&elaboration).unwrap(), before);
+    }
+}
+
+#[test]
+fn machine_freshness_accepts_exact_boundaries_and_preserves_a_stricter_source() {
+    let case = case();
+    let mut elaboration = with_measurement(
+        &case,
+        contract(
+            "observation",
+            "existential_witness",
+            "measurement.read/1",
+            "boolean",
+        ),
+        EvaluationCriterion::Equals {
+            expected: json!(true),
+        },
+    );
+    for maximum in [1, 315_360_000] {
+        assert_eq!(
+            requirement_age_seconds(&elaboration.requirements[0], Some(maximum), true),
+            Ok(maximum)
+        );
+    }
+    elaboration.requirements[0]
+        .contract
+        .as_mut()
+        .unwrap()
+        .time
+        .max_age_seconds = Some(300);
+    elaboration.evaluations[0].max_age_seconds = Some(300);
+    assert!(validate_freshness(&elaboration).is_empty());
+    assert_eq!(
+        elaboration.acquisitions[0].contract.time.max_age_seconds,
+        Some(60)
+    );
+    elaboration.evaluations[0].max_age_seconds = Some(301);
+    assert!(
+        validate_freshness(&elaboration)
+            .iter()
+            .any(|error| error.contains("changed its requirement freshness"))
+    );
+}
+
+#[test]
+fn pending_freshness_stubs_remain_zero_age_guards_without_qualifying_scoped_reviews() {
+    let case = case();
+    let mut requirement = pending(&case).requirements.remove(0);
+    assert_eq!(requirement_age_seconds(&requirement, None, false), Ok(0));
+    requirement.acceptance = EvaluationCriterion::Judgement {
+        criterion: "Retain the independent review obligation.".into(),
+        scope: None,
+    };
+    assert_eq!(requirement_age_seconds(&requirement, None, true), Ok(0));
+    requirement.acceptance = EvaluationCriterion::Judgement {
+        criterion: "Review the exact retained source scope.".into(),
+        scope: Some(contract("judgement", "judgement", "review.independent/1", "json").scope),
+    };
+    assert_eq!(requirement_age_seconds(&requirement, None, false), Ok(0));
+    assert!(requirement_age_seconds(&requirement, None, true).is_err());
+    assert!(requirement_age_seconds(&requirement, Some(0), false).is_err());
+}
+
+#[test]
 fn unknown_contracts_cannot_smuggle_executable_facts_and_graph_cycles_are_rejected() {
     let case = case();
     let mut elaboration = pending(&case);

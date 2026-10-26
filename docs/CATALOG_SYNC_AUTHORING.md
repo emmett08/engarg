@@ -124,6 +124,21 @@ model-authored definition has a different identity and requires verification
 under the pinned definition. Pending judgement evaluations and unresolved
 reasoning-method bindings remain unresolved after tool qualification.
 
+Machine-evaluated graph requirements need an explicit freshness bound in both
+`requirement.contract.time.max_age_seconds` and the matching evaluation's
+`max_age_seconds`. The bound is from 1 through 315360000 seconds. Authoring
+validation checks these fields before collector implementation, and support
+recovery applies the same check. A supplied request bound must be carried into
+each applicable requirement and acquisition while preserving stricter source
+bounds. The legacy flat export-age policy does not supply missing graph ages.
+
+If an older analysis omitted the bound, use `engarg eal repair` with its saved
+`analysis.original.json` and `evidence-config.json`, then pass the repaired report
+to `--replan-analysis`. Repair retains the original argument and authoring calls
+and records the changed requirement and acquisition identities. It uses a
+separate model-call allowance. Unavailable evaluations and pending unscoped
+judgements can retain absent ages because they emit no usable observations.
+
 Authoring uses `ENGARG_MODEL`, `ENGARG_REASONING_EFFORT` and
 `ENGARG_MAX_OUTPUT_TOKENS`. Graph tool generation inherits those settings.
 Override individual settings with `ENGARG_TOOL_MODEL`,

@@ -51,6 +51,7 @@ where
             "repair_attempt":attempt,"repair_limit":config.max_repairs,
             "original_support_elaboration":original.support_elaboration,
             "original_requirement_sha256":requirement_identities(&original.support_elaboration)?,
+            "original_step_sha256":step_identities(&original.support_elaboration)?,
             "retained_acquisition_designs":design,
             "frozen_argument":original.argument,
         });
