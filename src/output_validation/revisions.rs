@@ -388,7 +388,7 @@ pub(crate) fn restore_host_fields(
     }
     if serde_json::to_value(&*candidate)? != serde_json::to_value(canonical)? {
         return Err(invalid(
-            "retained final case differs from the canonical argument",
+            "retained final case belongs to a different canonical argument",
         ));
     }
     Ok(())
