@@ -21,6 +21,8 @@ use serde_json::{Value, json};
 
 #[path = "common/argument_assertions.rs"]
 mod argument_assertions;
+#[path = "common/live_output.rs"]
+mod live_output;
 #[path = "common/reasoning.rs"]
 #[allow(dead_code)]
 mod reasoning;
@@ -71,8 +73,7 @@ impl LanguageModel for SchemaProvider {
             Role::Single | Role::Synthesiser | Role::Adjudicator
         );
         let value = if case_writer {
-            let mut case = serde_json::to_value(&self.case)?;
-            case["dissent_revisions"] = json!(null);
+            let case = live_output::generation_value(&self.case);
             match self.envelope {
                 Envelope::Case => case.clone(),
                 Envelope::Acquisition => json!({
@@ -255,8 +256,7 @@ async fn every_topology_and_authoring_envelope_produces_schema_valid_native_eal(
 fn all_native_method_bindings_survive_provider_schema_and_eal_planning() {
     for mode in reasoning::cases() {
         let (request, case): (Request, ArgumentCase) = reasoning::fixture(&mode);
-        let mut generated = serde_json::to_value(&case).unwrap();
-        generated["dissent_revisions"] = json!(null);
+        let generated = live_output::generation_value(&case);
         assert_schema(&engarg::domain::case_schema(), &generated, mode.kind);
         let bundle = eal_export::export(&request, &case).unwrap();
         assert_native_eal_plan(

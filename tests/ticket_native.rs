@@ -18,6 +18,8 @@ use std::{
     time::Duration,
 };
 
+#[path = "common/live_output.rs"]
+mod live_output;
 #[path = "common/reasoning.rs"]
 #[allow(dead_code)]
 mod reasoning;
@@ -186,6 +188,14 @@ struct Provider {
     calls: Arc<Mutex<Vec<Value>>>,
     thread: Option<thread::JoinHandle<()>>,
 }
+
+fn authoring_response(case: &Value, elaboration: &Value) -> Value {
+    json!({
+        "argument": live_output::generation_value(case),
+        "support_elaboration_json": elaboration.to_string(),
+    })
+}
+
 impl Provider {
     fn new(case: Value, elaboration: Value, broken_code: bool) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -211,7 +221,7 @@ impl Provider {
                 let schema = &body["text"]["format"]["schema"];
                 let properties = schema["properties"].as_object().unwrap();
                 let result = if properties.contains_key("support_elaboration_json") {
-                    json!({"argument":case,"support_elaboration_json":elaboration.to_string()})
+                    authoring_response(&case, &elaboration)
                 } else if properties.contains_key("fixtures") {
                     draft(&data, &formal)
                 } else if properties.contains_key("files") {
@@ -241,8 +251,13 @@ impl Provider {
 impl Drop for Provider {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
-        if let Some(worker) = self.thread.take() {
-            worker.join().unwrap();
+        // Preserve the original assertion while unwinding instead of aborting
+        // the whole test process with a second panic in this destructor.
+        if let Some(worker) = self.thread.take()
+            && let Err(error) = worker.join()
+            && !thread::panicking()
+        {
+            std::panic::resume_unwind(error);
         }
     }
 }
@@ -583,6 +598,14 @@ fn ticket_fixture_has_a_bound_method_and_a_complete_support_design() {
         None,
     );
     let request: engarg::domain::Request = serde_json::from_value(request).unwrap();
+    let response = authoring_response(&case, &elaboration);
+    let validator =
+        jsonschema::validator_for(&engarg::support_requirements::envelope_schema()).unwrap();
+    let errors = validator
+        .iter_errors(&response)
+        .map(|error| error.to_string())
+        .collect::<Vec<_>>();
+    assert!(errors.is_empty(), "{}", errors.join("; "));
     let case: engarg::domain::ArgumentCase = serde_json::from_value(case).unwrap();
     engarg::domain::validate_case(&request, &case).unwrap();
     let elaboration: engarg::support_requirements::SupportElaboration =

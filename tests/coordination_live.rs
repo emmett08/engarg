@@ -26,6 +26,8 @@ use engarg::{
 };
 use serde_json::{Value, json};
 
+#[path = "common/live_output.rs"]
+mod live_output;
 #[path = "common/reasoning.rs"]
 #[allow(dead_code)]
 mod reasoning;
@@ -71,7 +73,7 @@ impl LanguageModel for FixtureProvider {
     async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
         let data: Value = serde_json::from_str(&request.user)?;
         let output = if matches!(request.role, Role::Synthesiser | Role::Adjudicator) {
-            serde_json::to_value(&self.case)?
+            live_output::generation_value(&self.case)
         } else {
             assessment(&data)
         };
@@ -87,6 +89,38 @@ impl LanguageModel for FixtureProvider {
             reasoning_effort: None,
         })
     }
+}
+
+#[tokio::test]
+async fn native_provider_responses_satisfy_generation_schema_without_a_coordinator() {
+    let (_, case) = reasoning::fixture(&reasoning::cases().remove(0));
+    let original = serde_json::to_value(&case).unwrap();
+    let provider = FixtureProvider {
+        case,
+        calls: Mutex::new(Vec::new()),
+    };
+    for role in [Role::Synthesiser, Role::Adjudicator] {
+        let schema = engarg::domain::case_schema();
+        let response = provider
+            .complete(CompletionRequest {
+                role,
+                system: String::new(),
+                user: "{}".into(),
+                schema: schema.clone(),
+            })
+            .await
+            .unwrap();
+        let output: Value = serde_json::from_str(&response.content).unwrap();
+        assert_schema(&schema, &output);
+        assert_eq!(output.get("dissent_revisions"), Some(&Value::Null));
+        assert_eq!(output["warrants"], original["warrants"]);
+    }
+    let mut revised = original;
+    revised["dissent_revisions"] = json!({
+        "schema": "engarg.dissent-revisions/1",
+        "applications": [{"objection_id": "retained-objection"}],
+    });
+    assert_eq!(live_output::generation_value(&revised), revised);
 }
 
 fn native_coordinator() -> PathBuf {
@@ -327,7 +361,7 @@ fn the_actual_cli_coordinates_a_ring_through_a_schema_checked_http_provider() {
             let data: Value = serde_json::from_str(body["input"].as_str().unwrap()).unwrap();
             let schema = &body["text"]["format"]["schema"];
             let output = if schema["properties"].get("current_claim").is_some() {
-                serde_json::to_value(&case).unwrap()
+                live_output::generation_value(&case)
             } else {
                 assessment(&data)
             };

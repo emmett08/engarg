@@ -5,8 +5,20 @@
 
 #![allow(dead_code)]
 
-use serde::de::DeserializeOwned;
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
+
+/// Model responses use explicit nulls required by the strict generation schema.
+/// Historical storage may omit these fields. Preserve supplied revision records.
+pub fn generation_value(case: &impl Serialize) -> Value {
+    let mut value = serde_json::to_value(case).expect("serialisable case fixture");
+    value
+        .as_object_mut()
+        .expect("case fixture object")
+        .entry("dissent_revisions")
+        .or_insert(Value::Null);
+    value
+}
 
 pub fn value(source: &str) -> Value {
     let mut case: Value = serde_json::from_str(source).expect("valid case fixture");
