@@ -428,6 +428,24 @@ cargo build --locked --release
 
 Rust 1.99.1 and the latest non-yanked stable direct dependencies were checked against the official stable manifest and crates.io index on 23 October 2026. `Cargo.lock` fixes the resolved dependency graph. Re-run the checks when updating it. See [VALIDATION.md](VALIDATION.md) for the actual verification performed and [EVALUATION.md](EVALUATION.md) for the evaluation needed before claiming an improvement in argument quality.
 
+## Performance checks
+
+Development and test builds optimise the measured `sha2` 0.11.1 dependency while retaining EngArg's normal debug assertions and overflow checks. Executable inspection continues to read every byte and check file identity. Release profile settings retain their existing behaviour.
+
+Checkpoint completion copies only the new exchange before persisting the complete record. Failed publication removes that append. A directory-sync failure after publication returns an error while retaining the published in-memory state.
+
+CI runs ordinary tests in the platform checks and selects ignored native cases for runtime integration. The cache also retains the installed runtime's binaries and ownership records. Every restored runtime passes the original source-ownership and binary-hash checks. Runtime build trees and installation locks stay outside that cache payload.
+
+The local probes use synthetic data and require no provider calls:
+
+```sh
+cargo build --locked --release --example performance_probe
+target/release/examples/performance_probe checkpoint 12 1048576
+cargo test --locked --lib -- --test-threads=4
+```
+
+The checkpoint probe reports write time, complete write-and-read validation time and Linux write-phase peak memory separately. Its payload is bounded for JSON record admission. The `digest EXECUTABLE ITERATIONS` probe measures the real bounded executable-inspection function. Compare independent runs with the same inputs, toolchain and build settings, and report cache-hit and cache-miss timings separately.
+
 ## Design sources
 
 - [Toulmin, *The Uses of Argument*](https://doi.org/10.1017/CBO9780511840005): the claim, grounds, warrant, backing, qualifier and rebuttal framework. The engineering extensions above are explicit design choices.

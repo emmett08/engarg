@@ -33,6 +33,36 @@ fn call(checkpoint: &Checkpoint, role: Role) -> CallRecord {
         elapsed_ms: 0,
     }
 }
+
+#[test]
+fn completion_failure_preserves_in_memory_prefix() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("checkpoint.json");
+    let previous = directory.path().join("previous.json");
+    let mut initial = checkpoint();
+    initial.config.mode = Mode::Single;
+    let exchange = call(&initial, Role::Single);
+    let store = Store::create(&path, initial).unwrap();
+    store.completion(&exchange).unwrap();
+    let before = std::fs::read(&path).unwrap();
+    std::fs::rename(&path, &previous).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    // The destination directory makes publication fail after staging, so a
+    // retry observes exactly the last durable call and failure state.
+    assert!(store.completion(&exchange).is_err());
+    assert!(
+        store
+            .failure(&Error::InvalidOutput("failed update".into()))
+            .is_err()
+    );
+    std::fs::remove_dir(&path).unwrap();
+    std::fs::rename(&previous, &path).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    store.completion(&exchange).unwrap();
+    let saved = Checkpoint::read(&path).unwrap();
+    assert_eq!(saved.transcript.len(), 2);
+    assert!(saved.failure.is_none());
+}
 #[test]
 fn atomic_private_checkpoint_preserves_completed_exchange_before_parsing() {
     let directory = tempfile::tempdir().unwrap();
