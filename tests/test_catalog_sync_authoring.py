@@ -25,7 +25,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.commands = self.root / "commands"
         self.commands.mkdir()
         # A successful preflight cannot accidentally find Rust, EAL or model tools.
-        for name in ["bash", "git", "python3", "mkdir", "mktemp", "date"]:
+        for name in ["bash", "git", "python3", "mkdir", "mktemp", "date", "cat"]:
             executable = shutil.which(name)
             self.assertIsNotNone(executable, "test prerequisite: " + name)
             (self.commands / name).symlink_to(executable)
@@ -42,6 +42,11 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.script = self.repo / "scripts/run-catalog-sync-authoring.sh"
         self.script.parent.mkdir()
         shutil.copyfile(SOURCE_SCRIPT, self.script)
+        shutil.copyfile(SOURCE_SCRIPT.parent / "catalog_sync.py",
+                        self.script.parent / "catalog_sync.py")
+        shutil.copytree(SOURCE_SCRIPT.parent / "engarg_catalog_sync",
+                        self.script.parent / "engarg_catalog_sync",
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         toolchains = self.repo / "examples/toolchains"
         toolchains.mkdir(parents=True)
         shutil.copyfile(SOURCE_SCRIPT.parents[1] / "examples/toolchains/rust.json",
@@ -874,6 +879,36 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         )
         identity = json.loads((directory / "input-identity.json").read_text())
         self.assertTrue((alias / ".engarg-local/collector-inputs.json").samefile(identity["operator_inputs"]))
+
+    def test_script_basename_resolves_helpers_from_the_scripts_directory(self):
+        before = self.tracked_state()
+        for arguments in [
+            ["--help"],
+            ["--legacy-flat", "--check-only", "../.engarg-local/collector-inputs.json"],
+        ]:
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(
+                    [str(self.commands / "bash"), self.script.name, *arguments],
+                    cwd=self.script.parent, env=self.env, capture_output=True,
+                    text=True, timeout=10,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                if "--check-only" in arguments:
+                    self.successful_run_directory(result)
+                else:
+                    self.assertIn("Usage:", result.stdout)
+        self.assertEqual(self.tracked_state(), before)
+        self.assertFalse(list(self.script.parent.rglob("*.pyc")))
+
+    def test_option_separator_preserves_an_input_filename_beginning_with_hyphens(self):
+        inputs = self.repo / "--inputs.json"
+        inputs.write_bytes(self.inputs.read_bytes())
+        directory = self.successful_run_directory(
+            self.run_script("--check-only", "--", inputs.name)
+        )
+        self.assertEqual((directory / "collector-inputs.snapshot.json").read_bytes(), inputs.read_bytes())
+        identity = json.loads((directory / "input-identity.json").read_text())
+        self.assertEqual(identity["operator_inputs"], str(inputs))
 
     def test_invalid_scope_fails_without_request_or_traceback(self):
         for field, value in [("context", "production"), ("namespace", "")]:
