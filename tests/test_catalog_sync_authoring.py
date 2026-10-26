@@ -901,14 +901,23 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertFalse(list(self.script.parent.rglob("*.pyc")))
 
     def test_option_separator_preserves_an_input_filename_beginning_with_hyphens(self):
-        inputs = self.repo / "--inputs.json"
-        inputs.write_bytes(self.inputs.read_bytes())
-        directory = self.successful_run_directory(
-            self.run_script("--check-only", "--", inputs.name)
-        )
-        self.assertEqual((directory / "collector-inputs.snapshot.json").read_bytes(), inputs.read_bytes())
-        identity = json.loads((directory / "input-identity.json").read_text())
-        self.assertEqual(identity["operator_inputs"], str(inputs))
+        # Exercise macOS-style parent aliases on every platform. A subprocess
+        # can report the physical cwd while the caller retains the alias.
+        alias = self.root / "checkout-alias"
+        alias.symlink_to(self.repo, target_is_directory=True)
+        for invocation_directory in [self.repo, alias]:
+            with self.subTest(invocation_directory=invocation_directory):
+                inputs = invocation_directory / "--inputs.json"
+                inputs.write_bytes(self.inputs.read_bytes())
+                directory = self.successful_run_directory(
+                    self.run_script("--check-only", "--", inputs.name, cwd=invocation_directory)
+                )
+                self.assertEqual((directory / "collector-inputs.snapshot.json").read_bytes(), inputs.read_bytes())
+                identity = json.loads((directory / "input-identity.json").read_text())
+                recorded_inputs = Path(identity["operator_inputs"])
+                self.assertTrue(recorded_inputs.is_absolute())
+                self.assertEqual(recorded_inputs.name, inputs.name)
+                self.assertTrue(recorded_inputs.samefile(inputs))
 
     def test_invalid_scope_fails_without_request_or_traceback(self):
         for field, value in [("context", "production"), ("namespace", "")]:
