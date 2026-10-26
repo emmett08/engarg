@@ -1,0 +1,13 @@
+use std::io::{self, Read};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut input = String::new();
+    io::stdin().take(1024).read_to_string(&mut input)?;
+    assert_eq!(input, "engarg-toolchain-check/1\n");
+    assert_eq!(std::fs::read_to_string("/fixtures/engarg-preflight.txt")?, "engarg-read-only-fixture/1\n");
+    assert!(std::fs::write("/src/engarg-write-probe", b"denied").is_err());
+    assert!(std::fs::write("/fixtures/engarg-write-probe", b"denied").is_err());
+    std::fs::write("/build/engarg-write-probe", b"allowed")?;
+    println!("{{\"schema\":\"engarg.toolchain-probe/1\",\"passed\":true}}");
+    Ok(())
+}

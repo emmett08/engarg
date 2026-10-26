@@ -93,11 +93,39 @@ repairing the list count. Invalid JSON, blank entries, byte budgets and final
 argument validation remain enforced. This continuation handles an oversized list
 in the active run; it does not add automatic resume from an older failed audit.
 
-Graph implementation first retains `analysis.original.json` and inspects its
-typed gaps. It prepares the default Rust image only for a genuine unsupported
-operation or transformation. Configuration-only runs need no Docker or coding
-calls. Graph evidence plans, native/MCP configuration, scoped reviews and the
-function-test qualification boundary are documented in that guide.
+With `--implement-tools`, the script prepares the default Rust image once and
+checks the selected toolchain before authoring. The check runs a trusted probe
+through the actual restricted container and temporary source and fixture mounts.
+It retains `toolchain-preflight.json` and stops before model calls if isolated
+execution fails. Operator-supplied profiles use their already installed images.
+Input-only `--check-only` retains its build-free and inference-free behaviour.
+Omit `--implement-tools` when a run needs only configured collectors and no
+generated code.
+
+Graph implementation retains `analysis.original.json` and inspects its typed
+gaps before coding. Configuration-only runs consume no coding calls. Graph
+evidence plans, native/MCP configuration, scoped reviews and the function-test
+qualification boundary are documented in the support-planning guide.
+
+Authoring uses `ENGARG_MODEL`, `ENGARG_REASONING_EFFORT` and
+`ENGARG_MAX_OUTPUT_TOKENS`. Graph tool generation inherits those settings.
+Override individual settings with `ENGARG_TOOL_MODEL`,
+`ENGARG_TOOL_REASONING_EFFORT` and `ENGARG_TOOL_MAX_OUTPUT_TOKENS`:
+
+```sh
+ENGARG_REASONING_EFFORT=high \
+ENGARG_TOOL_REASONING_EFFORT=max \
+ENGARG_TOOL_MAX_OUTPUT_TOKENS=64000 \
+  bash scripts/run-catalog-sync-authoring.sh --simple-example
+```
+
+A different tool model uses its own supported output allowance. The exact
+`gpt-6.1-sol` model has a built-in maximum of 128000 tokens per request. Switching
+to other model identifiers or deployment aliases requires an explicit allowance.
+Both stages retain their selected settings in `run-settings.json`, with the
+tool settings under `tool_implementation`. The legacy flat workflow shares one
+provider and rejects differing tool-stage settings. Reasoning and model changes
+affect generation. Container execution retains the selected toolchain bounds.
 
 Graph readiness retains the exporter's complete collection-budget metadata,
 including its assumed default of 128 evidence declarations and per-claim counts.
@@ -517,7 +545,8 @@ on 25 October 2026. This is an upper allowance, not a requested response length.
 An explicit override above that known limit fails before inference. Other model
 names and deployment aliases require an explicit `ENGARG_MAX_OUTPUT_TOKENS`
 matching their provider limit. The same allowance reaches authoring and tool
-implementation. The default decoded response allowance is 16 MiB.
+implementation unless a graph tool-stage override selects a separate allowance.
+The default decoded response allowance is 16 MiB.
 
 Argument depth is automatic by default. Set `ENGARG_ARGUMENT_DEPTH` from 1
 through 16 to impose an explicit bound. This replaces the previous hardcoded

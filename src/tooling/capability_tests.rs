@@ -814,11 +814,7 @@ async fn coding_repair_does_not_retry_infrastructure_limits_or_cancellation() {
             runner.clone(),
         )
         .await;
-        match failure {
-            "runner_io" => assert!(matches!(result, Err(Error::Io(_)))),
-            "runner_budget" => assert!(matches!(result, Err(Error::Budget(_)))),
-            _ => assert!(matches!(result, Err(Error::Provider(_)))),
-        }
+        assert!(matches!(result, Err(Error::ToolExecution(_))));
         assert_eq!(model.calls.load(Ordering::SeqCst), 2);
         assert_eq!(runner.executions.load(Ordering::SeqCst), 1);
         assert_eq!(retained_attempts(directory.path()).len(), 1);

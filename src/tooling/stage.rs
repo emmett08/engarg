@@ -271,6 +271,7 @@ impl ToolingSession {
             config.profile.clone(),
             config.supervisor.clone(),
         )?);
+        super::runner_preflight::check_runner(runner.as_ref(), &config.profile).ensure_passed()?;
         let store = PackageStore::new(&config.store)?;
         let parent = config
             .output_dir
@@ -336,7 +337,8 @@ impl ToolingSession {
             finished: false,
         };
         let result = self.implement_inner(model, report, &cancellation).await;
-        self.audit(&json!({"event":"finished","passed":result.is_ok()}))?;
+        self.audit(&json!({"event":"finished","passed":result.is_ok(),
+            "execution_failure":match &result { Err(Error::ToolExecution(message)) => Some(message), _ => None }}))?;
         guard.finished = true;
         result
     }
