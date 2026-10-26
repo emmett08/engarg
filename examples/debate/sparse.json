@@ -1,0 +1,17 @@
+{
+  "participants": 6,
+  "rounds": 1,
+  "topology": {
+    "kind": "sparse",
+    "edges": [
+      { "from": 0, "to": 1 },
+      { "from": 1, "to": 2 },
+      { "from": 2, "to": 0 },
+      { "from": 2, "to": 3 },
+      { "from": 3, "to": 4 },
+      { "from": 4, "to": 5 },
+      { "from": 5, "to": 3 }
+    ]
+  },
+  "adaptation": { "kind": "static" }
+}

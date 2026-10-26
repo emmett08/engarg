@@ -62,7 +62,7 @@ fn write_json(file: &mut fs::File, value: &impl serde::Serialize) -> Result<(), 
 
 /// Previously generated packages remain usable after a deterministic replan.
 /// The caller validates the bounded provenance chain before this traversal.
-fn packages(
+pub(super) fn packages(
     raw: &Value,
     executable: &Path,
 ) -> Result<BTreeMap<String, ImplementedCapability>, Error> {

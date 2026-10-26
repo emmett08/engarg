@@ -148,7 +148,7 @@ mod tests {
         let request: Request =
             serde_json::from_str(include_str!("../../examples/request.json")).unwrap();
         let argument: ArgumentCase =
-            serde_json::from_str(include_str!("../../examples/case.json")).unwrap();
+            crate::live_output::case(include_str!("../../examples/case.json"));
         json!({
             "schema_version":"engarg.run.v2","execution_mode":"saved_fixture","input_sha256":"fixture",
             "mode":"single","request":request,"argument":argument,"transcript":[],"limitations":[]

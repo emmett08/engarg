@@ -82,19 +82,13 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: a9ed2ac5dc090afbe6efc96d7084686ec70dbf0d
+      EAL_REVISION: 9da53e5caf1936a29663192779dc4991a0dd550f
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: emmett08/eal-mcp
-          ref: ${{ env.EAL_REVISION }}
-          path: .eal-producer
           persist-credentials: false
       - name: Install both declared toolchains
         run: |
@@ -103,13 +97,10 @@ jobs:
       - uses: ./.github/actions/cargo-cache
         with:
           scope: eal-contracts
-          toolchains: 1.99.1 1.90.0
-          targets: |
-            target
-            .eal-producer/target
-      - name: Build the pinned EAL producer and native companions
-        working-directory: .eal-producer
-        run: cargo +1.90.0 build --workspace --bins --locked
+          toolchains: 1.99.1
+      - uses: ./.github/actions/eal-producer
+        with:
+          revision: ${{ env.EAL_REVISION }}
       - name: Check published collector descriptors
         run: |
           test "$(git -C .eal-producer rev-parse HEAD)" = "$EAL_REVISION"
@@ -121,13 +112,21 @@ jobs:
         run: |
           export ENGARG_EAL_HOST="$PWD/.eal-producer/target/debug/eal-host"
           export EAL_COLLECTOR="$PWD/.eal-producer/target/debug/eal-collector"
+          export ENGARG_EAL_COORDINATE="$PWD/.eal-producer/target/debug/eal-coordinate"
           export EAL_CORE="$PWD/.eal-producer/target/debug/eal-core"
           export ENGARG_CATALOGUE_MCP="$PWD/target/debug/examples/catalogue_mcp"
           test -x "$ENGARG_EAL_HOST"
           test -x "$EAL_CORE"
+          test -x "$ENGARG_EAL_COORDINATE"
           cargo +1.99.1 build --locked --example catalogue_mcp
           test -x "$ENGARG_CATALOGUE_MCP"
           cargo +1.99.1 test --locked --bin engarg tooling_commands::native_provider -- --ignored
           cargo +1.99.1 test --locked --test tooling_docker generated_interface_native_preflight -- --ignored
           cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test support_cli --test support_export --test support_batch -- --ignored
           cargo +1.99.1 test --locked --test support_method_export --test catalogue_workflow_native -- --ignored
+
+          # Keep one real CLI/coordinator smoke check in automatic compatibility.
+          # Exhaustive native graph/ticket sweeps run in ticket-acceptance.yml.
+          cargo +1.99.1 test --locked --test coordination_live the_actual_cli_coordinates_a_ring -- --ignored
+          cargo +1.99.1 test --locked --test ticket_native unavailable_new_mcp -- --ignored --nocapture
+          cargo +1.99.1 test --locked --test ticket_native measured_negative -- --ignored --nocapture

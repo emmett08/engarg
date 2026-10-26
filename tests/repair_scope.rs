@@ -1,4 +1,6 @@
 //! Dissent-only repairs reject unrelated edits and retain the boundary across attempts.
+#[path = "common/live_output.rs"]
+mod live_output;
 use engarg::{
     Error,
     domain::{ArgumentCase, Request},
@@ -11,7 +13,7 @@ use std::sync::Mutex;
 fn fixture() -> (Request, ArgumentCase) {
     (
         serde_json::from_str(include_str!("../examples/claim-only-request.json")).unwrap(),
-        serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap(),
+        live_output::case(include_str!("../examples/claim-only-case.json")),
     )
 }
 

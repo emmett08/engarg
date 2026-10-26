@@ -1,0 +1,17 @@
+{
+  "participants": 6,
+  "rounds": 2,
+  "topology": {
+    "kind": "grouped",
+    "groups": [[0, 1, 2], [3, 4, 5]]
+  },
+  "adaptation": {
+    "kind": "scheduled",
+    "round_edges": [
+      [
+        { "from": 2, "to": 3 },
+        { "from": 3, "to": 2 }
+      ]
+    ]
+  }
+}

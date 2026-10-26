@@ -31,6 +31,12 @@ Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOG
   --check-only                 Check inputs without build, Docker, host or inference.
   --collect-and-assess         Collect the selected claim and run EAL/3 assessment.
   --evidence-config JSON        Required graph planning configuration (collector may be "managed").
+  --topology NAME              Specialist graph passed to EngArg and its native coordinator.
+  --debate-participants N       Preset participants (3-16; default: 6).
+  --debate-rounds N             Peer rounds (1-8; default: 1).
+  --topology-config JSON       Complete graph configuration, retained as an exact snapshot.
+  --eal-coordinate PATH        Native coordinator executable, otherwise sibling of eal-host.
+  --coordination-run DIR       New coordinator journal directory, otherwise under this run.
   --replan-analysis JSON        Reuse a saved graph analysis and refresh routes without authoring calls.
   --legacy-flat                 Use the earlier flat collector-planning workflow.
   --implement-tools            Generate and fixture-test missing collectors (default: Rust).
@@ -54,6 +60,13 @@ toolchain=${ENGARG_TOOLCHAIN:-}
 tool_store=${ENGARG_TOOL_STORE:-}
 tool_max_calls=${ENGARG_TOOL_MAX_CALLS:-16}
 tool_timeout=${ENGARG_TOOL_TIMEOUT_SECS:-3600}
+topology=''
+debate_participants=''
+debate_rounds=''
+topology_config=''
+eal_coordinate=${ENGARG_EAL_COORDINATE:-}
+coordinate_explicit=0
+coordination_run=''
 while [[ $# -gt 0 ]]; do
   case $1 in
     --check-only) check_only=1; shift ;;
@@ -66,6 +79,17 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 && -n $2 ]] || fail 'Missing value for --replan-analysis'
       replan_analysis=$2; shift 2 ;;
     --implement-tools) implement_tools=1; shift ;;
+    --topology|--debate-participants|--debate-rounds|--topology-config|--eal-coordinate|--coordination-run)
+      [[ $# -ge 2 && -n $2 ]] || fail "Missing value for $1"
+      case $1 in
+        --topology) topology=$2 ;;
+        --debate-participants) debate_participants=$2 ;;
+        --debate-rounds) debate_rounds=$2 ;;
+        --topology-config) topology_config=$2 ;;
+        --eal-coordinate) eal_coordinate=$2; coordinate_explicit=1 ;;
+        --coordination-run) coordination_run=$2 ;;
+      esac
+      shift 2 ;;
     --tool-language|--toolchain|--tool-store|--tool-max-calls|--tool-timeout-secs)
       [[ $# -ge 2 && -n $2 ]] || fail "Missing value for $1"
       tool_options=1
@@ -92,12 +116,19 @@ else
   [[ -z $replan_analysis ]] || fail '--replan-analysis requires graph planning.'
   evidence_config=''
 fi
+[[ -z $topology_config || ( -z $topology && -z $debate_participants && -z $debate_rounds ) ]] || fail '--topology-config cannot be combined with preset topology options.'
+[[ -n $topology || ( -z $debate_participants && -z $debate_rounds ) ]] || fail 'Participant and round options require --topology.'
+[[ -n $topology || -n $topology_config || ( $coordinate_explicit -eq 0 && -z $coordination_run ) ]] || fail 'Coordinator options require a selected topology.'
+[[ -z $replan_analysis || ( -z $topology && -z $topology_config ) ]] || fail 'A retained analysis already fixes its topology; select topology during authoring.'
 [[ $implement_tools -eq 1 || $tool_options -eq 0 ]] || fail 'Tool implementation options require --implement-tools.'
 for required in git python3; do command -v "$required" >/dev/null || fail "Required command: $required"; done
 repo=$(git rev-parse --show-toplevel) || fail 'Run from an EngArg checkout.'
 # Keep operator paths relative to the invocation directory, including leaf-file
 # symlinks so the bounded, no-follow admission below can reject them.
 absolute_path() { python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$1"; }
+if [[ -n $topology_config ]]; then topology_config=$(absolute_path "$topology_config"); fi
+if [[ -n $eal_coordinate ]]; then eal_coordinate=$(absolute_path "$eal_coordinate"); fi
+if [[ -n $coordination_run ]]; then coordination_run=$(absolute_path "$coordination_run"); fi
 inputs=$(absolute_path "$1")
 [[ -e $inputs ]] || fail "Operator inputs do not exist: $inputs"
 if [[ $evidence_planning == graph ]]; then
@@ -171,7 +202,8 @@ trap on_exit EXIT
 # Read each operator file once, bound its size, reject duplicate keys and retain
 # exact private snapshots. Only allowlisted scope fields enter the LLM request.
 python3 - "$inputs" "$catalogue" "$run_dir" "$implement_tools" "$tool_language" \
-  "$toolchain" "$tool_store" "$tool_max_calls" "$tool_timeout" "$evidence_planning" "$evidence_config" "$replan_analysis" <<'PY'
+  "$toolchain" "$tool_store" "$tool_max_calls" "$tool_timeout" "$evidence_planning" "$evidence_config" "$replan_analysis" \
+  "$topology" "$debate_participants" "$debate_rounds" "$topology_config" "$eal_coordinate" "$coordination_run" <<'PY'
 import datetime, hashlib, json, os, pathlib, re, stat, sys, urllib.parse
 
 inputs_path, catalogue_path, directory = map(pathlib.Path, sys.argv[1:4])
@@ -214,6 +246,28 @@ def write(name, value):
     (directory / name).write_text(exact_json(value) + '\n', encoding='utf-8')
 try:
     original, inputs = read(inputs_path)
+    selected_topology, participant_text, round_text, topology_path, coordinator, journal = sys.argv[13:19]
+    debate = None
+    topology_raw = None
+    if selected_topology:
+        if selected_topology not in {'fully-connected', 'fully_connected', 'grouped', 'chain', 'ring', 'star', 'tree', 'layered', 'sparse', 'bipartite'}:
+            raise ValueError('Unknown topology preset')
+        participants = int(participant_text or '6')
+        rounds = int(round_text or '1')
+        debate = {'preset': selected_topology, 'participants': participants, 'rounds': rounds}
+    elif topology_path:
+        topology_raw, graph = read(pathlib.Path(topology_path), limit=65536)
+        if len(topology_raw) > 65536 or not isinstance(graph, dict):
+            raise ValueError('Topology configuration exceeds its byte bound')
+        participants = graph.get('participants', 6)
+        rounds = graph.get('rounds', 1)
+        debate = {'configuration_sha256': hashlib.sha256(topology_raw).hexdigest(), 'participants': participants, 'rounds': rounds}
+    if debate:
+        if type(participants) is not int or type(rounds) is not int or not 3 <= participants <= 16 or not 1 <= rounds <= 8:
+            raise ValueError('Invalid topology participant or round count')
+        debate.update(coordinator=coordinator or None, journal=journal or None)
+        if topology_raw is not None:
+            (directory / 'topology.snapshot.json').write_bytes(topology_raw)
     catalogue_raw, catalogue = read(catalogue_path) if sys.argv[2] else (None, None)
     planning = {'mode': sys.argv[10]}
     if planning['mode'] == 'graph':
@@ -377,7 +431,7 @@ try:
         'search_window_utc': window,
         'operator_inputs': str(inputs_path), 'operator_catalogue': str(catalogue_path) if catalogue_raw is not None else None,
         'tool_implementation': implementation, 'evidence_planning': planning, 'analysis_reuse': reuse,
-        'simple_example': simple_example,
+        'simple_example': simple_example, 'debate': debate,
         'example_qualification_probes_sha256': example_probes_sha256
     })
 except (KeyError, TypeError, ValueError, OSError, OverflowError):
@@ -397,7 +451,15 @@ service_tier=${ENGARG_SERVICE_TIER:-default}
 reasoning_effort=${ENGARG_REASONING_EFFORT:-high}
 repairs=${ENGARG_MAX_REPAIRS:-1}
 [[ $repairs =~ ^[0-3]$ ]] || fail 'ENGARG_MAX_REPAIRS must be 0, 1, 2 or 3.'
-max_calls=$((6 + repairs))
+minimum_calls=$(python3 - "$run_dir/input-identity.json" "$repairs" <<'PY'
+import json, pathlib, sys
+debate = json.loads(pathlib.Path(sys.argv[1]).read_text()).get('debate')
+print((debate['participants'] * (debate['rounds'] + 1) + 3 if debate else 6) + int(sys.argv[2]))
+PY
+)
+max_calls=${ENGARG_MAX_CALLS:-$minimum_calls}
+[[ $max_calls =~ ^[1-9][0-9]{0,9}$ && $max_calls -le 4294967295 && $max_calls -ge $minimum_calls ]] ||
+  fail "ENGARG_MAX_CALLS must reserve at least $minimum_calls calls for the selected topology and repairs."
 request_timeout=${ENGARG_REQUEST_TIMEOUT_SECS:-1800}
 run_timeout=${ENGARG_TIMEOUT_SECS:-10800}
 input_bytes=${ENGARG_MAX_INPUT_BYTES:-1048576}
@@ -452,6 +514,11 @@ printf 'Selected EAL host (%s): %s\n' "$eal_host_selection" "$eal_host" >&2
 # Follow an operator-installed eal-mcp alias, preserving the runtime's legacy
 # supervisor preference when both companion names are installed.
 eal_runtime_dir=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).with_name("eal-mcp").resolve().parent)' "$eal_host")
+if [[ -n $topology || -n $topology_config ]]; then
+  eal_coordinate=${eal_coordinate:-$eal_runtime_dir/eal-coordinate}
+  coordination_run=${coordination_run:-$run_dir/coordination}
+  [[ -f $eal_coordinate && -x $eal_coordinate ]] || fail "Missing executable EAL coordinator: $eal_coordinate"
+fi
 [[ -f $eal_runtime_dir/eal-method-worker && -x $eal_runtime_dir/eal-method-worker ]] ||
   fail "Missing executable EAL companion: $eal_runtime_dir/eal-method-worker. Install the pinned eal-runtime package; see README.md."
 eal_supervisor="$eal_runtime_dir/eal-process-supervisor"
@@ -514,6 +581,12 @@ record.update(git_commit=output('git','rev-parse','HEAD'), rustc=output('rustc',
 record['tool_implementation'] = json.loads((directory/'input-identity.json').read_text())['tool_implementation']
 record['evidence_planning'] = json.loads((directory/'input-identity.json').read_text())['evidence_planning']
 record['analysis_reuse'] = json.loads((directory/'input-identity.json').read_text())['analysis_reuse']
+record['debate'] = json.loads((directory/'input-identity.json').read_text()).get('debate')
+if record['debate']:
+    coordinator = pathlib.Path(record['debate']['coordinator']) if record['debate']['coordinator'] else host.with_name('eal-coordinate')
+    record['debate'].update(coordinator=str(coordinator.resolve()),
+        journal=record['debate']['journal'] or str(directory/'coordination'),
+        coordinator_binary_sha256=hashlib.sha256(coordinator.read_bytes()).hexdigest())
 if record['evidence_planning']['mode'] == 'graph':
     configuration = json.loads((directory/'evidence-config.json').read_text())
     collector = pathlib.Path(configuration['collector'])
@@ -578,6 +651,16 @@ run_analysis() {
     authoring_checkpoint="$run_dir/authoring.checkpoint.json"
     set -- "$@" --evidence-planning graph --evidence-config "$run_dir/evidence-config.json" \
       --checkpoint "$authoring_checkpoint"
+  fi
+  if [[ -n $topology || -n $topology_config ]]; then
+    if [[ -n $topology_config ]]; then
+      set -- "$@" --topology-config "$run_dir/topology.snapshot.json"
+    else
+      set -- "$@" --topology "$topology"
+      if [[ -n $debate_participants ]]; then set -- "$@" --debate-participants "$debate_participants"; fi
+      if [[ -n $debate_rounds ]]; then set -- "$@" --debate-rounds "$debate_rounds"; fi
+    fi
+    set -- "$@" --eal-coordinate "$eal_coordinate" --coordination-run "$coordination_run"
   fi
   if [[ -n $argument_depth ]]; then
     set -- "$@" --argument-depth "$argument_depth"

@@ -1,0 +1,66 @@
+name: Pinned EAL producer
+description: Verify the pinned producer and reuse compatible native build outputs.
+inputs:
+  revision:
+    description: Exact EAL source commit used by the consumer.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Require an exact producer revision
+      shell: bash
+      env:
+        EAL_REVISION: ${{ inputs.revision }}
+      run: '[[ "$EAL_REVISION" =~ ^[0-9a-f]{40}$ ]]'
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: emmett08/eal-mcp
+        ref: ${{ inputs.revision }}
+        path: .eal-producer
+        persist-credentials: false
+    - name: Verify source and identify compatible producer outputs
+      id: environment
+      shell: bash
+      env:
+        EAL_REVISION: ${{ inputs.revision }}
+        EAL_CONFIGURATION: ${{ hashFiles('.eal-producer/Cargo.lock', '.eal-producer/**/Cargo.toml', '.eal-producer/**/build.rs', '.eal-producer/rust-toolchain.toml', '.eal-producer/.cargo/config*', '.cargo/config*', '.github/actions/eal-producer/action.yml') }}
+      run: |
+        test "$(git -C .eal-producer rev-parse HEAD)" = "$EAL_REVISION"
+        fingerprint=$(
+          {
+            rustup run 1.90.0 rustc -vV
+            cc --version
+            # Build parallelism changes scheduling, not compatible artifacts.
+            printf '%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}" \
+              "${CARGO_INCREMENTAL:-default}" "${RUSTFLAGS:-}" "${CARGO_ENCODED_RUSTFLAGS:-}" \
+              "${CARGO_BUILD_TARGET:-}"
+            # Include future profile overrides as well as today's debug settings.
+            while IFS= read -r profile; do
+              printf '%s=%s\n' "$profile" "${!profile}"
+            done < <(compgen -A variable CARGO_PROFILE_ | LC_ALL=C sort)
+          } | shasum -a 256 | cut -d ' ' -f 1
+        )
+        printf 'key=%s-%s-eal-producer-v1-%s-%s-%s\n' \
+          "$RUNNER_OS" "$RUNNER_ARCH" "$EAL_REVISION" "$fingerprint" \
+          "$EAL_CONFIGURATION" >> "$GITHUB_OUTPUT"
+    - name: Restore compatible producer build outputs
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, Node.js 24
+      with:
+        # The consumer cache owns Cargo downloads; these paths never overlap.
+        path: .eal-producer/target
+        key: ${{ steps.environment.outputs.key }}
+    - name: Build the pinned native EAL companions
+      shell: bash
+      working-directory: .eal-producer
+      env:
+        CARGO_TARGET_DIR: ${{ github.workspace }}/.eal-producer/target
+      # Always let Cargo check source and compiler freshness, including on hits.
+      run: cargo +1.90.0 build --workspace --bins --locked
+    - name: Save successfully built producer outputs
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, Node.js 24
+      with:
+        # Preserve completed producer work even if a later consumer test fails.
+        path: .eal-producer/target
+        key: ${{ steps.environment.outputs.key }}

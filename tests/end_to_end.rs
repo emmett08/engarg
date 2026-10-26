@@ -3,6 +3,8 @@
 
 #[path = "common/argument_assertions.rs"]
 mod argument_assertions;
+#[path = "common/live_output.rs"]
+mod live_output;
 
 use serde_json::{Value, json};
 use std::{
@@ -140,7 +142,7 @@ fn case_fixture(claim_only: bool, reading: ReadingFixture) -> Value {
     } else {
         include_str!("../examples/case.json")
     };
-    let mut case: Value = serde_json::from_str(text).unwrap();
+    let mut case: Value = live_output::value(text);
     if reading == ReadingFixture::Concise {
         assert!(claim_only);
         let original = case.clone();

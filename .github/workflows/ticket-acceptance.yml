@@ -1,0 +1,116 @@
+name: Ticket acceptance
+run-name: Ticket acceptance (${{ github.event_name == 'workflow_dispatch' && inputs.topology || 'ring' }})
+
+# PRs execute one generated Rust ring ticket. Exhaustive sweeps require dispatch.
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      topology:
+        description: Topology for complete-ticket acceptance, or all nine
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - fully_connected
+          - grouped
+          - chain
+          - ring
+          - star
+          - tree
+          - layered
+          - sparse
+          - bipartite
+      generated_tools:
+        description: Also generate, compile and execute missing Rust tools in Docker
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+# New PR revisions supersede older PR work. Explicit manual runs retain results.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  tickets:
+    name: Native ticket acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_INCREMENTAL: '0'
+      # Native workers and Docker builds share one runner. Bound build pressure
+      # and run the expensive acceptance tests serially below.
+      CARGO_BUILD_JOBS: '2'
+      ENGARG_TICKET_TOPOLOGIES: ${{ github.event_name == 'workflow_dispatch' && inputs.topology || 'ring' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the declared toolchains
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup toolchain install 1.90.0 --profile minimal
+      - name: Read the exact EAL dependency revision
+        id: source
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, tomllib
+          manifest = tomllib.loads(pathlib.Path('Cargo.toml').read_text())
+          dependencies = [value for name, value in manifest['dependencies'].items() if name.startswith('eal-')]
+          pins = {(value.get('git'), value.get('rev')) for value in dependencies}
+          if len(pins) != 1:
+              raise SystemExit('EAL dependencies require one exact Git source revision')
+          url, revision = pins.pop()
+          if url != 'https://github.com/emmett08/eal-mcp' or not re.fullmatch(r'[0-9a-f]{40}', revision or ''):
+              raise SystemExit('EAL acceptance requires the pinned companion repository')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('revision=' + revision + '\n')
+          PY
+      - uses: ./.github/actions/cargo-cache
+        with:
+          # Share consumer outputs and downloads with compatibility.
+          scope: eal-contracts
+          toolchains: 1.99.1
+      - uses: ./.github/actions/eal-producer
+        with:
+          revision: ${{ steps.source.outputs.revision }}
+      - name: Build the consumer and local MCP fixture
+        run: cargo +1.99.1 build --locked --bins --example catalogue_mcp
+      - name: Admit exact native companions
+        env:
+          EAL_REVISION: ${{ steps.source.outputs.revision }}
+        run: |
+          test "$(git -C .eal-producer rev-parse HEAD)" = "$EAL_REVISION"
+          for binary in eal eal-core eal-host eal-mcp eal-coordinate eal-collector eal-command-supervisor eal-process-supervisor eal-method-worker eal-aspic-solve; do
+            test -x "$PWD/.eal-producer/target/debug/$binary"
+          done
+          test -x "$PWD/target/debug/engarg"
+          test -x "$PWD/target/debug/engarg-process-supervisor"
+          test -x "$PWD/target/debug/examples/catalogue_mcp"
+          printf 'ENGARG_EAL_HOST=%s\nEAL_COLLECTOR=%s\nENGARG_EAL_COORDINATE=%s\nENGARG_CATALOGUE_MCP=%s\n' \
+            "$PWD/.eal-producer/target/debug/eal-host" \
+            "$PWD/.eal-producer/target/debug/eal-collector" \
+            "$PWD/.eal-producer/target/debug/eal-coordinate" \
+            "$PWD/target/debug/examples/catalogue_mcp" >> "$GITHUB_ENV"
+      - name: Check native graph routing and CLI execution
+        if: github.event_name == 'workflow_dispatch'
+        run: cargo +1.99.1 test --locked --test coordination_live -- --include-ignored --nocapture --test-threads=1
+      - name: Execute tickets with a registered MCP and compiled Rust collector
+        if: github.event_name == 'workflow_dispatch'
+        run: cargo +1.99.1 test --locked --test ticket_native every_topology_registers_a_new_mcp_and_executes_a_compiled_collector_in_one_ticket -- --exact --include-ignored --nocapture --test-threads=1
+      - name: Prepare the isolated Rust toolchain
+        if: github.event_name == 'pull_request' || inputs.generated_tools
+        run: docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
+      - name: Generate missing tools and execute their tickets
+        if: github.event_name == 'pull_request' || inputs.generated_tools
+        run: cargo +1.99.1 test --locked --test ticket_native every_topology_generates_compiles_registers_and_executes_its_missing_rust_tool -- --exact --include-ignored --nocapture --test-threads=1
+      - name: Check that rejected compilation blocks evidence execution
+        if: github.event_name == 'workflow_dispatch' && inputs.generated_tools
+        run: cargo +1.99.1 test --locked --test ticket_native a_rejected_compilation_blocks_before_evidence_execution -- --exact --include-ignored --nocapture --test-threads=1

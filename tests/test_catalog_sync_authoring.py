@@ -405,6 +405,75 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
     def invocations(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()]
 
+    def test_topology_preflight_records_all_presets_without_runtime_dependencies(self):
+        for preset in ['fully-connected', 'grouped', 'chain', 'ring', 'star', 'tree', 'layered', 'sparse', 'bipartite']:
+            with self.subTest(preset=preset):
+                directory = self.successful_run_directory(self.run_script(
+                    '--check-only', '--topology', preset, '--debate-participants', '4',
+                    '--debate-rounds', '2', self.inputs))
+                identity = json.loads((directory / 'input-identity.json').read_text())
+                self.assertEqual(identity['debate']['preset'], preset)
+                self.assertEqual(identity['debate']['participants'], 4)
+                self.assertEqual(identity['debate']['rounds'], 2)
+                self.assertFalse((directory / 'run-settings.json').exists())
+
+    def test_topology_file_is_snapshotted_exactly_and_conflicting_flags_are_rejected(self):
+        config = self.inputs.with_name('topology.json')
+        raw = b'{ "participants":4, "rounds":2, "topology":{"kind":"ring"} }\n'
+        config.write_bytes(raw)
+        directory = self.successful_run_directory(self.run_script(
+            '--check-only', '--topology-config', config, self.inputs))
+        self.assertEqual((directory / 'topology.snapshot.json').read_bytes(), raw)
+        identity = json.loads((directory / 'input-identity.json').read_text())
+        self.assertEqual(identity['debate']['configuration_sha256'], hashlib.sha256(raw).hexdigest())
+        for options in [('--topology', 'ring', '--topology-config', config),
+                        ('--debate-rounds', '2'), ('--eal-coordinate', 'unselected')]:
+            rejected = self.run_script('--check-only', *options, self.inputs)
+            self.assertEqual(rejected.returncode, 2)
+
+    def test_topology_arguments_and_automatic_call_budget_reach_actual_analysis_boundary(self):
+        self.install_pipeline_stubs()
+        coordinate = self.commands / 'eal-coordinate'
+        coordinate.write_text('#!/usr/bin/env bash\nexit 0\n')
+        coordinate.chmod(0o700)
+        directory = self.pipeline_directory(self.run_script(
+            '--topology', 'ring', '--debate-participants', '4', '--debate-rounds', '2',
+            self.inputs))
+        analysis = next(call for call in self.invocations() if call[0] == 'analyse')
+        value = lambda name: analysis[analysis.index(name) + 1]
+        self.assertEqual(value('--topology'), 'ring')
+        self.assertEqual(value('--debate-participants'), '4')
+        self.assertEqual(value('--debate-rounds'), '2')
+        self.assertEqual(value('--max-calls'), '16')
+        self.assertEqual(value('--eal-coordinate'), str(coordinate.resolve()))
+        self.assertEqual(value('--coordination-run'), str((directory / 'coordination').resolve()))
+        self.assertEqual(json.loads((directory / 'run-settings.json').read_text())['debate']['preset'], 'ring')
+
+    def test_explicit_topology_budget_and_configuration_snapshot_are_forwarded(self):
+        self.install_pipeline_stubs()
+        coordinate = self.commands / 'eal-coordinate'
+        coordinate.write_text('#!/usr/bin/env bash\nexit 0\n')
+        coordinate.chmod(0o700)
+        config = self.inputs.with_name('selected.json')
+        raw = b'{"participants":4,"rounds":2,"topology":{"kind":"ring"}}\n'
+        config.write_bytes(raw)
+        directory = self.pipeline_directory(self.run_script(
+            '--topology-config', config, self.inputs,
+            env=dict(self.env, ENGARG_MAX_CALLS='30', ENGARG_EAL_COORDINATE=str(coordinate))))
+        analysis = next(call for call in self.invocations() if call[0] == 'analyse')
+        value = lambda name: analysis[analysis.index(name) + 1]
+        self.assertEqual(value('--max-calls'), '30')
+        self.assertEqual(value('--topology-config'), str((directory / 'topology.snapshot.json').resolve()))
+        self.assertEqual((directory / 'topology.snapshot.json').read_bytes(), raw)
+
+    def test_topology_explicit_underbudget_stops_before_host_and_model_calls(self):
+        self.install_pipeline_stubs()
+        result = self.run_script('--topology', 'ring', '--debate-participants', '4',
+            self.inputs, env=dict(self.env, ENGARG_MAX_CALLS='7'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('at least 12 calls', result.stderr)
+        self.assertFalse(self.log.exists())
+
     def test_dirty_preflight_needs_only_input_tools_and_preserves_tracked_edits(self):
         self.make_dirty()
         before = self.tracked_state()

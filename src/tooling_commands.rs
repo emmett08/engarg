@@ -13,6 +13,7 @@ use std::{
 };
 
 pub mod capability;
+pub mod integration;
 mod native_provider;
 pub mod provider;
 pub mod registration;

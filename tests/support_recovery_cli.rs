@@ -1,5 +1,7 @@
 //! Recovery checkpoints one new exchange while retaining the paid authoring history.
 #![cfg(unix)]
+#[path = "common/live_output.rs"]
+mod live_output;
 #[path = "common/support.rs"]
 mod support_fixture;
 
@@ -55,6 +57,7 @@ impl Fixture {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
         let (request, case, mut repaired, _, route_proofs, _) = support_fixture::fixture();
+        let case = live_output::case(&serde_json::to_string(&case).unwrap());
         repaired.schema = engarg::support_requirements::SUPPORT_ELABORATION_SCHEMA.into();
         let mut pending = repaired.clone();
         pending.acquisitions.clear();

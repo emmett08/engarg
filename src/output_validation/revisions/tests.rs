@@ -7,7 +7,7 @@ use crate::{
 
 fn fixture() -> (Request, ArgumentCase, Vec<RetainedObjection>) {
     let request = serde_json::from_str(include_str!("../../../examples/request.json")).unwrap();
-    let case = serde_json::from_str(include_str!("../../../examples/case.json")).unwrap();
+    let case = crate::live_output::case(include_str!("../../../examples/case.json"));
     let mut retained = Vec::new();
     retain_objections(&case, Role::Synthesiser, &mut retained);
     (request, case, retained)

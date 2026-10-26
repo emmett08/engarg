@@ -1169,6 +1169,82 @@ fn saved_graph_report(path: &std::path::Path) {
 }
 
 #[test]
+fn cli_graph_export_retains_an_explicit_independent_review_binding() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("analysis.json");
+    saved_graph_report(&input);
+    let binding = json!({
+        "kind":"command", "version":"1", "argv":["/operator/independent-review"],
+        "timeout_seconds":30, "max_output_bytes":1048576,
+        "inherit_env":[], "parallel_safe":false,
+    });
+    let binding_path = directory.path().join("review-binding.json");
+    std::fs::write(&binding_path, serde_json::to_vec(&binding).unwrap()).unwrap();
+    for supplied in [false, true] {
+        let output = directory.path().join(if supplied {
+            "bound.json"
+        } else {
+            "pending.json"
+        });
+        let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_engarg"));
+        command
+            .args(["eal", "export", "--input"])
+            .arg(&input)
+            .args(["--format", "json", "--output"])
+            .arg(&output);
+        if supplied {
+            command.arg("--review-binding").arg(&binding_path);
+        }
+        let result = command.output().unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let bundle: engarg::support_export::SupportExport =
+            serde_json::from_slice(&std::fs::read(output).unwrap()).unwrap();
+        assert_eq!(bundle.locations.review_binding.is_some(), supplied);
+        assert_eq!(
+            bundle.registry.tools.contains_key("engarg_review_contract"),
+            supplied
+        );
+        assert_eq!(
+            bundle
+                .pending
+                .iter()
+                .any(|pending| pending.kind == "independent_review_registration"),
+            !supplied
+        );
+        if supplied {
+            assert_eq!(
+                serde_json::to_value(&bundle.registry.tools["engarg_review_contract"]).unwrap(),
+                binding
+            );
+            eal_collector_contracts::RegistryDocument::from_toml(
+                &bundle.registry.to_toml().unwrap(),
+            )
+            .unwrap();
+        }
+        support_export::reconstruct_bundle(&bundle).unwrap();
+    }
+    let mut invalid = binding;
+    invalid["timeout_seconds"] = json!(0);
+    std::fs::write(&binding_path, serde_json::to_vec(&invalid).unwrap()).unwrap();
+    let rejected_output = directory.path().join("rejected.json");
+    let result = std::process::Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["eal", "export", "--input"])
+        .arg(input)
+        .args(["--format", "json", "--output"])
+        .arg(&rejected_output)
+        .arg("--review-binding")
+        .arg(binding_path)
+        .output()
+        .unwrap();
+    assert!(!result.status.success());
+    assert!(!rejected_output.exists());
+}
+
+#[test]
 fn cli_export_and_prepare_write_matching_graph_bundles_with_evidence_plans() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path().to_path_buf();

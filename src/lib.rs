@@ -45,9 +45,15 @@ mod legacy_export;
 mod legacy_plans;
 mod output_validation;
 
+#[cfg(test)]
+#[path = "../tests/common/live_output.rs"]
+mod live_output;
+
 /// Errors distinguish invalid arguments from transport and resource failures.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("ticket outcome: {0}")]
+    Ticket(String),
     #[error("invalid input: {0}")]
     InvalidInput(String),
     #[error("invalid model output: {0}")]
@@ -70,6 +76,15 @@ impl From<eal_adapters::Error> for Error {
             eal_adapters::Error::Budget(message) => Self::Budget(message),
             eal_adapters::Error::Io(error) => Self::Io(error),
             eal_adapters::Error::Json(error) => Self::Json(error),
+        }
+    }
+}
+
+impl From<eal_coordination_contracts::Error> for Error {
+    fn from(error: eal_coordination_contracts::Error) -> Self {
+        match error {
+            eal_coordination_contracts::Error::InvalidInput(message) => Self::InvalidInput(message),
+            eal_coordination_contracts::Error::Protocol(message) => Self::Provider(message),
         }
     }
 }

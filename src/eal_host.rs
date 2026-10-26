@@ -283,6 +283,7 @@ fn command(
     target: &Target,
     input: Vec<u8>,
     timeout: Duration,
+    registered_entry: Option<&str>,
 ) -> Result<CommandRequest, Error> {
     let mut environment = std::collections::BTreeMap::new();
     for name in [
@@ -316,12 +317,20 @@ fn command(
         "--workspace".into(),
         target.workspace.to_str().expect("validated UTF-8").into(),
         "--exposure".into(),
-        "operator".into(),
+        if registered_entry.is_some() {
+            "registered"
+        } else {
+            "operator"
+        }
+        .into(),
         "--methods".into(),
         "builtin".into(),
         "--timeout".into(),
         timeout.as_secs_f64().to_string(),
     ];
+    if let Some(entry) = registered_entry {
+        argv.extend(["--known-entry".into(), entry.into()]);
+    }
     for (flag, path) in [
         ("--database", target.database.as_ref()),
         ("--registry", target.registry.as_ref()),
@@ -363,6 +372,35 @@ fn command(
 /// inconsistent exit statuses are transport failures. Child stderr is never
 /// included in an error or returned to the caller.
 pub async fn invoke(config: &HostConfig, request: &Value) -> Result<Value, Error> {
+    invoke_selected(config, request, None).await
+}
+
+/// Invoke a registered operation with one exact operator-selected source entry.
+pub async fn invoke_registered(
+    config: &HostConfig,
+    request: &Value,
+    entry: &str,
+) -> Result<Value, Error> {
+    if entry.is_empty()
+        || entry.len() > 256
+        || request["entry_id"] != entry
+        || !matches!(
+            request["operation"].as_str(),
+            Some("assess_known" | "get_known_packet")
+        )
+    {
+        return Err(invalid(
+            "registered host operation requires its exact selected entry",
+        ));
+    }
+    invoke_selected(config, request, Some(entry)).await
+}
+
+async fn invoke_selected(
+    config: &HostConfig,
+    request: &Value,
+    registered_entry: Option<&str>,
+) -> Result<Value, Error> {
     let started = std::time::Instant::now();
     let target = config.validate()?;
     if request
@@ -385,7 +423,7 @@ pub async fn invoke(config: &HostConfig, request: &Value) -> Result<Value, Error
         .filter(|duration| !duration.is_zero())
         .ok_or_else(|| Error::Budget("eal-host deadline exhausted during admission".into()))?;
     let outcome = eal_adapters::command::run_with_stream_limits(
-        command(config, &target, buffer.bytes, timeout)?,
+        command(config, &target, buffer.bytes, timeout, registered_entry)?,
         eal_process::StreamLimits {
             max_stdout_bytes: MAX_OUTPUT,
             max_stderr_bytes: MAX_STDERR,

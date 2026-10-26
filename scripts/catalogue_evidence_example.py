@@ -478,11 +478,22 @@ def qualify(directory, executable):
 def launch(arguments):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check-only", action="store_true")
-    parser.add_argument("--tool-language", default="python", choices=["python", "rust", "javascript"])
+    parser.add_argument("--tool-language", default="rust", choices=["python", "rust", "javascript"])
     parser.add_argument("--toolchain", type=Path)
+    graph = parser.add_mutually_exclusive_group()
+    graph.add_argument("--topology", choices=['fully-connected', 'fully_connected', 'grouped', 'chain', 'ring', 'star', 'tree', 'layered', 'sparse', 'bipartite'])
+    graph.add_argument("--topology-config", type=Path)
+    parser.add_argument("--debate-participants", type=int, choices=range(3, 17))
+    parser.add_argument("--debate-rounds", type=int, choices=range(1, 9))
+    parser.add_argument("--eal-coordinate", type=Path)
+    parser.add_argument("--coordination-run", type=Path)
     parser.add_argument("--replan-analysis", type=Path,
                         help="Reuse an accepted or resumed argument and continue the example without authoring calls.")
     options = parser.parse_args(arguments)
+    if (options.debate_participants is not None or options.debate_rounds is not None) and options.topology is None:
+        parser.error('participant and round options require --topology')
+    if (options.eal_coordinate is not None or options.coordination_run is not None) and not (options.topology or options.topology_config):
+        parser.error('coordinator options require a topology')
     repo = Path(__file__).resolve().parents[1]
     os.umask(0o077)
     base = repo / ".engarg-local"
@@ -521,6 +532,12 @@ def launch(arguments):
     configuration(directory, server)
     command = ["bash", str(repo / "scripts/run-catalog-sync-authoring.sh"), "--evidence-config", str(directory / "planning.json"),
                "--implement-tools", "--tool-language", options.tool_language, "--toolchain", str(profile)]
+    for name in ['topology', 'debate_participants', 'debate_rounds', 'topology_config', 'eal_coordinate', 'coordination_run']:
+        value = getattr(options, name)
+        if value is not None:
+            if isinstance(value, Path):
+                value = value.resolve()
+            command += ['--' + name.replace('_', '-'), str(value)]
     command += ["--check-only"] if options.check_only else ["--collect-and-assess"]
     if options.replan_analysis:
         command += ["--replan-analysis", str(options.replan_analysis.resolve())]

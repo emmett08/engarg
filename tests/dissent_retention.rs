@@ -1,5 +1,8 @@
 //! Revisions preserve dissent first identified during synthesis.
 
+#[path = "common/live_output.rs"]
+mod live_output;
+
 use engarg::{
     Error,
     domain::{ArgumentCase, DefeaterStatus, Request, validate_case},
@@ -28,7 +31,7 @@ struct Model {
 fn fixture() -> (Request, ArgumentCase) {
     (
         serde_json::from_str(include_str!("../examples/request.json")).unwrap(),
-        serde_json::from_str(include_str!("../examples/case.json")).unwrap(),
+        live_output::case(include_str!("../examples/case.json")),
     )
 }
 

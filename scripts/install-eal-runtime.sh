@@ -20,9 +20,10 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 
 TOOLCHAIN = "1.90.0"
-PACKAGES = ("eal-process", "eal-runtime", "eal-mcp", "eal-collectors")
+PACKAGES = ("eal-process", "eal-runtime", "eal-mcp", "eal-collectors", "eal-coordination", "eal-cli")
 BINARIES = ("eal-host", "eal-mcp", "eal-method-worker",
-            "eal-command-supervisor", "eal-process-supervisor", "eal-collector")
+            "eal-command-supervisor", "eal-process-supervisor", "eal-collector", "eal-coordinate", "eal-mas-server", "mas-protocol-codec",
+            "eal", "eal-core", "eal-syntax", "eal-runtime", "eal-aspic-solve")
 OWNER = ".engarg-eal-runtime-owner.json"
 RECEIPT = ".engarg-eal-runtime.json"
 
@@ -142,7 +143,7 @@ def cache_valid(prefix, owner):
 
 
 def build_companions(repo, prefix, git_url, revision, lock):
-    """Build the six admitted binaries together from one verified source tree."""
+    """Build the admitted binaries together from one verified source tree."""
     if shutil.which("git") is None:
         fail("Required command for runtime installation: git")
     environment = dict(os.environ, CARGO_TARGET_DIR=str(prefix / "target"))

@@ -21,9 +21,12 @@ use std::{
 mod authoring_commands;
 mod eal_commands;
 mod glossary_command;
+mod path_admission;
 mod progress;
 mod support_commands;
+mod ticket_commands;
 mod tooling_commands;
+mod topology_options;
 
 #[derive(Parser)]
 #[command(
@@ -38,6 +41,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Author, integrate and execute a durable engineering investigation ticket.
+    Ticket(ticket_commands::TicketArgs),
+    /// Internal supervised ticket-stage worker.
+    #[command(hide = true)]
+    TicketStage,
     /// Develop an argument and evidence plan from a claim through separate LLM calls.
     Analyse(Box<Analyse>),
     /// Inspect or resume initial authoring with retained paid exchanges.
@@ -119,6 +127,8 @@ struct Analyse {
     role_model: Vec<String>,
     #[arg(long, default_value = "hybrid")]
     mode: Mode,
+    #[command(flatten)]
+    debate: topology_options::TopologyOptions,
     /// API protocol. The endpoint must support strict JSON Schema outputs.
     #[arg(long, value_enum, default_value = "responses")]
     api: ApiStyle,
@@ -380,19 +390,29 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
 async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> Result<(), Error> {
     let started = std::time::Instant::now();
     progress.phase("input and configuration checks");
+    let debate = args.debate.admit(args.mode)?;
+    let coordinator = args
+        .debate
+        .coordinator(debate.is_some(), args.output.output.as_deref())?;
+    path_admission::analyse(
+        args.output.output.as_deref(),
+        args.audit.as_deref(),
+        coordinator
+            .as_ref()
+            .map(|config| config.run_directory.as_path()),
+    )?;
     if args.max_input_bytes == 0 || args.max_response_bytes == 0 || args.timeout_secs == 0 {
         return Err(Error::InvalidInput(
             "resource limits must be positive".into(),
         ));
     }
-    if args.output.output.as_ref().is_some_and(|p| p.exists()) {
-        return Err(Error::InvalidInput("output file already exists".into()));
-    }
-    if matches!((&args.output.output, &args.audit), (Some(output), Some(audit)) if output == audit)
+    if args
+        .output
+        .output
+        .as_ref()
+        .is_some_and(|p| p.symlink_metadata().is_ok())
     {
-        return Err(Error::InvalidInput(
-            "output and audit require different paths".into(),
-        ));
+        return Err(Error::InvalidInput("output file already exists".into()));
     }
     if args.implement_tools
         && (!matches!(args.output.format, Format::Json) || args.output.output.is_none())
@@ -468,6 +488,8 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
     }
     let config = RunConfig {
         mode: args.mode,
+        debate,
+        coordinator,
         max_calls: args.max_calls,
         max_argument_depth: args.argument_depth,
         max_repairs: args.max_repairs,
@@ -728,6 +750,8 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
 
 async fn execute(cli: Cli) -> Result<(), Error> {
     match cli.command {
+        Command::Ticket(args) => ticket_commands::run(args).await,
+        Command::TicketStage => ticket_commands::stage().await,
         Command::Analyse(args) => analyse(*args).await,
         Command::Authoring { command } => authoring_commands::execute(command).await,
         Command::Eal { command } => eal_commands::execute(*command).await,

@@ -26,13 +26,19 @@ pub(super) fn uses_references(data: &Value) -> bool {
                 .as_array()
                 .is_some_and(|items| items.iter().any(|item| item.get("challenge_ref").is_some()))
     };
-    data["independent_assessments"]
-        .as_array()
-        .is_some_and(|items| {
+    [
+        "independent_assessments",
+        "discussion_assessments",
+        "peer_assessments",
+    ]
+    .iter()
+    .any(|field| {
+        data[field].as_array().is_some_and(|items| {
             items
                 .iter()
                 .any(|item| assessment_refs(&item["assessment"]))
         })
+    }) || assessment_refs(&data["previous_assessment"]["assessment"])
         || assessment_refs(&data["final_critique"])
         || argument_refs(&data["draft"])
         || argument_refs(&data["candidate_json"])

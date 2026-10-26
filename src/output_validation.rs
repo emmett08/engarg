@@ -7,7 +7,7 @@ use crate::{
     argument_depth::ClaimDepths,
     domain::{
         ArgumentCase, ArgumentIndex, Defeater, DefeaterBasis, DefeaterKind, DefeaterStatus,
-        Request, validate_argument,
+        InferenceKind, Request, validate_argument,
     },
     provider::Role,
 };
@@ -122,6 +122,26 @@ pub(crate) fn errors(
             ));
         }
     }
+    // Historical imports intentionally allow an absent method. Live generation
+    // must make the provider schema's bound/unresolved choice explicit instead
+    // of silently inheriting the historical authored-support interpretation.
+    for warrant in &case.warrants {
+        if warrant.reasoning_method.is_none()
+            && matches!(
+                warrant.inference,
+                InferenceKind::Deductive
+                    | InferenceKind::Inductive
+                    | InferenceKind::Abductive
+                    | InferenceKind::Causal
+                    | InferenceKind::Counterfactual
+            )
+        {
+            errors.push(format!(
+                "warrant {} requires an explicit bound or unresolved reasoning_method for live generation",
+                warrant.id,
+            ));
+        }
+    }
     if case.grounds.is_empty()
         || !case.warrants.iter().any(|warrant| {
             matches!(
@@ -180,12 +200,15 @@ pub(crate) fn errors(
 }
 
 #[cfg(test)]
+mod generation_tests;
+
+#[cfg(test)]
 mod identity_tests {
     use super::*;
     fn fixture() -> (Request, ArgumentCase) {
         (
             serde_json::from_str(include_str!("../examples/request.json")).unwrap(),
-            serde_json::from_str(include_str!("../examples/case.json")).unwrap(),
+            crate::live_output::case(include_str!("../examples/case.json")),
         )
     }
     #[test]
