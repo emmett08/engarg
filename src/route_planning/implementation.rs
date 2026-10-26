@@ -1,5 +1,8 @@
 //! Turn an explicit parameterised operation into a frozen, unit-aware function contract.
 mod inputs;
+mod operator;
+
+pub(super) use operator::configured_request;
 
 use crate::{
     Error,

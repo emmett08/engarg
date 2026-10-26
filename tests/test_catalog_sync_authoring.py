@@ -1008,6 +1008,31 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         directory = self.pipeline_directory(result)
         self.assertIn('"value":' + exact, (directory / 'evidence-config.json').read_text())
 
+    def test_graph_preflight_retains_operator_definitions_and_rejects_invalid_method_or_prose(self):
+        config = self.write_evidence_config()
+        original = json.loads(config.read_text())
+        operation = {'schema': 'engarg.operation-specification/1',
+                     'definition': 'Return the supplied boolean unchanged.',
+                     'input_conditions': ['The value is boolean.'],
+                     'output_guarantees': ['The output equals the supplied value.'],
+                     'input_schema': {'type': 'boolean'}, 'output_schema': {'type': 'boolean'}}
+        original['operation_specifications'] = {'example.echo/1': operation}
+        config.write_text(json.dumps(original))
+        directory = self.successful_run_directory(self.run_script(
+            '--check-only', '--evidence-config', config, self.inputs, graph=True))
+        retained = json.loads((directory / 'evidence-config.json').read_text())
+        self.assertEqual(retained['operation_specifications'], original['operation_specifications'])
+        for method, definition in [('unversioned', operation['definition']),
+                                   ('example.echo /1', operation['definition']),
+                                   ('example.echo/1', 'Reject embedded\x01 control characters.')]:
+            with self.subTest(method=method, definition=definition):
+                changed = dict(operation, definition=definition)
+                config.write_text(json.dumps(dict(original, operation_specifications={method: changed})))
+                result = self.run_script('--check-only', '--evidence-config', config, self.inputs, graph=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Input preflight failed', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+
     def test_graph_rejects_flat_catalogue_and_conflicting_switches(self):
         config = self.write_evidence_config()
         catalogue = self.inputs.with_name('catalogue.json')

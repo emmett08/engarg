@@ -171,7 +171,7 @@ def request_for(inputs):
     return {"claim": CLAIM, "context": json.dumps(context, ensure_ascii=False), "evidence": []}
 
 
-def measurement_semantics(method=METHOD):
+def measurement_semantics(method=METHOD, count_unit="count"):
     calculation = method == METHOD
     return {
         "qualification_reference": "engarg.local-catalogue-demonstration/1",
@@ -179,11 +179,13 @@ def measurement_semantics(method=METHOD):
         "subject_kinds": ["catalogue_snapshot"], "methods": [method],
         "identity_dimensions": ["snapshot"], "scope_constraints": {"snapshot": SNAPSHOT},
         "scope_bindings": {"snapshot": "/snapshot"},
-        "quantities": ([{"name": "count", "unit": "count", "output_pointer": "/count"},
+        "quantities": ([{"name": "snapshot", "unit": "1", "output_pointer": "/snapshot"},
+                        {"name": "count", "unit": count_unit, "output_pointer": "/count"},
                         {"name": "distinct", "unit": "boolean", "output_pointer": "/distinct"},
                         {"name": "complete", "unit": "boolean", "output_pointer": "/complete"},
                         {"name": "typed_input", "unit": "json", "output_pointer": "/typed_input"}]
-                       if calculation else [{"name": "items", "unit": "json", "output_pointer": "/items"},
+                       if calculation else [{"name": "snapshot", "unit": "1", "output_pointer": "/snapshot"},
+                                            {"name": "items", "unit": "json", "output_pointer": "/items"},
                                             {"name": "complete", "unit": "boolean", "output_pointer": "/complete"}]),
         "coverage": [{"strength": "exact_calculation" if calculation else "complete_enumeration",
                       "population": None if calculation else "demonstration-v1 snapshot items",
@@ -409,15 +411,155 @@ def configuration(directory, server, collector="managed"):
         "scheduling": {"maximum_concurrent_sources": 2, "per_provider": {}},
         "bindings": [{"capability_id": "catalogue_snapshot", "arguments": {"snapshot": SNAPSHOT},
                       "input_bindings": {"/snapshot": "/snapshot"}, "configured_prerequisites": []}],
+        "operation_specifications": {METHOD: operation_specification()},
     })
+
+
+def quantity_units(contract):
+    """Admit only the quantities and cardinality units of the fixed operation."""
+    allowed = {"snapshot": {"1"}, "count": {"count", "entries", "1"},
+               "distinct": {"boolean"}, "complete": {"boolean"}, "typed_input": {"json"}}
+    quantities = contract.get("quantities", [])
+    units = {}
+    for quantity in quantities:
+        name, unit = quantity.get("name"), quantity.get("unit")
+        if name in units or name not in allowed or unit not in allowed[name]:
+            raise ValueError("Audit contract has an unsupported quantity or conflicting unit")
+        units[name] = unit
+    if not {"count", "distinct", "complete", "typed_input"} <= units.keys():
+        raise ValueError("Audit contract omits a required quantity")
+    return {"snapshot": "1", **units}
+
+
+def checked_schema(schema, expected, units, source_annotations=False):
+    """Separate known host metadata from the fixed JSON validation contract."""
+    def plain(value, path=()):
+        if isinstance(value, list):
+            return [plain(item, path + (index,)) for index, item in enumerate(value)]
+        if not isinstance(value, dict):
+            return value
+        result = {}
+        for key, item in value.items():
+            if not key.startswith("x-engarg-"):
+                result[key] = plain(item, path + (key,))
+                continue
+            if len(path) != 2 or path[0] != "properties" or path[1] not in units:
+                raise ValueError("Audit schema has unsupported unit metadata")
+            name, unit = path[1], units[path[1]]
+            if key == "x-engarg-unit" and item == unit:
+                continue
+            quantity = {"name": name, "unit": unit}
+            if key == "x-engarg-quantity" and item == quantity:
+                continue
+            if (source_annotations and key == "x-engarg-source-contract"
+                    and item == {"x-engarg-quantity": quantity}):
+                continue
+            raise ValueError("Audit schema has conflicting or unsupported unit metadata")
+        return result
+    if plain(schema) != expected:
+        raise ValueError("Generated audit interface differs from the bounded demonstration schemas")
+
+
+def select_operation(analysis):
+    """Select a graph operation without treating model wording as operator authority."""
+    planning = analysis["evidence_planning"]
+    approved = planning["routes"]["configuration"].get("operation_specifications", {})
+    if approved.get(METHOD) != operation_specification():
+        raise ValueError("Catalogue planning must pin the independently specified audit operation before tool generation")
+    if "request" in analysis:
+        context = json.loads(analysis["request"]["context"])
+        if context.get("required_custom_operation") != operation_specification():
+            raise ValueError("Retained request differs from the independently specified demonstration contract")
+    operations = [item for item in planning["elaboration"]["acquisitions"]
+                  if METHOD in item["contract"]["acceptable_methods"]]
+    if len(operations) != 1 or operations[0]["contract"]["acceptable_methods"] != [METHOD]:
+        raise ValueError("The demonstration requires exactly one unambiguous audit operation")
+    operation = operations[0]
+    contract = operation["contract"]
+    if (contract["support_type"] != "calculation" or contract["logical_strength"] != "exact_calculation"
+            or contract["scope"]["kind"] != "catalogue_snapshot"):
+        raise ValueError("Audit operation has an incompatible calculation contract")
+    units = quantity_units(contract)
+    # The graph retains its authored wording. Operator configuration supplies the
+    # implementation definition, while both interfaces must preserve the data.
+    specification = operation.get("operation_spec")
+    if specification is not None:
+        checked_schema(specification["input_schema"], AUDIT_INPUT,
+                       {"snapshot": "1", "items": "json", "complete": "boolean", "formal_input": "json"})
+        checked_schema(specification["output_schema"], AUDIT_OUTPUT, units)
+    return operation
+
+
+def admit_operation(directory, analysis_path):
+    """Record the independent operation binding before spending coding calls."""
+    analysis = read(analysis_path)
+    operation = select_operation(analysis)
+    eligible = [gap for gap in analysis["evidence_planning"]["routes"].get("gaps", [])
+                if gap["kind"] in {"operation_implementation", "transformation_implementation"}]
+    if (len(eligible) != 1 or eligible[0].get("acquisition_id") != operation["id"]
+            or not isinstance(eligible[0].get("implementation"), dict)):
+        raise ValueError("The demonstration requires one admitted implementation gap for its fixed audit operation")
+    checked_implementation(eligible[0]["implementation"], operation)
+    pending = []
+    for acquisition in analysis["evidence_planning"]["elaboration"]["acquisitions"]:
+        contract = acquisition["contract"]
+        methods = contract["acceptable_methods"]
+        if methods not in ([METHOD], ["catalogue.snapshot/1"]):
+            continue
+        for selector in contract["scope"]["selectors"]:
+            if selector != "snapshot":
+                pending.append({"acquisition_id": acquisition["id"], "kind": "scope_binding_unavailable",
+                                "selector": selector})
+        authority = "catalogue-audit" if methods == [METHOD] else "catalogue-fixture"
+        for required in contract["provenance"]["required_authorities"]:
+            if required != authority:
+                pending.append({"acquisition_id": acquisition["id"], "kind": "source_authority_unqualified",
+                                "authority": required})
+    write(Path(directory) / "tooling-operation-admission.json", {
+        "schema": "engarg.catalogue-operation-admission/1", "method": METHOD,
+        "acquisition_id": operation["id"],
+        "operator_specification_sha256": digest(operation_specification()),
+        "authored_specification_sha256": digest(operation.get("operation_spec")),
+        "analysis_sha256": hashlib.sha256(Path(analysis_path).read_bytes()).hexdigest(),
+        "unresolved_route_conditions": pending,
+        "note": "Operator configuration fixes the implementation specification. The authored argument, support requirements and transcript remain unchanged.",
+    })
+    if pending:
+        print("Catalogue operation admitted with {} retained route conditions. "
+              "Inspect tooling-operation-admission.json. Tool qualification preserves these unresolved "
+              "scope and source-authority obligations.".format(len(pending)), file=sys.stderr, flush=True)
+    return operation
+
+
+def checked_implementation(operation, blueprint):
+    """Authenticate the implementation against operator authority and graph data."""
+    wanted = operation_specification()
+    purpose = json.loads(operation["operation_purpose"])
+    if (any(purpose.get(key) != wanted[key] for key in
+            ["schema", "definition", "input_conditions", "output_guarantees"])
+            or purpose.get("methods") != [METHOD]):
+        raise ValueError("The generated audit operation differs from the independently specified demonstration contract")
+    expected_contract = copy.deepcopy(blueprint["contract"])
+    expected_contract["scope"].update(selectors={}, subject="parameterised catalogue_snapshot operation")
+    expected_contract["time"].update(historical_interval=None, max_age_seconds=None)
+    expected_contract["expected_output_schema_sha256"] = None
+    if operation["support_contract"] != expected_contract:
+        raise ValueError("Generated audit support contract differs from its retained acquisition contract")
+    units = quantity_units(operation["support_contract"])
+    carrier_output = copy.deepcopy(AUDIT_OUTPUT)
+    carrier_output["properties"]["collected"] = {"type": "boolean"}
+    carrier_output["required"].append("collected")
+    checked_schema(operation["input_schema"], AUDIT_INPUT,
+                   {"snapshot": "1", "items": "json", "complete": "boolean", "formal_input": "json"}, True)
+    checked_schema(operation["output_schema"], carrier_output, units)
+    return units
 
 
 def qualify(directory, executable):
     """Limit automatic qualification to the independently specified demo operation."""
     directory = Path(directory)
     analysis = read(directory / "analysis.json")
-    specifications = {item["id"]: item.get("operation_spec") for item in
-                      analysis["evidence_planning"]["elaboration"]["acquisitions"]}
+    blueprint = select_operation(analysis)
     packages = analysis.get("tooling", {}).get("capabilities", [])
     if len(packages) != 1:
         raise ValueError("The demonstration requires exactly one verified generated audit operation")
@@ -427,6 +569,12 @@ def qualify(directory, executable):
         raise ValueError("The demonstration requires exactly one generated native provider")
     provider = providers[0]
     package = packages[0]
+    bindings = analysis["tooling"].get("bindings", [])
+    if (len(bindings) != 1 or bindings[0].get("acquisition_id") != blueprint["id"]
+            or bindings[0].get("capability_sha256") != package["capability_sha256"]
+            or bindings[0].get("collector_id") != package["collector"]["id"]
+            or provider["capability"]["id"] != package["collector"]["id"]):
+        raise ValueError("Generated audit package does not match its retained acquisition binding")
     # The verified package retains the source-operation request independently of
     # the current case. Match its exact logical definition before adding semantics.
     contract_path = Path(package["package_manifest"]).parent / "contract.json"
@@ -434,25 +582,11 @@ def qualify(directory, executable):
     operation = json.loads(contract["request_context"])
     verify_fixtures(contract["draft"]["fixtures"], require_coverage=False)
     wanted = operation_specification()
-    purpose = json.loads(operation["operation_purpose"])
-    if (list(specifications.values()).count(wanted) != 1
-            or any(purpose.get(key) != wanted[key] for key in ["schema", "definition", "input_conditions", "output_guarantees"])
-            or purpose.get("methods") != [METHOD]):
-        raise ValueError("The generated audit operation differs from the independently specified demonstration contract")
+    units = checked_implementation(operation, blueprint)
     capability = provider["capability"]
-    input_schema = capability["input_schema"]
-    output_schema = copy.deepcopy(capability["output_schema"])
-    output_schema.get("properties", {}).pop("collected", None)
-    if "collected" in output_schema.get("required", []):
-        output_schema["required"].remove("collected")
-    def unannotated(value):
-        if isinstance(value, dict):
-            return {key: unannotated(item) for key, item in value.items() if not key.startswith("x-engarg-")}
-        if isinstance(value, list):
-            return list(map(unannotated, value))
-        return value
-    if unannotated(input_schema) != AUDIT_INPUT or unannotated(output_schema) != AUDIT_OUTPUT:
-        raise ValueError("Generated audit interface differs from the bounded demonstration schemas")
+    if (capability["input_schema"] != operation["input_schema"]
+            or capability["output_schema"] != operation["output_schema"]):
+        raise ValueError("Generated audit interface differs from its frozen implementation contract")
     plan_path = directory/'catalogue-probes.snapshot.json'
     identity = read(directory/'input-identity.json')
     if hashlib.sha256(plan_path.read_bytes()).hexdigest() != identity['example_qualification_probes_sha256']:
@@ -462,13 +596,15 @@ def qualify(directory, executable):
         raise ValueError('Unsupported independent catalogue probe plan')
     checked_cases = verify_fixtures(plan['cases'])
     run_probes(directory, executable, package, plan)
-    provider["capability"]["semantics"] = measurement_semantics()
+    provider["capability"]["semantics"] = measurement_semantics(count_unit=units["count"])
     provider["mapping"]["scope_pointers"] = {"snapshot": "/snapshot"}
     destination = directory / "tooling/demo-qualified-providers.json"
     write(destination, generated)
     write(directory / "tooling/demo-qualification.json", {
         "schema": "engarg.catalogue-operation-qualification/1", "method": METHOD,
         "independent_fixture_cases": checked_cases,
+        "operator_specification_sha256": digest(wanted),
+        "acquisition_id": blueprint["id"],
         "package_manifest": package["package_manifest"], "manifest_sha256": package["manifest_sha256"],
         "scope": "Fixed local demonstration operation and schema. Frozen fixture results do not establish general scientific model adequacy.",
     })
@@ -548,6 +684,9 @@ def launch(arguments):
 
 def main():
     try:
+        if len(sys.argv) == 4 and sys.argv[1] == "admit-operation":
+            admit_operation(sys.argv[2], sys.argv[3])
+            return 0
         if len(sys.argv) == 4 and sys.argv[1] == "qualify":
             print(qualify(sys.argv[2], sys.argv[3]))
             return 0
