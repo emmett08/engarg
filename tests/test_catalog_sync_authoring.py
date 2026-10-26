@@ -192,6 +192,15 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                     pathlib.Path(option('--evidence-config')).read_text())
                 report['replanning'] = {'schema': 'engarg.replanning/1', 'model_calls': 0}
                 write(option('--output'), report)
+            elif args[:2] == ['authoring', 'inspect']:
+                inspection = os.environ.get('AUTHORING_INSPECTION', 'resumable')
+                if inspection == 'error':
+                    raise SystemExit('Synthetic private inspection failure')
+                if inspection == 'malformed':
+                    print('synthetic invalid inspection')
+                else:
+                    print(json.dumps({'schema': 'engarg.authoring-inspection/1',
+                                      'resumable': inspection == 'resumable'}))
             elif args[0] == 'analyse':
                 if os.environ.get('FAIL_AUTHORING_WITH_CHECKPOINT'):
                     write(option('--checkpoint'), {'schema': 'synthetic-checkpoint'})
@@ -1392,6 +1401,34 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertIn('--api-key-env OPENAI_API_KEY', result.stderr)
         self.assertNotIn('synthetic-key-must-not-be-used', result.stderr)
         self.assertFalse(any(call[:2] == ['eal', 'export'] for call in self.invocations()))
+
+    def test_interrupted_authoring_prints_fresh_run_guidance_after_offline_inspection(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, self.inputs, graph=True,
+                                 env=dict(self.env, FAIL_AUTHORING_WITH_CHECKPOINT='1',
+                                          AUTHORING_INSPECTION='incomplete'))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('authoring inspect --checkpoint', result.stderr)
+        self.assertIn('completed final authoring stage', result.stderr)
+        self.assertIn('fresh authoring run', result.stderr)
+        self.assertNotIn('authoring resume --checkpoint', result.stderr)
+        self.assertEqual(sum(call[:2] == ['authoring', 'inspect'] for call in self.invocations()), 1)
+        self.assertFalse(any(call[:2] == ['eal', 'export'] for call in self.invocations()))
+
+    def test_failed_inspection_prints_inspection_only_and_preserves_failure_status(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        for inspection in ['error', 'malformed']:
+            with self.subTest(inspection=inspection):
+                result = self.run_script('--evidence-config', config, self.inputs, graph=True,
+                                         env=dict(self.env, FAIL_AUTHORING_WITH_CHECKPOINT='1',
+                                                  AUTHORING_INSPECTION=inspection))
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('authoring inspect --checkpoint', result.stderr)
+                self.assertIn('Resumability could not be determined', result.stderr)
+                self.assertNotIn('authoring resume --checkpoint', result.stderr)
+                self.assertNotIn('Synthetic private inspection failure', result.stderr)
 
     def test_simple_catalogue_can_continue_a_resumed_argument_without_authoring(self):
         shutil.copyfile(SOURCE_SCRIPT.parent/'catalogue_evidence_example.py', self.script.parent/'catalogue_evidence_example.py')

@@ -130,13 +130,21 @@ physical collector calls. No status in this report establishes evidence truth or
 inferential soundness.
 
 Initial graph authoring writes `authoring.checkpoint.json` before interpreting
-completed model responses. If validation fails, stderr prints inspection and
-resume commands with the run's model settings and resource bounds. Inspection
-uses no model calls:
+completed model responses. On failure, the script inspects that checkpoint
+locally and prints its inspection command. When `resumable` is `true`, it also
+prints a final-validation resume command with the run's model settings and
+resource bounds. Inspection uses no model calls:
 
 ```sh
 engarg authoring inspect --checkpoint engarg-runs/PREVIOUS-RUN/authoring.checkpoint.json
 ```
+
+Final-validation recovery requires a completed initial candidate and all
+preceding authoring stages, with their response content retained. In default
+hybrid mode this means six completed calls, including adjudication. A provider
+failure before that point leaves `resumable` as `false`. Retain the checkpoint
+for diagnosis and start a fresh authoring run after the provider recovers.
+An unavailable or invalid inspection produces inspection-only guidance.
 
 Older runs retain their completed calls in `analysis.audit.jsonl`. Inspect one
 with `engarg authoring inspect --run-dir engarg-runs/PREVIOUS-RUN`. A legacy

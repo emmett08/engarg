@@ -3,7 +3,7 @@
 use crate::Error;
 use reqwest::Url;
 mod http;
-mod rate_limit;
+mod retry_policy;
 pub use http::{HttpEvent, HttpObserver, TransportConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
