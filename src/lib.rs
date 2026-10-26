@@ -4,6 +4,7 @@
 //! empirical truth, logical soundness or the completeness of explored alternatives.
 
 pub mod acquisition;
+pub mod authoring_checkpoint;
 pub mod collector_catalogue;
 pub mod collector_preparation;
 pub mod domain;
