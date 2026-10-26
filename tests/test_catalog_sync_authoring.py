@@ -193,6 +193,9 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                 report['replanning'] = {'schema': 'engarg.replanning/1', 'model_calls': 0}
                 write(option('--output'), report)
             elif args[0] == 'analyse':
+                if os.environ.get('FAIL_AUTHORING_WITH_CHECKPOINT'):
+                    write(option('--checkpoint'), {'schema': 'synthetic-checkpoint'})
+                    raise SystemExit('Synthetic retained dissent failure')
                 request = json.loads(pathlib.Path(option('--input')).read_text())
                 report = {'request': request, 'argument': {'status': 'supported'}, 'transcript': []}
                 graph = '--evidence-planning' in args
@@ -909,6 +912,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         calls = self.invocations()
         analysis = next(call for call in calls if call[0] == 'analyse')
         self.assertEqual(analysis[analysis.index('--evidence-planning') + 1], 'graph')
+        self.assertEqual(analysis[analysis.index('--checkpoint') + 1], str(directory/'authoring.checkpoint.json'))
         retained = json.loads((directory / 'evidence-config.json').read_text())
         self.assertEqual(retained['collector'], str((self.commands / 'eal-collector').resolve()))
         self.assertEqual(json.loads(config.read_text())['collector'], 'managed')
@@ -1304,6 +1308,35 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         context = json.loads(request['context'])
         self.assertEqual(context['required_custom_operation']['schema'], 'engarg.operation-specification/1')
         self.assertEqual(context['formal_input']['method'], 'deductive/1')
+        self.assertFalse((self.commands/'cargo').exists())
+
+    def test_failed_authoring_prints_inspection_and_bounded_resume_commands(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, self.inputs, graph=True,
+                                 env=dict(self.env, FAIL_AUTHORING_WITH_CHECKPOINT='1'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('authoring inspect --checkpoint', result.stderr)
+        self.assertIn('authoring resume --checkpoint', result.stderr)
+        self.assertIn('--max-repairs 1', result.stderr)
+        self.assertIn('--next-checkpoint', result.stderr)
+        self.assertIn('--api-key-env OPENAI_API_KEY', result.stderr)
+        self.assertNotIn('synthetic-key-must-not-be-used', result.stderr)
+        self.assertFalse(any(call[:2] == ['eal', 'export'] for call in self.invocations()))
+
+    def test_simple_catalogue_can_continue_a_resumed_argument_without_authoring(self):
+        shutil.copyfile(SOURCE_SCRIPT.parent/'catalogue_evidence_example.py', self.script.parent/'catalogue_evidence_example.py')
+        shutil.copyfile(SOURCE_SCRIPT.parents[1]/'examples/toolchains/python.json', self.repo/'examples/toolchains/python.json')
+        first = self.successful_run_directory(self.run_script('--simple-example', '--check-only', graph=True))
+        saved = self.root/'resumed-analysis.json'
+        saved.write_text(json.dumps({
+            'request': json.loads((first/'request.json').read_text()), 'argument': {},
+            'evidence_planning': {'schema': 'engarg.support-planning/1', 'elaboration': {}, 'routes': {}},
+        }))
+        second = self.successful_run_directory(self.run_script('--simple-example', '--check-only',
+                                                               '--replan-analysis', saved, graph=True))
+        self.assertEqual(json.loads((second/'retained-analysis.snapshot.json').read_text()), json.loads(saved.read_text()))
+        self.assertEqual(json.loads((second/'input-identity.json').read_text())['analysis_reuse']['source'], str(saved))
         self.assertFalse((self.commands/'cargo').exists())
 
 

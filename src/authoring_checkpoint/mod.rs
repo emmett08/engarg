@@ -27,6 +27,7 @@ pub fn protocol_identity() -> String {
         include_str!("../output_validation/target_context.rs"),
         include_str!("../output_validation/revisions.rs"),
         include_str!("../domain/dissent.rs"),
+        include_str!("../engine/repair_scope.rs"),
         include_str!("../engine/retained.rs"),
         include_str!("../engine/support.rs"),
         include_str!("../domain/records.rs"),

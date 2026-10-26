@@ -142,6 +142,8 @@ mkdir -p "$repo/engarg-runs"
 run_dir=$(mktemp -d "$repo/engarg-runs/catalog-sync-operator-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
 set_stage 'input preflight'
 host_report=''
+authoring_checkpoint=''
+authoring_pending=0
 on_exit() {
   status=$?
   if [[ $status -ne 0 ]]; then
@@ -149,6 +151,18 @@ on_exit() {
     if [[ -n $host_report && -s $host_report ]]; then
       printf 'Complete EAL host response: %s\n' "$host_report" >&2
       printf 'Inspect with: python3 -m json.tool %q\n' "$host_report" >&2
+    fi
+    if [[ $authoring_pending -eq 1 && -n $authoring_checkpoint && -s $authoring_checkpoint ]]; then
+      printf 'Completed authoring calls are retained. Inspect without model calls:\n  %q authoring inspect --checkpoint %q\n' "$engarg_bin" "$authoring_checkpoint" >&2
+      printf 'Resume with one separately budgeted repair:\n  ' >&2
+      printf '%q ' "$engarg_bin" authoring resume --checkpoint "$authoring_checkpoint" \
+        --evidence-config "$run_dir/evidence-config.json" --output "$run_dir/analysis.resumed.json" \
+        --audit "$run_dir/authoring-resume.audit.jsonl" --next-checkpoint "$run_dir/authoring-resumed.checkpoint.json" \
+        --max-repairs 1 --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
+        --api responses --api-key-env OPENAI_API_KEY --max-input-bytes "$input_bytes" \
+        --max-response-bytes "$response_bytes" --max-output-tokens "$output_tokens" \
+        --request-timeout-secs "$request_timeout" --timeout-secs "$run_timeout" --progress >&2
+      printf '\n' >&2
     fi
   fi
 }
@@ -561,7 +575,9 @@ run_analysis() {
     return
   fi
   if [[ $evidence_planning == graph ]]; then
-    set -- "$@" --evidence-planning graph --evidence-config "$run_dir/evidence-config.json"
+    authoring_checkpoint="$run_dir/authoring.checkpoint.json"
+    set -- "$@" --evidence-planning graph --evidence-config "$run_dir/evidence-config.json" \
+      --checkpoint "$authoring_checkpoint"
   fi
   if [[ -n $argument_depth ]]; then
     set -- "$@" --argument-depth "$argument_depth"
@@ -578,6 +594,7 @@ set_stage 'model analysis'
 analysis_output="$run_dir/analysis.json"
 if [[ $implement_tools -eq 1 && $evidence_planning == flat ]]; then set_stage 'model analysis and tool implementation'; fi
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then analysis_output="$run_dir/analysis.original.json"; fi
+authoring_pending=1
 run_analysis --progress --input "$run_dir/request.json" \
   --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
   --api responses --api-key-env OPENAI_API_KEY --mode hybrid \
@@ -586,6 +603,7 @@ run_analysis --progress --input "$run_dir/request.json" \
   --request-timeout-secs "$request_timeout" --timeout-secs "$run_timeout" \
   --max-input-bytes "$input_bytes" --max-output-tokens "$output_tokens" --max-response-bytes "$response_bytes" \
   --format json --audit "$run_dir/analysis.audit.jsonl" --output "$analysis_output"
+authoring_pending=0
 
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then
   set_stage 'tool implementation gap admission'

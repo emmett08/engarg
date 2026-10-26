@@ -401,7 +401,9 @@ async fn validate_or_repair<M: LanguageModel, O>(
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
+    let mut repair_scope = None;
     for attempt in 0..=config.max_repairs {
+        let mut scope_feedback = Value::Null;
         let record = transcript.last().expect("workflow has a final call");
         // The initial candidate has already passed its producing call's byte
         // admission. A resumed history may use a larger original bound than
@@ -427,6 +429,13 @@ where
                 {
                     errors.push(error.to_string());
                 }
+                scope_feedback = super::repair_scope::constrain(
+                    &mut repair_scope,
+                    &candidate.argument,
+                    retained,
+                    &mut errors,
+                    serde_json::to_value(&candidate.support_elaboration)?,
+                )?;
                 if errors.is_empty() {
                     output_validation::retain_objections(
                         &candidate.argument,
@@ -460,6 +469,7 @@ where
             "original_support_elaboration":draft.map(|draft|&draft.support_elaboration),
             "original_requirement_sha256":draft.map(|draft|requirement_identities(&draft.support_elaboration)).transpose()?,
             "original_step_sha256":draft.map(|draft|step_identities(&draft.support_elaboration)).transpose()?,
+            "repair_scope":scope_feedback,
         });
         let repair = support_prompt(record.role, data, config)?;
         transcript.push(execute(model, repair, config, observer).await?);

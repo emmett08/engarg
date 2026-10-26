@@ -480,6 +480,8 @@ def launch(arguments):
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument("--tool-language", default="python", choices=["python", "rust", "javascript"])
     parser.add_argument("--toolchain", type=Path)
+    parser.add_argument("--replan-analysis", type=Path,
+                        help="Reuse an accepted or resumed argument and continue the example without authoring calls.")
     options = parser.parse_args(arguments)
     repo = Path(__file__).resolve().parents[1]
     os.umask(0o077)
@@ -520,6 +522,8 @@ def launch(arguments):
     command = ["bash", str(repo / "scripts/run-catalog-sync-authoring.sh"), "--evidence-config", str(directory / "planning.json"),
                "--implement-tools", "--tool-language", options.tool_language, "--toolchain", str(profile)]
     command += ["--check-only"] if options.check_only else ["--collect-and-assess"]
+    if options.replan_analysis:
+        command += ["--replan-analysis", str(options.replan_analysis.resolve())]
     command.append(str(directory / "inputs.json"))
     print("Catalogue demonstration inputs: " + str(directory), file=sys.stderr, flush=True)
     return subprocess.run(command, cwd=repo).returncode
