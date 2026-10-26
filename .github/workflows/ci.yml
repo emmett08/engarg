@@ -68,10 +68,6 @@ jobs:
           docker pull node:24-slim
           docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
           cargo test --locked --test tooling_docker -- --include-ignored
-          export ENGARG_EAL_COORDINATE="$(dirname "$ENGARG_EAL_HOST")/eal-coordinate"
-          export ENGARG_CATALOGUE_MCP="$PWD/target/debug/examples/catalogue_mcp"
-          cargo build --locked --bins --example catalogue_mcp
-          cargo test --locked --test ticket_native -- --include-ignored
 
   eal-compatibility:
     name: EAL producer and consumer contracts
@@ -131,7 +127,8 @@ jobs:
           cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test export_v3 --test support_cli --test support_export --test support_batch -- --include-ignored
           cargo +1.99.1 test --locked --test support_method_export --test catalogue_workflow_native -- --include-ignored
 
-          cargo +1.99.1 test --locked --test coordination_live -- --include-ignored
-          cargo +1.99.1 test --locked --test ticket_native every_topology_registers -- --include-ignored
-          cargo +1.99.1 test --locked --test ticket_native unavailable_new_mcp -- --include-ignored
-          cargo +1.99.1 test --locked --test ticket_native measured_negative -- --include-ignored
+          # Keep one real CLI/coordinator smoke check in automatic compatibility.
+          # Exhaustive native graph/ticket sweeps run in ticket-acceptance.yml.
+          cargo +1.99.1 test --locked --test coordination_live the_actual_cli_coordinates_a_ring -- --include-ignored
+          cargo +1.99.1 test --locked --test ticket_native unavailable_new_mcp -- --include-ignored --nocapture
+          cargo +1.99.1 test --locked --test ticket_native measured_negative -- --include-ignored --nocapture

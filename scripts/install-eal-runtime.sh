@@ -143,7 +143,7 @@ def cache_valid(prefix, owner):
 
 
 def build_companions(repo, prefix, git_url, revision, lock):
-    """Build the six admitted binaries together from one verified source tree."""
+    """Build the admitted binaries together from one verified source tree."""
     if shutil.which("git") is None:
         fail("Required command for runtime installation: git")
     environment = dict(os.environ, CARGO_TARGET_DIR=str(prefix / "target"))

@@ -442,8 +442,8 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(value('--debate-participants'), '4')
         self.assertEqual(value('--debate-rounds'), '2')
         self.assertEqual(value('--max-calls'), '16')
-        self.assertEqual(value('--eal-coordinate'), str(coordinate))
-        self.assertEqual(value('--coordination-run'), str(directory / 'coordination'))
+        self.assertEqual(value('--eal-coordinate'), str(coordinate.resolve()))
+        self.assertEqual(value('--coordination-run'), str((directory / 'coordination').resolve()))
         self.assertEqual(json.loads((directory / 'run-settings.json').read_text())['debate']['preset'], 'ring')
 
     def test_explicit_topology_budget_and_configuration_snapshot_are_forwarded(self):
@@ -460,7 +460,7 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         analysis = next(call for call in self.invocations() if call[0] == 'analyse')
         value = lambda name: analysis[analysis.index(name) + 1]
         self.assertEqual(value('--max-calls'), '30')
-        self.assertEqual(value('--topology-config'), str(directory / 'topology.snapshot.json'))
+        self.assertEqual(value('--topology-config'), str((directory / 'topology.snapshot.json').resolve()))
         self.assertEqual((directory / 'topology.snapshot.json').read_bytes(), raw)
 
     def test_topology_explicit_underbudget_stops_before_host_and_model_calls(self):

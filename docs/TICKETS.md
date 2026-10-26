@@ -93,3 +93,31 @@ Completed stages can be inspected again without repeating their effects. A reser
 ## Native acceptance
 
 `tests/ticket_native.rs` exercises every topology through a newly registered local MCP, a compiled Rust collector and actual EAL-MCP collection and registered assessment. Its Docker variant generates and compiles the missing Rust implementation inside the ticket. Negative tests cover unavailable MCP acquisition, rejected compilation and measured counter-evidence. The finite fixture's reviewer checks its declared finite interpretation and source facts independently. These tests exercise the workflow mechanics rather than establishing the adequacy of an arbitrary engineering claim.
+
+Full topology sweeps are opt-in. Automatic Rust checks retain fast unit coverage, a real CLI ring smoke check and the unavailable-MCP and measured-negative ticket checks. The separate **Ticket acceptance** workflow runs one generated Rust ring ticket for a pull request. Manual runs select one topology or `all` and choose whether to include generated tools. Acceptance tests run one at a time and report progress and failures immediately.
+
+Once `ticket-acceptance.yml` exists on the repository's default branch, start a selected branch through GitHub Actions or the CLI:
+
+```sh
+gh workflow run ticket-acceptance.yml --ref feat/debate-topologies \
+  -f topology=ring -F generated_tools=true
+```
+
+Before that workflow is available, run a single generated-tool ticket locally with the pinned companions and Docker installed:
+
+```sh
+engarg_runtime_host=$(bash scripts/install-eal-runtime.sh)
+engarg_runtime_bin=$(dirname "$engarg_runtime_host")
+cargo build --locked --bins --example catalogue_mcp
+docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
+
+ENGARG_EAL_HOST="$engarg_runtime_host" \
+EAL_COLLECTOR="$engarg_runtime_bin/eal-collector" \
+ENGARG_EAL_COORDINATE="$engarg_runtime_bin/eal-coordinate" \
+ENGARG_CATALOGUE_MCP="$PWD/target/debug/examples/catalogue_mcp" \
+ENGARG_TICKET_TOPOLOGIES=ring \
+cargo test --locked --test ticket_native every_topology_generates \
+  -- --ignored --nocapture --test-threads=1
+```
+
+Set `ENGARG_TICKET_TOPOLOGIES=all` for the exhaustive sweep. Unknown or empty selections fail before test setup. These tests use a deterministic local provider and do not call a paid model.

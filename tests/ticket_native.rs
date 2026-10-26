@@ -35,6 +35,23 @@ const TOPOLOGIES: [&str; 9] = [
 ];
 const SOURCE: &str = include_str!("fixtures/ticket-collector/main.rs");
 
+fn selected_topologies(selection: Option<&str>) -> Result<Vec<&'static str>, String> {
+    match selection {
+        None | Some("all") => Ok(TOPOLOGIES.to_vec()),
+        Some(selected) => TOPOLOGIES
+            .iter()
+            .copied()
+            .find(|topology| *topology == selected)
+            .map(|topology| vec![topology])
+            .ok_or_else(|| {
+                format!(
+                    "ENGARG_TICKET_TOPOLOGIES must be all or one exact topology preset ({}); received {selected:?}",
+                    TOPOLOGIES.join(", ")
+                )
+            }),
+    }
+}
+
 fn successful(output: &Output) {
     assert!(
         output.status.success(),
@@ -313,10 +330,17 @@ fn run_ticket(config: &Value, root: &Path) -> (Output, Value, PathBuf) {
 }
 
 fn acceptance(generated: bool) {
+    let selection = std::env::var_os("ENGARG_TICKET_TOPOLOGIES").map(|value| {
+        value
+            .into_string()
+            .expect("ENGARG_TICKET_TOPOLOGIES must contain valid Unicode")
+    });
+    let topologies =
+        selected_topologies(selection.as_deref()).unwrap_or_else(|message| panic!("{message}"));
     let collector = executable("EAL_COLLECTOR");
     let mcp = executable("ENGARG_CATALOGUE_MCP");
     let native = (!generated).then(compile_collector);
-    for topology in TOPOLOGIES {
+    for topology in topologies {
         eprintln!("Executing complete ticket for {topology} (generated tool: {generated})");
         let directory = tempfile::tempdir().unwrap();
         let root = directory.path();
@@ -430,6 +454,18 @@ fn acceptance(generated: bool) {
 }
 
 #[test]
+fn topology_selection_keeps_the_requested_acceptance_coverage() {
+    assert_eq!(selected_topologies(None).unwrap(), TOPOLOGIES);
+    assert_eq!(selected_topologies(Some("all")).unwrap(), TOPOLOGIES);
+    for topology in TOPOLOGIES {
+        assert_eq!(selected_topologies(Some(topology)).unwrap(), vec![topology]);
+    }
+    for invalid in ["", " ", "Ring", "ring,tree", "unknown"] {
+        assert!(selected_topologies(Some(invalid)).is_err(), "{invalid:?}");
+    }
+}
+
+#[test]
 #[ignore = "requires native EAL companions and catalogue_mcp; compiles a real Rust collector"]
 fn every_topology_registers_a_new_mcp_and_executes_a_compiled_collector_in_one_ticket() {
     acceptance(false);
@@ -458,15 +494,18 @@ fn unavailable_new_mcp_blocks_before_tool_generation_or_evidence_execution() {
     let provider = Provider::new(case, elaboration, false);
     let config = configuration(root, &provider, request, "ring", true);
     let (output, report, workspace) = run_ticket(&config, root);
-    assert!(!output.status.success());
-    assert_eq!(
-        report["status"],
-        "blocked",
-        "{report}\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(provider.calls.lock().unwrap().len(), 9);
-    assert!(!workspace.join("execute/evidence-collection.json").exists());
+    let calls = provider.calls.lock().unwrap().len();
+    let collected = workspace.join("execute/evidence-collection.json").exists();
+    if output.status.success() || report["status"] != "blocked" || calls != 9 || collected {
+        let retained = directory.keep();
+        panic!(
+            "Unavailable MCP did not block before tool generation and evidence execution at {}\nstatus: {}\nprovider calls: {calls}\nevidence collected: {collected}\nreport: {report}\nstdout: {}\nstderr: {}",
+            retained.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 #[test]

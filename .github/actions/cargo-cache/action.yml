@@ -25,7 +25,12 @@ runs:
           {
             for toolchain in $CACHE_TOOLCHAINS; do rustup run "$toolchain" rustc -vV; done
             cc --version
-            printf '%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+            # Compatible callers can share a scope while build profiles remain
+            # explicit in the cache identity. Parallelism changes no artifacts.
+            printf '%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}" \
+              "${CARGO_PROFILE_DEV_DEBUG:-default}" "${CARGO_PROFILE_TEST_DEBUG:-default}" \
+              "${CARGO_INCREMENTAL:-default}" "${RUSTFLAGS:-}" "${CARGO_ENCODED_RUSTFLAGS:-}" \
+              "${CARGO_BUILD_TARGET:-}"
           } | shasum -a 256 | cut -d ' ' -f 1
         )
         printf 'prefix=%s-%s-cargo-v1-%s-%s-%s\n' \

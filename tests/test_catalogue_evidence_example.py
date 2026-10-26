@@ -46,11 +46,11 @@ class CatalogueExampleTests(unittest.TestCase):
                     '--eal-coordinate', str(repo / 'eal-coordinate'),
                     '--coordination-run', str(repo / 'journal')]), 0)
             command = run.call_args.args[0]
-            self.assertEqual(command[command.index('--topology-config') + 1], str(config))
+            self.assertEqual(command[command.index('--topology-config') + 1], str(config.resolve()))
             self.assertIn('--check-only', command)
             self.assertEqual(command[command.index('--tool-language') + 1], 'rust')
-            self.assertIn('--eal-coordinate', command)
-            self.assertIn('--coordination-run', command)
+            self.assertEqual(command[command.index('--eal-coordinate') + 1], str((repo / 'eal-coordinate').resolve()))
+            self.assertEqual(command[command.index('--coordination-run') + 1], str((repo / 'journal').resolve()))
             self.assertEqual(run.call_count, 1)
 
     def test_simple_claim_has_scoped_contracts_and_no_supplied_observations(self):

@@ -399,16 +399,12 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
     let mut pins = Vec::new();
     let mut inputs = Vec::new();
     for (index, path) in paths.into_iter().enumerate() {
-        let bytes = engarg::bounded_file::read(
-            &path,
-            if executables.contains(&path) { 256 } else { 16 } * 1_048_576,
-            "ticket input",
-        )?;
-        let sha256 = digest(&bytes);
-        let retained = if !executables.contains(&path) {
-            if bytes.len() > 16 * 1_048_576 {
-                return Err(Error::Budget("ticket input document exceeds 16 MiB".into()));
-            }
+        let (sha256, byte_count, retained) = if executables.contains(&path) {
+            let identity = engarg::bounded_file::sha256(&path, 256 * 1_048_576, "ticket input")?;
+            (identity.sha256, identity.bytes, None)
+        } else {
+            let bytes = engarg::bounded_file::read(&path, 16 * 1_048_576, "ticket input")?;
+            let sha256 = digest(&bytes);
             let target = input_directory.join(format!("input-{index:03}.bin"));
             let mut file = crate::private_file(&target)?;
             file.write_all(&bytes)?;
@@ -419,14 +415,12 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
                 sha256: sha256.clone(),
                 bytes: bytes.len() as u64,
             });
-            Some(target)
-        } else {
-            None
+            (sha256, bytes.len() as u64, Some(target))
         };
         pins.push(Pin {
             path,
             sha256,
-            bytes: bytes.len() as u64,
+            bytes: byte_count,
             retained,
         });
     }
@@ -459,23 +453,31 @@ pub fn load(path: &Path, sha256: &str) -> Result<Snapshot, Error> {
             "ticket snapshot identity changed".into(),
         ));
     }
-    let snapshot: Snapshot = read(path)?;
+    let value = eal_collector_contracts::strict_json_exact(
+        &bytes,
+        eal_collector_contracts::JsonLimits {
+            max_bytes: 16 * 1_048_576,
+            ..Default::default()
+        },
+    )
+    .map_err(Error::InvalidInput)?;
+    let snapshot: Snapshot = serde_json::from_value(value)?;
     for pin in &snapshot.pins {
-        let bytes = engarg::bounded_file::read(
+        let identity = engarg::bounded_file::sha256(
             &pin.path,
             if pin.retained.is_none() { 256 } else { 16 } * 1_048_576,
             "ticket input",
         )?;
         if let Some(retained) = &pin.retained {
-            let retained_bytes =
-                engarg::bounded_file::read(retained, 16 * 1_048_576, "retained ticket input")?;
-            if retained_bytes.len() as u64 != pin.bytes || digest(&retained_bytes) != pin.sha256 {
+            let retained_identity =
+                engarg::bounded_file::sha256(retained, 16 * 1_048_576, "retained ticket input")?;
+            if retained_identity.bytes != pin.bytes || retained_identity.sha256 != pin.sha256 {
                 return Err(Error::InvalidInput(
                     "retained ticket input identity changed".into(),
                 ));
             }
         }
-        if bytes.len() as u64 != pin.bytes || digest(&bytes) != pin.sha256 {
+        if identity.bytes != pin.bytes || identity.sha256 != pin.sha256 {
             return Err(Error::InvalidInput("a pinned ticket input changed".into()));
         }
     }
