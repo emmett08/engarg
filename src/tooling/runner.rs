@@ -3,7 +3,6 @@ use super::{
     contracts::{SourceFile, digest_json},
     execution_diagnostics::{bounded, feedback_redactions, redact_feedback},
     profile::ToolchainProfile,
-    runner_snapshot::{Snapshot, mount_path},
 };
 use crate::Error;
 use eal_process::{CancellationToken, CommandRequest, StreamLimits, Supervisor};
@@ -15,7 +14,7 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 /// Host settings used by the trusted Docker client; these are not container grants.
@@ -36,6 +35,8 @@ pub const DOCKER_ENVIRONMENT: &[&str] = &[
     "USER",
 ];
 static NEXT_CONTAINER: AtomicU64 = AtomicU64::new(0);
+
+mod lifecycle;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -234,7 +235,6 @@ impl FixtureRunner for DockerRunner {
     fn identity(&self) -> &RunnerIdentity {
         &self.identity
     }
-
     fn execute(
         &self,
         package_root: &Path,
@@ -244,156 +244,14 @@ impl FixtureRunner for DockerRunner {
         mode: ExecutionMode,
         cancellation: &CancellationToken,
     ) -> Result<RunOutcome, Error> {
-        let _ = package_root;
-        if request_bytes.len() > 1_048_576 {
-            return Err(Error::Budget("collector request exceeds 1 MiB".into()));
-        }
-        if cancellation.is_cancelled() {
-            return Err(Error::ToolExecution(
-                "collector execution was cancelled".into(),
-            ));
-        }
-        self.check_executables()?;
-        let snapshot = Snapshot::new(source_files, fixture_files)?;
-        let source = mount_path(&snapshot.source)?;
-        let fixtures = mount_path(&snapshot.fixtures)?;
-        let name = container_name();
-        let memory = format!("{}m", self.profile.memory_mb);
-        let network = match mode {
-            ExecutionMode::Fixture => "none",
-            ExecutionMode::Runtime => self.profile.runtime_network.as_str(),
-        };
-        let mut argv: Vec<String> = [
-            "run",
-            "--rm",
-            "--pull",
-            "never",
-            "--name",
-            &name,
-            "--interactive",
-            "--read-only",
-            "--network",
-            network,
-            "--cap-drop",
-            "ALL",
-            "--security-opt",
-            "no-new-privileges",
-            "--user",
-            "65534:65534",
-            "--pids-limit",
-            "64",
-            "--cpus",
-            "1",
-            "--memory",
-            &memory,
-            "--memory-swap",
-            &memory,
-            "--log-driver",
-            "none",
-            "--no-healthcheck",
-            "--workdir",
-            "/build",
-            "--entrypoint",
-            "/bin/sh",
-            "--tmpfs",
-            "/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777",
-            "--tmpfs",
-            // Docker tmpfs defaults include noexec; compiled collectors run here.
-            "/build:rw,exec,nosuid,nodev,size=128m,mode=1777",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-        argv.extend([
-            "--mount".into(),
-            format!("type=bind,source={source},target=/src,readonly"),
-            "--mount".into(),
-            format!("type=bind,source={fixtures},target=/fixtures,readonly"),
-        ]);
-        let mut environment = host_environment()?;
-        if mode == ExecutionMode::Runtime {
-            for name in &self.profile.inherit_env {
-                let value = std::env::var(name).map_err(|_| {
-                    invalid("a required collector runtime environment variable is missing")
-                })?;
-                if value.is_empty() || value.len() > 16_384 {
-                    return Err(invalid(
-                        "collector runtime environment values must be bounded and nonempty",
-                    ));
-                }
-                argv.extend(["--env".into(), name.clone()]);
-                environment.insert(name.clone(), value);
-            }
-        }
-        argv.extend([
-            self.identity.image_id.clone(),
-            "-c".into(),
-            container_script(&self.profile),
-        ]);
-        let started = Instant::now();
-        let execution = self.supervisor.run_with_stream_limits_and_cancellation(
-            command_request(
-                &self.docker,
-                &argv,
-                snapshot.root().to_path_buf(),
-                request_bytes.to_vec(),
-                Duration::from_secs(self.profile.timeout_seconds + 2),
-                self.profile.output_bytes.saturating_mul(2),
-                environment,
-            ),
-            None,
+        self.execute_snapshot(
+            package_root,
+            source_files,
+            fixture_files,
+            request_bytes,
+            mode,
             cancellation,
-            StreamLimits {
-                max_stdout_bytes: self.profile.output_bytes,
-                max_stderr_bytes: self.profile.output_bytes,
-            },
-        );
-        let cleanup = self.cleanup(&name, snapshot.root());
-        // Always attempt cleanup before propagating a launch or supervisor error.
-        if let Err(cleanup_error) = cleanup {
-            let execution_detail = match &execution {
-                Ok(outcome) => format!(
-                    "exit status {}; execution error {}; stderr: {}",
-                    outcome.returncode,
-                    outcome
-                        .execution_error
-                        .as_ref()
-                        .map_or("none", |error| error.label()),
-                    String::from_utf8_lossy(&outcome.stderr),
-                ),
-                Err(error) => format!("supervisor error: {error}"),
-            };
-            return Err(execution_failure(
-                &self.profile,
-                &format!(
-                    "collector execution {execution_detail}; cleanup also failed: {cleanup_error}"
-                ),
-            ));
-        }
-        let outcome = execution.map_err(|error| {
-            execution_failure(
-                &self.profile,
-                &format!("bounded collector execution failed: {error}"),
-            )
-        })?;
-        let execution_error = if cancellation.is_cancelled() {
-            Some("cancelled".into())
-        } else if let Some(error) = outcome.execution_error {
-            Some(error.label().into())
-        } else if outcome.returncode == 124 {
-            Some("timeout".into())
-        } else if outcome.returncode >= 125 || outcome.returncode < 0 {
-            Some("container_execution_error".into())
-        } else {
-            None
-        };
-        Ok(RunOutcome {
-            stdout: outcome.stdout,
-            stderr: outcome.stderr,
-            returncode: outcome.returncode,
-            execution_error,
-            elapsed_ms: u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
-        })
+        )
     }
 }
 
