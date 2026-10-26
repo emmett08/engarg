@@ -27,6 +27,25 @@ participants × (peer rounds + 1) + 3 + max_repairs
 
 The three final stages are synthesis, final critique and adjudication. Six participants and two peer rounds require 21 calls. Reserving one repair requires 22. An insufficient allowance fails before any model call. Token limits, byte limits, timeouts and HTTP retry limits continue to apply separately. More edges can increase prompt size without increasing the number of calls.
 
+## EAL coordination
+
+Selecting a topology in the CLI starts `eal-coordinate debate-session`. Install the revision-pinned runtime with `scripts/install-eal-runtime.sh`, then supply `--eal-coordinate /absolute/runtime/bin/eal-coordinate` or put that executable on `PATH`. `ENGARG_EAL_COORDINATE` supplies the same executable setting.
+
+EngArg sends a versioned `eal.debate/1` start frame containing the complete graph configuration and payload bound. The coordinator admits the whole schedule, reserves each round's calls, and dispatches only each participant's own prior payload and permitted incoming peer payloads. EngArg constructs domain prompts, calls its configured provider and validates assessments before returning the complete round. The coordinator commits that round before dispatching the next. The coordinator process receives no provider credentials. A missing executable, rejected protocol frame or interrupted session stops the run without falling back to local execution.
+
+`--coordination-run DIRECTORY` selects a new journal directory. By default the CLI appends `.coordination` to the output filename. With stdout output it creates a uniquely named `engarg-coordination-*` directory in the current directory. The saved run configuration records this path and the selected executable. Inspect the retained frozen configuration, immutable wire frames, reservations and response receipts with:
+
+```sh
+eal-coordinate debate-status --run ring.json.coordination
+eal-coordinate debate-export --run ring.json.coordination --output coordination.json
+```
+
+An interrupted dispatch can have uncertain calls. The journal preserves those reservations and does not automatically repeat paid work. This bounded external-host session has its own versioned envelopes. It does not send specialist assessments into the existing registered-argument assessor/reviewer worker schema or treat model debate as assessed evidence.
+
+The programmatic Rust API can set `RunConfig.coordinator` to the same executable and journal directory. Without that setting it uses the shared pure coordination state machine in process, which supports embedded consumers and deterministic tests. CLI topology selection always supplies an external coordinator configuration. Both paths use the same graph admission, routing and round transition contract.
+
+Application payloads are bounded to at most 1 MiB and complete session frames to 32 MiB. Routing can duplicate a payload for several recipients. A round whose actual routed frame exceeds the bound stops before dispatch, preserving earlier receipts. The usual provider prompt and response bounds still apply separately.
+
 ## Structures and directions
 
 An edge `{ "from": u, "to": v }` permits participant `v` to receive participant `u`'s previous assessment. Self edges are omitted because every participant already receives its own previous assessment.
@@ -139,8 +158,16 @@ The graph contract constrains context visibility and resource use. It supplies n
 
 ## Architecture
 
-`engine/topology/` contains the directed graph contract and a cohesive builder module for each structure. A tagged Rust enum dispatches to these stateless builders. The common graph representation lets a shared specialist executor handle prompt routing, round barriers, audit ordering and objection retention. Normal construction, flat tool planning and support-graph planning use the same specialist execution path.
+`eal-coordination-contracts` contains the directed graph contract, a cohesive builder module for each structure and the pure round state machine. EngArg re-exports the topology types through `engine::topology`. A tagged Rust enum dispatches to stateless builders. EAL coordination owns routing, round barriers and durable dispatch receipts. EngArg owns domain prompts, provider calls, assessment validation and objection retention. Normal construction, flat tool planning and support-graph planning use the same adapter.
 
 This uses static strategy selection through ordinary functions. A trait hierarchy would add indirection to these closed, data-selected variants without changing the executor's graph contract. A new structure requires a builder, its enum variant and graph tests. Execution and final validation remain independent of the graph shape.
 
-Saved reports keep the existing `engarg.run.v2` schema. Earlier configurations without `debate` still load and use the legacy workflow. Rust callers constructing `RunConfig` with an exhaustive struct literal must add `debate: None` or use `..RunConfig::default()`. Public engine type paths remain unchanged after configuration extraction.
+Saved reports keep the existing `engarg.run.v2` schema. Earlier configurations without `debate` still load and use the legacy workflow. Rust callers constructing `RunConfig` with an exhaustive struct literal must add `debate: None` and `coordinator: None`, or use `..RunConfig::default()`. Public engine type paths remain unchanged after configuration extraction.
+
+## Relation to the protocol case study
+
+Marandi's [*The impact of multi-agent debate protocols on debate quality: a controlled case study*](https://arxiv.org/abs/2603.28813) varies context visibility and turn scheduling. Those are separate design choices from the nine graph structures. EngArg implements synchronous, graph-routed exchange of the immediately preceding round. It does not claim to reproduce the study's protocols.
+
+Within-Round allows later turns to see earlier same-round contributions. Cross-Round excludes same-round contributions. Rank-Adaptive Cross-Round adds judge-based ranking, randomised turn order and configured participant silencing. EngArg's scheduled edge replacement implements none of those judge or participation policies. Every participant still executes each round. An empty graph permits isolated self-revision, with global review afterwards.
+
+The paper's three-model, two-round macroeconomic case study does not establish which topology improves engineering arguments. Convergence and peer references are different outcomes from correctness. Any future protocol extension needs explicit history, turn-order, participation and judge-call budgets, while retaining objections independently of later consensus or silencing.

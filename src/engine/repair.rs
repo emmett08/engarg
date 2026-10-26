@@ -118,7 +118,7 @@ mod tests {
         let request =
             serde_json::from_str(include_str!("../../examples/claim-only-request.json")).unwrap();
         let mut case: ArgumentCase =
-            serde_json::from_str(include_str!("../../examples/claim-only-case.json")).unwrap();
+            crate::live_output::case(include_str!("../../examples/claim-only-case.json"));
         for index in 1..=5 {
             let mut defeater = case.defeaters[0].clone();
             defeater.id = format!("auditor-{index}");

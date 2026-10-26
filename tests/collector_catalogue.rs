@@ -1,6 +1,9 @@
 //! Versioned collector descriptions preserve typed inputs and operator-owned execution.
 use std::sync::Mutex;
 
+#[path = "common/live_output.rs"]
+mod live_output;
+
 use engarg::{
     Error,
     acquisition::{self, AcquisitionPlan, PlannedArgument, ToolArgument},
@@ -423,7 +426,7 @@ struct CaptureModel {
 impl LanguageModel for CaptureModel {
     async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
         self.calls.lock().unwrap().push(request);
-        let (_, argument) = fixture();
+        let argument: ArgumentCase = live_output::case(include_str!("../examples/case.json"));
         let content = serde_json::to_string(&PlannedArgument {
             acquisition_plan: plans(&argument),
             argument,

@@ -375,6 +375,18 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
     let started = std::time::Instant::now();
     progress.phase("input and configuration checks");
     let debate = args.debate.admit(args.mode)?;
+    let coordinator = args
+        .debate
+        .coordinator(debate.is_some(), args.output.output.as_deref())?;
+    if coordinator.as_ref().is_some_and(|config| {
+        args.audit
+            .as_ref()
+            .is_some_and(|audit| *audit == config.run_directory)
+    }) {
+        return Err(Error::InvalidInput(
+            "coordination run directory and audit file require different paths".into(),
+        ));
+    }
     if args.max_input_bytes == 0 || args.max_response_bytes == 0 || args.timeout_secs == 0 {
         return Err(Error::InvalidInput(
             "resource limits must be positive".into(),
@@ -464,6 +476,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
     let config = RunConfig {
         mode: args.mode,
         debate,
+        coordinator,
         max_calls: args.max_calls,
         max_argument_depth: args.argument_depth,
         max_repairs: args.max_repairs,

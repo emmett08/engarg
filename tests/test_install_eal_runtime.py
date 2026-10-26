@@ -16,7 +16,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts/install-eal-runtime.sh"
 REVISION = "a" * 40
 URL = "https://github.com/example/fixture-eal"
 BINARIES = {"eal-host", "eal-mcp", "eal-method-worker",
-            "eal-command-supervisor", "eal-process-supervisor", "eal-collector"}
+            "eal-command-supervisor", "eal-process-supervisor", "eal-collector", "eal-coordinate", "eal-mas-server", "mas-protocol-codec"}
 
 
 class InstallEalRuntimeTests(unittest.TestCase):
@@ -63,11 +63,11 @@ if os.environ.get('STUB_FAIL_PACKAGE') in packages:
     raise SystemExit(42)
 directory = pathlib.Path(os.environ['CARGO_TARGET_DIR']) / 'release'
 directory.mkdir(parents=True, exist_ok=True)
-expected = {'eal-process', 'eal-runtime', 'eal-mcp', 'eal-collectors'}
+expected = {'eal-process', 'eal-runtime', 'eal-mcp', 'eal-collectors', 'eal-coordination'}
 if set(packages) != expected or len(packages) != len(expected):
     raise SystemExit(92)
 names = ['eal-process-supervisor', 'eal-method-worker', 'eal-command-supervisor',
-         'eal-host', 'eal-mcp', 'eal-collector']
+         'eal-host', 'eal-mcp', 'eal-collector', 'eal-coordinate', 'eal-mas-server', 'mas-protocol-codec']
 for name in names:
     if os.environ.get('STUB_MISSING_BINARY') == name:
         continue
@@ -163,7 +163,8 @@ print('Synthetic toolchain progress on stdout')
             '+1.90.0', 'build', '--manifest-path', str(source / 'Cargo.toml'),
             '--locked', '--release', '--bins', '--message-format=json-render-diagnostics',
             '--package', 'eal-process', '--package', 'eal-runtime',
-            '--package', 'eal-mcp', '--package', 'eal-collectors'])
+            '--package', 'eal-mcp', '--package', 'eal-collectors',
+            '--package', 'eal-coordination'])
         git = [record['args'][2:] for record in self.calls('git')]
         self.assertEqual(git, [['init', '--quiet'], ['remote', 'add', 'origin', URL],
                               ['fetch', '--quiet', '--depth', '1', '--no-tags', 'origin', REVISION],

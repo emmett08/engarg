@@ -1,14 +1,19 @@
 //! Synchronous specialist rounds with graph-limited peer context and a complete dissent ledger.
 
 use std::{
-    collections::BTreeSet,
+    collections::BTreeMap,
     future::{Future, poll_fn},
     task::Poll,
 };
 
+use eal_coordination_contracts::{CallContext, PeerValue, RoundResult};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::{CallRecord, RunConfig, check_prompt, context, execute, parse_assessment};
+use super::{
+    CallRecord, RunConfig, check_prompt, context, coordination::Coordinator, execute,
+    parse_assessment,
+};
 use crate::{
     Error,
     domain::Request,
@@ -42,105 +47,217 @@ where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
     F: Fn(Role, Value) -> Result<CompletionRequest, Error> + Sync,
 {
-    let graphs = config
-        .debate
-        .as_ref()
-        .map(|debate| debate.graphs())
-        .transpose()?;
-    let participants = config
-        .debate
-        .as_ref()
-        .map_or(SPECIALISTS.len(), |debate| usize::from(debate.participants));
-    let prompts = (0..participants)
-        .map(|participant| {
-            let mut data = json!({"request": request});
-            if graphs.is_some() {
-                data["debate"] = json!({"participant": participant, "round": 0});
-            }
-            make_prompt(role(participant), data)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let records = execute_round(model, prompts, config, observer).await?;
+    if config.debate.is_none() {
+        return legacy_assess(model, request, config, observer, make_prompt).await;
+    }
+    let mut coordinator = Coordinator::start(config).await?;
     let mut result = Assessments {
         transcript: Vec::new(),
         retained: Vec::new(),
         independent: Vec::new(),
         discussion: Vec::new(),
     };
-    for (participant, record) in records.into_iter().enumerate() {
-        let prefix = if graphs.is_some() {
-            format!("agent-{participant}-round-0")
-        } else {
-            LEGACY_PREFIXES[participant].to_owned()
-        };
-        let mut assessment = context::assessment(
-            record.role,
-            &prefix,
-            parse_assessment(&record)?,
-            &mut result.retained,
-        );
-        if graphs.is_some() {
-            identify(&mut assessment, participant, 0);
-        }
-        result.independent.push(assessment);
-        result.transcript.push(record);
-    }
-    let Some(graphs) = graphs else {
-        return Ok(result);
-    };
-    let mut previous = result.independent.clone();
-    for (index, graph) in graphs.into_iter().enumerate() {
-        let round = index + 1;
-        let prompts = (0..participants)
-            .map(|participant| {
-                let incoming = graph
-                    .edges
-                    .iter()
-                    .filter(|edge| edge.to == participant)
-                    .map(|edge| edge.from)
-                    .collect::<Vec<_>>();
-                let peers = incoming
-                    .iter()
-                    .map(|&source| previous[source].clone())
-                    .collect::<Vec<_>>();
-                let visible_ids = std::iter::once(&previous[participant])
-                    .chain(peers.iter())
-                    .flat_map(objection_ids)
-                    .collect::<BTreeSet<_>>();
-                let visible_objections = result
-                    .retained
-                    .iter()
-                    .filter(|objection| visible_ids.contains(objection.id.as_str()))
-                    .collect::<Vec<_>>();
-                let data = json!({
-                    "request": request,
-                    "debate": {"participant": participant, "round": round, "edges": graph.edges, "incoming": incoming},
-                    "previous_assessment": previous[participant],
-                    "peer_assessments": peers,
-                    "retained_objections": visible_objections,
-                });
-                let mut prompt = make_prompt(role(participant), data)?;
-                dependent_instructions(&mut prompt.system);
+    while let Some(dispatch) = coordinator.dispatch().await? {
+        let prompts = dispatch
+            .calls
+            .iter()
+            .map(|call| {
+                let data = dispatch_context(request, call)?;
+                let mut prompt = make_prompt(role(call.participant), data)?;
+                if call.round > 0 {
+                    dependent_instructions(&mut prompt.system);
+                }
                 Ok(prompt)
             })
             .collect::<Result<Vec<_>, Error>>()?;
         let records = execute_round(model, prompts, config, observer).await?;
-        let mut next = Vec::with_capacity(participants);
-        for (participant, record) in records.into_iter().enumerate() {
+        let mut responses = Vec::with_capacity(records.len());
+        for (call, record) in dispatch.calls.iter().zip(records) {
+            let retained_start = result.retained.len();
             let mut assessment = context::assessment(
                 record.role,
-                &format!("agent-{participant}-round-{round}"),
+                &format!("agent-{}-round-{}", call.participant, call.round),
                 parse_assessment(&record)?,
                 &mut result.retained,
             );
-            identify(&mut assessment, participant, round);
-            next.push(assessment);
+            identify(&mut assessment, call.participant, call.round);
+            // The coordinator receives an opaque value containing precisely this
+            // assessment's objections. It never receives the global dissent ledger.
+            responses.push(PeerValue {
+                participant: call.participant,
+                round: call.round,
+                payload: json!({
+                    "assessment": assessment,
+                    "retained_objections": &result.retained[retained_start..],
+                }),
+            });
+            if call.round == 0 {
+                result.independent.push(assessment);
+            } else {
+                result.discussion.push(assessment);
+            }
             result.transcript.push(record);
         }
-        result.discussion.extend(next.iter().cloned());
-        previous = next;
+        coordinator
+            .accept(RoundResult {
+                round: dispatch.round,
+                responses,
+            })
+            .await?;
     }
     Ok(result)
+}
+
+async fn legacy_assess<M, O, F>(
+    model: &M,
+    request: &Request,
+    config: &RunConfig,
+    observer: &O,
+    make_prompt: F,
+) -> Result<Assessments, Error>
+where
+    M: LanguageModel,
+    O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
+    F: Fn(Role, Value) -> Result<CompletionRequest, Error> + Sync,
+{
+    let prompts = SPECIALISTS
+        .into_iter()
+        .map(|role| make_prompt(role, json!({"request": request})))
+        .collect::<Result<Vec<_>, _>>()?;
+    let records = execute_round(model, prompts, config, observer).await?;
+    let mut retained = Vec::new();
+    let mut independent = Vec::new();
+    for (record, prefix) in records.iter().zip(LEGACY_PREFIXES) {
+        independent.push(context::assessment(
+            record.role,
+            prefix,
+            parse_assessment(record)?,
+            &mut retained,
+        ));
+    }
+    Ok(Assessments {
+        transcript: records,
+        retained,
+        independent,
+        discussion: Vec::new(),
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RoutedPayload {
+    assessment: AssessmentEnvelope,
+    retained_objections: Vec<AssessmentObjection>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AssessmentEnvelope {
+    role: Role,
+    assessment: AssessmentContents,
+    participant: usize,
+    round: usize,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AssessmentContents {
+    findings: Vec<String>,
+    objection_ids: Vec<String>,
+    evidence_gaps: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AssessmentObjection {
+    identity: Value,
+    id: String,
+    challenge: String,
+    source_role: Role,
+    must_remain_material: bool,
+}
+
+fn decode_payload(
+    payload: &Value,
+    participant: usize,
+    round: usize,
+) -> Result<RoutedPayload, Error> {
+    let decoded: RoutedPayload = serde_json::from_value(payload.clone()).map_err(|_| {
+        Error::Provider("EAL coordinator: invalid routed assessment envelope".into())
+    })?;
+    if decoded.assessment.participant != participant
+        || decoded.assessment.round != round
+        || decoded.assessment.role != role(participant)
+    {
+        return Err(Error::Provider(
+            "EAL coordinator: routed assessment source identity differs from its dispatch".into(),
+        ));
+    }
+    let contents = &decoded.assessment.assessment;
+    let ids = &contents.objection_ids;
+    if contents
+        .findings
+        .iter()
+        .chain(&contents.evidence_gaps)
+        .any(|entry| entry.trim().is_empty())
+        || ids.len() != decoded.retained_objections.len()
+        || decoded.retained_objections.iter().zip(ids).enumerate().any(
+            |(index, (objection, id))| {
+                *id != format!("agent-{participant}-round-{round}-{}", index + 1)
+                    || objection.id != *id
+                    || objection.challenge.trim().is_empty()
+                    || objection.source_role != role(participant)
+                    || !objection.identity.is_null()
+                    || objection.must_remain_material
+            },
+        )
+    {
+        return Err(Error::Provider(
+            "EAL coordinator: routed objection register differs from its assessment references"
+                .into(),
+        ));
+    }
+    Ok(decoded)
+}
+
+fn dispatch_context(request: &Request, call: &CallContext) -> Result<Value, Error> {
+    if call.round == 0 {
+        return Ok(
+            json!({"request": request, "debate": {"participant": call.participant, "round": 0}}),
+        );
+    }
+    let previous = call.previous.as_ref().ok_or_else(|| {
+        Error::Provider(
+            "EAL coordinator: peer round omits the participant's previous assessment".into(),
+        )
+    })?;
+    let previous = decode_payload(previous, call.participant, call.round - 1)?;
+    let mut objections = previous
+        .retained_objections
+        .into_iter()
+        .map(|item| (item.id.clone(), item))
+        .collect::<BTreeMap<_, _>>();
+    let mut peers = Vec::with_capacity(call.peers.len());
+    for peer in &call.peers {
+        if peer.round != call.round - 1 {
+            return Err(Error::Provider(
+                "EAL coordinator: peer source round differs from the dispatched predecessor round"
+                    .into(),
+            ));
+        }
+        let payload = decode_payload(&peer.payload, peer.participant, peer.round)?;
+        peers.push(payload.assessment);
+        for objection in payload.retained_objections {
+            objections.insert(objection.id.clone(), objection);
+        }
+    }
+    Ok(json!({
+        "request": request,
+        "debate": {"participant": call.participant, "round": call.round, "edges": call.edges, "incoming": call.incoming},
+        "previous_assessment": previous.assessment,
+        "peer_assessments": peers,
+        "retained_objections": objections.into_values().collect::<Vec<_>>(),
+    }))
 }
 
 /// Add graph discussion only when configured, preserving legacy prompt envelopes.
@@ -158,14 +275,6 @@ fn role(participant: usize) -> Role {
 fn identify(assessment: &mut Value, participant: usize, round: usize) {
     assessment["participant"] = json!(participant);
     assessment["round"] = json!(round);
-}
-
-fn objection_ids(assessment: &Value) -> impl Iterator<Item = &str> {
-    assessment["assessment"]["objection_ids"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
 }
 
 fn dependent_instructions(system: &mut String) {
@@ -220,7 +329,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use std::{collections::BTreeSet, sync::Mutex};
 
     use super::*;
     use crate::{
@@ -547,6 +656,34 @@ mod tests {
         assert_eq!(model.completed.lock().unwrap().len(), 4);
         assert_eq!(receipts.lock().unwrap().len(), 4);
         assert_eq!(model.prompts.lock().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn routed_payloads_require_exact_source_metadata_and_complete_own_objections() {
+        let payload = json!({
+            "assessment": {
+                "role": "constructor", "participant": 0, "round": 0,
+                "assessment": {"findings": ["A finding."], "objection_ids": ["agent-0-round-0-1"], "evidence_gaps": []},
+            },
+            "retained_objections": [{
+                "identity": null, "id": "agent-0-round-0-1", "challenge": "Confidential challenge text.",
+                "source_role": "constructor", "must_remain_material": false,
+            }],
+        });
+        assert!(decode_payload(&payload, 0, 0).is_ok());
+        assert!(decode_payload(&payload, 1, 0).is_err());
+        assert!(decode_payload(&payload, 0, 1).is_err());
+        let mut missing = payload.clone();
+        missing["retained_objections"] = json!([]);
+        let error = decode_payload(&missing, 0, 0).err().unwrap().to_string();
+        assert!(error.contains("objection register"));
+        assert!(!error.contains("Confidential"));
+        let mut foreign = payload.clone();
+        foreign["retained_objections"][0]["source_role"] = json!("sceptic");
+        assert!(decode_payload(&foreign, 0, 0).is_err());
+        let mut unknown = payload;
+        unknown["assessment"]["extra"] = json!("unexpected");
+        assert!(decode_payload(&unknown, 0, 0).is_err());
     }
 
     #[test]

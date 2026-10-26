@@ -18,6 +18,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "common/live_output.rs"]
+mod live_output;
+
 fn pending(case: &ArgumentCase) -> SupportElaboration {
     let mut requirements = Vec::new();
     let mut evaluations = Vec::new();
@@ -133,8 +136,7 @@ fn graph_analyse_uses_native_discovery_six_local_calls_and_exports_without_flat_
         .to_string(),
     )
     .unwrap();
-    let case: ArgumentCase =
-        serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap();
+    let case: ArgumentCase = live_output::case(include_str!("../examples/claim-only-case.json"));
     let request: Request =
         serde_json::from_str(include_str!("../examples/claim-only-request.json")).unwrap();
     let elaboration = pending(&case);

@@ -17,11 +17,12 @@ use crate::{
 
 mod config;
 mod context;
+mod coordination;
 mod debate;
 mod repair;
 pub mod support;
 pub mod topology;
-pub use config::{Mode, RunConfig};
+pub use config::{CoordinatorConfig, Mode, RunConfig};
 pub use support::{RouteResolver, SupportPlanning, SupportRunReport, run_with_support};
 
 /// A completed logical call without API credentials. Oversized content is omitted
@@ -799,7 +800,7 @@ mod tests {
                 self.calls.lock().unwrap().push(request);
                 let content = if matches!(role, Role::Synthesiser | Role::Adjudicator) {
                     let mut argument: ArgumentCase =
-                        serde_json::from_str(include_str!("../examples/case.json"))?;
+                        crate::live_output::case(include_str!("../examples/case.json"));
                     let mut elaboration = pending(&argument);
                     if role == Role::Adjudicator {
                         // The fixture adjudicator explicitly represents every retained
@@ -990,7 +991,7 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(5)).await;
             self.active.fetch_sub(1, Ordering::SeqCst);
             let content = if matches!(role, Role::Synthesiser | Role::Adjudicator | Role::Single) {
-                include_str!("../examples/case.json").to_owned()
+                crate::live_output::json(include_str!("../examples/case.json"))
             } else {
                 json!({
                     "findings": ["No independently verified evidence was supplied."],
@@ -1040,7 +1041,7 @@ mod tests {
     fn claim_only_candidate() -> (Request, ArgumentCase) {
         (
             serde_json::from_str(include_str!("../examples/claim-only-request.json")).unwrap(),
-            serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap(),
+            crate::live_output::case(include_str!("../examples/claim-only-case.json")),
         )
     }
 

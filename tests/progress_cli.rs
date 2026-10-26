@@ -9,6 +9,9 @@ use std::{
     time::Duration,
 };
 
+#[path = "common/live_output.rs"]
+mod live_output;
+
 fn cli(endpoint: &str, progress: bool) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
     command
@@ -95,8 +98,7 @@ fn provider(
 
 #[test]
 fn progress_precedes_provider_completion_and_stdout_remains_the_canonical_report() {
-    let argument: Value =
-        serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap();
+    let argument: Value = live_output::case(include_str!("../examples/claim-only-case.json"));
     let body = json!({"id":"private-provider-id","model":"private-model-name","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":argument.to_string()}]}]}).to_string();
     for progress in [false, true] {
         let directory = tempfile::tempdir().unwrap();

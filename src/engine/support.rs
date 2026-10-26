@@ -422,10 +422,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        provider::Completion,
-        support_requirements::tests::{case, pending},
-    };
+    use crate::{provider::Completion, support_requirements::tests::pending};
     use std::sync::{
         Mutex,
         atomic::{AtomicUsize, Ordering},
@@ -446,6 +443,10 @@ mod tests {
         assert!(
             method_scope_identities(&json!({"request":{"claim":"No retained scopes"}})).is_empty()
         );
+    }
+
+    fn case() -> ArgumentCase {
+        crate::live_output::case(include_str!("../../examples/claim-only-case.json"))
     }
 
     struct Model {

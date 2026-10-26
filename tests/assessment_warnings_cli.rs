@@ -8,6 +8,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "common/live_output.rs"]
+mod live_output;
+
 fn receive(listener: &TcpListener) -> (TcpStream, Value) {
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut stream = loop {
@@ -54,8 +57,7 @@ fn receive(listener: &TcpListener) -> (TcpStream, Value) {
 
 #[test]
 fn oversized_assessments_warn_with_or_without_progress_and_retain_every_gap() {
-    let argument: Value =
-        serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap();
+    let argument: Value = live_output::case(include_str!("../examples/claim-only-case.json"));
     let gaps = (1..=41)
         .map(|index| format!("private evidence gap {index}: retain its complete condition"))
         .collect::<Vec<_>>();

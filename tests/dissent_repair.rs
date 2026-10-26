@@ -1,5 +1,8 @@
 //! A bounded repair retains the first attachment of a final critic's objection.
 
+#[path = "common/live_output.rs"]
+mod live_output;
+
 use engarg::{
     Error,
     domain::{ArgumentCase, DefeaterStatus, Request, validate_case},
@@ -31,7 +34,7 @@ struct Model {
 fn fixture() -> (Request, ArgumentCase) {
     (
         serde_json::from_str(include_str!("../examples/claim-only-request.json")).unwrap(),
-        serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap(),
+        live_output::case(include_str!("../examples/claim-only-case.json")),
     )
 }
 

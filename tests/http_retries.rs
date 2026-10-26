@@ -19,6 +19,9 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
+#[path = "common/live_output.rs"]
+mod live_output;
+
 #[derive(Clone)]
 struct Reply {
     status: u16,
@@ -494,8 +497,7 @@ async fn cancelling_a_queued_call_does_not_send_it_or_leak_a_permit() {
 async fn cli_recovers_with_one_logical_call_and_audits_both_http_attempts() {
     let request: Value =
         serde_json::from_str(include_str!("../examples/claim-only-request.json")).unwrap();
-    let argument: Value =
-        serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap();
+    let argument: Value = live_output::case(include_str!("../examples/claim-only-case.json"));
     let plans = argument["evidence_plan"].as_array().unwrap().iter().map(|need| json!({"need_id":need["id"],"tool_id":"custom","arguments":[],"unresolved_arguments":["adapter"]})).collect::<Vec<_>>();
     let content = json!({"argument":argument,"acquisition_plan":plans}).to_string();
     let mut success = Reply::success();

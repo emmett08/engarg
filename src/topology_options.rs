@@ -54,9 +54,61 @@ pub(crate) struct TopologyOptions {
     /// Complete JSON debate configuration with explicit edges, partitions or scheduling.
     #[arg(long, value_name = "PATH", conflicts_with_all = ["topology", "debate_participants", "debate_rounds"])]
     topology_config: Option<PathBuf>,
+    /// eal-coordinate executable for selected topologies. Defaults to PATH lookup.
+    #[arg(long, value_name = "PATH")]
+    eal_coordinate: Option<PathBuf>,
+    /// New directory retaining the coordinator's frozen plan and execution journal.
+    #[arg(long, value_name = "DIRECTORY")]
+    coordination_run: Option<PathBuf>,
 }
 
 impl TopologyOptions {
+    pub(crate) fn coordinator(
+        &self,
+        selected: bool,
+        output: Option<&std::path::Path>,
+    ) -> Result<Option<engarg::engine::CoordinatorConfig>, Error> {
+        if !selected {
+            if self.eal_coordinate.is_some() || self.coordination_run.is_some() {
+                return Err(Error::InvalidInput(
+                    "--eal-coordinate and --coordination-run require a selected topology".into(),
+                ));
+            }
+            return Ok(None);
+        }
+        let run_directory = match (&self.coordination_run, output) {
+            (Some(path), _) => path.clone(),
+            (None, Some(path)) => {
+                let mut name = path.as_os_str().to_os_string();
+                name.push(".coordination");
+                PathBuf::from(name)
+            }
+            (None, None) => {
+                let epoch = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_err(|_| Error::InvalidInput("system clock precedes UNIX epoch".into()))?;
+                std::env::current_dir()?.join(format!(
+                    "engarg-coordination-{}-{}",
+                    std::process::id(),
+                    epoch.as_nanos(),
+                ))
+            }
+        };
+        if output.is_some_and(|path| path == run_directory) {
+            return Err(Error::InvalidInput(
+                "coordination run directory and output file require different paths".into(),
+            ));
+        }
+        Ok(Some(engarg::engine::CoordinatorConfig {
+            executable: self
+                .eal_coordinate
+                .clone()
+                .or_else(|| std::env::var_os("ENGARG_EAL_COORDINATE").map(PathBuf::from))
+                .unwrap_or_else(|| "eal-coordinate".into()),
+            run_directory,
+        }))
+    }
+
     /// Validate graph shape and mode before credentials or provider calls are used.
     pub(crate) fn admit(&self, mode: Mode) -> Result<Option<DebateConfig>, Error> {
         let config = if let Some(path) = &self.topology_config {
@@ -125,7 +177,7 @@ mod tests {
             let config = cli.options.admit(Mode::Hybrid).unwrap().unwrap();
             assert_eq!(config.participants, 6);
             assert_eq!(config.rounds, 1);
-            assert_eq!(config.required_calls().unwrap(), 15);
+            assert_eq!(config.specialist_calls().unwrap(), 12);
         }
         let cli = TestCli::try_parse_from([
             "engarg",
@@ -140,7 +192,7 @@ mod tests {
         let config = cli.options.admit(Mode::Hybrid).unwrap().unwrap();
         assert_eq!(config.participants, 4);
         assert_eq!(config.rounds, 2);
-        assert_eq!(config.required_calls().unwrap(), 15);
+        assert_eq!(config.specialist_calls().unwrap(), 12);
         assert!(cli.options.admit(Mode::Single).is_err());
     }
 
@@ -194,9 +246,9 @@ mod tests {
                 .admit(Mode::Hybrid)
                 .unwrap()
                 .unwrap()
-                .required_calls()
+                .specialist_calls()
                 .unwrap(),
-            11
+            8
         );
         std::fs::write(
             &path,
@@ -219,7 +271,7 @@ mod tests {
             (include_str!("../examples/debate/scheduled.json"), 21),
         ] {
             let config: DebateConfig = serde_json::from_str(text).unwrap();
-            assert_eq!(config.required_calls().unwrap(), calls);
+            assert_eq!(config.specialist_calls().unwrap() + 3, calls);
         }
     }
 }

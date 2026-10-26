@@ -1,5 +1,8 @@
 //! Routed debates preserve engine contracts, final dissent and bounded execution.
 
+#[path = "common/live_output.rs"]
+mod live_output;
+
 use std::sync::Mutex;
 
 use engarg::{
@@ -30,7 +33,7 @@ const OBJECTION_ID: &str = "agent-1-round-0-1";
 fn fixture() -> (Request, ArgumentCase) {
     (
         serde_json::from_str(include_str!("../examples/request.json")).unwrap(),
-        serde_json::from_str(include_str!("../examples/case.json")).unwrap(),
+        live_output::case(include_str!("../examples/case.json")),
     )
 }
 

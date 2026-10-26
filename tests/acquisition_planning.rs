@@ -1,3 +1,6 @@
+#[path = "common/live_output.rs"]
+mod live_output;
+
 use std::sync::Mutex;
 
 use engarg::{
@@ -18,7 +21,7 @@ struct Model {
 fn fixture() -> (Request, ArgumentCase) {
     (
         serde_json::from_str(include_str!("../examples/claim-only-request.json")).unwrap(),
-        serde_json::from_str(include_str!("../examples/claim-only-case.json")).unwrap(),
+        live_output::case(include_str!("../examples/claim-only-case.json")),
     )
 }
 
@@ -160,7 +163,7 @@ async fn a_missing_binding_uses_the_existing_repair_budget_and_keeps_the_case() 
 }
 
 #[tokio::test]
-async fn legacy_direct_cases_remain_valid_for_legacy_api_and_fail_closed_in_planned_runs() {
+async fn direct_case_protocol_remains_available_and_fails_closed_in_planned_runs() {
     let (request, _) = fixture();
     let config = RunConfig {
         mode: Mode::Single,
