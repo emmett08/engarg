@@ -311,16 +311,16 @@ mod tests {
     }
 
     #[cfg(unix)]
-    async fn rejected_process(stdout_script: &str) -> Error {
+    async fn rejected_process(mode: &str) -> Error {
         use crate::engine::{
             CoordinatorConfig,
             topology::{DebateConfig, Topology},
         };
-        use std::os::unix::fs::PermissionsExt;
         let temp = tempfile::tempdir().unwrap();
-        let executable = temp.path().join("coordinator");
-        std::fs::write(&executable, format!("#!/bin/sh\n{stdout_script}\n")).unwrap();
-        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        // Execute a checked-in fixture. Launching a freshly written executable
+        // can fail with ETXTBSY while parallel process creation holds a writer.
+        let executable = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/rejected-coordinator.sh");
         let config = RunConfig {
             debate: Some(DebateConfig {
                 participants: 3,
@@ -330,7 +330,7 @@ mod tests {
             }),
             coordinator: Some(CoordinatorConfig {
                 executable,
-                run_directory: temp.path().join("run"),
+                run_directory: temp.path().join(mode),
             }),
             max_calls: 9,
             ..RunConfig::default()
@@ -343,13 +343,13 @@ mod tests {
     #[tokio::test]
     async fn native_eof_and_partial_frames_fail_without_fallback() {
         assert!(
-            rejected_process("read start\nexit 0")
+            rejected_process("eof")
                 .await
                 .to_string()
                 .contains("stdout closed before")
         );
         assert!(
-            rejected_process("read start\nprintf '%s' '{\"kind\":'")
+            rejected_process("partial")
                 .await
                 .to_string()
                 .contains("partial protocol frame")
@@ -359,14 +359,11 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn native_terminal_or_misrouted_frames_fail_contract_checks() {
-        let terminal = rejected_process(
-            "read start\nprintf '%s\\n' '{\"kind\":\"completed\",\"rounds\":0,\"calls\":0}'",
-        )
-        .await;
+        let terminal = rejected_process("terminal").await;
         assert!(terminal.to_string().contains("completion counts"));
-        let dispatch = rejected_process("read start\nprintf '%s\\n' '{\"kind\":\"dispatch\",\"dispatch\":{\"round\":0,\"calls\":[]}}'").await;
+        let dispatch = rejected_process("dispatch").await;
         assert!(dispatch.to_string().contains("dispatch differs"));
-        let failed = rejected_process("read start\nprintf '%s\\n' '{\"kind\":\"failed\",\"message\":\"confidential payload\"}'").await;
+        let failed = rejected_process("failed").await;
         assert!(failed.to_string().contains("session rejected"));
         assert!(!failed.to_string().contains("confidential"));
     }
