@@ -277,7 +277,7 @@ bash scripts/run-catalog-sync-authoring.sh --legacy-flat --check-only \
 
 Use the appropriate relative path to the script when invoking it from a
 subdirectory. Operator input and optional catalogue paths resolve from the
-invocation directory. `--check-only` needs Bash 3.2 or later, Python 3 and Git.
+invocation directory. `--check-only` needs Bash 3.2 or later, Python 3.7 or later and Git.
 It accepts staged and unstaged tracked changes and requires no Rust tools,
 `eal-host`, `eal-collector` or API key. It writes private input snapshots and a
 request under the ignored `engarg-runs/` directory. Existing files are not edited.
@@ -663,3 +663,40 @@ engarg eal plan --input "$run/argument.bundle.json" --input-format json \
 
 Use the EngArg binary recorded in the run or a compatible build. Preserve the
 original analysis and audit when retrying the deterministic operations.
+
+## Maintaining the workflow
+
+The public entry point remains `scripts/run-catalog-sync-authoring.sh`. Bash owns
+option parsing, external command order, stage progress and failure recovery. One
+shell owner keeps those phases and the exit trap's state visible together.
+
+Structured processing lives in the repository-local `engarg_catalog_sync` Python
+package under `scripts`. The shell invokes its dispatcher through
+`scripts/catalog_sync.py`. It uses the Python standard library and runs directly
+from the checkout. Keep the dispatcher and package alongside the shell script
+when copying the workflow. Python 3.7 or later is required.
+
+| Module | Responsibility |
+| --- | --- |
+| `json_io.py` | Bounded input admission and exact decimal serialisation |
+| `preflight.py` | Scope validation and private input snapshots |
+| `runtime.py` | EAL runtime admission and recorded executable identities |
+| `tooling.py` | Implementation-gap admission and analysis-preserving enrichment |
+| `assessment.py` | Collection identifiers and retained assessment results |
+| `readiness.py` | Dependency availability and collection-budget admission |
+| `summary.py` | Graph and flat reports with terminal outcome messages |
+
+The shell uses `python3 -B` for package calls so imports leave the checkout clean.
+The package CLI lists its internal commands with
+`python3 -B scripts/catalog_sync.py --help`. Imported policy functions can be
+tested directly. The existing CI command discovers both these focused tests and
+the shell integration tests:
+
+```sh
+bash -n scripts/run-catalog-sync-authoring.sh
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+Refactoring preserves the command options, environment defaults, snapshot bytes,
+report schemas and failure statuses. An unresolved completed assessment continues
+to return status 3. Model calls and Docker execution retain their existing bounds.
