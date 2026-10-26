@@ -90,12 +90,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: emmett08/eal-mcp
-          ref: ${{ env.EAL_REVISION }}
-          path: .eal-producer
-          persist-credentials: false
       - name: Install both declared toolchains
         run: |
           rustup toolchain install 1.99.1 --profile minimal
@@ -103,13 +97,10 @@ jobs:
       - uses: ./.github/actions/cargo-cache
         with:
           scope: eal-contracts
-          toolchains: 1.99.1 1.90.0
-          targets: |
-            target
-            .eal-producer/target
-      - name: Build the pinned EAL producer and native companions
-        working-directory: .eal-producer
-        run: cargo +1.90.0 build --workspace --bins --locked
+          toolchains: 1.99.1
+      - uses: ./.github/actions/eal-producer
+        with:
+          revision: ${{ env.EAL_REVISION }}
       - name: Check published collector descriptors
         run: |
           test "$(git -C .eal-producer rev-parse HEAD)" = "$EAL_REVISION"

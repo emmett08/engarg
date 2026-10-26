@@ -73,23 +73,14 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('revision=' + revision + '\n')
           PY
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: emmett08/eal-mcp
-          ref: ${{ steps.source.outputs.revision }}
-          path: .eal-producer
-          persist-credentials: false
       - uses: ./.github/actions/cargo-cache
         with:
-          # Same native source, toolchains, profiles and target paths as compatibility.
+          # Share consumer outputs and downloads with compatibility.
           scope: eal-contracts
-          toolchains: 1.99.1 1.90.0
-          targets: |
-            target
-            .eal-producer/target
-      - name: Build the pinned native EAL companions
-        working-directory: .eal-producer
-        run: cargo +1.90.0 build --workspace --bins --locked
+          toolchains: 1.99.1
+      - uses: ./.github/actions/eal-producer
+        with:
+          revision: ${{ steps.source.outputs.revision }}
       - name: Build the consumer and local MCP fixture
         run: cargo +1.99.1 build --locked --bins --example catalogue_mcp
       - name: Admit exact native companions
