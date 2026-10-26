@@ -29,6 +29,7 @@ pub struct ProviderArgs {
     pub max_response_bytes: usize,
     #[arg(long, default_value_t = 16_384)]
     max_output_tokens: u32,
+    /// Extra HTTP attempts after 429, 500, 502, 503 or 504 responses.
     #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(u8).range(0..=10))]
     http_retries: u8,
     #[arg(long, default_value_t = 120, value_parser = clap::value_parser!(u64).range(1..=3600))]

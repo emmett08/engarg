@@ -175,6 +175,38 @@ set_stage 'input preflight'
 host_report=''
 authoring_checkpoint=''
 authoring_pending=0
+print_authoring_recovery() {
+  printf 'Authoring checkpoint retained. Inspect without model calls:\n  %q authoring inspect --checkpoint %q\n' "$engarg_bin" "$authoring_checkpoint" >&2
+  local inspection recovery_status=unknown
+  if inspection=$("$engarg_bin" authoring inspect --checkpoint "$authoring_checkpoint" 2>/dev/null); then
+    if recovery_status=$(python3 -c '
+import json, sys
+value = json.load(sys.stdin)
+if value.get("schema") != "engarg.authoring-inspection/1" or type(value.get("resumable")) is not bool:
+    raise ValueError("unrecognised authoring inspection")
+print("resumable" if value["resumable"] else "unavailable")
+' <<< "$inspection" 2>/dev/null); then :; else recovery_status=unknown; fi
+  fi
+  case "$recovery_status" in
+    resumable)
+      printf 'Resume final validation with one separately budgeted repair:\n  ' >&2
+      printf '%q ' "$engarg_bin" authoring resume --checkpoint "$authoring_checkpoint" \
+        --evidence-config "$run_dir/evidence-config.json" --output "$run_dir/analysis.resumed.json" \
+        --audit "$run_dir/authoring-resume.audit.jsonl" --next-checkpoint "$run_dir/authoring-resumed.checkpoint.json" \
+        --max-repairs 1 --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
+        --api responses --api-key-env OPENAI_API_KEY --max-input-bytes "$input_bytes" \
+        --max-response-bytes "$response_bytes" --max-output-tokens "$output_tokens" \
+        --request-timeout-secs "$request_timeout" --timeout-secs "$run_timeout" --progress >&2
+      printf '\n' >&2
+      ;;
+    unavailable)
+      printf 'Recovery requires a completed final authoring stage with all response content retained. This checkpoint requires a fresh authoring run after the failure is resolved.\n' >&2
+      ;;
+    *)
+      printf 'Resumability could not be determined. Run the inspection command above to check the retained checkpoint before recovery.\n' >&2
+      ;;
+  esac
+}
 on_exit() {
   status=$?
   if [[ $status -ne 0 ]]; then
@@ -184,16 +216,7 @@ on_exit() {
       printf 'Inspect with: python3 -m json.tool %q\n' "$host_report" >&2
     fi
     if [[ $authoring_pending -eq 1 && -n $authoring_checkpoint && -s $authoring_checkpoint ]]; then
-      printf 'Completed authoring calls are retained. Inspect without model calls:\n  %q authoring inspect --checkpoint %q\n' "$engarg_bin" "$authoring_checkpoint" >&2
-      printf 'Resume with one separately budgeted repair:\n  ' >&2
-      printf '%q ' "$engarg_bin" authoring resume --checkpoint "$authoring_checkpoint" \
-        --evidence-config "$run_dir/evidence-config.json" --output "$run_dir/analysis.resumed.json" \
-        --audit "$run_dir/authoring-resume.audit.jsonl" --next-checkpoint "$run_dir/authoring-resumed.checkpoint.json" \
-        --max-repairs 1 --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
-        --api responses --api-key-env OPENAI_API_KEY --max-input-bytes "$input_bytes" \
-        --max-response-bytes "$response_bytes" --max-output-tokens "$output_tokens" \
-        --request-timeout-secs "$request_timeout" --timeout-secs "$run_timeout" --progress >&2
-      printf '\n' >&2
+      print_authoring_recovery
     fi
   fi
 }

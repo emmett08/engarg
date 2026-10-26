@@ -8,6 +8,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+/// Explicit responses eligible for retry, subject to error codes and resource bounds.
+pub(super) fn retryable_status(status: u16) -> bool {
+    matches!(status, 429 | 500 | 502 | 503 | 504)
+}
+
 pub(super) fn error_code(bytes: &[u8]) -> Option<&'static str> {
     let value: Value = serde_json::from_slice(bytes).ok()?;
     // Billing/quota takes precedence even when a contradictory retry code is supplied.
@@ -22,9 +27,15 @@ pub(super) fn error_code(bytes: &[u8]) -> Option<&'static str> {
             return Some(*code);
         }
     }
-    ["rate_limit_exceeded", "rate_limit_error", "slow_down"]
-        .into_iter()
-        .find(|code| value["error"]["code"] == *code || value["error"]["type"] == *code)
+    [
+        "rate_limit_exceeded",
+        "rate_limit_error",
+        "slow_down",
+        "server_is_overloaded",
+        "service_unavailable_error",
+    ]
+    .into_iter()
+    .find(|code| value["error"]["code"] == *code || value["error"]["type"] == *code)
 }
 const PERMANENT: &[&str] = &[
     "insufficient_quota",
@@ -96,6 +107,10 @@ mod tests {
         assert!(permanent(error_code(
             br#"{"error":{"code":"project_spend_limit_exceeded"}}"#
         )));
+        assert_eq!(
+            error_code(br#"{"error":{"type":"service_unavailable_error","code":"server_is_overloaded","message":"secret"}}"#),
+            Some("server_is_overloaded")
+        );
     }
     #[test]
     fn seconds_dates_overflow_and_invalid_hints_preserve_bounds() {

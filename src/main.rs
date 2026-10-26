@@ -152,7 +152,7 @@ struct Analyse {
     max_response_bytes: usize,
     #[arg(long, default_value_t = 10_000)]
     max_output_tokens: u32,
-    /// Extra HTTP attempts after retryable 429 responses. Logical model calls stay fixed.
+    /// Extra HTTP attempts after 429, 500, 502, 503 or 504 responses. Logical calls stay fixed.
     #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(u8).range(0..=10))]
     http_retries: u8,
     /// Maximum retry wait. A longer valid Retry-After stops the call instead of retrying early.

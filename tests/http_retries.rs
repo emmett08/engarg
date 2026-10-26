@@ -33,13 +33,16 @@ struct Reply {
     delay: Duration,
 }
 impl Reply {
-    fn rate(headers: &str, body: Value) -> Self {
+    fn failure(status: u16, headers: &str, body: &str) -> Self {
         Self {
-            status: 429,
-            body: body.to_string(),
+            status,
+            body: body.into(),
             headers: headers.into(),
             delay: Duration::ZERO,
         }
+    }
+    fn rate(headers: &str, body: Value) -> Self {
+        Self::failure(429, headers, &body.to_string())
     }
     fn success() -> Self {
         Self{status:200,body:json!({"status":"completed","id":"response-id","model":"actual-model","output":[{"type":"message","content":[{"type":"output_text","text":"{}"}]}]}).to_string(),headers:String::new(),delay:Duration::ZERO}
@@ -205,37 +208,108 @@ fn model(server: &Server, policy: TransportConfig, observer: HttpObserver) -> Ht
 
 #[tokio::test]
 async fn a_rejected_attempt_replays_identical_configuration_and_records_safe_receipts() {
+    for status in [429, 500, 502, 503, 504] {
+        let server = Server::new(vec![
+            // Proxies can return HTML or an empty body rather than provider JSON.
+            Reply::failure(status, "Retry-After: 0\r\n", "sensitive remote echo"),
+            Reply::success(),
+        ]);
+        let (observer, events) = recorder();
+        let model = model(&server, TransportConfig::default(), observer);
+        let result = model.complete(request()).await.unwrap();
+        assert_eq!(result.model, "actual-model");
+        let requests = server.state.requests.lock().unwrap();
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0], requests[1]);
+        assert_eq!(requests[0]["model"], "role-model");
+        assert_eq!(requests[0]["service_tier"], "ultrafast");
+        assert_eq!(requests[0]["reasoning"], json!({"effort":"high"}));
+        assert_eq!(requests[0]["store"], false);
+        let events = events.lock().unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .map(|e| (e.kind, e.attempt, e.status))
+                .collect::<Vec<_>>(),
+            [
+                ("response", 1, status),
+                ("retry", 1, status),
+                ("response", 2, 200)
+            ]
+        );
+        assert!(events[1].wait_ms.is_some_and(|n| (10..=250).contains(&n)));
+        let json = serde_json::to_string(&*events).unwrap();
+        assert!(!json.contains("sensitive"));
+        assert!(!json.contains("test-private-key"));
+    }
+}
+
+#[tokio::test]
+async fn transient_statuses_share_one_retry_allowance() {
     let server = Server::new(vec![
         Reply::rate("Retry-After: 0\r\n", temporary()),
+        Reply::failure(503, "Retry-After: 0\r\n", ""),
+        Reply::failure(502, "Retry-After: 0\r\n", "sensitive gateway details"),
         Reply::success(),
     ]);
     let (observer, events) = recorder();
-    let model = model(&server, TransportConfig::default(), observer);
-    let result = model.complete(request()).await.unwrap();
-    assert_eq!(result.model, "actual-model");
-    let requests = server.state.requests.lock().unwrap();
-    assert_eq!(requests.len(), 2);
-    assert_eq!(requests[0], requests[1]);
-    assert_eq!(requests[0]["model"], "role-model");
-    assert_eq!(requests[0]["service_tier"], "ultrafast");
-    assert_eq!(requests[0]["reasoning"], json!({"effort":"high"}));
-    assert_eq!(requests[0]["store"], false);
+    let policy = TransportConfig {
+        max_http_retries: 2,
+        ..TransportConfig::default()
+    };
+    let failure = model(&server, policy, observer)
+        .complete(request())
+        .await
+        .unwrap_err();
+    assert!(failure.to_string().contains("502"));
+    assert!(failure.to_string().contains("retry_budget_exhausted"));
+    assert!(!failure.to_string().contains("sensitive"));
+    assert_eq!(server.count(), 3);
     let events = events.lock().unwrap();
-    assert_eq!(
-        events
-            .iter()
-            .map(|e| (e.kind, e.attempt, e.status))
-            .collect::<Vec<_>>(),
-        [
-            ("response", 1, 429),
-            ("retry", 1, 429),
-            ("response", 2, 200)
-        ]
-    );
-    assert!(events[1].wait_ms.is_some_and(|n| (10..=250).contains(&n)));
-    let json = serde_json::to_string(&*events).unwrap();
-    assert!(!json.contains("sensitive"));
-    assert!(!json.contains("test-private-key"));
+    assert_eq!(events.iter().filter(|e| e.kind == "retry").count(), 2);
+    assert_eq!(events.last().unwrap().kind, "retry_budget_exhausted");
+}
+
+#[tokio::test]
+async fn temporary_server_failures_preserve_explicit_single_attempt_transport() {
+    for status in [500, 502, 503, 504] {
+        let server = Server::new(vec![Reply::failure(
+            status,
+            "Retry-After: 0\r\n",
+            "sensitive remote echo",
+        )]);
+        let (observer, events) = recorder();
+        let policy = TransportConfig {
+            max_http_retries: 0,
+            ..TransportConfig::default()
+        };
+        let failure = model(&server, policy, observer)
+            .complete(request())
+            .await
+            .unwrap_err();
+        assert!(failure.to_string().contains("no automatic retry"));
+        assert!(!failure.to_string().contains("sensitive"));
+        assert_eq!(server.count(), 1);
+        assert!(!events.lock().unwrap().iter().any(|e| e.kind == "retry"));
+    }
+}
+
+#[tokio::test]
+async fn oversized_server_error_bodies_stop_before_retry() {
+    let server = Server::new(vec![Reply::failure(
+        503,
+        "Retry-After: 0\r\n",
+        &"sensitive diagnostic".repeat(1024),
+    )]);
+    let (observer, events) = recorder();
+    let failure = model(&server, TransportConfig::default(), observer)
+        .complete(request())
+        .await
+        .unwrap_err();
+    assert!(matches!(failure, Error::Budget(_)));
+    assert!(!failure.to_string().contains("sensitive"));
+    assert_eq!(server.count(), 1);
+    assert!(!events.lock().unwrap().iter().any(|e| e.kind == "retry"));
 }
 
 #[tokio::test]
@@ -248,20 +322,23 @@ async fn quota_and_spend_codes_stop_even_when_a_retry_hint_is_present() {
         json!({"code":"organization_usage_limit_exceeded"}),
         json!({"type":"insufficient_quota","code":"rate_limit_exceeded"}),
     ] {
-        let server = Server::new(vec![Reply::rate(
-            "Retry-After: 0\r\n",
-            json!({"error":error}),
-        )]);
-        let (observer, events) = recorder();
-        let failure = model(&server, TransportConfig::default(), observer)
-            .complete(request())
-            .await
-            .unwrap_err();
-        assert!(failure.to_string().contains("429"));
-        assert_eq!(server.count(), 1);
-        let events = events.lock().unwrap();
-        assert!(!events.iter().any(|e| e.kind == "retry"));
-        assert!(events.last().unwrap().provider_code.is_some());
+        for status in [429, 503] {
+            let server = Server::new(vec![Reply::failure(
+                status,
+                "Retry-After: 0\r\n",
+                &json!({"error":error}).to_string(),
+            )]);
+            let (observer, events) = recorder();
+            let failure = model(&server, TransportConfig::default(), observer)
+                .complete(request())
+                .await
+                .unwrap_err();
+            assert!(failure.to_string().contains(&status.to_string()));
+            assert_eq!(server.count(), 1);
+            let events = events.lock().unwrap();
+            assert!(!events.iter().any(|e| e.kind == "retry"));
+            assert!(events.last().unwrap().provider_code.is_some());
+        }
     }
 }
 
@@ -273,21 +350,24 @@ async fn retry_hints_above_the_cap_or_remaining_deadline_stop_without_an_early_r
         (future, 1, Duration::from_secs(5)),
         ("1".to_owned(), 120, Duration::from_millis(100)),
     ] {
-        let server = Server::new(vec![Reply::rate(
-            &format!("Retry-After: {hint}\r\n"),
-            temporary(),
-        )]);
-        let (observer, events) = recorder();
-        let policy = TransportConfig {
-            retry_max_delay_secs: cap,
-            ..TransportConfig::default()
-        };
-        let model =
-            HttpModel::new_with_transport(config(&server.endpoint, timeout), policy, observer)
-                .unwrap();
-        assert!(model.complete(request()).await.is_err());
-        assert_eq!(server.count(), 1);
-        assert!(!events.lock().unwrap().iter().any(|e| e.kind == "retry"));
+        for status in [429, 503] {
+            let server = Server::new(vec![Reply::failure(
+                status,
+                &format!("Retry-After: {hint}\r\n"),
+                &temporary().to_string(),
+            )]);
+            let (observer, events) = recorder();
+            let policy = TransportConfig {
+                retry_max_delay_secs: cap,
+                ..TransportConfig::default()
+            };
+            let model =
+                HttpModel::new_with_transport(config(&server.endpoint, timeout), policy, observer)
+                    .unwrap();
+            assert!(model.complete(request()).await.is_err());
+            assert_eq!(server.count(), 1);
+            assert!(!events.lock().unwrap().iter().any(|e| e.kind == "retry"));
+        }
     }
 }
 
@@ -340,7 +420,11 @@ async fn retry_exhaustion_has_a_finite_attempt_count_and_redacts_error_text() {
 #[tokio::test]
 async fn failed_audit_persistence_stops_before_another_http_attempt() {
     for failing_kind in ["response", "retry"] {
-        let server = Server::new(vec![Reply::rate("Retry-After: 0\r\n", temporary())]);
+        let server = Server::new(vec![Reply::failure(
+            503,
+            "Retry-After: 0\r\n",
+            &temporary().to_string(),
+        )]);
         let observer: HttpObserver = Arc::new(move |event| {
             if event.kind == failing_kind {
                 Err(Error::Provider("audit persistence failed".into()))
@@ -362,7 +446,8 @@ async fn other_http_failures_and_invalid_successes_keep_single_attempt_semantics
     for (status, body) in [
         (400, "sensitive remote echo"),
         (401, "sensitive remote echo"),
-        (503, "sensitive remote echo"),
+        (501, "sensitive remote echo"),
+        (505, "sensitive remote echo"),
         (200, "not JSON"),
     ] {
         let server = Server::new(vec![Reply {
@@ -438,7 +523,7 @@ async fn the_logical_deadline_includes_time_waiting_for_admission() {
 #[tokio::test]
 async fn cancellation_during_retry_sleep_releases_admission_without_resending() {
     let server = Server::new(vec![
-        Reply::rate("Retry-After: 1\r\n", temporary()),
+        Reply::failure(503, "Retry-After: 1\r\n", ""),
         Reply::success(),
     ]);
     let (notify, ready) = tokio::sync::oneshot::channel();
@@ -508,7 +593,7 @@ async fn cli_recovers_with_one_logical_call_and_audits_both_http_attempts() {
     envelope["output"][0]["content"][0]["text"] = json!(content);
     success.body = envelope.to_string();
     let server = Server::new(vec![
-        Reply::rate("Retry-After: 0\r\n", temporary()),
+        Reply::failure(503, "Retry-After: 0\r\n", &json!({"error":{"type":"service_unavailable_error","code":"server_is_overloaded","message":"sensitive remote echo"}}).to_string()),
         success,
     ]);
     let directory = tempfile::tempdir().unwrap();
@@ -598,6 +683,12 @@ async fn cli_recovers_with_one_logical_call_and_audits_both_http_attempts() {
         1
     );
     assert_eq!(events.last().unwrap()["event"], "success");
+    let retry = events
+        .iter()
+        .find(|event| event["record"]["kind"] == "retry")
+        .unwrap();
+    assert_eq!(retry["record"]["status"], 503);
+    assert_eq!(retry["record"]["provider_code"], "server_is_overloaded");
     let requests = server.state.requests.lock().unwrap();
     assert_eq!(requests.len(), 2);
     assert_eq!(requests[0], requests[1]);

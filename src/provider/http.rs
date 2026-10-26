@@ -1,4 +1,4 @@
-//! Bounded HTTP attempts with explicit rate-limit recovery and transport receipts.
+//! Bounded HTTP attempts with explicit transient-error recovery and transport receipts.
 use crate::{Error, provider::Role};
 use reqwest::{Client, Response, Url};
 use serde::Serialize;
@@ -160,21 +160,21 @@ impl HttpTransport {
                 return serde_json::from_slice(&bytes)
                     .map_err(|_| Error::Provider("response was not JSON".into()));
             }
-            if status.as_u16() != 429 {
+            if !super::retry_policy::retryable_status(status.as_u16()) {
                 return Err(Error::Provider(format!(
                     "HTTP {status}; no automatic retry"
                 )));
             }
             let headers = response.headers().clone();
             let bytes = read_body(response, self.max_body_bytes.min(65536)).await?;
-            event.provider_code = super::rate_limit::error_code(&bytes);
-            let permanent = super::rate_limit::permanent(event.provider_code);
+            event.provider_code = super::retry_policy::error_code(&bytes);
+            let permanent = super::retry_policy::permanent(event.provider_code);
             let outcome = if permanent {
                 Err("quota_or_billing_limit")
             } else if attempt > self.config.max_http_retries {
                 Err("retry_budget_exhausted")
             } else {
-                super::rate_limit::delay(
+                super::retry_policy::delay(
                     &headers,
                     attempt,
                     Duration::from_secs(self.config.retry_max_delay_secs),
@@ -198,7 +198,11 @@ impl HttpTransport {
                 Err(reason) => {
                     event.kind = reason;
                     (self.observer)(&event)?;
-                    let code = event.provider_code.unwrap_or("unclassified_429");
+                    let code = event.provider_code.unwrap_or(if status.as_u16() == 429 {
+                        "unclassified_429"
+                    } else {
+                        "transient_server_error"
+                    });
                     let help = if permanent {
                         "update API credits or usage/spend limits"
                     } else if self.config.max_http_retries == 0 {
