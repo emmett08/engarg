@@ -51,6 +51,8 @@ mod live_output;
 /// Errors distinguish invalid arguments from transport and resource failures.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("ticket outcome: {0}")]
+    Ticket(String),
     #[error("invalid input: {0}")]
     InvalidInput(String),
     #[error("invalid model output: {0}")]

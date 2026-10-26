@@ -544,3 +544,29 @@ fn unrelated_json_like_prose_remains_exact_with_sensitive_forwarded_configuratio
         expected
     );
 }
+
+#[tokio::test]
+async fn registered_source_scope_is_explicit_and_cannot_be_rebound() {
+    let directory = TempDir::new().unwrap();
+    let args = directory.path().join("registered-args");
+    let envelope = json!({"operation":"assess_known","protocol_version":"2025-11-25","is_error":false,"result":{"entry_id":"ticket_fixture"},"content":[]});
+    let script = format!(
+        "printf '%s\\n' \"$@\" > {}\n{}",
+        quoted_path(&args),
+        emit(&envelope, 0)
+    );
+    let config = mock(&directory, &script);
+    let request =
+        json!({"operation":"assess_known","entry_id":"ticket_fixture","claim":"current_claim"});
+    let wrong = engarg::eal_host::invoke_registered(&config, &request, "another_ticket").await;
+    assert!(matches!(wrong, Err(Error::InvalidInput(_))));
+    assert!(!args.exists());
+    let response = engarg::eal_host::invoke_registered(&config, &request, "ticket_fixture")
+        .await
+        .unwrap();
+    assert_eq!(response["result"]["entry_id"], "ticket_fixture");
+    let args = fs::read_to_string(args).unwrap();
+    assert!(args.contains("registered"));
+    assert!(args.contains("--known-entry"));
+    assert!(args.contains("ticket_fixture"));
+}

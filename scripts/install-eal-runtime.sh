@@ -20,9 +20,10 @@ from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 
 TOOLCHAIN = "1.90.0"
-PACKAGES = ("eal-process", "eal-runtime", "eal-mcp", "eal-collectors", "eal-coordination")
+PACKAGES = ("eal-process", "eal-runtime", "eal-mcp", "eal-collectors", "eal-coordination", "eal-cli")
 BINARIES = ("eal-host", "eal-mcp", "eal-method-worker",
-            "eal-command-supervisor", "eal-process-supervisor", "eal-collector", "eal-coordinate", "eal-mas-server", "mas-protocol-codec")
+            "eal-command-supervisor", "eal-process-supervisor", "eal-collector", "eal-coordinate", "eal-mas-server", "mas-protocol-codec",
+            "eal", "eal-core", "eal-syntax", "eal-runtime", "eal-aspic-solve")
 OWNER = ".engarg-eal-runtime-owner.json"
 RECEIPT = ".engarg-eal-runtime.json"
 

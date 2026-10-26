@@ -63,7 +63,7 @@ pub fn draft_request(
             "Use only supplied values for arguments; partition every parameter exactly once between arguments and unresolved_arguments. ",
             "Choose a concrete observable operation and local-only JSON Schemas. The input schema must have type:object, additionalProperties:false, and properties exactly matching parameters. ",
             "The result schema describes an object observation value, with properties.collected.type:boolean and required containing collected. It does not describe the outer transport envelope. ",
-            "Include distinct positive and negative observation fixtures and an acquisition_error fixture. ",
+            "Include distinct positive and negative observation fixtures and an acquisition_error fixture. Positive and negative inputs must satisfy the input schema. For a total operation, the acquisition_error fixture may deliberately violate the input schema to test rejection without inventing a failure for valid inputs. ",
             "Positive and negative expected values must satisfy the result schema, contain collected:true, and differ from each other. ",
             "A negative measurement is a successful acquisition with a negative result; an acquisition error is an unavailable observation and has null expected_value_json. ",
             "Fixtures are synthetic tests, never evidence supporting the engineering argument. ",

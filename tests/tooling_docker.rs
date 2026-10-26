@@ -15,6 +15,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "common/live_output.rs"]
+mod live_output;
 #[allow(dead_code)]
 #[path = "fixtures/tooling_collector.rs"]
 mod rust_collector_fixture;
@@ -1875,13 +1877,17 @@ fn coding_failure_preserves_the_original_analysis_output() {
     let directory = tempfile::tempdir().unwrap();
     let fixture_path = directory.path().join("fixture.json");
     saved_report(&fixture_path);
-    let fixture: Value = serde_json::from_slice(&fs::read(&fixture_path).unwrap()).unwrap();
-    let planned: Value = serde_json::from_str(
+    let mut fixture: Value = serde_json::from_slice(&fs::read(&fixture_path).unwrap()).unwrap();
+    // This response enters live generation. Keep the shared saved-report
+    // fixture's historical import/export semantics unchanged for other tests.
+    fixture["argument"] = live_output::value(&fixture["argument"].to_string());
+    let mut planned: Value = serde_json::from_str(
         fixture["transcript"][0]["response"]["content"]
             .as_str()
             .unwrap(),
     )
     .unwrap();
+    planned["argument"] = fixture["argument"].clone();
     let request_path = directory.path().join("request.json");
     fs::write(
         &request_path,

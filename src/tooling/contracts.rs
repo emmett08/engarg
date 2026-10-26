@@ -324,7 +324,10 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
         }
         validate_files(&fixture.files, false)?;
         bounded_json(&fixture.input)?;
-        if !input.is_valid(&fixture.input) {
+        // An unavailable observation can arise from rejected input. Total pure
+        // operations need no invented failure within their valid input domain.
+        // Collected measurements always use admitted inputs.
+        if fixture.kind != FixtureKind::AcquisitionError && !input.is_valid(&fixture.input) {
             return Err(invalid(format!(
                 "fixture {} violates input schema",
                 fixture.name
@@ -512,6 +515,22 @@ mod tests {
         assert!(validate_contract(&value).is_err());
         let mut value = contract();
         value.draft.input_schema["properties"]["mode"] = json!({"type":"integer"});
+        assert!(validate_contract(&value).is_err());
+    }
+
+    #[test]
+    fn total_operations_can_test_schema_rejection_without_fabricating_a_valid_input_failure() {
+        let mut value = contract();
+        value.draft.input_schema["properties"]["mode"] =
+            json!({"type":"string","enum":["positive","negative"]});
+        value.draft.fixtures[2].input = json!({});
+        validate_contract(&value).unwrap();
+        for index in [0, 1] {
+            let mut invalid_measurement = value.clone();
+            invalid_measurement.draft.fixtures[index].input = json!({});
+            assert!(validate_contract(&invalid_measurement).is_err());
+        }
+        value.draft.fixtures[2].expected_value = Some(json!({"collected":true,"present":false}));
         assert!(validate_contract(&value).is_err());
     }
 

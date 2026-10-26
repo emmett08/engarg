@@ -68,6 +68,10 @@ jobs:
           docker pull node:24-slim
           docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
           cargo test --locked --test tooling_docker -- --include-ignored
+          export ENGARG_EAL_COORDINATE="$(dirname "$ENGARG_EAL_HOST")/eal-coordinate"
+          export ENGARG_CATALOGUE_MCP="$PWD/target/debug/examples/catalogue_mcp"
+          cargo build --locked --bins --example catalogue_mcp
+          cargo test --locked --test ticket_native -- --include-ignored
 
   eal-compatibility:
     name: EAL producer and consumer contracts
@@ -75,7 +79,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: e887b94588293545b91dbd7417f936c73618becd
+      EAL_REVISION: 9da53e5caf1936a29663192779dc4991a0dd550f
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -128,3 +132,6 @@ jobs:
           cargo +1.99.1 test --locked --test support_method_export --test catalogue_workflow_native -- --include-ignored
 
           cargo +1.99.1 test --locked --test coordination_live -- --include-ignored
+          cargo +1.99.1 test --locked --test ticket_native every_topology_registers -- --include-ignored
+          cargo +1.99.1 test --locked --test ticket_native unavailable_new_mcp -- --include-ignored
+          cargo +1.99.1 test --locked --test ticket_native measured_negative -- --include-ignored

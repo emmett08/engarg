@@ -414,6 +414,7 @@ pub(crate) mod tests {
         Context,
         OpaqueNumber,
         OpaqueRawValue,
+        AcceptInvalidInput,
         Timeout,
     }
 
@@ -456,7 +457,7 @@ pub(crate) mod tests {
                 .get("mode")
                 .and_then(Value::as_str)
                 .unwrap_or("error");
-            if mode == "error" {
+            if mode == "error" && !matches!(self.fault, Fault::AcceptInvalidInput) {
                 return Ok(fail(None));
             }
             let mut context = request.context.clone();
@@ -520,6 +521,29 @@ pub(crate) mod tests {
         assert!(receipt.passed);
         assert_eq!(receipt.results.len(), 6);
         assert!(receipt.results.iter().all(|result| result.passed));
+    }
+
+    #[test]
+    fn schema_rejection_fixtures_require_an_observed_rejection_from_the_runner() {
+        let mut total = contract();
+        total.draft.input_schema["properties"]["mode"]["enum"] = json!(["positive", "negative"]);
+        total.draft.fixtures[2].input = json!({});
+        for (fault, expected) in [(Fault::None, true), (Fault::AcceptInvalidInput, false)] {
+            let directory = tempfile::tempdir().unwrap();
+            let receipt = verify(
+                &FakeRunner {
+                    identity: identity(),
+                    fault,
+                },
+                &total,
+                &candidate(),
+                directory.path(),
+                &CancellationToken::default(),
+            )
+            .unwrap();
+            assert_eq!(receipt.passed, expected);
+            assert_eq!(receipt.results[2].passed, expected);
+        }
     }
 
     #[test]

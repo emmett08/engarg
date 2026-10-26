@@ -78,6 +78,8 @@ Select a specialist communication graph with `--topology fully-connected`, `grou
 
 CLI topology runs require `eal-coordinate`. Install the pinned native companions with `scripts/install-eal-runtime.sh`, then set `--eal-coordinate /absolute/runtime/bin/eal-coordinate` or `ENGARG_EAL_COORDINATE`. The coordinator owns routing and round barriers, while EngArg supplies prompts and provider calls. `--coordination-run DIRECTORY` selects its retained journal. With an output file, the default journal path is `<output>.coordination`. A missing coordinator fails before any provider call.
 
+Use `engarg ticket --spec ticket.json --run investigation-001` for the complete authoring, registration, collection and assessment workflow. Its durable controller connects approved MCP sources and verified compiled tools to the same retained investigation. See [ticket execution](docs/TICKETS.md) for configuration, result states and native acceptance tests.
+
 ## Generation depth and invalid-output recovery
 
 Use `--argument-depth N` to limit the generated support graph to N warrant layers on every path from `current_claim` or `stronger_target` to a ground. A direct claim → warrant → ground argument has depth 1. Introducing an intermediate subclaim adds one layer. The limit applies to all candidate routes, including unselected alternatives. It is sent to every agent and checked deterministically against the final graph. Allowed values are 1–16. Omit the option to retain the previous unbounded decomposition behaviour, subject to the other resource limits.

@@ -94,11 +94,16 @@ impl TopologyOptions {
                 ))
             }
         };
-        if output.is_some_and(|path| path == run_directory) {
+        if run_directory
+            .symlink_metadata()
+            .is_ok_and(|entry| entry.file_type().is_symlink())
+        {
             return Err(Error::InvalidInput(
-                "coordination run directory and output file require different paths".into(),
+                "coordination directory must not be a symlink".into(),
             ));
         }
+        let run_directory = crate::path_admission::identity(&run_directory)?;
+        crate::path_admission::analyse(output, None, Some(&run_directory))?;
         Ok(Some(engarg::engine::CoordinatorConfig {
             executable: self
                 .eal_coordinate

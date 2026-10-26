@@ -29,6 +29,8 @@ mod repair;
 
 #[derive(Subcommand)]
 pub enum EalCommand {
+    /// Activate approved MCP connections and register verified tools before execution.
+    Integrate(super::tooling_commands::integration::IntegrateArgs),
     /// Admit operator-qualified verified tools into a new connection configuration.
     RegisterTools(super::tooling_commands::registration::RegisterToolsArgs),
     /// Rebuild evidence routes from a saved graph report without model calls.
@@ -122,6 +124,9 @@ pub struct ExportArgs {
     /// JSON export freshness policy, resolved and retained in the v3 bundle.
     #[arg(long)]
     export_policy: Option<PathBuf>,
+    /// Operator-owned JSON command binding for independent graph review obligations.
+    #[arg(long, value_name = "JSON")]
+    review_binding: Option<PathBuf>,
     /// Companion tools registry. Defaults beside output, or beside input for stdout.
     #[arg(long)]
     tools_output: Option<PathBuf>,
@@ -742,6 +747,11 @@ fn execute_export(args: ExportArgs) -> Result<(), Error> {
     if report.evidence_planning.is_some() {
         return execute_support_export(args, destinations, &report);
     }
+    if args.review_binding.is_some() {
+        return Err(Error::InvalidInput(
+            "review-binding requires a saved graph analysis".into(),
+        ));
+    }
     if let Some(path) = args.acquisition_plan {
         let overrides: Vec<AcquisitionPlan> = super::read_json(&path, MAX_INPUT_BYTES)?;
         plan = acquisition::override_plans_with_catalogue(
@@ -959,6 +969,30 @@ fn support_evidence_plan(
         "collection_budget":engarg::support_export::collection_budget(&artifacts.bundle)})
 }
 
+pub(crate) fn selected_review_binding(
+    path: Option<&Path>,
+) -> Result<Option<eal_collector_contracts::CommandBinding>, Error> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let binding: eal_collector_contracts::CommandBinding = super::read_json(path, 1_048_576)?;
+    if binding.version != "1" || binding.kind != eal_collector_contracts::ToolKind::Command {
+        return Err(Error::InvalidInput(
+            "independent review requires a version-1 command binding".into(),
+        ));
+    }
+    let registry = eal_collector_contracts::CommandRegistry {
+        tools: std::collections::BTreeMap::from([(
+            "engarg_review_contract".into(),
+            binding.clone(),
+        )]),
+    };
+    let toml = registry.to_toml().map_err(Error::InvalidInput)?;
+    // Use the same complete executable-registry admission as the EAL consumer.
+    eal_collector_contracts::RegistryDocument::from_toml(&toml).map_err(Error::InvalidInput)?;
+    Ok(Some(binding))
+}
+
 fn execute_support_export(
     args: ExportArgs,
     destinations: Vec<(PathBuf, ExportArtifact)>,
@@ -980,7 +1014,8 @@ fn execute_support_export(
         Some(path) => super::read_json(path, 1_048_576)?,
         None => Default::default(),
     };
-    let artifacts = support_artifacts(report, &execution_path, None, &policy)?;
+    let review_binding = selected_review_binding(args.review_binding.as_deref())?;
+    let artifacts = support_artifacts(report, &execution_path, review_binding, &policy)?;
     let manifest = json_bytes(&artifacts.bundle)?;
     let primary = match args.format {
         ExportFormat::Eal => artifacts.bundle.source.as_bytes(),
@@ -1169,6 +1204,7 @@ async fn host_operation(destination: HostOutput, request: Value) -> Result<(), E
 
 pub async fn execute(command: EalCommand) -> Result<(), Error> {
     match command {
+        EalCommand::Integrate(args) => super::tooling_commands::integration::integrate(args).await,
         EalCommand::RegisterTools(args) => {
             super::tooling_commands::registration::register_tools(args).await
         }
