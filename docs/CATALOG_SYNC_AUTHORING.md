@@ -107,6 +107,23 @@ gaps before coding. Configuration-only runs consume no coding calls. Graph
 evidence plans, native/MCP configuration, scoped reviews and the function-test
 qualification boundary are documented in the support-planning guide.
 
+The simple example pins its independently specified identifier audit in the
+planning configuration before tool generation. Model wording remains in the
+retained analysis. The implementation uses the operator's definition, and
+qualification checks the frozen package against that definition, its exact
+interface and its independent probes. `tooling-operation-admission.json` records
+the binding before coding calls. Known unit annotations are checked separately
+from JSON Schema validation constraints. Cardinality units remain those of the
+admitted contract, and both source and audit qualifications declare the returned
+snapshot identifier. Qualifications retain their own source authority. Upstream
+authority requirements and unsupported scope selectors remain route gaps.
+
+`--replan-analysis` can apply this current operator configuration to an earlier
+argument without repeating authoring. A package generated from the earlier
+model-authored definition has a different identity and requires verification
+under the pinned definition. Pending judgement evaluations and unresolved
+reasoning-method bindings remain unresolved after tool qualification.
+
 Authoring uses `ENGARG_MODEL`, `ENGARG_REASONING_EFFORT` and
 `ENGARG_MAX_OUTPUT_TOKENS`. Graph tool generation inherits those settings.
 Override individual settings with `ENGARG_TOOL_MODEL`,

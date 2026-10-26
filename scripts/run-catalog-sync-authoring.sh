@@ -435,7 +435,12 @@ run_analysis --progress --input "$run_dir/request.json" \
   --format json --audit "$run_dir/analysis.audit.jsonl" --output "$analysis_output"
 authoring_pending=0
 
+simple_example=$(catalog_sync simple-example "$run_dir/input-identity.json")
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then
+  if [[ $simple_example -eq 1 ]]; then
+    set_stage 'bounded catalogue operation admission'
+    python3 "$repo/scripts/catalogue_evidence_example.py" admit-operation "$run_dir" "$analysis_output"
+  fi
   set_stage 'tool implementation gap admission'
   catalog_sync select-tool-gaps "$analysis_output" "$run_dir/tooling-selection.json"
   set_stage 'tool implementation'
@@ -450,7 +455,6 @@ if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then
   catalog_sync merge-tool-analysis "$analysis_output" "$run_dir/tooling/analysis.with-tools.json" "$run_dir/analysis.json"
 fi
 
-simple_example=$(catalog_sync simple-example "$run_dir/input-identity.json")
 if [[ $simple_example -eq 1 ]]; then
   set_stage 'bounded catalogue operation qualification'
   qualifications=$(python3 "$repo/scripts/catalogue_evidence_example.py" qualify "$run_dir" "$engarg_bin")

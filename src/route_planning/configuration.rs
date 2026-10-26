@@ -6,6 +6,7 @@ use eal_collector_contracts::execution::valid_pointer;
 impl PlanningConfig {
     pub fn validate(&self) -> Result<(), Error> {
         if self.schema != PLANNING_CONFIG_SCHEMA
+            || self.operation_specifications.len() > 64
             || self.batch_correspondences.len() > 64
             || self
                 .batch_correspondences
@@ -29,6 +30,26 @@ impl PlanningConfig {
         }
         for batch in &self.batch_correspondences {
             batch.validate()?;
+        }
+        for (method, specification) in &self.operation_specifications {
+            if method.len() > 256
+                || method
+                    .chars()
+                    .any(|character| character.is_control() || character.is_whitespace())
+                || !method.split_once('/').is_some_and(|(name, version)| {
+                    eal_collector_contracts::identifier(name)
+                        && !version.is_empty()
+                        && version
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte))
+                })
+            {
+                return Err(Error::InvalidInput(
+                    "Operator operation specifications require bounded versioned method identities"
+                        .into(),
+                ));
+            }
+            specification.validate().map_err(Error::InvalidInput)?;
         }
         self.ranking.validate().map_err(Error::InvalidInput)?;
         eal_collector_contracts::execution::EvidenceExecutionPlan {

@@ -220,6 +220,17 @@ Calculation lineage is typed and survives representation changes. Scaling a calc
 
 A missing operation requires `operation_spec` before coding: schema `engarg.operation-specification/1`, a parameterised `definition`, explicit `input_conditions` and `output_guarantees`, and fixed `input_schema`/`output_schema` objects. Dynamic quantity inputs retain known units and shapes; an unknown provider scalar/array shape is not guessed. Input unit annotations use `x-engarg-unit`; the logical output schema requires each declared quantity. The collector transport adds its separate `collected` bit. Algorithm changes alter the reusable package identity, while consumer scope, source IDs and freshness do not define the algorithm. Existing qualified operations need no new specification. Missing definitions stay clarification gaps, not guessed implementations.
 
+An operator can pin an independently supplied definition through the planning
+configuration's optional `operation_specifications` object. Each key is one exact
+versioned method identifier and each value is a complete operation specification
+with the fields above. A single matching method selects the operator's definition
+for implementation. The authored input and output validation constraints must
+still match, and conflicting units remain clarification gaps. The registry holds
+at most 64 entries. Replanning retains it with the route configuration while
+preserving the authored argument, support elaboration and transcript. Changing a
+pinned definition changes the implementation identity and requires a matching
+verified package.
+
 `ProjectValue` projects JSON Pointers from one whole response, including a root array. `Project` retains the older per-record projection for fan-out results. Both preserve logical quantity identities. Existing batch operations receive a whole discovered collection through a dependency binding; they are not automatically expanded into individual reads.
 
 ## MCP connections and qualification

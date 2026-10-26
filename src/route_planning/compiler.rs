@@ -150,7 +150,7 @@ pub(super) fn compile_fixed(
                 kind,
                 GapKind::OperationImplementation | GapKind::TransformationImplementation
             ) {
-                match implementation::request(blueprint, elaboration) {
+                match implementation::configured_request(blueprint, elaboration, config) {
                     Ok(request) => Some(request),
                     Err(Error::InvalidInput(reason)) => {
                         kind = GapKind::Clarification;

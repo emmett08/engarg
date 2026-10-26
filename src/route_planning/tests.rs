@@ -4,7 +4,7 @@ use crate::support_requirements::{
     tests::{case, pending},
 };
 use eal_collector_contracts::{capability::*, execution::*};
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 pub(super) fn fixture() -> (
@@ -76,6 +76,7 @@ pub(super) fn fixture() -> (
         scheduling: SchedulingPolicy::default(),
         bindings: vec![],
         batch_correspondences: vec![],
+        operation_specifications: BTreeMap::new(),
     };
     let discovery = DiscoverySnapshot {
         budget_usage: json!({"requests_upper_bound":1,"bytes_upper_bound":0,"pages_by_connection":{}}),
@@ -409,6 +410,157 @@ fn an_undefined_operation_remains_a_clarification_instead_of_invented_code() {
             .any(|gap| gap.kind == GapKind::Clarification)
     );
     assert!(plan.gaps.iter().all(|gap| gap.implementation.is_none()));
+}
+
+#[test]
+fn operator_definitions_change_only_implementation_and_preserve_replanning_history() {
+    let (case, mut elaboration, mut catalogue, mut config, discovery) = fixture();
+    catalogue.capabilities.clear();
+    let authored = elaboration.acquisitions[0].operation_spec.as_mut().unwrap();
+    authored.input_schema["properties"]["expression"]["x-engarg-unit"] = json!("json");
+    authored.output_schema["properties"]["result"]["x-engarg-unit"] = json!("1");
+    let baseline = compile(&case, &elaboration, &catalogue, &config, &discovery).unwrap();
+    let original = json!({"argument":case,"transcript":[],
+        "evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":baseline}});
+    let mut retained = original.clone();
+    crate::report::retain_replanning(&original, &mut retained).unwrap();
+    let mut pinned = elaboration.acquisitions[0].operation_spec.clone().unwrap();
+    pinned.definition = "Operator-owned exact arithmetic definition, retained verbatim.".into();
+    pinned.input_conditions = vec!["Apply the independent operator protocol.".into()];
+    pinned.input_schema["properties"]["expression"]
+        .as_object_mut()
+        .unwrap()
+        .remove("x-engarg-unit");
+    config
+        .operation_specifications
+        .insert("exact-calculation/1".into(), pinned.clone());
+    let compiled = compile(&case, &elaboration, &catalogue, &config, &discovery).unwrap();
+    let request = compiled
+        .gaps
+        .iter()
+        .find_map(|gap| gap.implementation.as_ref())
+        .unwrap();
+    let purpose: Value = serde_json::from_str(&request.operation_purpose).unwrap();
+    assert_eq!(purpose["definition"], pinned.definition);
+    assert_eq!(purpose["input_conditions"], json!(pinned.input_conditions));
+    assert_eq!(
+        request.input_schema["properties"]["expression"]["x-engarg-unit"],
+        "json"
+    );
+    assert_eq!(compiled.configuration.operation_specifications.len(), 1);
+    assert_eq!(config.operation_specifications.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&elaboration).unwrap(),
+        original["evidence_planning"]["elaboration"]
+    );
+    let mut updated = retained.clone();
+    updated["evidence_planning"]["routes"] = serde_json::to_value(compiled).unwrap();
+    crate::report::retain_replanning(&retained, &mut updated).unwrap();
+    crate::report::validate_replanning(&updated, &std::env::current_exe().unwrap()).unwrap();
+    for key in ["argument", "transcript"] {
+        assert_eq!(updated[key], original[key]);
+    }
+    assert_eq!(
+        updated["evidence_planning"]["elaboration"],
+        original["evidence_planning"]["elaboration"]
+    );
+    assert_eq!(
+        updated["replanning"]["previous_evidence_planning"],
+        retained["evidence_planning"]
+    );
+}
+
+#[test]
+fn operator_definitions_cannot_change_schemas_units_or_select_an_ambiguous_method() {
+    let (case, elaboration, mut catalogue, config, discovery) = fixture();
+    catalogue.capabilities.clear();
+    let original = elaboration.acquisitions[0].operation_spec.clone().unwrap();
+    for scenario in ["input", "output", "unit", "ambiguous"] {
+        let mut config = config.clone();
+        let mut elaboration = elaboration.clone();
+        let mut pinned = original.clone();
+        match scenario {
+            "input" => pinned.input_schema["properties"]["expression"]["maxLength"] = json!(16),
+            "output" => pinned.output_schema["properties"]["result"]["minimum"] = json!(0),
+            "unit" => pinned.output_schema["properties"]["result"]["x-engarg-unit"] = json!("ms"),
+            "ambiguous" => {
+                elaboration.acquisitions[0]
+                    .contract
+                    .acceptable_methods
+                    .push("alternative-calculation/1".into());
+                elaboration.requirements[0]
+                    .contract
+                    .as_mut()
+                    .unwrap()
+                    .acceptable_methods
+                    .push("alternative-calculation/1".into());
+            }
+            _ => unreachable!(),
+        }
+        config
+            .operation_specifications
+            .insert("exact-calculation/1".into(), pinned);
+        let plan = compile(&case, &elaboration, &catalogue, &config, &discovery).unwrap();
+        assert!(
+            plan.gaps
+                .iter()
+                .any(|gap| gap.kind == GapKind::Clarification),
+            "{scenario}"
+        );
+        assert!(
+            plan.gaps.iter().all(|gap| gap.implementation.is_none()),
+            "{scenario}"
+        );
+    }
+    let mut unrelated = config.clone();
+    let mut pinned = original.clone();
+    pinned.definition = "An unrelated method must not replace this operation.".into();
+    unrelated
+        .operation_specifications
+        .insert("another-method/1".into(), pinned);
+    let plan = compile(&case, &elaboration, &catalogue, &unrelated, &discovery).unwrap();
+    let request = plan
+        .gaps
+        .iter()
+        .find_map(|gap| gap.implementation.as_ref())
+        .unwrap();
+    let purpose: Value = serde_json::from_str(&request.operation_purpose).unwrap();
+    assert_eq!(purpose["definition"], original.definition);
+}
+
+#[test]
+fn operator_registry_validation_is_bounded_and_legacy_configuration_stays_identical() {
+    let (_, elaboration, _, config, _) = fixture();
+    let legacy = serde_json::to_value(&config).unwrap();
+    assert!(legacy.get("operation_specifications").is_none());
+    let decoded: PlanningConfig = serde_json::from_value(legacy.clone()).unwrap();
+    assert_eq!(serde_json::to_value(decoded).unwrap(), legacy);
+    let specification = elaboration.acquisitions[0].operation_spec.clone().unwrap();
+    for method in [
+        "",
+        "unversioned",
+        "/1",
+        "method/",
+        "method\n/1",
+        "method /1",
+    ] {
+        let mut bad = config.clone();
+        bad.operation_specifications
+            .insert(method.into(), specification.clone());
+        assert!(bad.validate().is_err(), "{method:?}");
+    }
+    let mut bad = config.clone();
+    for index in 0..65 {
+        bad.operation_specifications
+            .insert(format!("method-{index}/1"), specification.clone());
+    }
+    assert!(bad.validate().is_err());
+    let mut invalid = specification;
+    invalid.output_guarantees.clear();
+    let mut bad = config;
+    bad.operation_specifications
+        .insert("method/1".into(), invalid);
+    assert!(bad.validate().is_err());
 }
 
 #[test]

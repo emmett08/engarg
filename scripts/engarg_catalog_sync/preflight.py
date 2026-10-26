@@ -84,12 +84,36 @@ def admit_planning(mode, configuration_path, directory):
         config_path = pathlib.Path(configuration_path)
         config_raw, config = read(config_path, limit=4_194_304)
         if (config.get('schema') != 'engarg.capability-planning-config/1'
-                or set(config) - {'schema', 'collector', 'connections', 'store', 'environment', 'ranking', 'scheduling', 'bindings', 'prefer_configured'}
+                or set(config) - {'schema', 'collector', 'connections', 'store', 'environment', 'ranking', 'scheduling', 'bindings', 'prefer_configured', 'operation_specifications'}
                 or 'prefer_configured' in config and type(config['prefer_configured']) is not bool
                 or not isinstance(config.get('ranking'), dict)
                 or not isinstance(config.get('scheduling'), dict)
                 or not isinstance(config.get('bindings'), list) or len(config['bindings']) > 4096):
             raise ValueError('A versioned capability planning configuration is required')
+        operations = config.get('operation_specifications', {})
+        if not isinstance(operations, dict) or len(operations) > 64:
+            raise ValueError('Operation specifications require a bounded method-to-specification object')
+        def statement(value):
+            return (isinstance(value, str) and value.strip() and len(value.encode('utf-8')) <= 8192
+                    and all(character in '\n\t' or not (ord(character) < 32 or 127 <= ord(character) <= 159)
+                            for character in value))
+        for method, specification in operations.items():
+            fields = {'schema', 'definition', 'input_conditions', 'output_guarantees', 'input_schema', 'output_schema'}
+            if (not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+', method)
+                    or len(method.encode('utf-8')) > 256
+                    or not isinstance(specification, dict) or set(specification) != fields
+                    or specification['schema'] != 'engarg.operation-specification/1'
+                    or not statement(specification['definition'])):
+                raise ValueError('Invalid operator operation specification')
+            for field in ['input_conditions', 'output_guarantees']:
+                statements = specification[field]
+                if (not isinstance(statements, list) or len(statements) > 128
+                        or field == 'output_guarantees' and not statements
+                        or any(not statement(item) for item in statements)):
+                    raise ValueError('Invalid operator operation conditions or guarantees')
+            for field in ['input_schema', 'output_schema']:
+                if not isinstance(specification[field], dict) or len(exact_json(specification[field]).encode('utf-8')) > 262144:
+                    raise ValueError('Invalid operator operation interface schema')
         ranking = config['ranking']
         dimensions = ranking.get('dimensions')
         known_dimensions = {'configuration_effort_seconds', 'implementation_effort_seconds', 'execution_requests',

@@ -77,6 +77,27 @@ fn custom_definition_fixed_schemas_and_upstream_units_reach_the_reusable_request
 }
 
 #[test]
+fn operator_definition_cannot_replace_units_from_a_bound_source() {
+    let (mut blueprint, elaboration) = fixture();
+    blueprint.operation_spec.as_mut().unwrap().input_schema["properties"]["latency"]
+        .as_object_mut()
+        .unwrap()
+        .remove("x-engarg-unit");
+    let mut pinned = blueprint.operation_spec.clone().unwrap();
+    pinned.input_schema["properties"]["latency"]["x-engarg-unit"] = json!("s");
+    let (_, _, _, mut configuration, _) = crate::route_planning::tests::fixture();
+    configuration
+        .operation_specifications
+        .insert("normalized-latency-ratio/1".into(), pinned);
+    let error = configured_request(&blueprint, &elaboration, &configuration).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("unit differs from its dependency")
+    );
+}
+
+#[test]
 fn request_cache_preserves_algorithm_changes_but_ignores_consumer_scope_and_source_ids() {
     let (mut blueprint, mut elaboration) = fixture();
     let original = request(&blueprint, &elaboration)

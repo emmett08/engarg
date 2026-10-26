@@ -1,6 +1,7 @@
 """Independent acceptance checks for the bounded demonstration's admission gates."""
 import copy
 import importlib.util
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -31,7 +32,287 @@ def complete_fixtures():
             fixture(['a', 'A'], 2, True), fixture(['one', 'two'], 2, True, complete=False)]
 
 
+def write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, ensure_ascii=False))
+
+
+def qualification_run(directory, count_unit='entries'):
+    """Retain independent operator authority and a separately authored graph."""
+    source_contract = {
+        'schema': 'eal.support-contract/1', 'support_type': 'source_retrieval',
+        'scope': {'kind': 'catalogue_snapshot', 'subject': 'One retained snapshot',
+                  'selectors': {'snapshot': EXAMPLE.SNAPSHOT}, 'identity_dimensions': ['snapshot']},
+        'acceptable_methods': ['catalogue.snapshot/1'],
+        'quantities': [{'name': name, 'unit': unit} for name, unit in [
+            ('snapshot', '1'), ('items', 'json'), ('complete', 'boolean')]],
+        'logical_strength': 'complete_enumeration', 'population': 'demonstration-v1 snapshot items',
+        'time': {'historical_interval': None, 'max_age_seconds': 3600,
+                 'max_uncertainty_seconds': None, 'require_original_observation_time': True},
+        'provenance': {'required_authorities': ['catalogue-fixture'], 'transformation_history': True},
+        'expected_output_schema_sha256': None,
+    }
+    quantities = [{'name': name, 'unit': unit} for name, unit in [
+        ('snapshot', '1'), ('count', count_unit), ('distinct', 'boolean'),
+        ('complete', 'boolean'), ('typed_input', 'json')]]
+    audit_contract = copy.deepcopy(source_contract)
+    audit_contract.update(support_type='calculation', acceptable_methods=[EXAMPLE.METHOD],
+                          quantities=quantities, logical_strength='exact_calculation', population=None,
+                          provenance={'required_authorities': ['catalogue-audit'],
+                                      'transformation_history': True})
+    authored = copy.deepcopy(EXAMPLE.operation_specification())
+    authored['definition'] = 'Count every supplied array entry and compare identifiers with exact string equality.'
+    authored['input_conditions'] = ['The supplied array has no more than 32 entries.']
+    authored['output_guarantees'] = ['Echo the complete formal envelope and preserve snapshot identity.']
+    for name, unit in [('snapshot', '1'), ('items', 'json'), ('complete', 'boolean'), ('formal_input', 'json')]:
+        authored['input_schema']['properties'][name]['x-engarg-unit'] = unit
+    for quantity in quantities:
+        authored['output_schema']['properties'][quantity['name']]['x-engarg-unit'] = quantity['unit']
+    source = {'id': 'retained_snapshot', 'contract': source_contract,
+              'arguments': {'snapshot': EXAMPLE.SNAPSHOT}, 'bindings': [], 'for_each': None}
+    audit = {'id': 'audit_the_snapshot', 'contract': audit_contract, 'operation_spec': authored,
+             'arguments': {'snapshot': None, 'items': None, 'complete': None,
+                           'formal_input': copy.deepcopy(EXAMPLE.FORMAL_INPUT)},
+             'bindings': [{'argument_pointer': '/'+name,
+                           'output': {'step_id': source['id'], 'pointer': '/'+name}}
+                          for name in ['snapshot', 'items', 'complete']], 'for_each': None}
+    input_schema = copy.deepcopy(EXAMPLE.AUDIT_INPUT)
+    for name, unit in [('snapshot', '1'), ('items', 'json'), ('complete', 'boolean'), ('formal_input', 'json')]:
+        input_schema['properties'][name]['x-engarg-unit'] = unit
+    for name in ['snapshot', 'items', 'complete']:
+        unit = input_schema['properties'][name]['x-engarg-unit']
+        input_schema['properties'][name]['x-engarg-source-contract'] = {
+            'x-engarg-quantity': {'name': name, 'unit': unit}}
+    output_schema = copy.deepcopy(EXAMPLE.AUDIT_OUTPUT)
+    output_schema['properties']['collected'] = {'type': 'boolean'}
+    output_schema['required'].append('collected')
+    for quantity in quantities:
+        output_schema['properties'][quantity['name']]['x-engarg-quantity'] = copy.deepcopy(quantity)
+    wanted = EXAMPLE.operation_specification()
+    purpose = {key: wanted[key] for key in ['schema', 'definition', 'input_conditions', 'output_guarantees']}
+    purpose.update(methods=[EXAMPLE.METHOD], provenance='The executor preserves original dependency provenance.')
+    parameterised = copy.deepcopy(audit_contract)
+    parameterised['scope'].update(selectors={}, subject='parameterised catalogue_snapshot operation')
+    parameterised['time']['max_age_seconds'] = None
+    operation = {'support_contract': parameterised, 'input_schema': input_schema,
+                 'output_schema': output_schema, 'operation_purpose': json.dumps(purpose),
+                 'declared_limits': {}}
+    package = {'package_manifest': str(directory/'package/manifest.json'),
+               'manifest_sha256': 'a'*64, 'capability_sha256': 'b'*64,
+               'collector': {'id': 'generated_audit', 'input_schema': input_schema,
+                             'result_schema': output_schema, 'purpose': json.dumps(purpose)}}
+    planning = {'schema': 'engarg.support-planning/1',
+                'elaboration': {'schema': 'engarg.support-elaboration/2', 'acquisitions': [source, audit],
+                                'requirements': [], 'derivations': [], 'evaluations': [], 'revisions': []},
+                'routes': {'configuration': {'operation_specifications': {EXAMPLE.METHOD: wanted}},
+                           'gaps': [{'kind': 'transformation_implementation', 'acquisition_id': audit['id'],
+                                     'requirement_id': None, 'implementation': copy.deepcopy(operation)}]}}
+    analysis = {'request': EXAMPLE.request_for({'schema': 'engarg.catalogue-evidence-example/1',
+                                               'snapshot': EXAMPLE.SNAPSHOT}),
+                'argument': {'retained': 'The accepted argument stays unchanged.'},
+                'transcript': [{'retained': 'The original authoring response stays unchanged.'}],
+                'evidence_planning': planning, 'tooling': {
+                    'capabilities': [package], 'bindings': [{'acquisition_id': audit['id'],
+                        'requirement_id': None, 'capability_sha256': package['capability_sha256'],
+                        'collector_id': package['collector']['id']}]}}
+    provider = {'capability': {'id': package['collector']['id'], 'input_schema': input_schema,
+                              'output_schema': output_schema, 'semantics': None},
+                'mapping': {'scope_pointers': {}}}
+    write_json(directory/'analysis.json', analysis)
+    write_json(directory/'evidence-config.json', planning['routes']['configuration'])
+    write_json(directory/'package/contract.json', {
+        'request_context': json.dumps(operation), 'draft': {'fixtures': complete_fixtures()}})
+    write_json(directory/'tooling/generated-native-providers.json', {'native_providers': [provider]})
+    write_json(directory/'catalogue-probes.snapshot.json', EXAMPLE.frozen_probe_plan())
+    raw = (directory/'catalogue-probes.snapshot.json').read_bytes()
+    write_json(directory/'input-identity.json', {
+        'simple_example': True, 'example_qualification_probes_sha256': EXAMPLE.hashlib.sha256(raw).hexdigest()})
+    return analysis
+
+
 class CatalogueExampleTests(unittest.TestCase):
+    def test_configuration_pins_the_independent_operator_specification(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            EXAMPLE.configuration(directory, directory/'read-only-mcp')
+            planning = EXAMPLE.read(directory/'planning.json')
+            self.assertEqual(planning['operation_specifications'],
+                             {EXAMPLE.METHOD: EXAMPLE.operation_specification()})
+
+    def test_operator_contract_qualifies_despite_model_paraphrase_and_unit_annotations(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            analysis = qualification_run(directory)
+            retained = (directory/'analysis.json').read_bytes()
+            self.assertNotEqual(analysis['evidence_planning']['elaboration']['acquisitions'][1]['operation_spec'],
+                                EXAMPLE.operation_specification())
+            with mock.patch.object(EXAMPLE, 'run_probes') as probes:
+                destination = EXAMPLE.qualify(directory, '/unused-engarg')
+            probes.assert_called_once()
+            self.assertEqual((directory/'analysis.json').read_bytes(), retained)
+            qualified = EXAMPLE.read(destination)['native_providers'][0]['capability']['semantics']
+            quantities = {value['name']: value['unit'] for value in qualified['quantities']}
+            self.assertEqual(quantities['count'], 'entries')
+            self.assertEqual(quantities['snapshot'], '1')
+            self.assertEqual(qualified['provenance']['authorities'], ['catalogue-audit'])
+
+    def test_pre_generation_admission_preserves_the_complete_retained_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            analysis = qualification_run(directory)
+            analysis.pop('tooling')
+            write_json(directory/'analysis.json', analysis)
+            retained = (directory/'analysis.json').read_bytes()
+            with mock.patch.object(EXAMPLE, 'run_probes') as probes:
+                selected = EXAMPLE.admit_operation(directory, directory/'analysis.json')
+            self.assertEqual(selected['id'], analysis['evidence_planning']['elaboration']['acquisitions'][1]['id'])
+            self.assertEqual((directory/'analysis.json').read_bytes(), retained)
+            probes.assert_not_called()
+
+    def test_pre_generation_admission_rejects_unpinned_or_ambiguous_requests_before_receipt(self):
+        for defect in ['changed_purpose', 'second_implementation', 'wrong_acquisition', 'changed_schema']:
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                analysis = qualification_run(directory)
+                analysis.pop('tooling')
+                gaps = analysis['evidence_planning']['routes']['gaps']
+                if defect == 'changed_purpose':
+                    purpose = json.loads(gaps[0]['implementation']['operation_purpose'])
+                    purpose['definition'] = 'Always report three distinct entries.'
+                    gaps[0]['implementation']['operation_purpose'] = json.dumps(purpose)
+                elif defect == 'second_implementation':
+                    extra = copy.deepcopy(gaps[0])
+                    extra['acquisition_id'] = 'another_operation'
+                    gaps.append(extra)
+                elif defect == 'wrong_acquisition':
+                    gaps[0]['acquisition_id'] = 'retained_snapshot'
+                elif defect == 'changed_schema':
+                    gaps[0]['implementation']['input_schema']['properties']['items']['maxItems'] = 31
+                write_json(directory/'analysis.json', analysis)
+                with mock.patch.object(EXAMPLE, 'run_probes') as probes, self.assertRaises(ValueError):
+                    EXAMPLE.admit_operation(directory, directory/'analysis.json')
+                probes.assert_not_called()
+                self.assertFalse((directory/'tooling-operation-admission.json').exists())
+
+    def test_admission_retains_scope_and_upstream_authority_obligations_without_qualifying_them(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            analysis = qualification_run(directory)
+            source, audit = analysis['evidence_planning']['elaboration']['acquisitions']
+            for acquisition in [source, audit]:
+                acquisition['contract']['scope']['selectors']['sample_sources'] = [source['id']]
+            audit['contract']['provenance']['required_authorities'].append('catalogue-fixture')
+            implementation = analysis['evidence_planning']['routes']['gaps'][0]['implementation']
+            implementation['support_contract']['provenance']['required_authorities'].append('catalogue-fixture')
+            contract = EXAMPLE.read(directory/'package/contract.json')
+            contract['request_context'] = json.dumps(implementation)
+            write_json(directory/'analysis.json', analysis)
+            write_json(directory/'package/contract.json', contract)
+            retained = (directory/'analysis.json').read_bytes()
+            with mock.patch.object(EXAMPLE.sys, 'stderr', io.StringIO()) as stderr:
+                EXAMPLE.admit_operation(directory, directory/'analysis.json')
+            receipt = EXAMPLE.read(directory/'tooling-operation-admission.json')
+            self.assertCountEqual(receipt['unresolved_route_conditions'], [
+                {'acquisition_id': source['id'], 'kind': 'scope_binding_unavailable',
+                 'selector': 'sample_sources'},
+                {'acquisition_id': audit['id'], 'kind': 'scope_binding_unavailable',
+                 'selector': 'sample_sources'},
+                {'acquisition_id': audit['id'], 'kind': 'source_authority_unqualified',
+                 'authority': 'catalogue-fixture'},
+            ])
+            self.assertIn('3 retained route conditions', stderr.getvalue())
+            self.assertEqual((directory/'analysis.json').read_bytes(), retained)
+            with mock.patch.object(EXAMPLE, 'run_probes'):
+                destination = EXAMPLE.qualify(directory, '/unused-engarg')
+            semantics = EXAMPLE.read(destination)['native_providers'][0]['capability']['semantics']
+            self.assertEqual(semantics['provenance']['authorities'], ['catalogue-audit'])
+            self.assertEqual(semantics['scope_constraints'], {'snapshot': EXAMPLE.SNAPSHOT})
+            self.assertEqual((directory/'analysis.json').read_bytes(), retained)
+
+    def test_cardinality_units_remain_exact_and_source_authority_is_not_inferred(self):
+        for count_unit in ['entries', 'count', '1']:
+            with self.subTest(unit=count_unit), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                analysis = qualification_run(directory, count_unit)
+                audit = analysis['evidence_planning']['elaboration']['acquisitions'][1]
+                audit['contract']['provenance']['required_authorities'].append('catalogue-fixture')
+                contract = EXAMPLE.read(directory/'package/contract.json')
+                operation = json.loads(contract['request_context'])
+                operation['support_contract']['provenance']['required_authorities'].append('catalogue-fixture')
+                contract['request_context'] = json.dumps(operation)
+                analysis['evidence_planning']['routes']['gaps'][0]['implementation'] = copy.deepcopy(operation)
+                write_json(directory/'analysis.json', analysis)
+                write_json(directory/'package/contract.json', contract)
+                with mock.patch.object(EXAMPLE, 'run_probes'):
+                    destination = EXAMPLE.qualify(directory, '/unused-engarg')
+                semantics = EXAMPLE.read(destination)['native_providers'][0]['capability']['semantics']
+                quantities = {quantity['name']: quantity['unit'] for quantity in semantics['quantities']}
+                self.assertEqual(quantities['count'], count_unit)
+                self.assertEqual(semantics['provenance']['authorities'], ['catalogue-audit'])
+
+    def test_qualification_rejects_changed_authority_binding_method_and_schemas_before_probes(self):
+        cases = ['operator_specification', 'frozen_definition', 'frozen_method', 'graph_method',
+                 'graph_schema', 'output_schema', 'quantity_unit', 'package_binding',
+                 'collector_binding', 'acquisition_binding', 'ambiguous_acquisition', 'unknown_annotation',
+                 'frozen_fixture', 'changed_probe_plan', 'unsupported_cardinality_unit', 'support_contract']
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                analysis = qualification_run(directory)
+                audit = analysis['evidence_planning']['elaboration']['acquisitions'][1]
+                providers = EXAMPLE.read(directory/'tooling/generated-native-providers.json')
+                contract = EXAMPLE.read(directory/'package/contract.json')
+                operation = json.loads(contract['request_context'])
+                purpose = json.loads(operation['operation_purpose'])
+                if case == 'operator_specification':
+                    analysis['evidence_planning']['routes']['configuration']['operation_specifications'][
+                        EXAMPLE.METHOD]['definition'] = 'Always report three distinct entries.'
+                elif case == 'frozen_definition':
+                    purpose['definition'] = 'Always report three distinct entries.'
+                elif case == 'frozen_method':
+                    purpose['methods'] = ['unreviewed.audit/1']
+                elif case == 'graph_method':
+                    audit['contract']['acceptable_methods'] = ['unreviewed.audit/1']
+                elif case == 'graph_schema':
+                    audit['operation_spec']['input_schema']['properties']['items']['maxItems'] = 31
+                elif case == 'output_schema':
+                    providers['native_providers'][0]['capability']['output_schema']['properties']['count']['maximum'] = 31
+                elif case == 'quantity_unit':
+                    providers['native_providers'][0]['capability']['output_schema']['properties']['count'][
+                        'x-engarg-quantity']['unit'] = 'milliseconds'
+                elif case == 'package_binding':
+                    analysis['tooling']['bindings'][0]['capability_sha256'] = 'c'*64
+                elif case == 'collector_binding':
+                    analysis['tooling']['bindings'][0]['collector_id'] = 'another_collector'
+                elif case == 'acquisition_binding':
+                    analysis['tooling']['bindings'][0]['acquisition_id'] = 'retained_snapshot'
+                elif case == 'ambiguous_acquisition':
+                    duplicate = copy.deepcopy(audit)
+                    duplicate['id'] = 'another_audit'
+                    analysis['evidence_planning']['elaboration']['acquisitions'].append(duplicate)
+                elif case == 'unknown_annotation':
+                    providers['native_providers'][0]['capability']['input_schema']['properties']['items'][
+                        'x-engarg-unreviewed-qualification'] = True
+                elif case == 'frozen_fixture':
+                    contract['draft']['fixtures'][0]['expected_value']['count'] = 3
+                elif case == 'changed_probe_plan':
+                    plan = EXAMPLE.read(directory/'catalogue-probes.snapshot.json')
+                    plan['cases'][0]['expected_value']['count'] = 3
+                    write_json(directory/'catalogue-probes.snapshot.json', plan)
+                elif case == 'unsupported_cardinality_unit':
+                    audit['contract']['quantities'][1]['unit'] = 'milliseconds'
+                elif case == 'support_contract':
+                    operation['support_contract']['provenance']['required_authorities'] = ['unreviewed-authority']
+                operation['operation_purpose'] = json.dumps(purpose)
+                contract['request_context'] = json.dumps(operation)
+                write_json(directory/'analysis.json', analysis)
+                write_json(directory/'tooling/generated-native-providers.json', providers)
+                write_json(directory/'package/contract.json', contract)
+                with mock.patch.object(EXAMPLE, 'run_probes') as probes, self.assertRaises(ValueError):
+                    EXAMPLE.qualify(directory, '/unused-engarg')
+                probes.assert_not_called()
+                self.assertFalse((directory/'tooling/demo-qualified-providers.json').exists())
+
     def test_simple_launcher_forwards_topology_options_without_model_or_tool_calls(self):
         with tempfile.TemporaryDirectory() as temporary:
             repo = Path(temporary)

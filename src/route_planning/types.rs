@@ -1,5 +1,6 @@
 use crate::{
-    support_graph::AcquisitionRouteProof, tooling::capability::CapabilityImplementationRequest,
+    support_graph::AcquisitionRouteProof, support_requirements::OperationSpecification,
+    tooling::capability::CapabilityImplementationRequest,
 };
 use eal_collector_contracts::{capability::*, execution::*};
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,10 @@ pub struct PlanningConfig {
     pub bindings: Vec<CapabilityInputBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub batch_correspondences: Vec<crate::support_graph::QualifiedBatchCorrespondence>,
+    /// Operator-owned function definitions keyed by their exact versioned method.
+    /// These govern implementation without rewriting the authored source graph.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub operation_specifications: BTreeMap<String, OperationSpecification>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
