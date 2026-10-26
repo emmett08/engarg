@@ -1,22 +1,20 @@
 //! One lifecycle for retaining, observing and committing generated source packages.
 use super::{
-    contracts::{NeedContract, SourceFile, contract_digest, validate_candidate, validate_contract},
+    contracts::{NeedContract, contract_digest, validate_candidate, validate_contract},
+    execution_diagnostics::{DiagnosticRunner, bounded, retain},
     generation::parse_candidate,
     package::{PackageStore, VerifiedPackage},
     profile::ToolchainProfile,
-    runner::{ExecutionMode, FixtureRunner, RunOutcome, RunnerIdentity},
+    runner::FixtureRunner,
     verification,
 };
 use crate::Error;
 use eal_process::CancellationToken;
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::{
-    fs::OpenOptions,
-    io::Write,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-};
+use std::{path::PathBuf, sync::Arc};
+
+pub(super) use super::execution_diagnostics::{feedback_redactions, redact_feedback};
 
 const MAX_CANDIDATE_RESPONSE_BYTES: usize = 8 * 1_048_576;
 
@@ -61,174 +59,6 @@ pub enum BuildAttempt {
     Rejected(Box<BuildFailure>),
 }
 
-fn bounded(text: &str, maximum_bytes: usize) -> String {
-    let mut end = text.len().min(maximum_bytes);
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    text[..end].to_owned()
-}
-
-pub(super) fn feedback_redactions(profile: &ToolchainProfile) -> Vec<String> {
-    let mut values: Vec<_> = std::env::vars_os()
-        .filter_map(|(name, value)| {
-            let name = name.to_string_lossy();
-            let upper = name.to_ascii_uppercase();
-            (profile
-                .inherit_env
-                .iter()
-                .any(|selected| selected == name.as_ref())
-                || [
-                    "SECRET",
-                    "TOKEN",
-                    "PASSWORD",
-                    "CREDENTIAL",
-                    "AUTH",
-                    "API_KEY",
-                ]
-                .iter()
-                .any(|marker| upper.contains(marker))
-                || upper.ends_with("_KEY"))
-            .then(|| value.to_string_lossy().into_owned())
-            .filter(|value| !value.is_empty())
-        })
-        .collect();
-    values.sort_by_key(|value| std::cmp::Reverse(value.len()));
-    values.dedup();
-    values
-}
-
-/// Redact before bounding so a token crossing the truncation boundary cannot
-/// leave its visible prefix in a subsequent model request.
-pub(super) fn redact_feedback(text: &str, sensitive: &[String]) -> String {
-    sensitive
-        .iter()
-        .filter(|value| !value.is_empty())
-        .fold(text.to_owned(), |text, value| {
-            let escaped = serde_json::to_string(value).expect("string JSON");
-            text.replace(value, "[redacted]")
-                .replace(&escaped[1..escaped.len() - 1], "[redacted]")
-        })
-}
-
-fn retain(path: &Path, bytes: &[u8]) -> Result<(), Error> {
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path)?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
-    Ok(())
-}
-
-#[derive(Default)]
-struct ExecutionDiagnostics {
-    notes: Vec<(String, Option<String>)>,
-    error: Option<Error>,
-}
-
-/// Verification intentionally records failed executions as failed tests. This
-/// wrapper also preserves infrastructure failures, so the repair loop cannot
-/// mistake an unavailable runner or timeout for faulty generated source.
-struct DiagnosticRunner {
-    inner: Arc<dyn FixtureRunner>,
-    contract: NeedContract,
-    diagnostics: Mutex<ExecutionDiagnostics>,
-    sensitive: Vec<String>,
-}
-
-impl FixtureRunner for DiagnosticRunner {
-    fn identity(&self) -> &RunnerIdentity {
-        self.inner.identity()
-    }
-
-    fn execute(
-        &self,
-        root: &Path,
-        source: &[SourceFile],
-        fixtures: &[SourceFile],
-        request: &[u8],
-        mode: ExecutionMode,
-        cancellation: &CancellationToken,
-    ) -> Result<RunOutcome, Error> {
-        {
-            let mut diagnostics = self
-                .diagnostics
-                .lock()
-                .map_err(|_| Error::Provider("tool diagnostics unavailable".into()))?;
-            if diagnostics.error.is_some() {
-                diagnostics.notes.push((String::new(), None));
-                return Err(Error::Provider("isolated runner already failed".into()));
-            }
-        }
-        let outcome = self
-            .inner
-            .execute(root, source, fixtures, request, mode, cancellation);
-        let mut diagnostics = self
-            .diagnostics
-            .lock()
-            .map_err(|_| Error::Provider("tool diagnostics unavailable".into()))?;
-        match outcome {
-            Ok(outcome) => {
-                let validation = if outcome.returncode == 0 {
-                    eal_collector_contracts::strict_json_exact(request, Default::default())
-                        .ok()
-                        .and_then(|value| {
-                            serde_json::from_value::<eal_collector_contracts::AcquisitionRequest>(
-                                value,
-                            )
-                            .ok()
-                        })
-                        .filter(|request| request.validate().is_ok())
-                        .and_then(|request| {
-                            verification::validate_observation(
-                                &self.contract,
-                                &request,
-                                &outcome.stdout,
-                            )
-                            .err()
-                        })
-                        .map(|error| {
-                            bounded(&redact_feedback(&error.to_string(), &self.sensitive), 512)
-                        })
-                } else {
-                    None
-                };
-                diagnostics.notes.push((
-                    bounded(
-                        &redact_feedback(
-                            &String::from_utf8_lossy(&outcome.stderr),
-                            &self.sensitive,
-                        ),
-                        1024,
-                    ),
-                    validation,
-                ));
-                if diagnostics.error.is_none()
-                    && (outcome.execution_error.is_some()
-                        || !(0..124).contains(&outcome.returncode))
-                {
-                    diagnostics.error = Some(Error::Provider(
-                        "isolated tool execution failed or exhausted its execution bound".into(),
-                    ));
-                }
-                Ok(outcome)
-            }
-            Err(error) => {
-                diagnostics.notes.push((String::new(), None));
-                if diagnostics.error.is_none() {
-                    diagnostics.error = Some(error);
-                }
-                Err(Error::Provider("isolated tool runner failed".into()))
-            }
-        }
-    }
-}
-
 pub struct VerificationEvent<'a> {
     pub need_id: &'a str,
     pub attempt: &'a std::path::Path,
@@ -268,7 +98,7 @@ impl VerifiedBuild<'_> {
     {
         validate_contract(&contract)?;
         if self.cancellation.is_cancelled() {
-            return Err(Error::Provider("tool implementation cancelled".into()));
+            return Err(Error::ToolExecution("tool implementation cancelled".into()));
         }
         if response.len() > MAX_CANDIDATE_RESPONSE_BYTES {
             return Err(Error::Budget(
@@ -312,42 +142,48 @@ impl VerifiedBuild<'_> {
             self.profile,
             self.runner.identity(),
         )?;
-        let runner = Arc::new(DiagnosticRunner {
-            inner: Arc::clone(&self.runner),
-            contract: contract.clone(),
-            diagnostics: Mutex::new(ExecutionDiagnostics::default()),
+        let runner = Arc::new(DiagnosticRunner::new(
+            Arc::clone(&self.runner),
+            contract.clone(),
             sensitive,
-        });
+        ));
         let worker_runner = Arc::clone(&runner);
         let task_contract = contract.clone();
         let task_candidate = candidate.clone();
         let task_attempt: PathBuf = attempt.clone();
         let cancellation = self.cancellation.clone();
-        let receipt = tokio::task::spawn_blocking(move || {
-            verification::verify(
+        let profile = self.profile.clone();
+        let (receipt, notes) = tokio::task::spawn_blocking(move || {
+            let started = std::time::Instant::now();
+            let receipt = verification::verify(
                 worker_runner.as_ref(),
                 &task_contract,
                 &task_candidate,
                 &task_attempt,
                 &cancellation,
-            )
+            );
+            // The worker completes even if timeout or interruption drops its
+            // awaiting future. Retain terminal diagnostics before it returns.
+            if cancellation.is_cancelled() {
+                worker_runner.record_cancellation(
+                    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                )?;
+            }
+            let notes = worker_runner.finish(&task_attempt, &profile);
+            Ok::<_, Error>((receipt, notes))
         })
         .await
-        .map_err(|_| Error::Provider("tool fixture worker failed".into()))??;
-        if self.cancellation.is_cancelled() {
-            return Err(Error::Provider("tool implementation cancelled".into()));
-        }
-        audit(VerificationEvent {
+        .map_err(|_| Error::ToolExecution("tool fixture worker failed".into()))??;
+        let receipt = receipt?;
+        let audit_result = audit(VerificationEvent {
             need_id: &contract.need.id,
             attempt: &attempt,
             passed: receipt.passed,
-        })?;
-        let mut diagnostics = runner
-            .diagnostics
-            .lock()
-            .map_err(|_| Error::Provider("tool diagnostics unavailable".into()))?;
-        if let Some(error) = diagnostics.error.take() {
-            return Err(error);
+        });
+        let notes = notes?;
+        audit_result?;
+        if self.cancellation.is_cancelled() {
+            return Err(Error::ToolExecution("tool implementation cancelled".into()));
         }
         if !receipt.passed {
             let failed_tests = receipt
@@ -357,7 +193,7 @@ impl VerifiedBuild<'_> {
                 .filter(|(_, result)| !result.passed)
                 .take(8)
                 .map(|(index, result)| {
-                    let note = diagnostics.notes.get(index);
+                    let note = notes.get(index);
                     FailureDiagnostic {
                         name: bounded(&redact_feedback(&result.name, &runner.sensitive), 128),
                         kind: bounded(&redact_feedback(&result.kind, &runner.sensitive), 64),
@@ -400,7 +236,6 @@ impl VerifiedBuild<'_> {
             )?;
             return Ok(BuildAttempt::Rejected(Box::new(failure)));
         }
-        drop(diagnostics);
         let package = self.store.commit_verified(
             self.key,
             &attempt,

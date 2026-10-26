@@ -33,7 +33,6 @@ def select_gaps(analysis_path, selection_path):
         'eligible_operation_gaps': eligible, 'eligible_count': len(eligible),
         'note': 'Configuration, credentials, historical availability, qualification and judgement do not admit implementation.'
     }, indent=2) + '\n')
-    print(len(eligible))
 
 
 def merge_analysis(original_path, enriched_path, final_path):

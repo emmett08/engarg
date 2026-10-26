@@ -63,7 +63,8 @@ def main(argv=None):
             tuple(field.name for field in fields(preflight.PreflightOptions)), list_arguments=True)
     command("admit-collector", runtime.admit_collector, ("config_path", "selected_collector"))
     command("record-settings", runtime.record_settings, (
-        "run_directory", "executable_path", "host_path", "host_selection", *runtime.SETTING_NAMES))
+        "run_directory", "executable_path", "host_path", "host_selection", *runtime.SETTING_NAMES,
+        "tool_model", "tool_reasoning_effort", "tool_output_tokens"))
     command("validate-host", runtime.validate_host, ("report_path",))
     command("select-tool-gaps", tooling.select_gaps, ("analysis_path", "selection_path"))
     command("merge-tool-analysis", tooling.merge_analysis, ("original_path", "enriched_path", "final_path"))

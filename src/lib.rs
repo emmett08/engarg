@@ -60,6 +60,8 @@ pub enum Error {
     InvalidOutput(String),
     #[error("provider error: {0}")]
     Provider(String),
+    #[error("tool execution error: {0}")]
+    ToolExecution(String),
     #[error("resource limit: {0}")]
     Budget(String),
     #[error(transparent)]

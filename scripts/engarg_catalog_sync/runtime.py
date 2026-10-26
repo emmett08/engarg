@@ -38,7 +38,8 @@ def record_settings(run_directory, executable_path, host_path, host_selection, *
     def output(*args):
         return subprocess.check_output(args, text=True).strip()
 
-    record = dict(zip(SETTING_NAMES, settings))
+    record = dict(zip(SETTING_NAMES, settings[:len(SETTING_NAMES)]))
+    tool_model, tool_reasoning_effort, tool_output_tokens = settings[len(SETTING_NAMES):]
     record['argument_depth'] = int(record['argument_depth']) if record['argument_depth'] else None
     record.update(git_commit=output('git','rev-parse','HEAD'), rustc=output('rustc','-vV'),
         eal_host_selection=host_selection, eal_host_path=str(host),
@@ -49,6 +50,10 @@ def record_settings(run_directory, executable_path, host_path, host_selection, *
         api='responses', http_retries=3, retry_max_delay_seconds=120)
     identity = json.loads((directory/'input-identity.json').read_text())
     record['tool_implementation'] = identity['tool_implementation']
+    if record['tool_implementation']['enabled']:
+        record['tool_implementation'].update(
+            model=tool_model, reasoning_effort=tool_reasoning_effort,
+            max_output_tokens=int(tool_output_tokens))
     record['evidence_planning'] = identity['evidence_planning']
     record['analysis_reuse'] = identity['analysis_reuse']
     record['debate'] = identity.get('debate')

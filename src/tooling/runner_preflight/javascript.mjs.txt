@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import assert from "node:assert/strict";
+
+assert.equal(readFileSync(0, "utf8"), "engarg-toolchain-check/1\n");
+assert.equal(readFileSync("/fixtures/engarg-preflight.txt", "utf8"), "engarg-read-only-fixture/1\n");
+for (const directory of ["/src", "/fixtures"]) {
+    assert.throws(() => writeFileSync(`${directory}/engarg-write-probe`, "denied"));
+}
+writeFileSync("/build/engarg-write-probe", "allowed");
+console.log('{"schema":"engarg.toolchain-probe/1","passed":true}');

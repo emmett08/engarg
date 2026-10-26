@@ -1,0 +1,14 @@
+from pathlib import Path
+import sys
+
+assert sys.stdin.buffer.read(1024) == b"engarg-toolchain-check/1\n"
+assert Path("/fixtures/engarg-preflight.txt").read_text() == "engarg-read-only-fixture/1\n"
+for directory in ("/src", "/fixtures"):
+    try:
+        Path(directory, "engarg-write-probe").write_text("denied")
+    except OSError:
+        pass
+    else:
+        raise RuntimeError("read-only mount is writable")
+Path("/build/engarg-write-probe").write_text("allowed")
+print('{"schema":"engarg.toolchain-probe/1","passed":true}')

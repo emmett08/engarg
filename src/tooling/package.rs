@@ -127,7 +127,11 @@ fn write_json(path: &Path, value: &impl Serialize) -> Result<(), Error> {
     write_new(path, &serde_json::to_vec_pretty(value)?)
 }
 
-fn read_json<T: DeserializeOwned>(path: &Path, limit: usize, label: &str) -> Result<T, Error> {
+pub(super) fn read_json<T: DeserializeOwned>(
+    path: &Path,
+    limit: usize,
+    label: &str,
+) -> Result<T, Error> {
     let bytes = crate::bounded_file::read(path, limit, label)?;
     let value = eal_collector_contracts::strict_json_exact(
         &bytes,
@@ -475,7 +479,7 @@ fn validate_receipt(
     Ok(())
 }
 
-fn validate_source_tree(attempt: &Path, candidate: &CodeCandidate) -> Result<(), Error> {
+pub(super) fn validate_source_tree(attempt: &Path, candidate: &CodeCandidate) -> Result<(), Error> {
     let root = attempt.join("source");
     let metadata = fs::symlink_metadata(&root)?;
     if !metadata.is_dir() || metadata.file_type().is_symlink() {

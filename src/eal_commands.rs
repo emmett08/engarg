@@ -39,6 +39,10 @@ pub enum EalCommand {
     Repair(repair::RepairArgs),
     /// Implement missing collectors from a saved analysis using frozen fixtures.
     Implement(super::tooling_commands::ImplementArgs),
+    /// Check the isolated compiler and runtime before any model calls.
+    ToolchainCheck(super::tooling_commands::preflight::ToolchainCheckArgs),
+    /// Reverify a retained candidate against its frozen fixtures without model calls.
+    ToolReplay(super::tooling_commands::replay::ToolReplayArgs),
     /// Internal launcher for a verified generated collector package.
     #[command(hide = true)]
     ToolRun(super::tooling_commands::ToolRunArgs),
@@ -1212,6 +1216,8 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
         EalCommand::Replan(args) => execute_replan(args).await,
         EalCommand::Repair(args) => repair::execute(args).await,
         EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
+        EalCommand::ToolchainCheck(args) => super::tooling_commands::preflight::check(args),
+        EalCommand::ToolReplay(args) => super::tooling_commands::replay::replay(args).await,
         EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
         EalCommand::Prepare(args) => {
             let (report, mut plan, catalogue) =

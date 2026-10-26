@@ -58,6 +58,9 @@ Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOG
   --tool-store DIR              Reusable package store (default: .engarg-local/tool-store).
   --tool-max-calls N            Separate implementation budget (1-256; default: 16).
   --tool-timeout-secs N         Separate implementation deadline (1-86400; default: 3600).
+Graph tool-stage settings inherit ENGARG_MODEL, ENGARG_REASONING_EFFORT and
+ENGARG_MAX_OUTPUT_TOKENS unless ENGARG_TOOL_MODEL, ENGARG_TOOL_REASONING_EFFORT
+or ENGARG_TOOL_MAX_OUTPUT_TOKENS overrides the corresponding setting.
 HELP
 }
 check_only=0
@@ -270,6 +273,28 @@ fi
 if [[ $model == gpt-6.1-sol && $output_tokens -gt 128000 ]]; then
   fail 'gpt-6.1-sol supports at most 128000 output tokens per request.'
 fi
+tool_model=${ENGARG_TOOL_MODEL:-$model}
+tool_reasoning_effort=${ENGARG_TOOL_REASONING_EFFORT:-$reasoning_effort}
+tool_output_tokens=$output_tokens
+if [[ $implement_tools -eq 1 ]]; then
+  if [[ -n ${ENGARG_TOOL_MAX_OUTPUT_TOKENS:-} ]]; then
+    tool_output_tokens=$ENGARG_TOOL_MAX_OUTPUT_TOKENS
+  elif [[ $tool_model != "$model" ]]; then
+    if [[ $tool_model == gpt-6.1-sol ]]; then
+      tool_output_tokens=128000
+    else
+      fail 'Set ENGARG_TOOL_MAX_OUTPUT_TOKENS to a supported allowance for the selected ENGARG_TOOL_MODEL. Different models require their own limit.'
+    fi
+  fi
+  [[ $tool_output_tokens =~ ^[1-9][0-9]{0,9}$ && $tool_output_tokens -le 4294967295 ]] ||
+    fail 'ENGARG_TOOL_MAX_OUTPUT_TOKENS must be a positive 32-bit integer within the selected provider model limit.'
+  if [[ $tool_model == gpt-6.1-sol && $tool_output_tokens -gt 128000 ]]; then
+    fail 'The tool-stage gpt-6.1-sol model supports at most 128000 output tokens per request.'
+  fi
+  if [[ $evidence_planning == flat && ( $tool_model != "$model" || $tool_reasoning_effort != "$reasoning_effort" || $tool_output_tokens != "$output_tokens" ) ]]; then
+    fail 'Separate tool-stage model settings require graph planning. The legacy flat workflow shares its authoring provider.'
+  fi
+fi
 argument_depth=${ENGARG_ARGUMENT_DEPTH:-}
 if [[ -n $argument_depth ]]; then
   [[ $argument_depth =~ ^[1-9][0-9]?$ && $argument_depth -le 16 ]] ||
@@ -287,7 +312,7 @@ for required in cargo rustc; do command -v "$required" >/dev/null || fail "Requi
 if [[ -z $replan_analysis || $implement_tools -eq 1 ]]; then
   : "${OPENAI_API_KEY:?Export OPENAI_API_KEY before running inference}"
 fi
-if [[ $prepare_rust_image -eq 1 && $evidence_planning == flat ]]; then
+if [[ $prepare_rust_image -eq 1 ]]; then
   set_stage 'Rust tooling prerequisites'
   command -v docker >/dev/null || fail 'Docker is required with --implement-tools. Install and start Docker before generating Rust collectors.'
   docker info >/dev/null || fail 'Docker must be running before generating Rust collectors.'
@@ -331,7 +356,8 @@ engarg_bin="$target_dir/release/engarg"
 [[ -x $engarg_bin && -x $target_dir/release/engarg-process-supervisor ]] || fail 'Release companion binaries are missing.'
 
 catalog_sync record-settings "$run_dir" "$engarg_bin" "$eal_host" "$eal_host_selection" "$model" "$service_tier" "$reasoning_effort" \
-  "$max_calls" "$repairs" "$request_timeout" "$run_timeout" "$input_bytes" "$response_bytes" "$output_tokens" "$concurrent" "$eal_timeout" "$argument_depth" "$eal_collection_timeout"
+  "$max_calls" "$repairs" "$request_timeout" "$run_timeout" "$input_bytes" "$response_bytes" "$output_tokens" "$concurrent" "$eal_timeout" "$argument_depth" "$eal_collection_timeout" \
+  "$tool_model" "$tool_reasoning_effort" "$tool_output_tokens"
 
 # Initialise the actual server and inspect its required authoring interface
 # before any paid inference.
@@ -342,9 +368,14 @@ host_report="$run_dir/eal-preflight.json"
 catalog_sync validate-host "$host_report"
 host_report=''
 
-if [[ $prepare_rust_image -eq 1 && $evidence_planning == flat ]]; then
+if [[ $prepare_rust_image -eq 1 ]]; then
   set_stage 'Rust tooling image preparation'
   docker build --tag engarg-rust-tools:1.99.1 "$repo/examples/toolchains/rust"
+fi
+if [[ $implement_tools -eq 1 ]]; then
+  set_stage 'isolated toolchain preflight'
+  "$engarg_bin" eal toolchain-check --toolchain "$run_dir/toolchain.snapshot.json" \
+    --output "$run_dir/toolchain-preflight.json"
 fi
 
 # Append the optional catalogue only when selected. Omitting it preserves the
@@ -406,20 +437,13 @@ authoring_pending=0
 
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then
   set_stage 'tool implementation gap admission'
-  eligible_tool_gaps=$(catalog_sync select-tool-gaps "$analysis_output" "$run_dir/tooling-selection.json")
-  if [[ $eligible_tool_gaps -gt 0 && $prepare_rust_image -eq 1 ]]; then
-    set_stage 'Rust tooling prerequisites'
-    command -v docker >/dev/null || fail 'Docker is required to implement the identified missing operations. The original analysis has been retained.'
-    docker info >/dev/null || fail 'Docker must be running to implement the identified missing operations.'
-    set_stage 'Rust tooling image preparation'
-    docker build --tag engarg-rust-tools:1.99.1 "$repo/examples/toolchains/rust"
-  fi
+  catalog_sync select-tool-gaps "$analysis_output" "$run_dir/tooling-selection.json"
   set_stage 'tool implementation'
   "$engarg_bin" eal implement --progress --input "$analysis_output" \
-    --model "$model" --service-tier "$service_tier" --reasoning-effort "$reasoning_effort" \
+    --model "$tool_model" --service-tier "$service_tier" --reasoning-effort "$tool_reasoning_effort" \
     --api responses --api-key-env OPENAI_API_KEY \
     --http-retries 3 --retry-max-delay-secs 120 --request-timeout-secs "$request_timeout" \
-    --max-input-bytes "$input_bytes" --max-output-tokens "$output_tokens" --max-response-bytes "$response_bytes" \
+    --max-input-bytes "$input_bytes" --max-output-tokens "$tool_output_tokens" --max-response-bytes "$response_bytes" \
     --tool-language "$tool_language" --toolchain "$run_dir/toolchain.snapshot.json" \
     --tool-store "$tool_store" --tool-output-dir "$run_dir/tooling" \
     --tool-max-calls "$tool_max_calls" --tool-timeout-secs "$tool_timeout"

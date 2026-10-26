@@ -44,10 +44,20 @@ Compiled outputs and compiler caches belong under `/build`.
 Dependencies needed by an offline build must already be available in the image.
 
 The [catalog sync authoring script](CATALOG_SYNC_AUTHORING.md) enables this Rust
-profile with `--implement-tools`. In its default graph mode, it prepares the image
-only after identifying genuine operation/transformation gaps; configuration-only
-runs require no Docker or coding calls. The switch
-also selects a persistent verified tool store for reuse across runs.
+profile with `--implement-tools`. It prepares the default image once and runs a
+trusted toolchain probe before authoring. The probe uses the actual restricted
+container execution path and temporary source and fixture mounts. Its receipt is
+retained as `toolchain-preflight.json`. Operator-supplied profiles require an
+already installed image. The switch also selects a persistent verified tool
+store for reuse across runs. Graph configuration-only plans consume no coding
+calls after this early execution check.
+
+Check a prepared toolchain without a model or API key:
+
+```sh
+engarg eal toolchain-check --toolchain examples/toolchains/rust.json \
+  --output toolchain-preflight.json
+```
 
 The stage resolves and records the immutable image ID before generation.
 It also records the Docker executable, EngArg runner and supervisor digests.
@@ -103,6 +113,43 @@ It writes `analysis.with-tools.json` in the new output directory.
 The original canonical argument and argument transcript are preserved.
 Tooling has its own metadata and audit.
 
+This command's `--model`, `--reasoning-effort` and `--max-output-tokens` apply
+only to tool generation. The graph authoring script exposes the same separation
+through `ENGARG_TOOL_MODEL`, `ENGARG_TOOL_REASONING_EFFORT` and
+`ENGARG_TOOL_MAX_OUTPUT_TOKENS`. Unset values inherit authoring settings when
+the model is unchanged. A different model requires its own supported token
+allowance. These options change generated responses while the toolchain profile
+continues to determine isolated execution limits.
+
+Infrastructure failures retain an `execution-failure.json` receipt beside the
+failed source and contract. The receipt identifies the failed attempt and
+records bounded redacted execution diagnostics. Correct the local execution
+problem, then replay the retained candidate without model calls:
+
+```sh
+target/release/engarg eal tool-replay \
+  --attempt .engarg-local/tool-store/attempts/FAILED-ATTEMPT \
+  --tool-store .engarg-local/tool-store --output replay-result.json
+```
+
+Replay checks the retained files and runs the same frozen fixtures under the
+current runner identity, preserving the original profile and immutable image.
+Use the same release binary and sibling supervisor that the authoring script
+will use so the executable identities match on reuse. The aggregate replay
+deadline defaults to 3600 seconds and can be set with `--tool-timeout-secs`.
+Replay preserves the original failed attempt. A passing
+replay commits a verified package to the store. The authoring script can then
+reuse the completed argument and that package:
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh --simple-example \
+  --replan-analysis engarg-runs/PREVIOUS-RUN/analysis.original.json
+```
+
+Verified package reuse spends no coding calls when the contract and runner
+identity still match. Changed contracts or execution identities require fresh
+verification or generation.
+
 A later invocation can use the same store with a new output directory.
 Reuse checks the exact contract, supplied request, language, source, fixtures and runner identity.
 Changed or tampered packages cannot qualify through an old test receipt.
@@ -148,6 +195,13 @@ They run as an unprivileged user with dropped capabilities, no new privileges, b
 Fixture networking is disabled and production credentials are not forwarded.
 The supervisor bounds elapsed time and captured output.
 Explicit container cleanup also covers daemon-owned execution after timeout or cancellation.
+
+Automatic preflight supplies one trusted source file for the selected language.
+The bundled profiles and direct compiler or interpreter profiles are supported.
+It uses the literal `/src/` source entry in the configured commands, or the
+language's canonical filename for a wrapper command. Profiles that require extra
+build manifests or several source entry points need a compatible direct compiler
+profile before generation. A failed probe retains its receipt and stops the run.
 
 Live collection is a later explicit action.
 Its network setting and forwarded environment names come from the operator profile.

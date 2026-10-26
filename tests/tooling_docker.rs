@@ -2037,9 +2037,12 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
             .output()
             .unwrap();
         successful(&running);
-        if String::from_utf8_lossy(&running.stdout)
-            .lines()
-            .any(|name| name.starts_with(&prefix))
+        // The trusted preflight also starts a container. Wait for both model
+        // responses so cancellation targets generated-source verification.
+        if server.requests().len() == 2
+            && String::from_utf8_lossy(&running.stdout)
+                .lines()
+                .any(|name| name.starts_with(&prefix))
         {
             break true;
         }

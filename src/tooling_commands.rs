@@ -15,8 +15,10 @@ use std::{
 pub mod capability;
 pub mod integration;
 mod native_provider;
+pub mod preflight;
 pub mod provider;
 pub mod registration;
+pub mod replay;
 
 #[derive(Args, Default)]
 pub struct ToolOptions {
