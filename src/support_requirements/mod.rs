@@ -1,6 +1,7 @@
 //! Tool-independent support obligations and logical source operations for an argument.
 mod alternatives;
 mod design;
+mod freshness;
 mod lineage;
 mod operation_spec;
 mod schema;
@@ -16,6 +17,7 @@ pub use design::{
     ACQUISITION_DESIGN_REVIEW_SCHEMA, AcquisitionDesignReview, AcquisitionDesignStatus,
     PendingAcquisitionDesign, review_acquisition_design, step_identity,
 };
+pub use freshness::{requirement_age_seconds, validate_freshness};
 pub use lineage::{logical_output_schema, logical_quantity_pointer};
 pub use schema::{elaboration_schema, envelope_schema, parse_supported_argument};
 pub use semantics::validate_semantic_flow;

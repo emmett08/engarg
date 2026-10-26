@@ -202,6 +202,9 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                     pathlib.Path(option('--evidence-config')).read_text())
                 report['replanning'] = {'schema': 'engarg.replanning/1', 'model_calls': 0}
                 write(option('--output'), report)
+            elif args[:2] == ['eal', 'freshness-check']:
+                if os.environ.get('FAIL_FRESHNESS_CHECK'):
+                    raise SystemExit('Synthetic missing freshness contracts')
             elif args[:2] == ['authoring', 'inspect']:
                 inspection = os.environ.get('AUTHORING_INSPECTION', 'resumable')
                 if inspection == 'error':
@@ -1129,6 +1132,35 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(summary['recorded_model_calls'], 6)
         self.assertEqual(summary['analysis_reuse']['sha256'], hashlib.sha256(original_bytes).hexdigest())
         self.assertEqual(len(summary['presentations']), 5)
+
+    def test_missing_graph_freshness_stops_before_tool_implementation(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        self.install_docker_stub()
+        environment = dict(self.env, FAIL_FRESHNESS_CHECK='1', GRAPH_IMPLEMENTATION_GAP='1')
+        result = self.run_script('--implement-tools', '--evidence-config', config, self.inputs,
+                                 graph=True, env=environment)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('graph freshness preflight', result.stderr)
+        calls = self.invocations()
+        self.assertTrue(any(call[:2] == ['eal', 'freshness-check'] for call in calls))
+        self.assertFalse(any(call[:2] == ['eal', 'implement'] for call in calls))
+
+    def test_replan_passes_snapshotted_freshness_clarifications(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        first = self.pipeline_directory(self.run_script('--evidence-config', config, self.inputs, graph=True))
+        clarification = self.root / 'freshness.json'
+        content = b'{"schema":"engarg.freshness-clarification/1","rationale":"test","requirements":{"R1":3600}}\n'
+        clarification.write_bytes(content)
+        self.log.write_text('')
+        second = self.pipeline_directory(self.run_script(
+            '--replan-analysis', first / 'analysis.json', '--freshness-clarifications', clarification,
+            '--evidence-config', config, self.inputs, graph=True))
+        snapshot = second / 'freshness-clarifications.snapshot.json'
+        self.assertEqual(snapshot.read_bytes(), content)
+        replan = next(call for call in self.invocations() if call[:2] == ['eal', 'replan'])
+        self.assertEqual(replan[replan.index('--freshness-clarifications') + 1], str(snapshot))
 
     def test_graph_collection_readiness_uses_actual_host_cap_for_all_emitted_evidence(self):
         config = self.write_evidence_config()
