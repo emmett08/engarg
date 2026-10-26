@@ -15,76 +15,14 @@ use crate::{
     provider::{Completion, CompletionRequest, LanguageModel, Role},
 };
 
+mod config;
 mod context;
+mod debate;
 mod repair;
 pub mod support;
+pub mod topology;
+pub use config::{Mode, RunConfig};
 pub use support::{RouteResolver, SupportPlanning, SupportRunReport, run_with_support};
-
-/// Architecture selected for a run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Mode {
-    /// Three independent specialists, synthesis, final critique and adjudication.
-    Hybrid,
-    /// A one-call baseline for evaluation and inexpensive straightforward cases.
-    Single,
-}
-
-impl std::str::FromStr for Mode {
-    type Err = String;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "hybrid" => Ok(Self::Hybrid),
-            "single" => Ok(Self::Single),
-            _ => Err("mode must be hybrid or single".to_owned()),
-        }
-    }
-}
-
-impl std::fmt::Display for Mode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Hybrid => "hybrid",
-            Self::Single => "single",
-        })
-    }
-}
-
-/// Logical-call and byte budgets. HTTP time and output-token budgets belong to the adapter.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RunConfig {
-    pub mode: Mode,
-    pub max_calls: u32,
-    /// Optional maximum number of warrant layers on every root-to-ground route.
-    #[serde(default)]
-    pub max_argument_depth: Option<u8>,
-    /// Extra validation-guided calls, reserved within max_calls before execution.
-    #[serde(default)]
-    pub max_repairs: u8,
-    /// Optional operator-selected collector descriptions, retained for reproducible planning.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub collector_catalogue: Option<crate::collector_catalogue::CollectorCatalogue>,
-    /// Maximum encoded bytes of any complete provider request, including its schema.
-    pub max_input_bytes: usize,
-    /// Maximum bytes in any returned model content.
-    pub max_response_bytes: usize,
-}
-
-impl Default for RunConfig {
-    fn default() -> Self {
-        Self {
-            mode: Mode::Hybrid,
-            max_calls: 6,
-            max_argument_depth: None,
-            max_repairs: 0,
-            collector_catalogue: None,
-            max_input_bytes: 1_048_576,
-            max_response_bytes: 131_072,
-        }
-    }
-}
 
 /// A completed logical call without API credentials. Oversized content is omitted
 /// explicitly while its original size and digest are retained for the audit.
@@ -310,7 +248,14 @@ fn prompt(
     schema: Value,
     config: &RunConfig,
 ) -> Result<CompletionRequest, Error> {
-    let mut system = prompts::system(role);
+    let mut system = if data["debate"]["round"]
+        .as_u64()
+        .is_some_and(|round| round > 0)
+    {
+        prompts::discussion_system(role)
+    } else {
+        prompts::system(role)
+    };
     if context::uses_references(&data) {
         system.push_str("\n\n");
         system.push_str(prompts::REFERENCE_CONTEXT);
@@ -406,7 +351,7 @@ fn limitations(mode: Mode) -> Vec<String> {
     values
 }
 
-/// Run the fixed workflow. Insufficient call budgets fail before any provider call.
+/// Run the selected workflow. Insufficient call budgets fail before any provider call.
 ///
 /// Repairs are disabled by default. Explicit repair allowances reserve calls
 /// inside max_calls, and every returned candidate receives the same validation.
@@ -463,28 +408,7 @@ where
     if let Some(catalogue) = &config.collector_catalogue {
         catalogue.validate()?;
     }
-    if config
-        .max_argument_depth
-        .is_some_and(|depth| !(1..=16).contains(&depth))
-        || config.max_repairs > 3
-    {
-        return Err(Error::InvalidInput(
-            "argument-depth must be 1–16 and max-repairs must be 0–3".into(),
-        ));
-    }
-    let required_calls = match config.mode {
-        Mode::Hybrid => 6,
-        Mode::Single => 1,
-    } + u32::from(config.max_repairs);
-    if config.max_calls < required_calls {
-        return Err(Error::Budget(format!(
-            "{} mode including the repair allowance requires {required_calls} calls but max_calls is {}",
-            config.mode, config.max_calls
-        )));
-    }
-    if config.max_input_bytes == 0 || config.max_response_bytes == 0 {
-        return Err(Error::Budget("byte budgets must be positive".to_owned()));
-    }
+    config.validate()?;
 
     let (mut transcript, mut retained_objections) = match config.mode {
         Mode::Single => {
@@ -547,43 +471,21 @@ async fn hybrid<M: LanguageModel, O>(
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
-    let data = json!({"request": request});
+    let debate::Assessments {
+        transcript: initial,
+        retained: mut retained_objections,
+        independent: assessments,
+        discussion,
+    } = debate::assess(model, request, config, observer, |role, data| {
+        tool_prompt(role, data, assessment_schema(), config, tool_planning)
+    })
+    .await?;
     let schema = assessment_schema();
-    // Construct every first-pass request before starting any call. No specialist
-    // can observe another specialist's response through this data flow.
-    let constructor = prompt(Role::Constructor, data.clone(), schema.clone(), config)?;
-    let sceptic = prompt(Role::Sceptic, data.clone(), schema.clone(), config)?;
-    let auditor = tool_prompt(
-        Role::EvidenceAuditor,
-        data,
-        schema.clone(),
-        config,
-        tool_planning,
-    )?;
-    for first_pass in [&constructor, &sceptic, &auditor] {
-        check_prompt(first_pass, config)?;
-    }
-    let (constructor, sceptic, auditor) = tokio::join!(
-        execute(model, constructor, config, observer),
-        execute(model, sceptic, config, observer),
-        execute(model, auditor, config, observer),
-    );
-    let initial = vec![constructor?, sceptic?, auditor?];
-    let mut retained_objections = Vec::<RetainedObjection>::new();
-    let mut assessments = Vec::new();
-    for (record, prefix) in initial.iter().zip(["constructor", "sceptic", "auditor"]) {
-        assessments.push(context::assessment(
-            record.role,
-            prefix,
-            parse_assessment(record)?,
-            &mut retained_objections,
-        ));
-    }
     let synthesis = execute(
         model,
         tool_prompt(
             Role::Synthesiser,
-            json!({"request": request, "independent_assessments": assessments, "retained_objections": retained_objections}),
+            debate::with_discussion(json!({"request": request, "independent_assessments": assessments, "retained_objections": retained_objections}), &discussion),
             case_schema(),
             config,
             tool_planning,
@@ -621,7 +523,7 @@ where
         model,
         tool_prompt(
             Role::FinalCritic,
-            critique_data,
+            debate::with_discussion(critique_data, &discussion),
             schema,
             config,
             tool_planning,
@@ -652,7 +554,7 @@ where
         model,
         tool_prompt(
             Role::Adjudicator,
-            adjudication_data,
+            debate::with_discussion(adjudication_data, &discussion),
             case_schema(),
             config,
             tool_planning,

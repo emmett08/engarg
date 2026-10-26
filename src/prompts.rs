@@ -37,24 +37,33 @@ pub(crate) const TARGET_CONTEXT_REFERENCES: &str = r#"TARGET CONTEXT REFERENCES:
 /// Select a fixed task instruction without permitting evidence to select a role.
 #[must_use]
 pub fn system(role: Role) -> String {
+    system_for_phase(role, false)
+}
+
+/// Peer discussion shares the role contract with a different source of context.
+pub(crate) fn discussion_system(role: Role) -> String {
+    system_for_phase(role, true)
+}
+
+fn system_for_phase(role: Role, discussion: bool) -> String {
     let instruction = match role {
         Role::Constructor => {
-            "Independently construct the best defensible candidate argument. Supply the positive mechanism, premises, warrants, backing obligations and narrower surviving claim under explicit working assumptions. Put defensible reasoning in findings, material concerns in objections and decisive missing support in evidence_gaps. You cannot see the other specialists' first passes."
+            "Construct the best defensible candidate argument. Supply the positive mechanism, premises, warrants, backing obligations and narrower surviving claim under explicit working assumptions. Put defensible reasoning in findings, material concerns in objections and decisive missing support in evidence_gaps."
         }
         Role::Sceptic => {
-            "Independently develop and test the strongest plausible candidate interpretation of the claim. Compare it with serious alternatives, counterexamples and boundary failures through undermining, rebutting and undercutting attacks. Apply the same evidential standards to the claim and alternatives. Mark hypothetical attacks explicitly. Put valid surviving reasoning in findings, material challenges in objections and discriminating tests in evidence_gaps. You cannot see other specialists' first passes."
+            "Develop and test the strongest plausible candidate interpretation of the claim. Compare it with serious alternatives, counterexamples and boundary failures through undermining, rebutting and undercutting attacks. Apply the same evidential standards to the claim and alternatives. Mark hypothetical attacks explicitly. Put valid surviving reasoning in findings, material challenges in objections and discriminating tests in evidence_gaps."
         }
         Role::EvidenceAuditor => {
-            "Independently design the evidence needed to make the candidate claim defensible. When evidence is empty, start from its mechanism, working assumptions and proposed inferential structure, and produce concrete acquisition and warrant-backing requirements rather than an empty audit. When evidence is supplied, also audit its provenance, relevance, measurement, controls, representativeness, uncertainty and inferential scope. Separate reported observations from assumptions. Identify the smallest decisive investigations and their acceptance criteria. Put supplied observations or clearly conditional analytical reasoning in findings, evidential defects in objections and acquisition needs in evidence_gaps. You cannot see other specialists' first passes."
+            "Design the evidence needed to make the candidate claim defensible. When evidence is empty, start from its mechanism, working assumptions and proposed inferential structure, and produce concrete acquisition and warrant-backing requirements rather than an empty audit. When evidence is supplied, also audit its provenance, relevance, measurement, controls, representativeness, uncertainty and inferential scope. Separate reported observations from assumptions. Identify the smallest decisive investigations and their acceptance criteria. Put supplied observations or clearly conditional analytical reasoning in findings, evidential defects in objections and acquisition needs in evidence_gaps."
         }
         Role::Synthesiser => {
-            "Produce the complete positive candidate graph from the request and the three independent assessments. Do not return only a lack-of-evidence verdict. For every object in retained_objections, preserve its exact id and challenge as a defeater with an explicit disposition. Preserve significant disagreements. Provide all schema fields, including explicit qualifications and use limits."
+            "Produce the complete positive candidate graph from the request and the supplied independent assessments and any routed discussion. Do not return only a lack-of-evidence verdict. For every object in retained_objections, preserve its exact id and challenge as a defeater with an explicit disposition. Preserve significant disagreements. Provide all schema fields, including explicit qualifications and use limits."
         }
         Role::FinalCritic => {
-            "Audit the draft against the original request, optional evidence and independent first passes. On claim-only input, challenge a draft that merely reports insufficient evidence or omits a substantive positive candidate, explicit warrants, working scope, serious alternatives or concrete evidence requirements. Evaluate the candidate's conditional reasoning without treating its untested premises as established. Focus objections on material remaining defects, overclaiming, omitted adverse evidence, missing inference steps and inadequate evidence plans. Compare every reading section with the canonical graph: identify dropped qualifiers or conditions, overstated strength, invented evidence, and unsupported prose claims. Test whether the selected alternative is individually adequate under the shared scope and criterion, and whether cumulative support misleadingly aggregates dependent or repeated evidence. Each prose objection must identify the affected claim and graph relation. Preserve valid reasoning in findings and propose discriminating checks in evidence_gaps."
+            "Audit the draft against the original request, optional evidence, independent first passes and any routed discussion. Treat peer discussion as dependent reasoning rather than additional independent evidence. On claim-only input, challenge a draft that merely reports insufficient evidence or omits a substantive positive candidate, explicit warrants, working scope, serious alternatives or concrete evidence requirements. Evaluate the candidate's conditional reasoning without treating its untested premises as established. Focus objections on material remaining defects, overclaiming, omitted adverse evidence, missing inference steps and inadequate evidence plans. Compare every reading section with the canonical graph: identify dropped qualifiers or conditions, overstated strength, invented evidence, and unsupported prose claims. Test whether the selected alternative is individually adequate under the shared scope and criterion, and whether cumulative support misleadingly aggregates dependent or repeated evidence. Each prose objection must identify the affected claim and graph relation. Preserve valid reasoning in findings and propose discriminating checks in evidence_gaps."
         }
         Role::Adjudicator => {
-            "Return the final extended Toulmin argument with the strongest defensible candidate developed fully instead of reducing the result to an insufficiency verdict. Assess any optional evidence as well as every independent assessment, draft and final critique. You may narrow, qualify or withhold support. Do not reward majority agreement, verbosity or position. For every object in retained_objections, retain a defeater with exactly its id and challenge and its first attached target_id, kind and basis. Preserve identity.target_context unless an explicit inapplicable_after_revision disposition explains the changed target. Retain explicit status, response and evidence_ids. These include constructor-N, sceptic-N, auditor-N and critic-N objections. An unresolved objection has status open and the appropriate basis. A challenge removed by a specific revision can use inapplicable_after_revision with a precise rationale; changing wording alone does not resolve the underlying concern. Preserve other material dissent too. Revise the canonical graph and reading together after the critique; a change to one view requires checking the other. Explain the decisive warrant, qualification and remaining uncertainty in adjudication."
+            "Return the final extended Toulmin argument with the strongest defensible candidate developed fully instead of reducing the result to an insufficiency verdict. Assess any optional evidence as well as every independent assessment, routed discussion, draft and final critique. You may narrow, qualify or withhold support. Do not reward majority agreement, verbosity or position. For every object in retained_objections, retain a defeater with exactly its id and challenge and its first attached target_id, kind and basis. Preserve identity.target_context unless an explicit inapplicable_after_revision disposition explains the changed target. Retain explicit status, response and evidence_ids. These include constructor-N, sceptic-N, auditor-N, critic-N and agent-P-round-R-N objections. An unresolved objection has status open and the appropriate basis. A challenge removed by a specific revision can use inapplicable_after_revision with a precise rationale; changing wording alone does not resolve the underlying concern. Preserve other material dissent too. Revise the canonical graph and reading together after the critique; a change to one view requires checking the other. Explain the decisive warrant, qualification and remaining uncertainty in adjudication."
         }
         Role::Single => {
             "Act as a single-agent baseline and construct the complete positive candidate argument from the request. Challenge it with serious alternatives and consequential defeaters. This mode provides no independent specialist review."
@@ -76,6 +85,13 @@ pub fn system(role: Role) -> String {
         ));
     } else {
         result.push_str(&format!("\n\n{REPAIR}"));
+    }
+    if assessment_only {
+        result.push_str(if discussion {
+            "\n\nDISCUSSION CONTEXT: Reassess the request using your previous assessment and the routed peer assessments. These dependent contributions and repeated claims supply no independent evidence."
+        } else {
+            "\n\nINDEPENDENT FIRST PASS: Assess the request independently. You cannot see other specialists' first passes."
+        });
     }
     skills::append(&mut result);
     result.push_str(&format!("\n\nROLE TASK: {instruction}"));

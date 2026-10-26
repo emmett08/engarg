@@ -23,6 +23,7 @@ mod glossary_command;
 mod progress;
 mod support_commands;
 mod tooling_commands;
+mod topology_options;
 
 #[derive(Parser)]
 #[command(
@@ -113,6 +114,8 @@ struct Analyse {
     role_model: Vec<String>,
     #[arg(long, default_value = "hybrid")]
     mode: Mode,
+    #[command(flatten)]
+    debate: topology_options::TopologyOptions,
     /// API protocol. The endpoint must support strict JSON Schema outputs.
     #[arg(long, value_enum, default_value = "responses")]
     api: ApiStyle,
@@ -371,6 +374,7 @@ async fn analyse(args: Analyse) -> Result<(), Error> {
 async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> Result<(), Error> {
     let started = std::time::Instant::now();
     progress.phase("input and configuration checks");
+    let debate = args.debate.admit(args.mode)?;
     if args.max_input_bytes == 0 || args.max_response_bytes == 0 || args.timeout_secs == 0 {
         return Err(Error::InvalidInput(
             "resource limits must be positive".into(),
@@ -459,6 +463,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
     }
     let config = RunConfig {
         mode: args.mode,
+        debate,
         max_calls: args.max_calls,
         max_argument_depth: args.argument_depth,
         max_repairs: args.max_repairs,

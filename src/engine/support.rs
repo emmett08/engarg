@@ -1,8 +1,8 @@
 //! Catalogue-independent case construction followed by qualified route planning.
 pub mod recovery;
 use super::{
-    CallRecord, Mode, RunConfig, RunReport, assessment_schema, assessment_warnings, check_prompt,
-    context, execute, limitations, parse_assessment, prompt, sha256_hex,
+    CallRecord, Mode, RunConfig, RunReport, assessment_schema, assessment_warnings, context,
+    debate, execute, limitations, parse_assessment, prompt, sha256_hex,
 };
 use crate::{
     Error,
@@ -188,7 +188,7 @@ fn requirement_identities(
         .collect()
 }
 
-/// Six provider calls in hybrid mode. Capability matching happens only after the
+/// Hybrid assessment with optional routed debate. Capability matching happens after the
 /// synthesiser has extracted source obligations and again after adjudication.
 pub async fn run_with_support<M: LanguageModel, O, R: RouteResolver>(
     model: &M,
@@ -204,28 +204,7 @@ where
     if config.collector_catalogue.is_some() {
         return Err(Error::InvalidInput("support graph planning uses the qualified route resolver; collector_catalogue belongs to flat planning".into()));
     }
-    if config
-        .max_argument_depth
-        .is_some_and(|depth| !(1..=16).contains(&depth))
-        || config.max_repairs > 3
-    {
-        return Err(Error::InvalidInput(
-            "argument-depth must be 1–16 and max-repairs must be 0–3".into(),
-        ));
-    }
-    let required_calls = match config.mode {
-        Mode::Hybrid => 6,
-        Mode::Single => 1,
-    } + u32::from(config.max_repairs);
-    if config.max_calls < required_calls {
-        return Err(Error::Budget(format!(
-            "{} mode including the repair allowance requires {required_calls} calls but max_calls is {}",
-            config.mode, config.max_calls,
-        )));
-    }
-    if config.max_input_bytes == 0 || config.max_response_bytes == 0 {
-        return Err(Error::Budget("byte budgets must be positive".into()));
-    }
+    config.validate()?;
     let (mut transcript, mut retained, draft) = match config.mode {
         Mode::Single => {
             let call = execute(
@@ -310,32 +289,18 @@ async fn hybrid<M: LanguageModel, O, R: RouteResolver>(
 where
     O: Fn(&CallRecord) -> Result<(), Error> + Send + Sync,
 {
-    let data = json!({"request":request});
-    let constructor = support_prompt(Role::Constructor, data.clone(), config)?;
-    let sceptic = support_prompt(Role::Sceptic, data.clone(), config)?;
-    let auditor = support_prompt(Role::EvidenceAuditor, data, config)?;
-    for first in [&constructor, &sceptic, &auditor] {
-        check_prompt(first, config)?;
-    }
-    let (constructor, sceptic, auditor) = tokio::join!(
-        execute(model, constructor, config, observer),
-        execute(model, sceptic, config, observer),
-        execute(model, auditor, config, observer),
-    );
-    let initial = vec![constructor?, sceptic?, auditor?];
-    let mut retained = Vec::new();
-    let mut assessments = Vec::new();
-    for (record, prefix) in initial.iter().zip(["constructor", "sceptic", "auditor"]) {
-        assessments.push(context::assessment(
-            record.role,
-            prefix,
-            parse_assessment(record)?,
-            &mut retained,
-        ));
-    }
-    let synthesis = execute(model, support_prompt(Role::Synthesiser, json!({
+    let debate::Assessments {
+        transcript: initial,
+        mut retained,
+        independent: assessments,
+        discussion,
+    } = debate::assess(model, request, config, observer, |role, data| {
+        support_prompt(role, data, config)
+    })
+    .await?;
+    let synthesis = execute(model, support_prompt(Role::Synthesiser, debate::with_discussion(json!({
         "request":request,"independent_assessments":assessments,"retained_objections":retained,
-    }), config)?, config, observer).await?;
+    }), &discussion), config)?, config, observer).await?;
     let draft = support_requirements::parse_supported_argument(
         &synthesis.response.content,
         config.max_response_bytes,
@@ -353,12 +318,12 @@ where
     } else {
         json!({"status":"invalid_requirements","validation_errors":draft_errors})
     };
-    let critique = execute(model, support_prompt(Role::FinalCritic, json!({
+    let critique = execute(model, support_prompt(Role::FinalCritic, debate::with_discussion(json!({
         "request":request,"independent_assessments":assessments,"draft":draft_view,
         "support_elaboration":draft.support_elaboration,"route_preview":route_preview,
         "route_preview_limitations":"Only qualified matching and configuration checks are represented. The routes have not executed and cannot establish truth. Coverage, availability, historical access and independent review remain explicit obligations.",
         "retained_objections":retained,"draft_validation_errors":draft_errors,
-    }), config)?, config, observer).await?;
+    }), &discussion), config)?, config, observer).await?;
     let final_critique = context::assessment(
         Role::FinalCritic,
         "critic",
@@ -369,14 +334,17 @@ where
         model,
         support_prompt(
             Role::Adjudicator,
-            json!({
-                "request":request,"independent_assessments":assessments,"draft":draft_view,
-                "draft_support_elaboration":draft.support_elaboration,
-                "draft_requirement_sha256":requirement_identities(&draft.support_elaboration)?,
-                "draft_step_sha256":step_identities(&draft.support_elaboration)?,
-                "draft_validation_errors":draft_errors,"retained_objections":retained,
-                "final_critique":final_critique["assessment"],
-            }),
+            debate::with_discussion(
+                json!({
+                    "request":request,"independent_assessments":assessments,"draft":draft_view,
+                    "draft_support_elaboration":draft.support_elaboration,
+                    "draft_requirement_sha256":requirement_identities(&draft.support_elaboration)?,
+                    "draft_step_sha256":step_identities(&draft.support_elaboration)?,
+                    "draft_validation_errors":draft_errors,"retained_objections":retained,
+                    "final_critique":final_critique["assessment"],
+                }),
+                &discussion,
+            ),
             config,
         )?,
         config,
@@ -809,5 +777,104 @@ mod tests {
         assert!(value.get("report").is_none());
         let restored: SupportRunReport<Value> = serde_json::from_value(value).unwrap();
         assert_eq!(restored.report.schema_version, "engarg.run.v2");
+    }
+
+    #[tokio::test]
+    async fn every_debate_topology_keeps_support_extraction_and_private_route_previews() {
+        use crate::engine::topology::{DebateConfig, Topology};
+
+        for name in [
+            "fully_connected",
+            "grouped",
+            "chain",
+            "ring",
+            "star",
+            "tree",
+            "layered",
+            "sparse",
+            "bipartite",
+        ] {
+            let model = mock();
+            let resolver = Resolver::default();
+            let config = RunConfig {
+                debate: Some(DebateConfig {
+                    participants: 4,
+                    rounds: 1,
+                    topology: Topology::preset(name, 4).unwrap(),
+                    adaptation: Default::default(),
+                }),
+                max_calls: 11,
+                ..RunConfig::default()
+            };
+            let report = run_with_support(&model, &request(), &config, &|_| Ok(()), &resolver)
+                .await
+                .unwrap();
+            assert_eq!(report.report.transcript.len(), 11, "{name}");
+            assert_eq!(resolver.calls.load(Ordering::SeqCst), 2, "{name}");
+            assert!(
+                support_requirements::validate_elaboration(
+                    &report.report.argument,
+                    &report.evidence_planning.elaboration,
+                )
+                .is_empty()
+            );
+            let calls = model.calls.lock().unwrap();
+            assert_eq!(calls.len(), 11, "{name}");
+            assert!(
+                calls
+                    .iter()
+                    .all(|call| !call.user.contains("DO_NOT_SEND_OPERATOR_BINDINGS"))
+            );
+            let critic: Value = serde_json::from_str(&calls[9].user).unwrap();
+            assert_eq!(critic["route_preview"]["status"], "pending_configuration");
+            assert_eq!(
+                critic["discussion_assessments"].as_array().unwrap().len(),
+                4
+            );
+            let adjudication: Value = serde_json::from_str(&calls[10].user).unwrap();
+            assert!(adjudication.get("draft_support_elaboration").is_some());
+            assert!(adjudication.get("draft_requirement_sha256").is_some());
+            assert!(adjudication.get("draft_step_sha256").is_some());
+        }
+    }
+
+    #[tokio::test]
+    async fn debated_support_rejects_invalid_configuration_before_model_or_resolver_io() {
+        use crate::engine::topology::{DebateConfig, Topology};
+
+        let base = RunConfig {
+            debate: Some(DebateConfig {
+                participants: 4,
+                rounds: 1,
+                topology: Topology::preset("ring", 4).unwrap(),
+                adaptation: Default::default(),
+            }),
+            max_calls: 11,
+            ..RunConfig::default()
+        };
+        let mut unreserved_repair = base.clone();
+        unreserved_repair.max_repairs = 1;
+        let mut invalid_graph = base.clone();
+        invalid_graph.debate.as_mut().unwrap().topology = Topology::Star { hub: 4 };
+        let mut single = base;
+        single.mode = Mode::Single;
+        for (config, budget_error) in [
+            (unreserved_repair, true),
+            (invalid_graph, false),
+            (single, false),
+        ] {
+            let model = mock();
+            let resolver = Resolver::default();
+            let error = run_with_support(&model, &request(), &config, &|_| Ok(()), &resolver)
+                .await
+                .unwrap_err();
+            if budget_error {
+                assert!(matches!(error, Error::Budget(_)), "{error}");
+            } else {
+                assert!(matches!(error, Error::InvalidInput(_)), "{error}");
+            }
+            assert!(model.calls.lock().unwrap().is_empty());
+            assert_eq!(resolver.calls.load(Ordering::SeqCst), 0);
+        }
     }
 }

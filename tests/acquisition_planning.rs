@@ -173,3 +173,53 @@ async fn legacy_direct_cases_remain_valid_for_legacy_api_and_fail_closed_in_plan
         .unwrap_err();
     assert!(error.to_string().contains("planned case is invalid JSON"));
 }
+
+#[tokio::test]
+async fn every_debate_topology_preserves_acquisition_plans_through_adjudication() {
+    use engarg::engine::topology::{DebateConfig, Topology};
+
+    let (request, expected) = fixture();
+    for name in [
+        "fully_connected",
+        "grouped",
+        "chain",
+        "ring",
+        "star",
+        "tree",
+        "layered",
+        "sparse",
+        "bipartite",
+    ] {
+        let model = model(false, false);
+        let config = RunConfig {
+            debate: Some(DebateConfig {
+                participants: 4,
+                rounds: 1,
+                topology: Topology::preset(name, 4).unwrap(),
+                adaptation: Default::default(),
+            }),
+            max_calls: 11,
+            ..RunConfig::default()
+        };
+        let report = run_with_tools(&model, &request, &config, &|_| Ok(()))
+            .await
+            .unwrap();
+        assert_eq!(report.transcript.len(), 11, "{name}");
+        assert_eq!(model.calls.lock().unwrap().len(), 11, "{name}");
+        assert_eq!(
+            serde_json::to_value(&report.argument).unwrap(),
+            serde_json::to_value(&expected).unwrap(),
+            "{name}"
+        );
+        let planned =
+            parse_completion(&report.transcript.last().unwrap().response.content).unwrap();
+        assert_eq!(planned.acquisition_plan.len(), expected.evidence_plan.len());
+        assert!(validate(&planned.argument, &planned.acquisition_plan).is_empty());
+        let critic: Value = serde_json::from_str(&report.transcript[9].prompt.user).unwrap();
+        assert_eq!(
+            critic["draft_acquisition_plan"].as_array().unwrap().len(),
+            expected.evidence_plan.len(),
+            "{name}"
+        );
+    }
+}
