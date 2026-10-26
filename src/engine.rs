@@ -17,6 +17,7 @@ use crate::{
 
 mod context;
 mod repair;
+mod repair_scope;
 mod retained;
 pub use retained::reconcile_retained_argument;
 pub mod support;
