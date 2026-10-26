@@ -436,6 +436,166 @@ fn recovery_reuses_seven_authoring_calls_and_checkpoints_one_new_adjudicator() {
 }
 
 #[test]
+fn recovery_repairs_legacy_missing_freshness_without_repeating_authoring() {
+    let mut fixture = Fixture::new();
+    let requirement_id = "shared_requirement_0";
+    let mut legacy = fixture.repaired.clone();
+    let requirement = legacy
+        .requirements
+        .iter_mut()
+        .find(|requirement| requirement.id == requirement_id)
+        .unwrap();
+    requirement.contract.as_mut().unwrap().time.max_age_seconds = None;
+    let previous_requirement_sha256 =
+        eal_collector_contracts::execution::canonical_digest(requirement).unwrap();
+    legacy
+        .evaluations
+        .iter_mut()
+        .find(|evaluation| evaluation.requirement_id == requirement_id)
+        .unwrap()
+        .max_age_seconds = None;
+    legacy.acquisitions[0].contract.time.max_age_seconds = None;
+    let previous_source_sha256 =
+        engarg::support_requirements::step_identity(&legacy.acquisitions[0]).unwrap();
+
+    // Retain the request's explicit policy as the source for the new bound.
+    fixture.original["request"]["context"] = json!(
+        json!({"freshness":{"max_age_seconds":3600,"require_original_observation_time":true}})
+            .to_string()
+    );
+    fixture.original["input_sha256"] = json!(digest(
+        &serde_json::to_string(&fixture.original["request"]).unwrap()
+    ));
+    let configuration: PlanningConfig =
+        serde_json::from_slice(&std::fs::read(&fixture.config).unwrap()).unwrap();
+    let connections: Value =
+        serde_json::from_slice(&std::fs::read(&configuration.connections).unwrap()).unwrap();
+    let catalogue: CapabilityCatalogue =
+        serde_json::from_value(connections["local_catalogues"][0].clone()).unwrap();
+    let case = serde_json::from_value(fixture.original["argument"].clone()).unwrap();
+    let mut routes = serde_json::to_value(
+        engarg::route_planning::compile(
+            &case,
+            &fixture.repaired,
+            &catalogue,
+            &configuration,
+            &DiscoverySnapshot::default(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    for evaluation in routes["execution"]["evaluations"].as_array_mut().unwrap() {
+        if evaluation["requirement_id"] == requirement_id {
+            evaluation["max_age_seconds"] = Value::Null;
+        }
+    }
+    routes["execution"]["acquisitions"][0]["max_age_seconds"] = Value::Null;
+    fixture.original["evidence_planning"]["elaboration"] = serde_json::to_value(&legacy).unwrap();
+    fixture.original["evidence_planning"]["routes"] = routes;
+    let legacy_content = json!({"argument":fixture.original["argument"],
+        "support_elaboration_json":serde_json::to_string(&legacy).unwrap()})
+    .to_string();
+    fixture.original["transcript"][3] = receipt("synthesiser", legacy_content.clone());
+    for index in [5, 6] {
+        fixture.original["transcript"][index] = receipt("adjudicator", legacy_content.clone());
+    }
+
+    fixture
+        .repaired
+        .requirements
+        .iter_mut()
+        .find(|requirement| requirement.id == requirement_id)
+        .unwrap()
+        .contract
+        .as_mut()
+        .unwrap()
+        .time
+        .max_age_seconds = Some(3600);
+    fixture
+        .repaired
+        .evaluations
+        .iter_mut()
+        .find(|evaluation| evaluation.requirement_id == requirement_id)
+        .unwrap()
+        .max_age_seconds = Some(3600);
+    fixture.repaired.revisions.push(serde_json::from_value(json!({
+        "requirement_id":requirement_id,
+        "previous_requirement_sha256":previous_requirement_sha256,
+        "reason":"Apply the retained request's explicit 3600-second freshness limit to the machine predicate and its matching evaluation."
+    })).unwrap());
+    fixture.repaired.acquisitions[0]
+        .contract
+        .time
+        .max_age_seconds = Some(3600);
+    fixture.repaired.acquisition_revisions.push(serde_json::from_value(json!({
+        "previous_step_id":"shared_source",
+        "previous_step_sha256":previous_source_sha256,
+        "disposition":"repaired","replacement_ids":["shared_source"],
+        "reason":"Apply the retained request's explicit 3600-second limit to the original source observation clock."
+    })).unwrap());
+    write_json(&fixture.input, &fixture.original);
+    let original_bytes = std::fs::read(&fixture.input).unwrap();
+    let output = fixture.directory.path().join("freshness-repaired.json");
+    let audit = fixture
+        .directory
+        .path()
+        .join("freshness-repair.audit.jsonl");
+    let (result, exchanges) = run(&fixture, fixture.response().to_string(), &output, &audit);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(exchanges.len(), 1);
+    assert_checkpoint(&exchanges[0], &fixture);
+    let prompt: Value = serde_json::from_str(exchanges[0].body["input"].as_str().unwrap()).unwrap();
+    assert!(
+        prompt["validation_errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|error| {
+                error
+                    .as_str()
+                    .unwrap()
+                    .contains("SUPPORT_FRESHNESS_CLARIFICATION")
+                    && error.as_str().unwrap().contains(requirement_id)
+            })
+    );
+    assert_eq!(
+        prompt["original_step_sha256"]["shared_source"],
+        previous_source_sha256
+    );
+    let updated: Value = serde_json::from_slice(&std::fs::read(&output).unwrap()).unwrap();
+    for key in [
+        "argument",
+        "request",
+        "input_sha256",
+        "run_config",
+        "provider_config",
+    ] {
+        assert_eq!(updated[key], fixture.original[key]);
+    }
+    assert_eq!(std::fs::read(&fixture.input).unwrap(), original_bytes);
+    assert_eq!(updated["transcript"].as_array().unwrap().len(), 8);
+    assert_eq!(
+        &updated["transcript"].as_array().unwrap()[..7],
+        fixture.original["transcript"].as_array().unwrap()
+    );
+    assert_eq!(
+        updated["support_recovery"]["previous_report"],
+        fixture.original
+    );
+    assert_eq!(updated["support_recovery"]["model_calls"], 1);
+    assert_eq!(
+        updated["evidence_planning"]["elaboration"],
+        serde_json::to_value(&fixture.repaired).unwrap()
+    );
+    engarg::report::validate_support_recovery(&updated).unwrap();
+    engarg::report::validate_replanning(&updated, Path::new(env!("CARGO_BIN_EXE_engarg"))).unwrap();
+}
+
+#[test]
 fn new_response_limit_does_not_discard_larger_retained_acquisition_designs() {
     let mut fixture = Fixture::new();
     let content = fixture.response().to_string();

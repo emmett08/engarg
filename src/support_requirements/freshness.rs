@@ -1,8 +1,10 @@
-//! Shared freshness readiness for EAL/3 evidence evaluations.
+//! Admit the evidence ages required by both support planning and EAL/3 export.
 use super::{SupportElaboration, SupportRequirement};
 use eal_collector_contracts::execution::EvaluationCriterion;
+use std::collections::BTreeMap;
 
-/// The same rule is used by EAL export and the pre-implementation check.
+/// Machine evidence needs an explicit bounded age. Pending stubs emit no
+/// observations, so their absent bound is represented by EAL's zero-age guard.
 pub fn requirement_age_seconds(
     requirement: &SupportRequirement,
     maximum: Option<u64>,
@@ -13,27 +15,29 @@ pub fn requirement_age_seconds(
         None if matches!(
             requirement.acceptance,
             EvaluationCriterion::Unavailable { .. }
-        ) || matches!(&requirement.acceptance, EvaluationCriterion::Judgement { scope, .. } if scope.is_none() || !has_inputs) =>
+        ) || matches!(&requirement.acceptance, EvaluationCriterion::Judgement { scope, .. }
+            if scope.is_none() || !has_inputs) =>
         {
             Ok(0)
         }
         _ => Err(format!(
-            "SUPPORT_FRESHNESS_CLARIFICATION: requirement {} needs an explicit positive bounded freshness contract before EAL/3 can collect it",
+            "SUPPORT_FRESHNESS_CLARIFICATION: requirement {} needs an explicit positive bounded freshness contract before EAL/3 can collect it; set the same max_age_seconds in its requirement contract and evaluation, or repair retained support with eal repair",
             requirement.id
         )),
     }
 }
 
-/// A consumer's age bound also limits every original observation in its lineage.
-/// Independently specified source bounds remain in force and can be stricter.
+/// Check freshness without requiring provider discovery or a generated package.
 pub fn validate_freshness(elaboration: &SupportElaboration) -> Vec<String> {
     let mut errors = Vec::new();
+    let requirements = elaboration
+        .requirements
+        .iter()
+        .map(|requirement| (requirement.id.as_str(), requirement))
+        .collect::<BTreeMap<_, _>>();
     for evaluation in &elaboration.evaluations {
-        let Some(requirement) = elaboration
-            .requirements
-            .iter()
-            .find(|r| r.id == evaluation.requirement_id)
-        else {
+        let Some(requirement) = requirements.get(evaluation.requirement_id.as_str()) else {
+            // Full graph admission diagnoses unknown requirement references.
             continue;
         };
         if evaluation.max_age_seconds
@@ -42,7 +46,10 @@ pub fn validate_freshness(elaboration: &SupportElaboration) -> Vec<String> {
                 .as_ref()
                 .and_then(|contract| contract.time.max_age_seconds)
         {
-            errors.push(format!("SUPPORT_FRESHNESS_CLARIFICATION: evaluation {} does not match requirement {} freshness", evaluation.id, requirement.id));
+            errors.push(format!(
+                "SUPPORT_FRESHNESS_CLARIFICATION: evaluation {} does not match requirement {} freshness",
+                evaluation.id, requirement.id
+            ));
         }
         if let Err(error) = requirement_age_seconds(
             requirement,

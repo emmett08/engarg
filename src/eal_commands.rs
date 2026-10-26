@@ -934,13 +934,6 @@ async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
             )
         },
     )?;
-    let errors = engarg::support_requirements::validate_elaboration(
-        &canonical.argument,
-        &previous.elaboration,
-    );
-    if !errors.is_empty() {
-        return Err(Error::InvalidInput(errors.join("; ")));
-    }
     let clarification: Option<report::freshness::FreshnessClarification> = args
         .freshness_clarifications
         .as_ref()
@@ -949,11 +942,16 @@ async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
     let mut elaboration = previous.elaboration.clone();
     if let Some(clarification) = &clarification {
         report::freshness::apply(&mut elaboration, clarification)?;
-        let errors =
-            engarg::support_requirements::validate_elaboration(&canonical.argument, &elaboration);
-        if !errors.is_empty() {
-            return Err(Error::InvalidInput(errors.join("; ")));
-        }
+    }
+    // Historical identities were admitted above. Validate current collection
+    // requirements after applying only the explicitly authorised missing ages.
+    let mut errors =
+        engarg::support_requirements::validate_elaboration(&canonical.argument, &elaboration);
+    errors.extend(engarg::support_requirements::validate_freshness(
+        &elaboration,
+    ));
+    if !errors.is_empty() {
+        return Err(Error::InvalidInput(errors.join("; ")));
     }
     let mut output = PendingFile::create(new_path(&args.output)?)?;
     let planner = super::support_commands::admit(&args.evidence_config).await?;

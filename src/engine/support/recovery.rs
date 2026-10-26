@@ -40,6 +40,9 @@ where
         &original.argument,
         &original.support_elaboration,
     );
+    errors.extend(support_requirements::validate_freshness(
+        &original.support_elaboration,
+    ));
     if errors.is_empty() {
         errors.push("Review the retained pending acquisition designs and repair their representations. Preserve genuine source, method, configuration and judgement gaps explicitly; do not invent qualification or retire a design merely to pass validation.".into());
     }
@@ -51,6 +54,7 @@ where
             "repair_attempt":attempt,"repair_limit":config.max_repairs,
             "original_support_elaboration":original.support_elaboration,
             "original_requirement_sha256":requirement_identities(&original.support_elaboration)?,
+            "original_step_sha256":step_identities(&original.support_elaboration)?,
             "retained_acquisition_designs":design,
             "frozen_argument":original.argument,
         });
@@ -70,6 +74,9 @@ where
                     &repaired.argument,
                     &repaired.support_elaboration,
                 );
+                errors.extend(support_requirements::validate_freshness(
+                    &repaired.support_elaboration,
+                ));
                 if output_validation::restore_host_fields(
                     &mut repaired.argument,
                     &original.argument,

@@ -158,6 +158,9 @@ fn validation_errors(
             errors
         }
     });
+    errors.extend(support_requirements::validate_freshness(
+        &candidate.support_elaboration,
+    ));
     errors
 }
 

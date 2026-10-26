@@ -124,6 +124,21 @@ model-authored definition has a different identity and requires verification
 under the pinned definition. Pending judgement evaluations and unresolved
 reasoning-method bindings remain unresolved after tool qualification.
 
+Machine-evaluated graph requirements need an explicit freshness bound in both
+`requirement.contract.time.max_age_seconds` and the matching evaluation's
+`max_age_seconds`. The bound is from 1 through 315360000 seconds. Authoring
+validation checks these fields before collector implementation, and support
+recovery applies the same check. A supplied request bound must be carried into
+each applicable requirement and acquisition while preserving stricter source
+bounds. The legacy flat export-age policy does not supply missing graph ages.
+
+If an older analysis omitted the bound, use `engarg eal repair` with its saved
+`analysis.original.json` and `evidence-config.json`, then pass the repaired report
+to `--replan-analysis`. Repair retains the original argument and authoring calls
+and records the changed requirement and acquisition identities. It uses a
+separate model-call allowance. Unavailable evaluations and pending unscoped
+judgements can retain absent ages because they emit no usable observations.
+
 Authoring uses `ENGARG_MODEL`, `ENGARG_REASONING_EFFORT` and
 `ENGARG_MAX_OUTPUT_TOKENS`. Graph tool generation inherits those settings.
 Override individual settings with `ENGARG_TOOL_MODEL`,
@@ -286,7 +301,7 @@ implementation. The legacy `ENGARG_ACQUISITION_MAX_AGE_SECONDS` setting does
 not supply graph bounds.
 
 For a retained analysis, `--freshness-clarifications` accepts an operator's
-explicit additions. Select exact requirement and acquisition IDs and supply the
+explicit additions. Select exact requirement IDs and supply the
 age in seconds. The rationale records why those bounds are appropriate. For
 example, use the following structure after checking the IDs and scope in the
 retained report:
@@ -295,8 +310,7 @@ retained report:
 {
   "schema": "engarg.freshness-clarification/1",
   "rationale": "The operator requires observations no older than one hour.",
-  "requirements": {"R-count": 3600},
-  "acquisitions": {"AC-source": 3600}
+  "requirements": {"R-count": 3600}
 }
 ```
 
@@ -310,6 +324,8 @@ The revision cannot replace an existing age. It retains the earlier planning
 record and does not resolve outstanding judgements. A fresh calculation does
 not refresh an older upstream observation. Choosing an age can restrict a claim,
 so inspect the affected requirements and acquisition lineage before applying it.
+Existing acquisition contracts remain unchanged. Each clarified requirement
+still limits the age of the original observations in its complete lineage.
 
 The catalogue and per-need preparation workflow below remains available through
 the explicit `--legacy-flat` switch. Its examples select that compatibility mode.

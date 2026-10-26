@@ -98,9 +98,12 @@ fn routes(original: &Value) -> Result<RoutePlan, Error> {
             "capability tooling requires typed evidence planning routes",
         ));
     };
-    let freshness_errors = engarg::support_requirements::validate_freshness(&planning.elaboration);
-    if !freshness_errors.is_empty() {
-        return Err(invalid(freshness_errors.join("; ")));
+    let errors = engarg::support_requirements::validate_freshness(&planning.elaboration);
+    if !errors.is_empty() {
+        return Err(invalid(format!(
+            "{}; repair the saved support graph with `engarg eal repair` before tool implementation; the original argument remains retained",
+            errors.join("; ")
+        )));
     }
     let routes = planning.routes;
     if routes.schema != ROUTE_PLAN_SCHEMA {
@@ -418,6 +421,37 @@ mod tests {
             tool_output_dir: Some(directory.join("output")),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn missing_machine_freshness_is_rejected_before_coding_or_output_creation() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut original = original(false);
+        original["evidence_planning"]["elaboration"]["requirements"] = json!([{
+            "id":"R-count","target_id":"G-count","evidence_need_ids":[],
+            "original_acceptance_criteria":[],"contract":null,"discriminating_evidence":[],
+            "acceptance":{"kind":"equals","expected":3},"acceptance_rationale":"Exact count",
+            "gaps":[]
+        }]);
+        original["evidence_planning"]["elaboration"]["evaluations"] = json!([{
+            "id":"EV-count","requirement_id":"R-count","inputs":[],
+            "criterion":{"kind":"equals","expected":3},"max_age_seconds":null,
+            "required_coverage":"unspecified","applicability":[],"challenges":[]
+        }]);
+        let options = options(directory.path());
+        let error =
+            run_capability_fallback(&NoModelCalls, &original, &options, 1_048_576, 1_048_576)
+                .await
+                .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("SUPPORT_FRESHNESS_CLARIFICATION")
+        );
+        assert!(error.to_string().contains("R-count"));
+        assert!(error.to_string().contains("eal repair"));
+        assert!(!directory.path().join("output").exists());
+        assert!(!directory.path().join("must-not-create-store").exists());
     }
 
     #[tokio::test]

@@ -2,6 +2,7 @@ use super::*;
 use crate::{
     domain::ArgumentIndex,
     eal_export::{EalDeclaration, EalSourceMapping, ExportProjection, ReviewRequest, name, quoted},
+    support_requirements::requirement_age_seconds,
 };
 use eal_collector_contracts::{
     CommandBinding, CommandRegistry, ToolKind,
@@ -119,7 +120,7 @@ pub(super) fn build(
             "execution_plan_sha256": execution_plan_sha256,
             "requirement_id": requirement.id,
         });
-        let age = crate::support_requirements::requirement_age_seconds(
+        let age = requirement_age_seconds(
             requirement,
             evaluation.max_age_seconds,
             !evaluation.inputs.is_empty(),
