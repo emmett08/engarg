@@ -21,6 +21,7 @@ pub enum EvidencePlanningReport {
 
 /// A null optional extension has the same meaning as an omitted extension.
 pub fn classify_evidence_planning(raw: &Value) -> Result<EvidencePlanningReport, Error> {
+    crate::authoring_checkpoint::validate_recovery_report(raw)?;
     if !raw.is_object() {
         return Err(invalid("saved analysis must be a JSON object"));
     }
@@ -225,10 +226,11 @@ pub fn validate_support_recovery(raw: &Value) -> Result<(), Error> {
             return Err(Error::InvalidInput(errors.join("; ")));
         }
         let final_call = added.last().expect("positive call count");
-        let parsed = crate::support_requirements::parse_supported_argument(
+        let mut parsed = crate::support_requirements::parse_supported_argument(
             &final_call.response.content,
             final_call.response_content_bytes,
         )?;
+        crate::output_validation::restore_host_fields(&mut parsed.argument, &argument)?;
         if serde_json::to_value(parsed.argument)? != current["argument"]
             || digest(&parsed.support_elaboration)? != digest(&now.elaboration)?
         {

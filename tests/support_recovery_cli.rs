@@ -227,6 +227,16 @@ struct Exchange {
 }
 
 fn run(fixture: &Fixture, content: String, output: &Path, audit: &Path) -> (Output, Vec<Exchange>) {
+    run_command(content, audit, |endpoint| {
+        fixture.command(endpoint, output, audit)
+    })
+}
+
+fn run_command(
+    content: String,
+    audit: &Path,
+    command: impl FnOnce(&str) -> Command,
+) -> (Output, Vec<Exchange>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();
     let endpoint = format!("http://{}/v1/responses", listener.local_addr().unwrap());
@@ -264,7 +274,7 @@ fn run(fixture: &Fixture, content: String, output: &Path, audit: &Path) -> (Outp
         }
         exchanges
     });
-    let result = fixture.command(&endpoint, output, audit).output().unwrap();
+    let result = command(&endpoint).output().unwrap();
     stop.send(()).unwrap();
     (result, server.join().unwrap())
 }
@@ -549,4 +559,152 @@ fn existing_report_or_audit_is_rejected_before_a_provider_request() {
         let unoccupied = if existing_audit { &output } else { &audit };
         assert!(!unoccupied.exists());
     }
+}
+
+fn initial_authoring_checkpoint(fixture: &Fixture) -> PathBuf {
+    let request = serde_json::from_value(fixture.original["request"].clone()).unwrap();
+    let config = serde_json::from_value(fixture.original["run_config"].clone()).unwrap();
+    let mut checkpoint = engarg::authoring_checkpoint::Checkpoint::new(
+        request,
+        config,
+        json!({"model":"original"}),
+        engarg::authoring_checkpoint::digest(std::fs::read(&fixture.config).unwrap()),
+    );
+    checkpoint.transcript = serde_json::from_value(fixture.original["transcript"].clone()).unwrap();
+    for call in &mut checkpoint.transcript {
+        call.prompt.user = json!({"request":checkpoint.request}).to_string();
+    }
+    // A genuine initial-authoring failure, rather than the support-only pending
+    // design exercised by the older recovery tests.
+    for call in checkpoint.transcript.iter_mut().skip(5) {
+        let mut envelope: Value = serde_json::from_str(&call.response.content).unwrap();
+        envelope["argument"]["warrants"][2]["rule"] = json!("Altered challenged warrant");
+        call.response.content = envelope.to_string();
+        call.response_content_bytes = call.response.content.len();
+        call.response_content_sha256 =
+            engarg::authoring_checkpoint::digest(call.response.content.as_bytes());
+    }
+    let path = fixture.directory.path().join("authoring-checkpoint.json");
+    write_json(&path, &checkpoint);
+    path
+}
+fn resume_command(
+    fixture: &Fixture,
+    checkpoint: &Path,
+    endpoint: &str,
+    output: &Path,
+    audit: &Path,
+    next: &Path,
+) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
+    command
+        .args(["authoring", "resume", "--checkpoint"])
+        .arg(checkpoint)
+        .arg("--evidence-config")
+        .arg(&fixture.config)
+        .arg("--output")
+        .arg(output)
+        .arg("--audit")
+        .arg(audit)
+        .arg("--next-checkpoint")
+        .arg(next)
+        .args([
+            "--model",
+            "fixture",
+            "--endpoint",
+            endpoint,
+            "--http-retries",
+            "0",
+            "--timeout-secs",
+            "20",
+            "--api-key-env",
+            "FIXTURE_RESUME_KEY",
+        ])
+        .env("FIXTURE_RESUME_KEY", "fixture-private");
+    command
+}
+#[test]
+fn initial_authoring_resume_reuses_history_and_accepts_one_new_call() {
+    let fixture = Fixture::new();
+    let checkpoint = initial_authoring_checkpoint(&fixture);
+    let output = fixture.directory.path().join("resumed.json");
+    let audit = fixture.directory.path().join("resumed.audit.jsonl");
+    let next = fixture.directory.path().join("resumed.checkpoint.json");
+    let (result, exchanges) = run_command(fixture.response().to_string(), &audit, |endpoint| {
+        resume_command(&fixture, &checkpoint, endpoint, &output, &audit, &next)
+    });
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(exchanges.len(), 1);
+    let mut report: Value = serde_json::from_slice(&std::fs::read(output).unwrap()).unwrap();
+    engarg::authoring_checkpoint::validate_recovery_report(&report).unwrap();
+    assert_eq!(report["transcript"].as_array().unwrap().len(), 8);
+    assert_eq!(report["authoring_recovery"]["new_model_calls"], 1);
+    assert!(
+        report["authoring_recovery"]["previous_checkpoint"]["transcript"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let original_prefix = report["transcript"][0].clone();
+    report["transcript"][0]["response"]["content"] = json!("tampered prefix");
+    assert!(engarg::authoring_checkpoint::validate_recovery_report(&report).is_err());
+    report["transcript"][0] = original_prefix;
+    let saved = engarg::authoring_checkpoint::Checkpoint::read(&next).unwrap();
+    assert_eq!(saved.transcript.len(), 8);
+    assert_eq!(events(&audit)[0]["recorded_calls"], 7);
+    assert_eq!(exchanges[0].before_response[1]["event"], "resume_request");
+    report["authoring_recovery"]["new_model_calls"] = json!(2);
+    assert!(engarg::authoring_checkpoint::validate_recovery_report(&report).is_err());
+}
+#[test]
+fn initial_authoring_invalid_repair_keeps_checkpoint_without_report() {
+    let fixture = Fixture::new();
+    let checkpoint = initial_authoring_checkpoint(&fixture);
+    let output = fixture.directory.path().join("rejected-resume.json");
+    let audit = fixture.directory.path().join("rejected-resume.audit.jsonl");
+    let next = fixture
+        .directory
+        .path()
+        .join("rejected-resume.checkpoint.json");
+    let (result, exchanges) = run_command("{}".into(), &audit, |endpoint| {
+        resume_command(&fixture, &checkpoint, endpoint, &output, &audit, &next)
+    });
+    assert!(!result.status.success());
+    assert_eq!(exchanges.len(), 1);
+    assert!(!output.exists());
+    let saved = engarg::authoring_checkpoint::Checkpoint::read(&next).unwrap();
+    assert_eq!(saved.transcript.len(), 8);
+    assert!(saved.failure.is_some());
+}
+#[test]
+fn inspect_is_offline_and_protocol_migration_requires_explicit_acknowledgement() {
+    let fixture = Fixture::new();
+    let checkpoint = initial_authoring_checkpoint(&fixture);
+    let mut saved = engarg::authoring_checkpoint::Checkpoint::read(&checkpoint).unwrap();
+    saved.protocol_identity = "legacy-unrecorded".into();
+    write_json(&checkpoint, &saved);
+    let inspection = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["authoring", "inspect", "--checkpoint"])
+        .arg(&checkpoint)
+        .output()
+        .unwrap();
+    assert!(inspection.status.success());
+    assert_eq!(
+        serde_json::from_slice::<Value>(&inspection.stdout).unwrap()["protocol_migration_required"],
+        true
+    );
+    let output = fixture.directory.path().join("migration.json");
+    let audit = fixture.directory.path().join("migration.audit.jsonl");
+    let next = fixture.directory.path().join("migration.checkpoint.json");
+    let (result, exchanges) = run_command(fixture.response().to_string(), &audit, |endpoint| {
+        resume_command(&fixture, &checkpoint, endpoint, &output, &audit, &next)
+    });
+    assert!(!result.status.success());
+    assert!(exchanges.is_empty());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("--accept-protocol-migration"));
+    assert!(!audit.exists());
 }

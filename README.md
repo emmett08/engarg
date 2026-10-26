@@ -536,3 +536,45 @@ Ambiguous encoded JSON and exhausted inspection allowances fail safely.
 Unrelated prose beginning with JSON punctuation retains its exact text.
 Unresolved prepared registry paths require operator resolution before execution.
 The installed `engarg-process-supervisor` companion supplies bounded process execution and is installed with EngArg.
+
+## Resume initial argument authoring
+
+Graph authoring can retain a durable private checkpoint after each completed model
+exchange, before interpreting the returned argument. Add `--checkpoint PATH` to
+`engarg analyse --evidence-planning graph`. A failed final validation keeps that
+checkpoint and the audit while withholding the ordinary argument report.
+
+Inspect a checkpoint without credentials or inference:
+
+```sh
+engarg authoring inspect --checkpoint authoring.checkpoint.json
+```
+
+Give final validation a separate repair allowance without repeating completed
+specialist assessments, synthesis or critique:
+
+```sh
+engarg authoring resume --checkpoint authoring.checkpoint.json \
+  --evidence-config planning.json --max-repairs 1 --model YOUR_MODEL \
+  --audit resumed.audit.jsonl --next-checkpoint resumed.checkpoint.json \
+  --output resumed-analysis.json
+```
+
+Use `--run-dir engarg-runs/PREVIOUS-RUN` instead of `--checkpoint` to import a
+historical audit with its retained request, configuration and run settings.
+Import verifies duplicate keys, response digests, role order and configuration
+consistency. Historical runs lack a protocol fingerprint, so paid recovery
+requires `--accept-protocol-migration`. A checkpoint from a changed protocol
+requires the same explicit migration acknowledgement and full revalidation.
+Local digests establish consistency rather than authenticated provenance.
+
+Recovery accepts completed final authoring stages. Omitted responses and an
+interrupted request remain explicit blockers. Every recovery uses new audit,
+report and checkpoint paths. Checkpoints retain at most 32 completed calls and
+128 MiB, with at most three new repair calls per recovery. Accepted reports retain
+the existing 16 MiB consumer limit. A larger accepted result keeps its completed
+exchanges in the checkpoint and audit instead of publishing an unusable report.
+Checkpoints may contain
+private source material. A valid saved candidate can finish without another
+provider call. The existing `engarg eal repair` command continues to preserve an
+accepted argument while repairing its support design.

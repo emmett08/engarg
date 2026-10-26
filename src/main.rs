@@ -18,6 +18,7 @@ use std::{
     time::Duration,
 };
 
+mod authoring_commands;
 mod eal_commands;
 mod glossary_command;
 mod progress;
@@ -39,6 +40,11 @@ struct Cli {
 enum Command {
     /// Develop an argument and evidence plan from a claim through separate LLM calls.
     Analyse(Box<Analyse>),
+    /// Inspect or resume initial authoring with retained paid exchanges.
+    Authoring {
+        #[command(subcommand)]
+        command: authoring_commands::AuthoringCommand,
+    },
     /// Convert to EAL/3 and invoke eal-mcp through its official host.
     Eal {
         #[command(subcommand)]
@@ -153,6 +159,9 @@ struct Analyse {
     /// Private JSONL audit, including completed calls even if a later stage fails.
     #[arg(long)]
     audit: Option<PathBuf>,
+    /// Durable graph authoring state, written after each completion before parsing.
+    #[arg(long)]
+    checkpoint: Option<PathBuf>,
     /// Report phases, model calls and a ten-second waiting heartbeat on stderr.
     #[arg(long)]
     progress: bool,
@@ -548,8 +557,50 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             provider_config: &provider_config,
         },
     )?;
+    let checkpoint = if let Some(path) = &args.checkpoint {
+        let configuration = args
+            .evidence_config
+            .as_ref()
+            .filter(|_| graph_planner.is_some())
+            .ok_or_else(|| {
+                Error::InvalidInput("--checkpoint requires graph evidence planning".into())
+            })?;
+        let checkpoint_identity = engarg::authoring_checkpoint::output_identity(path)?;
+        let mut collision = false;
+        for other in [args.audit.as_deref(), args.output.output.as_deref()]
+            .into_iter()
+            .flatten()
+        {
+            collision |=
+                engarg::authoring_checkpoint::output_identity(other)? == checkpoint_identity;
+        }
+        if collision {
+            return Err(Error::InvalidInput(
+                "checkpoint, audit and report require distinct new paths".into(),
+            ));
+        }
+        let bytes = engarg::bounded_file::read(
+            configuration,
+            1_048_576,
+            "checkpoint evidence configuration",
+        )?;
+        Some(engarg::authoring_checkpoint::Store::create(
+            path,
+            engarg::authoring_checkpoint::Checkpoint::new(
+                request.clone(),
+                config.clone(),
+                serde_json::to_value(&provider_config)?,
+                engarg::authoring_checkpoint::digest(&bytes),
+            ),
+        )?)
+    } else {
+        None
+    };
     let observer = |record: &engarg::engine::CallRecord| {
         audit_event(&audit, &json!({"event":"completion","record":record}))?;
+        if let Some(checkpoint) = &checkpoint {
+            checkpoint.completion(record)?;
+        }
         for warning in engarg::engine::assessment_warnings(record) {
             audit_event(
                 &audit,
@@ -663,6 +714,9 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             }
         }
         Err(error) => {
+            if let Some(checkpoint) = &checkpoint {
+                checkpoint.failure(&error)?;
+            }
             audit_event(
                 &audit,
                 &json!({"event":"failure","error":error.to_string()}),
@@ -675,6 +729,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
 async fn execute(cli: Cli) -> Result<(), Error> {
     match cli.command {
         Command::Analyse(args) => analyse(*args).await,
+        Command::Authoring { command } => authoring_commands::execute(command).await,
         Command::Eal { command } => eal_commands::execute(*command).await,
         Command::Demo { claim_only, output } => {
             let (request_text, argument_text) = if claim_only {

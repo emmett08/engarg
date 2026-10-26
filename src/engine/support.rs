@@ -1,4 +1,5 @@
 //! Catalogue-independent case construction followed by qualified route planning.
+pub mod authoring;
 pub mod recovery;
 use super::{
     CallRecord, Mode, RunConfig, RunReport, assessment_schema, assessment_warnings, check_prompt,
@@ -402,9 +403,13 @@ where
 {
     for attempt in 0..=config.max_repairs {
         let record = transcript.last().expect("workflow has a final call");
+        // The initial candidate has already passed its producing call's byte
+        // admission. A resumed history may use a larger original bound than
+        // the allowance for new calls. Later attempts use the current bound.
+        let candidate_limit = config.max_response_bytes.max(record.response_content_bytes);
         let (errors, candidate_json) = match support_requirements::parse_supported_argument(
             &record.response.content,
-            config.max_response_bytes,
+            candidate_limit,
         ) {
             Ok(mut candidate) => {
                 let mut errors = validation_errors(request, &candidate, retained, config, draft);
@@ -412,7 +417,12 @@ where
                     && let Err(error) = support_requirements::review_acquisition_design(
                         &candidate.support_elaboration,
                         transcript,
-                        config.max_response_bytes,
+                        transcript
+                            .iter()
+                            .map(|call| call.response_content_bytes)
+                            .max()
+                            .unwrap_or(config.max_response_bytes)
+                            .max(config.max_response_bytes),
                     )
                 {
                     errors.push(error.to_string());
