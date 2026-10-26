@@ -280,6 +280,37 @@ It also preserves the existing support elaboration, so it cannot restore a desig
 that was omitted or removed during authoring. Use `engarg eal repair` for that
 case, then pass its saved report to `--replan-analysis`.
 
+Graph export requires an explicit positive evidence age for each collectable
+requirement. The graph freshness preflight reports missing bounds before tool
+implementation. The legacy `ENGARG_ACQUISITION_MAX_AGE_SECONDS` setting does
+not supply graph bounds.
+
+For a retained analysis, `--freshness-clarifications` accepts an operator's
+explicit additions. Select exact requirement and acquisition IDs and supply the
+age in seconds. The rationale records why those bounds are appropriate. For
+example, use the following structure after checking the IDs and scope in the
+retained report:
+
+```json
+{
+  "schema": "engarg.freshness-clarification/1",
+  "rationale": "The operator requires observations no older than one hour.",
+  "requirements": {"R-count": 3600},
+  "acquisitions": {"AC-source": 3600}
+}
+```
+
+```sh
+bash scripts/run-catalog-sync-authoring.sh --simple-example \
+  --replan-analysis path/to/analysis.original.json \
+  --freshness-clarifications path/to/freshness.json
+```
+
+The revision cannot replace an existing age. It retains the earlier planning
+record and does not resolve outstanding judgements. A fresh calculation does
+not refresh an older upstream observation. Choosing an age can restrict a claim,
+so inspect the affected requirements and acquisition lineage before applying it.
+
 The catalogue and per-need preparation workflow below remains available through
 the explicit `--legacy-flat` switch. Its examples select that compatibility mode.
 

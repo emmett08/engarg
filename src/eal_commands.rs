@@ -35,6 +35,8 @@ pub enum EalCommand {
     RegisterTools(super::tooling_commands::registration::RegisterToolsArgs),
     /// Rebuild evidence routes from a saved graph report without model calls.
     Replan(ReplanArgs),
+    /// Check graph evidence freshness before implementing collectors.
+    FreshnessCheck(FreshnessCheckArgs),
     /// Repair support design from retained calls while preserving the argument.
     Repair(repair::RepairArgs),
     /// Implement missing collectors from a saved analysis using frozen fixtures.
@@ -77,9 +79,19 @@ pub struct ReplanArgs {
     /// Current operator capability planning configuration.
     #[arg(long)]
     evidence_config: PathBuf,
+    /// Explicit per-requirement missing-age clarification.
+    #[arg(long)]
+    freshness_clarifications: Option<PathBuf>,
     /// New report retaining the prior planning and tooling provenance.
     #[arg(short, long)]
     output: PathBuf,
+}
+
+#[derive(Args)]
+pub struct FreshnessCheckArgs {
+    /// Saved graph analysis.
+    #[arg(long)]
+    input: PathBuf,
 }
 
 #[derive(Args)]
@@ -929,18 +941,31 @@ async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
     if !errors.is_empty() {
         return Err(Error::InvalidInput(errors.join("; ")));
     }
+    let clarification: Option<report::freshness::FreshnessClarification> = args
+        .freshness_clarifications
+        .as_ref()
+        .map(|path| super::read_json(path, MAX_INPUT_BYTES))
+        .transpose()?;
+    let mut elaboration = previous.elaboration.clone();
+    if let Some(clarification) = &clarification {
+        report::freshness::apply(&mut elaboration, clarification)?;
+        let errors =
+            engarg::support_requirements::validate_elaboration(&canonical.argument, &elaboration);
+        if !errors.is_empty() {
+            return Err(Error::InvalidInput(errors.join("; ")));
+        }
+    }
     let mut output = PendingFile::create(new_path(&args.output)?)?;
     let planner = super::support_commands::admit(&args.evidence_config).await?;
-    let routes = planner
-        .resolve(&canonical.argument, &previous.elaboration)
-        .await?;
+    let routes = planner.resolve(&canonical.argument, &elaboration).await?;
     let mut updated = raw.clone();
+    updated["evidence_planning"]["elaboration"] = serde_json::to_value(&elaboration)?;
     updated["evidence_planning"]["routes"] = serde_json::to_value(routes)?;
     // Manually authored plans can omit provider history. Preserve that absence
     // rather than attaching a history-based review without its source records.
     if raw.get("transcript").is_some() {
         let review = engarg::support_requirements::review_acquisition_design(
-            &previous.elaboration,
+            &elaboration,
             &canonical.transcript,
             MAX_INPUT_BYTES,
         )?;
@@ -949,7 +974,7 @@ async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
         }
         updated["evidence_planning"]["design_review"] = serde_json::to_value(review)?;
     }
-    report::retain_replanning(&raw, &mut updated)?;
+    report::retain_replanning_with_freshness(&raw, &mut updated, clarification)?;
     report::validate_replanning(&updated, &executable)?;
     let bytes = json_bytes(&updated)?;
     if bytes.len() > MAX_INPUT_BYTES {
@@ -1214,6 +1239,25 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             super::tooling_commands::registration::register_tools(args).await
         }
         EalCommand::Replan(args) => execute_replan(args).await,
+        EalCommand::FreshnessCheck(args) => {
+            let raw: Value = super::read_json(&args.input, MAX_INPUT_BYTES)?;
+            let EvidencePlanningReport::Graph(planning) = report::classify_evidence_planning(&raw)?
+            else {
+                return Err(Error::InvalidInput(
+                    "freshness check requires a saved graph analysis".into(),
+                ));
+            };
+            report::validate_replanning(&raw, &std::env::current_exe()?)?;
+            let missing = engarg::support_requirements::validate_freshness(&planning.elaboration);
+            if !missing.is_empty() {
+                return Err(Error::InvalidInput(format!(
+                    "SUPPORT_FRESHNESS_CLARIFICATION: explicit positive freshness bounds required for: {}",
+                    missing.join(", ")
+                )));
+            }
+            println!("Graph freshness contracts are present.");
+            Ok(())
+        }
         EalCommand::Repair(args) => repair::execute(args).await,
         EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
         EalCommand::ToolchainCheck(args) => super::tooling_commands::preflight::check(args),

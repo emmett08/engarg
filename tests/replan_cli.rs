@@ -177,6 +177,95 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
             .lines()
             .all(|line| serde_json::from_str::<Value>(line).unwrap()["operation"] == "discovery")
     );
+    // An explicit per-requirement revision is retained as a separate, zero-model
+    // replan transition and preserves stricter source freshness.
+    let mut missing_age = original.clone();
+    for requirement in missing_age["evidence_planning"]["elaboration"]["requirements"]
+        .as_array_mut()
+        .unwrap()
+    {
+        if requirement["id"] == "shared_requirement_0" {
+            requirement["contract"]["time"]["max_age_seconds"] = Value::Null;
+        }
+    }
+    for evaluation in missing_age["evidence_planning"]["elaboration"]["evaluations"]
+        .as_array_mut()
+        .unwrap()
+    {
+        if evaluation["requirement_id"] == "shared_requirement_0" {
+            evaluation["max_age_seconds"] = Value::Null;
+        }
+    }
+    for evaluation in missing_age["evidence_planning"]["routes"]["execution"]["evaluations"]
+        .as_array_mut()
+        .unwrap()
+    {
+        if evaluation["requirement_id"] == "shared_requirement_0" {
+            evaluation["max_age_seconds"] = Value::Null;
+        }
+    }
+    let missing_path = directory.path().join("missing-age.json");
+    write(&missing_path, &missing_age);
+    let check = cli()
+        .args(["eal", "freshness-check", "--input"])
+        .arg(&missing_path)
+        .output()
+        .unwrap();
+    assert!(!check.status.success());
+    assert!(String::from_utf8_lossy(&check.stderr).contains("shared_requirement_0"));
+    let clarification = directory.path().join("freshness.json");
+    write(
+        &clarification,
+        &json!({"schema":"engarg.freshness-clarification/1", "rationale":"Operator approved this fixture age", "requirements":{"shared_requirement_0":3600}}),
+    );
+    let clarified_path = directory.path().join("clarified.json");
+    let result = cli()
+        .args(["eal", "replan", "--input"])
+        .arg(&missing_path)
+        .arg("--evidence-config")
+        .arg(&config_path)
+        .arg("--freshness-clarifications")
+        .arg(&clarification)
+        .arg("--output")
+        .arg(&clarified_path)
+        .env("REPLAN_FIXTURE_TOKEN", "synthetic-fixture-credential")
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let clarified: Value =
+        serde_json::from_slice(&std::fs::read(&clarified_path).unwrap()).unwrap();
+    assert_eq!(clarified["argument"], missing_age["argument"]);
+    assert_eq!(clarified["transcript"], missing_age["transcript"]);
+    assert_eq!(
+        clarified["evidence_planning"]["elaboration"]["acquisitions"],
+        missing_age["evidence_planning"]["elaboration"]["acquisitions"]
+    );
+    assert_eq!(clarified["replanning"]["model_calls"], 0);
+    report::validate_replanning(&clarified, Path::new(env!("CARGO_BIN_EXE_engarg"))).unwrap();
+    let check = cli()
+        .args(["eal", "freshness-check", "--input"])
+        .arg(&clarified_path)
+        .output()
+        .unwrap();
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+    let mut tampered_clarification = clarified.clone();
+    tampered_clarification["replanning"]["freshness_clarification"]["requirements"]["shared_requirement_0"] =
+        json!(3601);
+    assert!(
+        report::validate_replanning(
+            &tampered_clarification,
+            Path::new(env!("CARGO_BIN_EXE_engarg"))
+        )
+        .is_err()
+    );
     let exported = directory.path().join("argument.json");
     let result = cli()
         .args(["eal", "export", "--format", "json", "--input"])
@@ -426,5 +515,109 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':catalogue,'ad
     assert!(
         !root.join("store").exists(),
         "replanning must not acquire evidence"
+    );
+}
+
+#[test]
+fn operator_freshness_changes_only_selected_missing_bounds_and_rejects_overrides() {
+    let (_, _, mut elaboration, _, _, _) = support_fixture::fixture();
+    let requirement = elaboration
+        .requirements
+        .iter_mut()
+        .find(|r| r.id == "shared_requirement_0")
+        .unwrap();
+    requirement.contract.as_mut().unwrap().time.max_age_seconds = None;
+    elaboration
+        .evaluations
+        .iter_mut()
+        .find(|e| e.requirement_id == "shared_requirement_0")
+        .unwrap()
+        .max_age_seconds = None;
+    let original = serde_json::to_value(&elaboration).unwrap();
+    let clarification: report::freshness::FreshnessClarification = serde_json::from_value(json!({
+        "schema":"engarg.freshness-clarification/1",
+        "rationale":"Operator explicitly authorised this age for the selected fixture.",
+        "requirements":{"shared_requirement_0":3600}
+    }))
+    .unwrap();
+    assert!(
+        engarg::support_requirements::validate_freshness(&elaboration)
+            .iter()
+            .any(|e| e.contains("shared_requirement_0"))
+    );
+    report::freshness::apply(&mut elaboration, &clarification).unwrap();
+    let after = serde_json::to_value(&elaboration).unwrap();
+    assert_eq!(after["acquisitions"], original["acquisitions"]);
+    let requirement = elaboration
+        .requirements
+        .iter()
+        .find(|r| r.id == "shared_requirement_0")
+        .unwrap();
+    assert_eq!(
+        requirement.contract.as_ref().unwrap().time.max_age_seconds,
+        Some(3600)
+    );
+    assert_eq!(
+        elaboration
+            .evaluations
+            .iter()
+            .find(|e| e.requirement_id == requirement.id)
+            .unwrap()
+            .max_age_seconds,
+        Some(3600)
+    );
+    assert_eq!(
+        elaboration
+            .requirements
+            .iter()
+            .find(|r| r.id == "shared_requirement_1")
+            .unwrap()
+            .contract
+            .as_ref()
+            .unwrap()
+            .time
+            .max_age_seconds,
+        Some(300)
+    );
+    assert_eq!(
+        after["evaluations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["id"] == "evaluation_retained_judgement"),
+        original["evaluations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["id"] == "evaluation_retained_judgement")
+    );
+    let before_rejection = serde_json::to_value(&elaboration).unwrap();
+    assert!(report::freshness::apply(&mut elaboration, &clarification).is_err());
+    assert_eq!(
+        serde_json::to_value(&elaboration).unwrap(),
+        before_rejection
+    );
+    let mut unknown = clarification.clone();
+    unknown.requirements = [("unknown".into(), 3600)].into();
+    assert!(report::freshness::apply(&mut elaboration, &unknown).is_err());
+    let mut invalid_age = clarification;
+    invalid_age.requirements = [("shared_requirement_1".into(), 0)].into();
+    assert!(report::freshness::apply(&mut elaboration, &invalid_age).is_err());
+}
+
+#[test]
+fn freshness_check_rejects_mismatched_evaluation_and_requirement() {
+    let (_, _, mut elaboration, _, _, _) = support_fixture::fixture();
+    let evaluation = elaboration
+        .evaluations
+        .iter_mut()
+        .find(|e| e.requirement_id == "shared_requirement_0")
+        .unwrap();
+    evaluation.max_age_seconds = Some(30);
+    let errors = engarg::support_requirements::validate_freshness(&elaboration);
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.contains("does not match requirement shared_requirement_0"))
     );
 }

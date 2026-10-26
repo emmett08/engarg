@@ -51,6 +51,7 @@ Usage: bash scripts/run-catalog-sync-authoring.sh [OPTIONS] INPUTS.json [CATALOG
   --eal-coordinate PATH        Native coordinator executable, otherwise sibling of eal-host.
   --coordination-run DIR       New coordinator journal directory, otherwise under this run.
   --replan-analysis JSON        Reuse a saved graph analysis and refresh routes without authoring calls.
+  --freshness-clarifications JSON  Explicit scoped freshness revisions for a retained graph.
   --legacy-flat                 Use the earlier flat collector-planning workflow.
   --implement-tools            Generate and fixture-test missing collectors (default: Rust).
   --tool-language LANGUAGE      Implementation language (default: rust), matching the profile.
@@ -69,6 +70,7 @@ evidence_planning='graph'
 evidence_config=${ENGARG_EVIDENCE_CONFIG:-}
 evidence_config_explicit=0
 replan_analysis=''
+freshness_clarifications=''
 implement_tools=0
 tool_options=0
 tool_language='rust'
@@ -94,6 +96,9 @@ while [[ $# -gt 0 ]]; do
     --replan-analysis)
       [[ $# -ge 2 && -n $2 ]] || fail 'Missing value for --replan-analysis'
       replan_analysis=$2; shift 2 ;;
+    --freshness-clarifications)
+      [[ $# -ge 2 && -n $2 ]] || fail 'Missing value for --freshness-clarifications'
+      freshness_clarifications=$2; shift 2 ;;
     --implement-tools) implement_tools=1; shift ;;
     --topology|--debate-participants|--debate-rounds|--topology-config|--eal-coordinate|--coordination-run)
       [[ $# -ge 2 && -n $2 ]] || fail "Missing value for $1"
@@ -136,6 +141,7 @@ fi
 [[ -n $topology || ( -z $debate_participants && -z $debate_rounds ) ]] || fail 'Participant and round options require --topology.'
 [[ -n $topology || -n $topology_config || ( $coordinate_explicit -eq 0 && -z $coordination_run ) ]] || fail 'Coordinator options require a selected topology.'
 [[ -z $replan_analysis || ( -z $topology && -z $topology_config ) ]] || fail 'A retained analysis already fixes its topology; select topology during authoring.'
+[[ -z $freshness_clarifications || -n $replan_analysis ]] || fail '--freshness-clarifications requires --replan-analysis.'
 [[ $implement_tools -eq 1 || $tool_options -eq 0 ]] || fail 'Tool implementation options require --implement-tools.'
 for required in git python3; do command -v "$required" >/dev/null || fail "Required command: $required"; done
 repo=$(git rev-parse --show-toplevel) || fail 'Run from an EngArg checkout.'
@@ -154,6 +160,10 @@ fi
 if [[ -n $replan_analysis ]]; then
   replan_analysis=$(absolute_path "$replan_analysis")
   [[ -e $replan_analysis ]] || fail "Saved analysis does not exist: $replan_analysis"
+fi
+if [[ -n $freshness_clarifications ]]; then
+  freshness_clarifications=$(absolute_path "$freshness_clarifications")
+  [[ -e $freshness_clarifications ]] || fail "Freshness clarifications do not exist: $freshness_clarifications"
 fi
 catalogue=''
 if [[ $# -eq 2 ]]; then
@@ -236,7 +246,7 @@ trap on_exit EXIT
 # exact private snapshots. Only allowlisted scope fields enter the LLM request.
 catalog_sync preflight "$inputs" "$catalogue" "$run_dir" "$implement_tools" "$tool_language" \
   "$toolchain" "$tool_store" "$tool_max_calls" "$tool_timeout" "$evidence_planning" "$evidence_config" "$replan_analysis" \
-  "$topology" "$debate_participants" "$debate_rounds" "$topology_config" "$eal_coordinate" "$coordination_run"
+  "$topology" "$debate_participants" "$debate_rounds" "$topology_config" "$eal_coordinate" "$coordination_run" "$freshness_clarifications"
 
 if [[ $check_only -eq 1 ]]; then
   printf 'Input preflight passed. No build, inference or evidence acquisition performed. Artifacts: %s\n' "$run_dir"
@@ -390,8 +400,13 @@ with_catalogue() {
 run_analysis() {
   if [[ -n $replan_analysis ]]; then
     set_stage 'retained analysis route planning'
+    if [[ -n $freshness_clarifications ]]; then
+      set -- --freshness-clarifications "$run_dir/freshness-clarifications.snapshot.json"
+    else
+      set --
+    fi
     "$engarg_bin" eal replan --input "$run_dir/retained-analysis.snapshot.json" \
-      --evidence-config "$run_dir/evidence-config.json" --output "$analysis_output"
+      --evidence-config "$run_dir/evidence-config.json" --output "$analysis_output" "$@"
     return
   fi
   if [[ $evidence_planning == graph ]]; then
@@ -434,6 +449,11 @@ run_analysis --progress --input "$run_dir/request.json" \
   --max-input-bytes "$input_bytes" --max-output-tokens "$output_tokens" --max-response-bytes "$response_bytes" \
   --format json --audit "$run_dir/analysis.audit.jsonl" --output "$analysis_output"
 authoring_pending=0
+
+if [[ $evidence_planning == graph ]]; then
+  set_stage 'graph freshness preflight'
+  "$engarg_bin" eal freshness-check --input "$analysis_output"
+fi
 
 simple_example=$(catalog_sync simple-example "$run_dir/input-identity.json")
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then

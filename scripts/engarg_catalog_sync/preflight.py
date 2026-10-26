@@ -34,6 +34,7 @@ class PreflightOptions:
     topology_config: str
     coordinator: str
     coordination_run: str
+    freshness_clarifications: str
 
 
 def text(config, key):
@@ -293,6 +294,11 @@ def prepare(options):
     else:
         request, window = operator_request(inputs, catalogue, planning['mode'])
     reuse = admit_reuse(options.replan_analysis, request, directory)
+    if options.freshness_clarifications:
+        clarification_raw, clarification = read(pathlib.Path(options.freshness_clarifications), limit=1_048_576)
+        if not isinstance(clarification, dict):
+            raise ValueError('Freshness clarifications must be a JSON object')
+        (directory / 'freshness-clarifications.snapshot.json').write_bytes(clarification_raw)
     ages = freshness_ages()
     (directory / 'collector-inputs.snapshot.json').write_bytes(original)
     if catalogue_raw is not None:

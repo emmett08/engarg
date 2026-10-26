@@ -98,6 +98,10 @@ fn routes(original: &Value) -> Result<RoutePlan, Error> {
             "capability tooling requires typed evidence planning routes",
         ));
     };
+    let freshness_errors = engarg::support_requirements::validate_freshness(&planning.elaboration);
+    if !freshness_errors.is_empty() {
+        return Err(invalid(freshness_errors.join("; ")));
+    }
     let routes = planning.routes;
     if routes.schema != ROUTE_PLAN_SCHEMA {
         return Err(invalid("unsupported capability route plan schema"));
