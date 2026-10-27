@@ -334,7 +334,9 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                         pending.append({'kind': 'collection_budget_exceeded', 'description': 'Assumed default exceeded.'})
                     bundle = {'schema_version': 'engarg.support-export/1', 'authored': {'revision': revision},
                               'claim_names': {'current_claim': 'current_claim'},
-                              'execution_plan_sha256': plan_digest, 'pending': pending}
+                              'execution_plan_sha256': plan_digest, 'pending': pending,
+                              'registry': {'tools': {'graph': {'inherit_env': json.loads(
+                                  os.environ.get('GRAPH_COLLECTOR_ENV', '[]'))}}}}
                     write(option('--manifest'), bundle)
                     stem.write_text('offline graph EAL fixture\n')
                     pathlib.Path(option('--tools-output')).write_text('offline graph registry fixture\n')
@@ -1558,6 +1560,27 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertTrue(summary['evidence_collected'])
         self.assertEqual(summary['eal_execution']['status'], 'supported')
         self.assertEqual(summary['stage_status']['evidence_assessment'], 'supported')
+
+    def test_graph_collection_and_assessment_forward_only_authorised_extra_names(self):
+        config = self.write_evidence_config()
+        self.install_pipeline_stubs()
+        environment = dict(self.env,
+                           GRAPH_COLLECTOR_ENV=json.dumps(['HOME', 'PATH', 'SSH_AUTH_SOCK', 'AUDIT_TOKEN',
+                                                           'EMPTY_TOKEN', 'MISSING_TOKEN']),
+                           SSH_AUTH_SOCK='synthetic-private-socket', AUDIT_TOKEN='synthetic-private-token',
+                           EMPTY_TOKEN='', UNDECLARED_SECRET='synthetic-unrelated-secret')
+        result = self.run_script('--collect-and-assess', '--evidence-config', config,
+                                 self.inputs, graph=True, env=environment)
+        directory = self.pipeline_directory(result)
+        calls = self.invocations()
+        for operation in ['collect', 'assess']:
+            call = next(call for call in calls if call[:2] == ['eal', operation])
+            names = [call[index + 1] for index, argument in enumerate(call) if argument == '--collector-env']
+            self.assertEqual(names, ['AUDIT_TOKEN', 'SSH_AUTH_SOCK'])
+        self.assertEqual((directory / 'collector-environment.names').read_text(), 'AUDIT_TOKEN\nSSH_AUTH_SOCK\n')
+        exposed = result.stdout + result.stderr + self.log.read_text()
+        for value in ['synthetic-private-socket', 'synthetic-private-token', 'synthetic-unrelated-secret']:
+            self.assertNotIn(value, exposed)
 
     def test_unresolved_assessment_preserves_every_artifact_and_returns_nonzero(self):
         config = self.write_evidence_config()

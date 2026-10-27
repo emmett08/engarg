@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import sys
 
-from . import assessment, preflight, runtime, summary, tooling
+from . import assessment, collector_environment, preflight, runtime, summary, tooling
 
 
 def absolute_path(path):
@@ -73,6 +73,7 @@ def main(argv=None):
     command("merge-tool-analysis", tooling.merge_analysis, ("original_path", "enriched_path", "final_path"))
     command("extract-case", tooling.extract_case, ("run_directory",))
     command("collection-id", assessment.collection_id, ("report_path",))
+    command("collector-environment", collector_environment.print_names, ("bundle_path",))
     command("assessment", assessment.write_result, ("run_directory",))
     command("summary", summary.main, ("run_directory",), list_arguments=True)
     command("execution-status", summary.execution_status, ("report_path",), list_arguments=True)
