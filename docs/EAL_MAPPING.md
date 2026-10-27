@@ -1,7 +1,8 @@
 # Executable EAL translation
 
 EngArg compiles the canonical engineering argument and its semantic obligations
-into EAL/3 with the `execution/1` profile. EAL owns parsing, validation, acquisition,
+into `language "EAL/4"`. Executable semantics belong to that language version;
+there is no execution selector. EAL owns parsing, validation, acquisition,
 observation retention, method execution and assessment. The executable package is
 `case.eal`, `tools.toml` and any custom implementations. A build receipt and source
 map aid inspection; neither supplies missing execution semantics.
@@ -10,8 +11,9 @@ map aid inspection; neither supplies missing execution semantics.
 engarg build --input report.json --tools tools.toml --output-dir new-package
 ```
 
-The report supplies `request`, `argument` and either `support_elaboration` or
-`evidence_planning.elaboration`. Direct TOML tools are keyed by the logical
+The strict current `engarg.run.v3` report supplies `request`, `argument` and
+`support_elaboration`. Optional retained discovery planning can supply the same
+typed support contracts through canonical report admission. Direct TOML tools are keyed by the logical
 acquisition ID; the builder converts them to injective EAL operation names.
 Known tools require no discovery, ranking, registration or qualification files.
 A bound native method requires this executable compilation path. Exporting only
@@ -44,9 +46,11 @@ the canonical argument to use the current compiler.
 | Ordinary selected composition | Conjunction of the selected route claims |
 | Cumulative sufficiency | Separate explicit adequacy obligation |
 
-The compiler has one argument construction pass. It does not append a parallel
-support-gate argument or require a generic review to repeat a property already
-expressed by a canonical requirement. Shared acquisitions retain one source
+`support_export::compile_direct` is the sole semantic compiler used by package
+building and EAL export. The public authored-only exporter and the separate
+bundle-obligation model have been removed. Each requirement is lowered once and
+its result is connected to the relevant argument dependency. A generic review
+does not repeat a property already expressed by that requirement. Shared acquisitions retain one source
 identity; several checks do not manufacture independent observations. Negative
 observations remain available data for counter-evidence computations.
 
@@ -112,3 +116,15 @@ The compiler records prose, qualifiers, assumptions and source requirements
 without asserting their empirical truth. Tool acquisition, predicate acceptance,
 method completion and claim status are distinct outputs. `unsupported` does not
 mean false, and a complete assessment does not imply successful acquisition.
+
+## Explicit revision and rebuilding
+
+`engarg eal revise` consumes and emits the same current report. An executable
+argument change requires `--support-elaboration`; changed requirements carry
+their prior digest and reason. `--tools` recomputes operation bindings. Without
+it, operations are marked unbound rather than inheriting a stale binding claim.
+The host preserves the source report and original dissent, rechecks acquisition
+design review, and invalidates derived tooling and assessment metadata. The new
+report can be revised again or passed to `engarg build`. Imported provider-authored
+direct reports must still match their original retained completion at the source
+cut; hand-editing the current argument does not bypass the revision protocol.

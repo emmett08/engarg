@@ -409,7 +409,7 @@ mod tests {
         input: Value,
     ) -> eal_core::expressions::ExpressionResult {
         let source = format!(
-            "language \"EAL/3\" profile \"execution/1\"\nenvironment engarg_case {{\n require true\n}}\ntool engarg_review_contract {{\n version \"1\"\n}}\ntool fixture {{\n version \"1\"\n}}\nevidence derivation_736f75726365 {{\n tool fixture\n kind observation\n environment engarg_case\n max_age 300\n input {{}}\n require true\n}}\n{}",
+            "language \"EAL/4\"\nenvironment engarg_case {{\n require true\n}}\ntool engarg_review_contract {{\n version \"1\"\n}}\ntool fixture {{\n version \"1\"\n}}\nevidence derivation_736f75726365 {{\n tool fixture\n kind observation\n environment engarg_case\n max_age 300\n input {{}}\n require true\n}}\n{}",
             compiled.declarations
         );
         let program = composition::compile(&source, None, "", ExecutionLimits::default()).unwrap();

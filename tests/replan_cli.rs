@@ -23,6 +23,19 @@ fn write(path: &Path, value: &impl serde::Serialize) {
     std::fs::write(path, serde_json::to_vec_pretty(value).unwrap()).unwrap();
 }
 
+fn current_report(mut report: Value) -> Value {
+    report["schema_version"] = json!(engarg::report::RUN_REPORT_SCHEMA);
+    report["execution_mode"] = json!("offline_synthetic_fixture");
+    report["input_sha256"] =
+        json!(eal_collector_contracts::execution::canonical_digest(&report["request"]).unwrap());
+    report["mode"] = json!("single");
+    report["limitations"] = json!(["Synthetic discovery fixture; no provider calls."]);
+    if report.get("transcript").is_none() {
+        report["transcript"] = json!([]);
+    }
+    report
+}
+
 #[test]
 fn credentials_restore_routes_without_changing_the_argument_or_requesting_model_calls() {
     let directory = tempfile::tempdir().unwrap();
@@ -70,7 +83,9 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     let transcript = json!([{"role":"adjudicator","prompt":{"role":"adjudicator","system":"retained fixture","user":"{}","schema":{}},"response":{"content":response,"model":"original-model","input_tokens":7,"output_tokens":5,"request_id":"original-request","service_tier":null,"reasoning_effort":null},"response_content_bytes":response.len(),"response_content_sha256":digest,"response_content_omitted":false,"elapsed_ms":1}]);
-    let original = json!({"request":request,"argument":case,"transcript":transcript,"tooling":null,"retained_numeric":serde_json::from_str::<Value>("0.123456789012345678901234567890123456789").unwrap(),"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":initial}});
+    let original = current_report(
+        json!({"request":request,"argument":case,"transcript":transcript,"tooling":null,"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":initial}}),
+    );
     let input = directory.path().join("original.json");
     write(&input, &original);
     let still_missing = directory.path().join("still-missing.json");
@@ -113,7 +128,7 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
         String::from_utf8_lossy(&result.stderr)
     );
     let updated: Value = serde_json::from_slice(&std::fs::read(&restored).unwrap()).unwrap();
-    for key in ["request", "argument", "transcript", "retained_numeric"] {
+    for key in ["request", "argument", "transcript"] {
         assert_eq!(updated[key], original[key], "replan must preserve {key}");
     }
     assert_eq!(
@@ -277,7 +292,7 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
     let calls_before_export = std::fs::read(&log).unwrap();
     let exported = directory.path().join("executable-package");
     let result = cli()
-        .args(["eal", "export", "--format", "json", "--input"])
+        .args(["eal", "export", "--input"])
         .arg(&restored)
         .arg("--tools")
         .arg(&tools)
@@ -292,32 +307,63 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
     );
     let receipt: Value = serde_json::from_slice(&result.stdout).unwrap();
     assert_eq!(receipt["schema"], "engarg.executable-package/1");
-    assert_eq!(receipt["profile"], "execution/1");
+    assert_eq!(receipt["language"], "EAL/4");
+    assert!(receipt.get("profile").is_none());
     assert_eq!(receipt["model_calls"], 0);
     assert!(!receipt["pending_reviews"].as_array().unwrap().is_empty());
     let source = std::fs::read_to_string(exported.join("case.eal")).unwrap();
-    assert!(source.starts_with("language \"EAL/3\" profile \"execution/1\""));
+    assert!(source.starts_with("language \"EAL/4\""));
     assert!(exported.join("tools.toml").is_file());
     assert_eq!(std::fs::read(&log).unwrap(), calls_before_export);
     assert!(
         !directory.path().join("store").exists(),
         "export must not acquire evidence"
     );
-    let prepared = directory.path().join("prepared");
+    // Retained discovery does not replace operator authority. The public build
+    // path must reject missing bindings, then compile the same program as export.
+    let empty_tools = directory.path().join("unbound-tools.toml");
+    std::fs::write(&empty_tools, "[tools]\n").unwrap();
+    let unbound_package = directory.path().join("unbound-package");
     let result = cli()
-        .args(["eal", "prepare", "--input"])
+        .args(["build", "--input"])
         .arg(&restored)
+        .arg("--tools")
+        .arg(&empty_tools)
         .arg("--output-dir")
-        .arg(&prepared)
+        .arg(&unbound_package)
         .output()
         .unwrap();
     assert!(!result.status.success());
     assert!(
         String::from_utf8_lossy(&result.stderr)
-            .contains("Graph-sidecar preparation has been removed")
+            .contains("Missing direct tool binding for shared_source")
     );
-    assert!(!prepared.exists());
+    assert!(!unbound_package.exists());
+    let built = directory.path().join("built-package");
+    let result = cli()
+        .args(["build", "--input"])
+        .arg(&restored)
+        .arg("--tools")
+        .arg(&tools)
+        .arg("--output-dir")
+        .arg(&built)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let build_receipt: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(build_receipt, receipt);
+    for file in ["case.eal", "tools.toml"] {
+        assert_eq!(
+            std::fs::read(built.join(file)).unwrap(),
+            std::fs::read(exported.join(file)).unwrap()
+        );
+    }
     assert_eq!(std::fs::read(&log).unwrap(), calls_before_export);
+    assert!(!directory.path().join("store").exists());
     let mut tampered = updated.clone();
     tampered["argument"]["adjudication"] = json!("changed after replanning");
     assert!(
@@ -472,11 +518,27 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':catalogue,'ad
         initial.gaps[0].kind,
         engarg::route_planning::GapKind::Configuration
     ));
-    let original = json!({"request":request,"argument":case,"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":initial}});
+    let original = current_report(
+        json!({"request":request,"argument":case,"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":initial}}),
+    );
     let config_path = root.join("planning.json");
     let input = root.join("original.json");
     write(&config_path, &config);
     write(&input, &original);
+    let original_support: SupportElaboration =
+        serde_json::from_value(original["evidence_planning"]["elaboration"].clone()).unwrap();
+    let expected_review = serde_json::to_value(
+        engarg::support_requirements::review_acquisition_design(
+            &original_support,
+            &[],
+            engarg::authoring_checkpoint::MAX_REPORT_BYTES,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(expected_review["status"], "represented");
+    assert_eq!(expected_review["active_acquisitions"], 1);
+    assert_eq!(expected_review["pending_designs"], json!([]));
     let mut previous = input;
     for (name, credential) in [("missing", None), ("configured", Some("synthetic-token"))] {
         let output = root.join(format!("{name}.json"));
@@ -502,8 +564,13 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':catalogue,'ad
         for key in ["request", "argument", "transcript"] {
             assert_eq!(updated[key], original[key]);
         }
-        assert!(updated.get("transcript").is_none());
-        assert!(updated["evidence_planning"].get("design_review").is_none());
+        assert_eq!(updated["transcript"], json!([]));
+        // Replanning records the recomputed source-design review. Representation
+        // of the unchanged acquisition is not an accepted observation.
+        assert_eq!(
+            updated["evidence_planning"]["design_review"],
+            expected_review
+        );
         assert_eq!(
             updated["evidence_planning"]["elaboration"],
             original["evidence_planning"]["elaboration"]
@@ -527,6 +594,7 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':catalogue,'ad
             }
         );
         assert_eq!(updated["argument"]["status"], "unsupported");
+        report::read_direct(&updated).unwrap();
         assert!(
             !std::fs::read_to_string(&output)
                 .unwrap()

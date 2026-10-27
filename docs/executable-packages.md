@@ -6,8 +6,11 @@ without an EngArg runtime, capability catalogue, registration directory or
 semantic execution-plan sidecar.
 
 ```sh
+engarg analyse --input request.json --tools tools.toml \
+  --model configured-model --format json --output analysis.json \
+  --eal-host /opt/eal/bin/eal-host
 engarg build --input analysis.json --tools tools.toml --output-dir package
-eal-host run package/case.eal --tools package/tools.toml --workspace run
+/opt/eal/bin/eal-host run package/case.eal --tools package/tools.toml --workspace run
 ```
 
 The analysis must contain explicit support requirements, acceptance criteria and

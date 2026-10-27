@@ -24,8 +24,19 @@ pub struct TicketArgs {
 
 pub async fn run(args: TicketArgs) -> Result<(), Error> {
     let frozen = configuration::prepare(args)?;
+    let target =
+        engarg::runtime_compatibility::preflight(Some(&frozen.configuration.eal_host)).await?;
+    let target_path = frozen.workspace.join("target-runtime.json");
+    configuration::write_json(&target_path, &target)?;
+    let target_bytes = std::fs::read(&target_path)?;
     let executable = std::env::current_exe()?.canonicalize()?;
     let mut inputs = frozen.inputs;
+    inputs.push(Artifact {
+        kind: "target_runtime".into(),
+        path: target_path,
+        sha256: configuration::digest(&target_bytes),
+        bytes: target_bytes.len() as u64,
+    });
     inputs.push(Artifact {
         kind: "ticket_configuration".into(),
         path: frozen.snapshot.clone(),

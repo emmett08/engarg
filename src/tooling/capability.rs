@@ -38,12 +38,9 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 pub const CAPABILITY_IMPLEMENTATION_SCHEMA: &str = "engarg.capability-implementation/1";
-/// Record metadata version 2 leaves runtime parameter admission to the frozen
-/// input schema. The version-1 request/package identity above remains stable.
+/// Current records leave runtime parameter admission to the frozen input schema.
+/// The reusable operation identity uses its own independent contract version.
 pub const CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA: &str = "engarg.capability-implementation/2";
-pub use super::capability_report::{
-    CAPABILITY_TOOLING_SCHEMA, CapabilityGapBinding, CapabilityToolingReport, revalidate_report,
-};
 const FUNCTION_QUALIFICATION_SCHEMA: &str = "engarg.tested-function-contract/1";
 const LIMITATIONS: [&str; 3] = [
     "Synthetic fixtures test only the declared function contract on the retained cases; they are not evidence for an engineering claim.",
@@ -356,14 +353,7 @@ async fn implement_with_runner<M: LanguageModel>(
     let key = PackageStore::key_for(&need, &context, &config.language, &identity)?;
     if let Some(package) = store.lookup(&key, &identity)? {
         ensure_fixed_contract(request, package.contract())?;
-        return registration(
-            request,
-            &config,
-            &package,
-            true,
-            0,
-            CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA,
-        );
+        return registration(request, &config, &package, true, 0);
     }
     let frozen = store.frozen_contract(&key, &identity)?;
     let required_calls = if frozen.is_some() { 1 } else { 2 };
@@ -443,14 +433,7 @@ async fn implement_with_runner<M: LanguageModel>(
             }
         }
     };
-    registration(
-        request,
-        &config,
-        &package,
-        false,
-        calls.calls()?,
-        CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA,
-    )
+    registration(request, &config, &package, false, calls.calls()?)
 }
 
 fn repair_request(
@@ -524,7 +507,6 @@ fn registration(
     package: &VerifiedPackage,
     reused: bool,
     calls: u32,
-    record_schema: &str,
 ) -> Result<ImplementedCapability, Error> {
     // descriptor() reopens the package and rehashes retained source and observed tests.
     let collector = package.descriptor(&config.engarg_executable)?;
@@ -534,23 +516,6 @@ fn registration(
         .ok_or_else(|| invalid("package manifest has no directory"))?
         .join("test-results.json");
     let mut configuration_requirements = Vec::new();
-    // Reconstruct saved version-1 records exactly. New records do not duplicate
-    // schema-required input fields as separate operator confirmations.
-    if record_schema == CAPABILITY_IMPLEMENTATION_SCHEMA {
-        let required_parameters = collector.required_parameters().map_err(invalid)?;
-        configuration_requirements = collector
-            .parameters
-            .iter()
-            .map(|parameter| ConfigurationPrerequisite {
-                id: parameter.clone(),
-                kind: ConfigurationKind::OperatorValue,
-                description: format!(
-                    "Supply runtime parameter {parameter} according to the fixed input schema"
-                ),
-                required: required_parameters.contains(parameter),
-            })
-            .collect();
-    }
     configuration_requirements.extend(config.profile.inherit_env.iter().map(|name| {
         ConfigurationPrerequisite {
             id: format!("credential_{name}"),
@@ -600,7 +565,7 @@ fn registration(
     };
     capability.validate().map_err(invalid)?;
     Ok(ImplementedCapability {
-        schema: record_schema.into(),
+        schema: CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA.into(),
         capability_sha256: request.identity()?,
         collector,
         capability,
@@ -625,10 +590,8 @@ pub fn revalidate_implemented_capability(
     record: &ImplementedCapability,
     executable: &std::path::Path,
 ) -> Result<ImplementedCapability, Error> {
-    if !matches!(
-        record.schema.as_str(),
-        CAPABILITY_IMPLEMENTATION_SCHEMA | CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA
-    ) || file_digest(&record.package_manifest)? != record.manifest_sha256
+    if record.schema != CAPABILITY_IMPLEMENTATION_RECORD_SCHEMA
+        || file_digest(&record.package_manifest)? != record.manifest_sha256
     {
         return Err(invalid("saved capability package identity changed"));
     }
@@ -653,7 +616,6 @@ pub fn revalidate_implemented_capability(
         &package,
         record.reused,
         record.model_calls,
-        &record.schema,
     )?;
     if digest_json(&expected)? != digest_json(record)? {
         return Err(invalid(

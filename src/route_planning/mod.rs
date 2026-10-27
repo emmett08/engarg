@@ -5,7 +5,7 @@ mod configuration;
 mod graphs;
 pub use graphs::compile;
 mod candidates;
-mod implementation;
+pub(crate) mod implementation;
 mod preview;
 mod selection;
 #[cfg(test)]

@@ -688,6 +688,27 @@ pub fn validate_revision(
     current_case: &ArgumentCase,
     current: &SupportElaboration,
 ) -> Vec<String> {
+    validate_revision_mode(previous_case, previous, current_case, current, true)
+}
+
+/// Explicit argument revisions may change an evidence criterion. Its affected
+/// requirement still needs the exact previous digest and an authored reason.
+pub fn validate_argument_revision(
+    previous_case: &ArgumentCase,
+    previous: &SupportElaboration,
+    current_case: &ArgumentCase,
+    current: &SupportElaboration,
+) -> Vec<String> {
+    validate_revision_mode(previous_case, previous, current_case, current, false)
+}
+
+fn validate_revision_mode(
+    previous_case: &ArgumentCase,
+    previous: &SupportElaboration,
+    current_case: &ArgumentCase,
+    current: &SupportElaboration,
+    preserve_evidence_needs: bool,
+) -> Vec<String> {
     let mut errors = validate_elaboration(current_case, current);
     let previous_requirements: BTreeMap<_, _> = previous
         .requirements
@@ -717,7 +738,8 @@ pub fn validate_revision(
         current,
     );
     for need in &previous_case.evidence_plan {
-        if current_index.node(&need.target_id).is_some()
+        if preserve_evidence_needs
+            && current_index.node(&need.target_id).is_some()
             && current_needs.get(need.id.as_str()).is_none_or(|current| {
                 current.target_id != need.target_id
                     || current.acceptance_criterion != need.acceptance_criterion

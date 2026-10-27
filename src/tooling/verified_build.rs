@@ -60,9 +60,7 @@ pub enum BuildAttempt {
 }
 
 pub struct VerificationEvent<'a> {
-    pub need_id: &'a str,
     pub attempt: &'a std::path::Path,
-    pub passed: bool,
 }
 pub struct VerifiedBuild<'a> {
     pub store: &'a PackageStore,
@@ -127,9 +125,7 @@ impl VerifiedBuild<'_> {
                     &serde_json::to_vec_pretty(&failure)?,
                 )?;
                 audit(VerificationEvent {
-                    need_id: &contract.need.id,
                     attempt: &failure.attempt,
-                    passed: false,
                 })?;
                 return Ok(BuildAttempt::Rejected(Box::new(failure)));
             }
@@ -175,11 +171,7 @@ impl VerifiedBuild<'_> {
         .await
         .map_err(|_| Error::ToolExecution("tool fixture worker failed".into()))??;
         let receipt = receipt?;
-        let audit_result = audit(VerificationEvent {
-            need_id: &contract.need.id,
-            attempt: &attempt,
-            passed: receipt.passed,
-        });
+        let audit_result = audit(VerificationEvent { attempt: &attempt });
         let notes = notes?;
         audit_result?;
         if self.cancellation.is_cancelled() {

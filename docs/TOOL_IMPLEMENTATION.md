@@ -14,11 +14,40 @@ and resource limits. Generated source cannot replace those execution settings.
 [Rust](../examples/toolchains/rust.json) profiles are included. Their dependencies
 and compilers must already be available in the selected image.
 
-`engarg eal implement --help` describes the explicit implementation command.
-Optional discovery authoring can use `--evidence-planning graph --implement-tools`
-with the required profile, store, output and budget options. Direct authoring
-uses `--tools` and does not silently spend coding calls. The catalogue example
-helper also performs no generation.
+A missing acquisition with an explicit parameterised `operation_spec` can be
+implemented from the canonical report. Start with operator-owned bindings, even
+if the initial manifest contains only `[tools]`:
+
+```sh
+engarg analyse --input request.json --tools tools.toml \
+  --model configured-model --format json --output analysis.json \
+  --eal-host /opt/eal/bin/eal-host
+
+engarg eal implement --input analysis.json --tools tools.toml \
+  --model configured-coding-model --eal-host /opt/eal/bin/eal-host \
+  --tool-language python --toolchain examples/toolchains/python.json \
+  --tool-store .engarg-tools --tool-output-dir implemented \
+  --tool-max-calls 16 --tool-timeout-secs 3600
+
+engarg build --input implemented/analysis.with-tools.json \
+  --tools implemented/bindings/tools.toml --output-dir investigation
+
+eal-host run investigation/case.eal --tools investigation/tools.toml --workspace run
+```
+
+The selected host's EAL/4 capabilities are checked before implementation model
+calls. `implemented/analysis.with-tools.json` uses the same typed report contract
+as authoring, revision and build. Its `tooling.tools` field identifies the merged
+manifest; `tooling.operations` retains the exact tested package per acquisition.
+Original bindings and their environment grants are preserved. Missing operation
+semantics remain explicit gaps, and missing source access or credentials cannot
+be supplied by code generation.
+
+`analyse --implement-tools` runs this same stage after authoring when `--tools`,
+`--format json`, `--output` and the toolchain/store/budget options above are
+supplied. `engarg ticket` can opt into the same stage through an explicit
+`implementation` configuration. Neither command uses per-need custom stubs or a
+second registration workflow.
 
 ## Verify and retain
 
@@ -67,7 +96,8 @@ Keep the exported directory intact when deploying it. Incorporate its concrete
 binding and referenced files into the investigation's operator manifest, then:
 
 ```sh
-engarg analyse --input request.json --tools tools.toml --output analysis.json
+engarg analyse --input request.json --tools tools.toml \
+  --model configured-model --format json --output analysis.json
 engarg build --input analysis.json --tools tools.toml --output-dir investigation
 eal-host run investigation/case.eal --tools investigation/tools.toml --workspace run
 ```

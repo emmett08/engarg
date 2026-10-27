@@ -1,7 +1,7 @@
 # Executable evidence cutover
 
-The current execution contract is an EAL/3 program with the `execution/1`
-profile, direct `tools.toml` bindings and any required implementations under
+The current execution contract is an EAL/4 program, direct `tools.toml`
+bindings and any required implementations under
 `tools/`. EngArg compiles these artefacts; EAL collects observations and assesses
 the argument. The package does not require a capability catalogue, provider
 ranking, generated registration or an executable graph JSON sidecar.

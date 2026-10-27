@@ -99,6 +99,12 @@ impl Checkpoint {
                 "unsupported or oversized graph authoring checkpoint".into(),
             ));
         }
+        self.validate_transcript()
+    }
+    /// Validate the authoring protocol independently of checkpoint storage limits.
+    /// Current provider reports can contain a larger admitted debate than the
+    /// separately bounded resumable-checkpoint history.
+    pub(crate) fn validate_transcript(&self) -> Result<(), Error> {
         if self.config.max_input_bytes == 0
             || self.config.max_response_bytes == 0
             || self.config.max_repairs > 3
@@ -111,6 +117,7 @@ impl Checkpoint {
                 "checkpoint has invalid resource or argument-depth bounds".into(),
             ));
         }
+        self.config.required_calls()?;
         crate::domain::validate_request(&self.request)
             .map_err(|e| Error::InvalidInput(e.join("; ")))?;
         let expected_request = serde_json::to_value(&self.request)?;
@@ -135,10 +142,20 @@ impl Checkpoint {
         self.ordered_transcript()?;
         Ok(())
     }
-    /// Independent specialists complete concurrently. Original synthesis always
-    /// consumes them in this fixed order, regardless of audit arrival order.
+    /// Specialists complete concurrently within each round. Original synthesis
+    /// consumes participant order in every configured round, regardless of audit
+    /// arrival order. Later dependent stages keep their sequential positions.
     pub fn ordered_transcript(&self) -> Result<Vec<CallRecord>, Error> {
-        let mut calls = self.transcript.clone();
+        Ok(self
+            .transcript_order()?
+            .into_iter()
+            .map(|index| self.transcript[index].clone())
+            .collect())
+    }
+    fn transcript_order(&self) -> Result<Vec<usize>, Error> {
+        self.config.required_calls()?;
+        let calls = &self.transcript;
+        let mut order: Vec<_> = (0..calls.len()).collect();
         match self.config.mode {
             Mode::Single => {
                 if calls
@@ -153,31 +170,72 @@ impl Checkpoint {
             Mode::Hybrid => {
                 use crate::provider::Role::*;
                 let specialists = [Constructor, Sceptic, EvidenceAuditor];
-                let first_count = calls.len().min(3);
-                for (position, call) in calls.iter().take(first_count).enumerate() {
-                    if !specialists.contains(&call.role)
-                        || calls[..position]
-                            .iter()
-                            .any(|previous| previous.role == call.role)
-                    {
-                        return Err(Error::InvalidInput(
-                            "checkpoint has missing, duplicate or misordered specialist roles"
-                                .into(),
-                        ));
+                let (participants, specialist_calls) = if let Some(debate) = &self.config.debate {
+                    (
+                        usize::from(debate.participants),
+                        debate.specialist_calls()? as usize,
+                    )
+                } else {
+                    (3, 3)
+                };
+                for start in (0..calls.len().min(specialist_calls)).step_by(participants) {
+                    let end = (start + participants).min(calls.len());
+                    let round = start / participants;
+                    let mut seen = std::collections::BTreeSet::new();
+                    let mut members = Vec::new();
+                    for (index, call) in calls.iter().enumerate().take(end).skip(start) {
+                        let prompt = exact_json(call.prompt.user.as_bytes())?;
+                        let participant = if self.config.debate.is_some() {
+                            let participant = prompt["debate"]["participant"]
+                                .as_u64()
+                                .and_then(|value| usize::try_from(value).ok())
+                                .filter(|participant| *participant < participants)
+                                .ok_or_else(|| {
+                                    Error::InvalidInput(
+                                        "checkpoint debate participant is invalid".into(),
+                                    )
+                                })?;
+                            if prompt["debate"]["round"].as_u64() != Some(round as u64)
+                                || call.role != specialists[participant % specialists.len()]
+                            {
+                                return Err(Error::InvalidInput(
+                                    "checkpoint debate round or participant role is invalid".into(),
+                                ));
+                            }
+                            participant
+                        } else {
+                            if prompt.get("debate").is_some() {
+                                return Err(Error::InvalidInput(
+                                    "checkpoint debate metadata requires its configured topology"
+                                        .into(),
+                                ));
+                            }
+                            specialists
+                                .iter()
+                                .position(|role| *role == call.role)
+                                .ok_or_else(|| {
+                                    Error::InvalidInput(
+                                        "checkpoint authoring stage order is invalid".into(),
+                                    )
+                                })?
+                        };
+                        if !seen.insert(participant) {
+                            return Err(Error::InvalidInput(
+                                "checkpoint has duplicate specialist participants in a round"
+                                    .into(),
+                            ));
+                        }
+                        members.push((participant, index));
+                    }
+                    members.sort_by_key(|(participant, _)| *participant);
+                    for (destination, (_, source)) in order[start..end].iter_mut().zip(members) {
+                        *destination = source;
                     }
                 }
-                if first_count == 3 {
-                    calls[..3].sort_by_key(|call| {
-                        specialists
-                            .iter()
-                            .position(|role| *role == call.role)
-                            .unwrap()
-                    });
-                }
-                for (index, call) in calls.iter().enumerate().skip(3) {
-                    let expected = match index {
-                        3 => Synthesiser,
-                        4 => FinalCritic,
+                for (index, call) in calls.iter().enumerate().skip(specialist_calls) {
+                    let expected = match index - specialist_calls {
+                        0 => Synthesiser,
+                        1 => FinalCritic,
                         _ => Adjudicator,
                     };
                     if call.role != expected {
@@ -188,34 +246,28 @@ impl Checkpoint {
                 }
             }
         }
-        Ok(calls)
+        Ok(order)
     }
     /// Keep the exact original arrival order through indices into the report's
     /// ordered prefix, rather than duplicating every recorded exchange.
     pub fn compact_parent(&self) -> Result<(Self, Vec<usize>), Error> {
-        let ordered = self.ordered_transcript()?;
-        let mut order: Vec<usize> = (0..self.transcript.len()).collect();
-        if self.config.mode == Mode::Hybrid {
-            for (index, call) in self.transcript.iter().take(3).enumerate() {
-                order[index] = ordered
-                    .iter()
-                    .position(|item| item.role == call.role)
-                    .ok_or_else(|| {
-                        Error::InvalidInput("checkpoint specialist order is inconsistent".into())
-                    })?;
-            }
+        let sorted = self.transcript_order()?;
+        let mut order = vec![0; sorted.len()];
+        for (position, original) in sorted.into_iter().enumerate() {
+            order[original] = position;
         }
         let mut metadata = self.clone();
         metadata.transcript.clear();
         Ok((metadata, order))
     }
     pub fn inspection(&self) -> Value {
-        let minimum = if self.config.mode == Mode::Hybrid {
-            6
-        } else {
-            1
-        };
-        let complete = self.transcript.len() >= minimum
+        let minimum = self
+            .config
+            .required_calls()
+            .ok()
+            .map(|calls| (calls - u32::from(self.config.max_repairs)) as usize);
+        let complete = minimum.is_some_and(|minimum| self.transcript.len() >= minimum)
+            && self.transcript_order().is_ok()
             && self
                 .transcript
                 .iter()
@@ -237,6 +289,15 @@ pub use storage::{Store, output_identity, private_new};
 /// Check resumed call accounting and immutable source history at report admission.
 /// This verifies consistency of retained local records rather than their authenticity.
 pub fn validate_recovery_report(raw: &Value) -> Result<(), Error> {
+    if raw
+        .get("argument_revisions")
+        .and_then(Value::as_array)
+        .is_some_and(|revisions| !revisions.is_empty())
+    {
+        let report: crate::engine::RunReport = serde_json::from_value(raw.clone())?;
+        let original = crate::engine::support::revision::origin(&report)?;
+        return validate_recovery_report(&serde_json::to_value(original)?);
+    }
     // A later support-only recovery appends calls while retaining this extension.
     // Validate authoring at its own report cut, then let the support validator
     // check subsequent changes against its separately retained source report.
@@ -346,7 +407,7 @@ pub fn validate_recovery_report(raw: &Value) -> Result<(), Error> {
     let argument: crate::domain::ArgumentCase = serde_json::from_value(raw["argument"].clone())?;
     let history = crate::engine::support::authoring::replay_history(
         &combined.ordered_transcript()?,
-        combined.config.mode,
+        &combined.config,
     )?;
     let errors = crate::output_validation::errors(
         &combined.request,

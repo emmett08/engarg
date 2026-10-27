@@ -8,11 +8,15 @@ use std::{collections::BTreeSet, path::PathBuf, time::Duration};
 
 use engarg::{
     domain::{ArgumentCase, Request, SupportRelationship},
-    eal_export::{EalExport, export},
+    eal_export::EalExport,
     eal_host::{HostConfig, invoke},
 };
 use serde_json::{Value, json};
 use tempfile::TempDir;
+
+#[allow(dead_code)]
+#[path = "common/scoped_review_gates.rs"]
+mod scoped_review_gates;
 
 const NOW: &str = "2026-10-23T12:00:00Z";
 
@@ -83,7 +87,9 @@ fn declaration<'a>(bundle: &'a EalExport, id: &str, role: &str) -> &'a str {
 async fn exported_case_validates_and_plans_unfulfilled_review_contracts() {
     let (_workspace, config) = host();
     let (request, case) = fixtures();
-    let bundle = export(&request, &case).unwrap();
+    let bundle = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     let validation = result(
         &config,
         json!({"operation":"validate", "source":bundle.source}),
@@ -102,23 +108,31 @@ async fn exported_case_validates_and_plans_unfulfilled_review_contracts() {
     assert_eq!(plan["source_digest"], validation["source_digest"]);
     let planned = ids(&plan["evidence_ids"]);
     assert!(!planned.is_empty());
-    assert_eq!(plan["estimated_calls"].as_u64(), Some(planned.len() as u64));
-    let obligations: BTreeSet<&str> = bundle
-        .obligations
+    let program = eal_core::composition::compile(
+        &bundle.source,
+        None,
+        "",
+        eal_core::ExecutionLimits::default(),
+    )
+    .unwrap();
+    let declared = program
+        .evidence
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    assert!(planned.is_subset(&declared));
+    let acquired = plan["calls"]
+        .as_array()
+        .unwrap()
         .iter()
-        .map(|obligation| obligation.eal_evidence_name.as_str())
-        .collect();
-    assert!(planned.is_subset(&obligations));
-    let composition_review = bundle
-        .obligations
-        .iter()
-        .find(|obligation| {
-            obligation.target_id == "current_claim" && obligation.kind == "composition_adequacy"
-        })
-        .unwrap();
-    assert!(planned.contains(composition_review.eal_evidence_name.as_str()));
+        .filter(|call| call["tool"].is_string())
+        .count();
+    assert_eq!(plan["estimated_calls"].as_u64(), Some(acquired as u64));
+    let composition_review = scoped_review_gates::gate(&bundle, "current_claim", "support");
+    assert!(planned.contains(composition_review.as_str()));
     assert!(plan["calls"].as_array().unwrap().iter().all(|call| {
-        call["tool"] == "engarg_review_contract" && call["evidence_kind"] == "scoped_review"
+        call["tool"].is_null()
+            || (call["tool"] == "engarg_review_contract" && call["evidence_kind"] == "review")
     }));
     assert!(ids(&plan["dependencies"]["claims"]).contains(current.as_str()));
 }
@@ -130,7 +144,9 @@ async fn absent_observations_remain_unsupported_and_assessments_survive_host_res
     let (mut request, case) = fixtures();
     // Even a supplied checked flag is authored metadata, not a retained EAL observation.
     request.evidence[0].checked_by_user = true;
-    let bundle = export(&request, &case).unwrap();
+    let bundle = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     let current = &bundle.claim_names["current_claim"];
     let assessment = result(
         &config,
@@ -146,10 +162,40 @@ async fn absent_observations_remain_unsupported_and_assessments_survive_host_res
         "matched"
     );
     let evidence = assessment["evidence"].as_object().unwrap();
-    assert_eq!(evidence.len(), bundle.obligations.len());
+    let program = eal_core::composition::compile(
+        &bundle.source,
+        None,
+        "",
+        eal_core::ExecutionLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(evidence.len(), program.evidence.len());
     for (id, item) in evidence {
         assert_eq!(item["status"], "unavailable", "{id}: {item}");
-        assert!(ids(&item["availability_issues"]).contains("missing_observation"));
+        let declaration = &program.evidence[id];
+        let expected = if declaration.bindings.is_empty() {
+            "missing_observation"
+        } else {
+            // A derived check cannot acquire a fresh result without its input
+            // observation. Its failure retains the specific unavailable parent.
+            assert!(
+                declaration.bindings.iter().any(|binding| {
+                    evidence[&binding.evidence]["status"] == "unavailable"
+                        && item["reasons"].as_array().unwrap().iter().any(|reason| {
+                            reason.as_str().is_some_and(|reason| {
+                                reason.contains(&format!("Dependency {} ", binding.evidence))
+                            })
+                        })
+                }),
+                "{id}: {item}"
+            );
+            "dependency_unavailable"
+        };
+        assert_eq!(
+            ids(&item["availability_issues"]),
+            BTreeSet::from([expected]),
+            "{id}: {item}"
+        );
     }
     for (id, claim) in assessment["claims"].as_object().unwrap() {
         assert_eq!(claim["status"], "unsupported", "{id}: {claim}");
@@ -196,7 +242,9 @@ async fn absent_observations_remain_unsupported_and_assessments_survive_host_res
 async fn semantic_validation_failure_is_preserved_inside_a_successful_host_envelope() {
     let (_workspace, config) = host();
     let (request, case) = fixtures();
-    let bundle = export(&request, &case).unwrap();
+    let bundle = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     let conclusion = format!("=> {}", bundle.claim_names["current_claim"]);
     assert!(bundle.source.contains(&conclusion));
     let invalid = bundle
@@ -246,7 +294,9 @@ async fn upstream_planning_follows_joint_cumulative_and_selected_alternative_rou
                 .selected_warrant_ids
                 .push("W-live-alternative".into());
         }
-        let bundle = export(&request, &case).unwrap();
+        let bundle = scoped_review_gates::compile(&request, &case)
+            .unwrap()
+            .bundle;
         let validation = result(
             &config,
             json!({"operation":"validate", "source":bundle.source}),
@@ -266,16 +316,10 @@ async fn upstream_planning_follows_joint_cumulative_and_selected_alternative_rou
             claims.contains(alternative),
             relationship != SupportRelationship::AlternativeRoutes
         );
-        let alternative_review = bundle
-            .obligations
-            .iter()
-            .find(|obligation| {
-                obligation.target_id == "W-live-alternative"
-                    && obligation.kind == "warrant_adequacy"
-            })
-            .unwrap();
+        let alternative_review =
+            scoped_review_gates::gate(&bundle, "W-live-alternative", "support");
         assert_eq!(
-            ids(&plan["evidence_ids"]).contains(alternative_review.eal_evidence_name.as_str()),
+            ids(&plan["evidence_ids"]).contains(alternative_review.as_str()),
             relationship != SupportRelationship::AlternativeRoutes
         );
         // The unused alternative remains a declared, queryable claim.

@@ -588,7 +588,7 @@ fn check_claim_only_presentations_and_build(report: &std::path::Path, directory:
     assert!(
         std::fs::read_to_string(package.join("case.eal"))
             .unwrap()
-            .starts_with("language \"EAL/3\"")
+            .starts_with("language \"EAL/4\"")
     );
     assert!(package.join("tools.toml").is_file());
 }

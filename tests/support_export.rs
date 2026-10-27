@@ -17,12 +17,7 @@ fn direct_bindings_compile_without_capabilities_or_registration() {
         &ExportPolicy::default(),
     )
     .unwrap();
-    assert!(
-        output
-            .bundle
-            .source
-            .starts_with("language \"EAL/3\" profile \"execution/1\"")
-    );
+    assert!(output.bundle.source.starts_with("language \"EAL/4\""));
     assert!(!output.bundle.source.contains("engarg_support_graph"));
     assert!(!output.bundle.source.contains("execution_plan_sha256"));
     let program =

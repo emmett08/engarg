@@ -9,11 +9,9 @@ pub mod collector_catalogue;
 pub mod collector_preparation;
 pub mod direct_planning;
 pub mod domain;
-pub mod eal_acquisition;
 pub mod eal_export;
 pub mod eal_host;
 pub mod eal_observe;
-pub mod eal_prepare;
 pub mod engine;
 pub mod export_policy;
 pub mod glossary;
@@ -25,6 +23,7 @@ pub mod render;
 pub mod report;
 pub mod retained_collectors;
 pub mod route_planning;
+pub mod runtime_compatibility;
 pub mod scoped_collectors;
 pub mod support_export;
 pub mod support_graph;
@@ -34,7 +33,6 @@ pub mod trace_inspection;
 
 mod argument_depth;
 pub mod bounded_file;
-mod collector_registry;
 mod output_validation;
 
 #[cfg(test)]

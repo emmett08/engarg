@@ -1,0 +1,86 @@
+// Synthetic finite observation; no assertion about an external catalogue population.
+language "EAL/3" profile "execution/1"
+environment fixture {
+  require true == true
+}
+tool snapshot_source {
+  version "1"
+}
+tool identifier_audit {
+  version "1"
+}
+evidence snapshot {
+  tool snapshot_source
+  kind observation
+  environment fixture
+  max_age 3600
+  input {"scenario":"positive"}
+  require snapshot == "fixture-v1"
+  require complete == true
+  require manifest_count == count(items)
+}
+evidence audit {
+  tool identifier_audit
+  kind calculation
+  environment fixture
+  max_age 3600
+  input {"items":null}
+  bind "/items" from snapshot "/items"
+  require count == 3
+  require distinct == true
+}
+evidence count_check {
+  derive object("count", count(items), "reported", reported)
+  kind calculation
+  environment fixture
+  max_age 3600
+  input {"items":null,"reported":null}
+  bind "/items" from snapshot "/items"
+  bind "/reported" from audit "/count"
+  require count == 3
+  require count == reported
+}
+evidence distinct_check {
+  derive object("distinct", distinct(items), "reported", reported)
+  kind calculation
+  environment fixture
+  max_age 3600
+  input {"items":null,"reported":null}
+  bind "/items" from snapshot "/items"
+  bind "/reported" from audit "/distinct"
+  require distinct == true
+  require distinct == reported
+}
+reasoning observed {
+  method "structured/1"
+  rationale "The declared predicate checks the exact acquired finite snapshot or audit output."
+}
+reasoning conjunction {
+  method "deductive/1"
+  rationale "Accepted count and distinctness premises instantiate the two named propositional atoms. This correspondence is explicitly authored."
+}
+claim three_items {
+  statement "The retrieved fixture-v1 snapshot has exactly three entries."
+  environment fixture
+}
+claim distinct_items {
+  statement "The retrieved fixture-v1 snapshot entries are pairwise distinct under case-sensitive string equality."
+  environment fixture
+}
+claim inventory_verified {
+  statement "The retrieved fixture-v1 snapshot has exactly three pairwise distinct entries."
+  environment fixture
+  proposition {
+    subject "retrieved fixture-v1 snapshot"
+    quantity "proposition"
+    unit "1"
+    scope "finite snapshot; case-sensitive string equality"
+    valid_from "2026-01-01T00:00:00Z"
+    valid_until "2030-01-01T00:00:00Z"
+    query {"premises":["count","distinct"],"conclusion":{"and":["count","distinct"]}}
+    result entailed == true
+  }
+}
+argument count_argument = [evidence snapshot, count_check] via observed => three_items
+argument distinct_argument = [evidence snapshot, distinct_check] via observed => distinct_items
+argument inventory_argument = [premises three_items, distinct_items] via conjunction => inventory_verified

@@ -76,7 +76,25 @@ pub struct RunReport {
     pub argument: ArgumentCase,
     pub transcript: Vec<CallRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tooling: Option<crate::tooling::ToolingReport>,
+    pub tooling: Option<crate::tooling::direct::DirectToolingReport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support_elaboration: Option<crate::support_requirements::SupportElaboration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub direct_bindings: Option<crate::direct_planning::DirectPlan>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub design_review: Option<crate::support_requirements::AcquisitionDesignReview>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub argument_revisions: Vec<crate::engine::support::revision::RevisionRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_runtime: Option<crate::runtime_compatibility::TargetRuntime>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authoring_recovery: Option<crate::report::AuthoringRecovery>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence_planning: Option<SupportPlanning<crate::route_planning::RoutePlan>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replanning: Option<crate::report::ReplanningRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support_recovery: Option<crate::report::SupportRecovery>,
     pub limitations: Vec<String>,
 }
 
@@ -458,7 +476,7 @@ where
             .map(|warning| warning.message()),
     );
     Ok(RunReport {
-        schema_version: "engarg.run.v2".to_owned(),
+        schema_version: "engarg.run.v3".to_owned(),
         execution_mode: "provider_calls".to_owned(),
         input_sha256: sha256_hex(serde_json::to_vec(request)?),
         provider_config: None,
@@ -468,6 +486,15 @@ where
         argument: final_case,
         transcript,
         tooling: None,
+        support_elaboration: None,
+        direct_bindings: None,
+        design_review: None,
+        argument_revisions: Vec::new(),
+        target_runtime: None,
+        authoring_recovery: None,
+        evidence_planning: None,
+        replanning: None,
+        support_recovery: None,
         limitations: run_limitations,
     })
 }
@@ -1250,7 +1277,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result.transcript.len(), 6);
-        assert_eq!(result.schema_version, "engarg.run.v2");
+        assert_eq!(result.schema_version, "engarg.run.v3");
         let graph = serde_json::to_value(&result.argument).unwrap();
         assert!(!graph["reading"].as_array().unwrap().is_empty());
         assert!(!graph["compositions"].as_array().unwrap().is_empty());

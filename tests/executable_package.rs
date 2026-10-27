@@ -62,7 +62,7 @@ fn package_has_executable_source_direct_tools_and_inspection_only_receipt() {
     let output = root.path().join("package");
     let receipt = build(&tools, &output).unwrap();
     let eal = fs::read_to_string(output.join("case.eal")).unwrap();
-    assert!(eal.starts_with("language \"EAL/3\" profile \"execution/1\""));
+    assert!(eal.starts_with("language \"EAL/4\""));
     assert!(!eal.contains("engarg_support_graph"));
     assert!(!eal.contains("execution_plan_sha256"));
     assert!(!eal.contains("formal_source"));
@@ -470,4 +470,81 @@ fn incomplete_or_unavailable_batch_results_do_not_support_the_claim() {
         let claim = run_batch(variant);
         assert_ne!(claim["status"], "supported", "{variant}: {claim}");
     }
+}
+
+#[test]
+fn copied_command_implementations_are_automatically_pinned_and_rebuild_rejects_mutation() {
+    let root = TempDir::new().unwrap();
+    let tools = source(root.path());
+    let output = root.path().join("package");
+    build(&tools, &output).unwrap();
+    let manifest = eal_collector_contracts::RegistryDocument::from_toml(
+        &fs::read_to_string(output.join("tools.toml")).unwrap(),
+    )
+    .unwrap();
+    let expected =
+        engarg::authoring_checkpoint::digest(fs::read(output.join("tools/source.py")).unwrap());
+    for binding in manifest.tools.values() {
+        assert!(
+            binding
+                .pinned_files
+                .iter()
+                .any(|pin| pin.path == "tools/source.py" && pin.sha256 == expected)
+        );
+    }
+    fs::write(
+        output.join("tools/source.py"),
+        "raise RuntimeError('changed implementation')\n",
+    )
+    .unwrap();
+    let rejected = root.path().join("rebuilt");
+    assert!(
+        build(&output.join("tools.toml"), &rejected)
+            .unwrap_err()
+            .to_string()
+            .contains("SHA-256 pin")
+    );
+    assert!(!rejected.exists());
+}
+
+#[test]
+#[ignore = "requires installed ENGARG_EAL_HOST with runtime companions"]
+fn changed_packaged_implementation_is_rejected_before_it_can_execute() {
+    let host = PathBuf::from(std::env::var_os("ENGARG_EAL_HOST").expect("matching host required"));
+    let root = TempDir::new().unwrap();
+    let tools = source(root.path());
+    let output = root.path().join("package");
+    let receipt = build(&tools, &output).unwrap();
+    let marker = root.path().join("unexpected-execution");
+    fs::write(
+        output.join("tools/source.py"),
+        format!(
+            "from pathlib import Path\nPath({:?}).write_text('must not execute')\n",
+            marker.to_str().unwrap()
+        ),
+    )
+    .unwrap();
+    let result = Command::new(host)
+        .arg("run")
+        .arg(output.join("case.eal"))
+        .arg("--tools")
+        .arg(output.join("tools.toml"))
+        .arg("--workspace")
+        .arg(root.path().join("run"))
+        .arg("--claim")
+        .arg(receipt["claims"]["current_claim"].as_str().unwrap())
+        .args(["--now", reasoning::NOW])
+        .output()
+        .unwrap();
+    assert!(
+        !marker.exists(),
+        "mutated implementation executed before pin admission"
+    );
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        stdout.contains("Pinned collector file identity")
+            || stderr.contains("Pinned collector file identity"),
+        "{stdout}\n{stderr}"
+    );
 }

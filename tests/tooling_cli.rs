@@ -1,4 +1,4 @@
-//! Admission and registration regressions that require neither Docker nor credentials.
+//! Direct operation admission requires neither Docker nor provider credentials.
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -21,17 +21,33 @@ fn failed(output: Output, expected: &str) {
     );
 }
 
-fn demo(path: &Path) {
-    let output = command()
-        .args(["demo", "--format", "json", "--output"])
-        .arg(path)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+#[path = "common/executable_case.rs"]
+mod executable_case;
+#[allow(dead_code)]
+#[path = "common/reasoning.rs"]
+mod reasoning;
+#[allow(dead_code)]
+#[path = "common/reasoning_graph.rs"]
+mod reasoning_graph;
+
+fn authored(path: &Path) {
+    let (request, argument, support) = executable_case::fixture();
+    let report = json!({
+        "schema_version": engarg::report::RUN_REPORT_SCHEMA,
+        "execution_mode": "offline_synthetic_fixture",
+        "input_sha256": eal_collector_contracts::execution::canonical_digest(&request).unwrap(),
+        "mode": "single", "request": request, "argument": argument,
+        "transcript": [], "support_elaboration": support,
+        "limitations": ["Synthetic admission fixture; no provider calls."]
+    });
+    engarg::report::read_direct(&report).unwrap();
+    fs::write(path, serde_json::to_vec(&report).unwrap()).unwrap();
+}
+
+fn tools(root: &Path) -> std::path::PathBuf {
+    let path = root.join("tools.toml");
+    fs::write(&path, "[tools]\n").unwrap();
+    path
 }
 
 #[test]
@@ -76,7 +92,7 @@ fn implementation_requires_a_retained_json_output_before_provider_admission() {
 }
 
 #[test]
-fn direct_authoring_refuses_in_process_tool_generation_before_provider_credentials() {
+fn direct_authoring_requires_existing_operator_bindings_before_provider_credentials() {
     let directory = tempfile::tempdir().unwrap();
     failed(
         command()
@@ -96,7 +112,7 @@ fn direct_authoring_refuses_in_process_tool_generation_before_provider_credentia
             .arg(directory.path().join("analysis.json"))
             .output()
             .unwrap(),
-        "direct authoring does not execute tool generation",
+        "direct tool generation requires --tools",
     );
     assert!(!directory.path().join("analysis.json").exists());
 }
@@ -105,11 +121,13 @@ fn direct_authoring_refuses_in_process_tool_generation_before_provider_credentia
 fn saved_implementation_requires_language_before_provider_credentials() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("analysis.json");
-    demo(&input);
+    authored(&input);
     failed(
         command()
             .args(["eal", "implement", "--input"])
             .arg(input)
+            .arg("--tools")
+            .arg(tools(directory.path()))
             .args([
                 "--model",
                 "fixture",
@@ -129,11 +147,13 @@ fn saved_implementation_requires_language_before_provider_credentials() {
 fn saved_implementation_requires_an_operator_toolchain() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("analysis.json");
-    demo(&input);
+    authored(&input);
     failed(
         command()
             .args(["eal", "implement", "--input"])
             .arg(input)
+            .arg("--tools")
+            .arg(tools(directory.path()))
             .args([
                 "--model",
                 "fixture",
@@ -152,27 +172,26 @@ fn saved_implementation_requires_an_operator_toolchain() {
 }
 
 #[test]
-fn unverified_tooling_metadata_cannot_create_an_export_registry() {
+fn obsolete_tooling_metadata_cannot_create_an_executable_package() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("analysis.json");
-    demo(&input);
+    authored(&input);
     let mut report: Value = serde_json::from_slice(&fs::read(&input).unwrap()).unwrap();
     report["tooling"] = json!({"schema": "engarg.tooling/1", "packages": []});
     fs::write(&input, serde_json::to_vec(&report).unwrap()).unwrap();
-    let source = directory.path().join("argument.eal");
-    let tools = directory.path().join("argument.tools.toml");
+    let package = directory.path().join("package");
+    let bindings = tools(directory.path());
     let output = command()
         .args(["eal", "export", "--input"])
         .arg(input)
         .arg("--output")
-        .arg(&source)
-        .arg("--tools-output")
-        .arg(&tools)
+        .arg(&package)
+        .arg("--tools")
+        .arg(&bindings)
         .output()
         .unwrap();
     assert!(!output.status.success());
-    assert!(!source.exists());
-    assert!(!tools.exists());
+    assert!(!package.exists());
 }
 
 #[test]

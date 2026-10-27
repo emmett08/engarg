@@ -17,7 +17,7 @@ fn report() -> RunReport {
     let argument: ArgumentCase =
         live_output::case(include_str!("../examples/claim-only-case.json"));
     RunReport {
-        schema_version: "engarg.run.v2".into(),
+        schema_version: "engarg.run.v3".into(),
         execution_mode: "explicit_fixture".into(),
         input_sha256: eal_collector_contracts::execution::canonical_digest(&request).unwrap(),
         provider_config: None,
@@ -27,6 +27,15 @@ fn report() -> RunReport {
         argument,
         transcript: vec![],
         tooling: None,
+        support_elaboration: None,
+        direct_bindings: None,
+        design_review: None,
+        argument_revisions: Vec::new(),
+        target_runtime: None,
+        authoring_recovery: None,
+        evidence_planning: None,
+        replanning: None,
+        support_recovery: None,
         limitations: vec![],
     }
 }
@@ -41,16 +50,17 @@ fn revision_retains_the_original_and_invalidates_derived_execution() {
         .push_str(" The next assessment will use the revised source.");
     let revised = revise(&source, candidate).unwrap();
     assert_eq!(serde_json::to_value(&source).unwrap(), before);
+    let revision = revised.argument_revisions.last().unwrap();
     assert_eq!(
-        serde_json::to_value(&revised.previous_argument).unwrap(),
+        serde_json::to_value(&revision.previous_report.argument).unwrap(),
         before["argument"]
     );
     assert_eq!(
-        revised.parent_report_sha256,
+        revision.parent_report_sha256,
         eal_collector_contracts::execution::canonical_digest(&source).unwrap()
     );
-    assert!(revised.invalidated.contains(&"collection".into()));
-    assert!(revised.invalidated.contains(&"route_plan".into()));
+    assert!(revision.invalidated.contains(&"collection".into()));
+    assert!(revision.invalidated.contains(&"direct_bindings".into()));
     assert!(revised.argument.dissent_revisions.is_some());
 }
 
@@ -102,4 +112,47 @@ fn revision_cannot_drop_dissent_or_promote_an_unperformed_observation() {
     let mut candidate: Value = serde_json::to_value(&source.argument).unwrap();
     candidate["grounds"][0]["status"] = json!("reported");
     assert!(revise(&source, serde_json::from_value(candidate).unwrap()).is_err());
+}
+
+#[path = "common/pending_support.rs"]
+mod pending_support;
+
+#[test]
+fn explicit_criterion_revision_requires_prior_identity_and_can_be_revised_again() {
+    use engarg::{
+        direct_planning::DirectPlan, engine::support::revision::revise_with_support,
+        support_requirements::RequirementRevision,
+    };
+    let mut source = report();
+    let support = pending_support::pending(&source.argument);
+    source.direct_bindings = Some(DirectPlan::unbound(&support));
+    source.support_elaboration = Some(support.clone());
+    let mut candidate = source.argument.clone();
+    candidate.evidence_plan[0]
+        .acceptance_criterion
+        .push_str(" The measurement must identify the selected revision.");
+    let mut current = pending_support::pending(&candidate);
+    assert!(revise_with_support(&source, candidate.clone(), Some(current.clone()), None).is_err());
+    for requirement in &current.requirements {
+        let previous = support
+            .requirements
+            .iter()
+            .find(|r| r.id == requirement.id)
+            .unwrap();
+        let before = eal_collector_contracts::execution::canonical_digest(previous).unwrap();
+        if before != eal_collector_contracts::execution::canonical_digest(requirement).unwrap() {
+            current.revisions.push(RequirementRevision {
+                requirement_id: requirement.id.clone(),
+                previous_requirement_sha256: before,
+                reason:
+                    "The explicit argument revision identifies the measurement's source revision."
+                        .into(),
+            });
+        }
+    }
+    let revised = revise_with_support(&source, candidate, Some(current), None).unwrap();
+    engarg::report::read_direct(&serde_json::to_value(&revised).unwrap()).unwrap();
+    let next = revise(&revised, revised.argument.clone()).unwrap();
+    assert_eq!(next.argument_revisions.len(), 2);
+    engarg::report::read_direct(&serde_json::to_value(next).unwrap()).unwrap();
 }

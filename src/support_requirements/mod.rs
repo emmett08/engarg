@@ -21,7 +21,9 @@ pub use lineage::{logical_output_schema, logical_quantity_pointer};
 pub use schema::{elaboration_schema, envelope_schema, parse_supported_argument};
 pub use semantics::validate_semantic_flow;
 pub use types::*;
-pub use validation::{material_targets, validate_elaboration, validate_revision};
+pub use validation::{
+    material_targets, validate_argument_revision, validate_elaboration, validate_revision,
+};
 
 pub const SUPPORT_ELABORATION_SCHEMA: &str = "engarg.support-elaboration/2";
 pub const OPERATION_SPECIFICATION_SCHEMA: &str = "engarg.operation-specification/1";

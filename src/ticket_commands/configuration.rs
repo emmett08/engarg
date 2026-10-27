@@ -18,6 +18,24 @@ fn environment() -> Vec<String> {
     vec!["PATH".into(), "HOME".into()]
 }
 
+fn implementation_calls() -> u32 {
+    16
+}
+
+/// Explicit authority for synthesising unbound, parameterised acquisition operations.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImplementationConfiguration {
+    pub language: String,
+    pub toolchain: PathBuf,
+    pub store: PathBuf,
+    pub provider_args: Vec<String>,
+    #[serde(default = "implementation_calls")]
+    pub max_calls: u32,
+    #[serde(default = "timeout")]
+    pub timeout_seconds: u64,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Configuration {
@@ -27,6 +45,8 @@ pub struct Configuration {
     pub debate: DebateConfig,
     pub tools: PathBuf,
     pub authoring_args: Vec<String>,
+    #[serde(default)]
+    pub implementation: Option<ImplementationConfiguration>,
     pub eal_host: PathBuf,
     #[serde(default = "environment")]
     pub environment: Vec<String>,
@@ -150,6 +170,86 @@ pub fn validate_authoring(args: &[String]) -> Result<(), Error> {
     }
     Ok(())
 }
+fn admit_implementation(config: &mut Configuration, base: &Path) -> Result<(), Error> {
+    let Some(implementation) = &mut config.implementation else {
+        return Ok(());
+    };
+    let allowed = [
+        "--model",
+        "--service-tier",
+        "--reasoning-effort",
+        "--api",
+        "--endpoint",
+        "--api-key-env",
+        "--max-input-bytes",
+        "--max-response-bytes",
+        "--max-output-tokens",
+        "--http-retries",
+        "--retry-max-delay-secs",
+        "--request-timeout-secs",
+    ];
+    let arguments = &implementation.provider_args;
+    if !(1..=256).contains(&implementation.max_calls)
+        || !(1..=config.stage_timeout_seconds).contains(&implementation.timeout_seconds)
+        || arguments.len() > 64
+        || !arguments.len().is_multiple_of(2)
+        || arguments.as_chunks::<2>().0.iter().any(|pair| {
+            !allowed.contains(&pair[0].as_str())
+                || pair[1].is_empty()
+                || pair[1].starts_with("--")
+                || pair[1].len() > 8192
+        })
+    {
+        return Err(Error::InvalidInput("implementation requires bounded provider options and a deadline within its ticket stage".into()));
+    }
+    implementation.toolchain = resolve(base, &implementation.toolchain)?;
+    implementation.store =
+        crate::path_admission::identity(&if implementation.store.is_absolute() {
+            implementation.store.clone()
+        } else {
+            base.join(&implementation.store)
+        })?;
+    let toolchain = engarg::tooling::ToolchainProfile::load(&implementation.toolchain)?;
+    engarg::tooling::contracts::validate_language(&implementation.language)?;
+    if toolchain.language != implementation.language {
+        return Err(Error::InvalidInput(
+            "implementation language differs from its operator toolchain".into(),
+        ));
+    }
+    if toolchain
+        .inherit_env
+        .iter()
+        .any(|name| !config.collector_environment.contains(name))
+        || engarg::tooling::runner::DOCKER_ENVIRONMENT
+            .iter()
+            .filter(|name| config.environment.iter().any(|value| value == **name))
+            .any(|name| {
+                !config
+                    .collector_environment
+                    .iter()
+                    .any(|value| value == name)
+            })
+    {
+        return Err(Error::InvalidInput(
+            "implementation runtime environment must be granted through collector_environment"
+                .into(),
+        ));
+    }
+    let mut admission = vec![
+        "engarg".to_owned(),
+        "eal".into(),
+        "implement".into(),
+        "--input".into(),
+        "analysis.json".into(),
+        "--tools".into(),
+        "tools.toml".into(),
+    ];
+    admission.extend(arguments.clone());
+    crate::Cli::try_parse_from(admission)
+        .map_err(|_| Error::InvalidInput("invalid implementation provider options".into()))?;
+    Ok(())
+}
+
 pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
     let source = args.spec.canonicalize()?;
     let base = source
@@ -215,6 +315,7 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
             )));
         }
     }
+    admit_implementation(&mut config, base)?;
     config.tools = resolve(base, &config.tools)?;
     config.eal_host = resolve(base, &config.eal_host)?;
     if let Some(path) = &mut config.export_policy {
@@ -257,6 +358,12 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
     let mut paths = BTreeSet::from([source, config.eal_host.clone(), coordinator.clone()]);
     paths.extend(tool_files.iter().cloned());
     paths.extend(config.export_policy.iter().cloned());
+    paths.extend(
+        config
+            .implementation
+            .iter()
+            .map(|implementation| implementation.toolchain.clone()),
+    );
     paths.extend(config.input_files.iter().cloned());
     let executables = paths
         .iter()
@@ -494,5 +601,39 @@ mod tests {
         );
         invalid_submission(vec!["--model", "fixture", "--max-calls", "1"], vec![]);
         invalid_submission(vec!["--model", "fixture"], vec!["UNGRANTED_SECRET"]);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn implementation_authority_is_admitted_and_pinned_without_starting_a_model_or_docker() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        let toolchain = root.path().join("toolchain.json");
+        fs::write(&toolchain, serde_json::to_vec(&serde_json::json!({
+            "schema":"engarg.toolchain/1","language":"python","docker":"must-not-start","image":"operator-image",
+            "build_argv":[],"run_argv":["python3"],"inherit_env":[],"runtime_network":"none",
+            "timeout_seconds":30,"memory_mb":128,"output_bytes":1048576
+        })).unwrap()).unwrap();
+        let mut value: serde_json::Value = read(&args.spec).unwrap();
+        value["collector_environment"] = serde_json::json!(["PATH"]);
+        value["implementation"] = serde_json::json!({"language":"python","toolchain":"toolchain.json","store":"store","provider_args":["--model","fixture"],"max_calls":2,"timeout_seconds":120});
+        fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
+        let prepared = prepare(args).unwrap();
+        let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
+        assert!(snapshot.pins.iter().any(|pin| pin.path == toolchain));
+        assert!(!root.path().join("store").exists());
+        fs::write(&toolchain, b"{}").unwrap();
+        assert!(load(&prepared.snapshot, &prepared.snapshot_sha256).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn implementation_cannot_select_output_paths_through_provider_arguments() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        let mut value: serde_json::Value = read(&args.spec).unwrap();
+        value["implementation"] = serde_json::json!({"language":"python","toolchain":"must-not-read","store":"store","provider_args":["--model","fixture","--output","unauthorised"],"max_calls":2,"timeout_seconds":120});
+        fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(prepare(args).is_err());
+        assert!(!root.path().join("run").exists());
     }
 }

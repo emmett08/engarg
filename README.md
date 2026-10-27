@@ -28,7 +28,7 @@ required by the TLS dependencies. From this repository:
 
 ```sh
 cargo install --path . --locked
-bash scripts/install-eal-runtime.sh
+export EAL_HOST="$(bash scripts/install-eal-runtime.sh)"
 engarg demo --claim-only --format markdown
 engarg demo --format outline
 engarg demo --format prose
@@ -60,7 +60,7 @@ default:
 
 ```sh
 engarg analyse --input request.json --tools tools.toml \
-  --model "$ENGARG_MODEL" --format json \
+  --model "$ENGARG_MODEL" --format json --eal-host "$EAL_HOST" \
   --audit analysis.audit.jsonl --output analysis.json
 ```
 
@@ -69,7 +69,7 @@ A claim alone is also sufficient:
 ```sh
 engarg analyse \
   --claim 'Parallelising independent CI test groups reduces pipeline duration without changing test outcomes.' \
-  --model "$ENGARG_MODEL" --format json \
+  --model "$ENGARG_MODEL" --format json --eal-host "$EAL_HOST" \
   --audit analysis.audit.jsonl --output analysis.json
 ```
 
@@ -79,6 +79,11 @@ values and credentials stay out of the authoring view. The saved report contains
 the canonical argument, `support_elaboration`, `direct_bindings`, design review
 and every completed model exchange. Building requires concrete bindings for the
 resulting acquisitions.
+
+Selecting `--eal-host` checks that installed host’s EAL/4 language and method
+contracts before any model call. Without a selected host, authoring uses the
+exact EAL contracts linked into EngArg; the retained report identifies which
+target was checked. Use the same installed host to execute the resulting package.
 
 The default endpoint uses OpenAI's Responses API. To use `OPENAI_API_KEY`, select
 `--api-key-env OPENAI_API_KEY`. Keys do not belong in command arguments or request
@@ -92,7 +97,7 @@ Compatible Chat Completions endpoints can be selected explicitly:
 engarg analyse --input request.json --tools tools.toml \
   --model YOUR_MODEL --api chat \
   --endpoint http://localhost:8000/v1/chat/completions \
-  --output analysis.json
+  --format json --eal-host "$EAL_HOST" --output analysis.json
 ```
 
 HTTP is permitted on loopback only; other destinations require HTTPS. Endpoints

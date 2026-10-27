@@ -13,12 +13,12 @@ name = "engarg-process-supervisor"
 path = "src/bin/process_supervisor.rs"
 
 [dependencies]
-eal-tool-runtime = { git = "https://github.com/emmett08/eal-mcp", rev = "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9" }
-eal-coordination-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9" }
-eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9" }
-eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9" }
-eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9" }
-eal-core = { git = "https://github.com/emmett08/eal-mcp", rev = "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9" }
+eal-tool-runtime = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-coordination-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-core = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 chrono = { version = "0.4.42", default-features = false, features = ["std"] }
 httpdate = "1.0.3"
@@ -30,13 +30,13 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["arbitrary_precision"] }
 sha2 = "0.11.1"
 thiserror = "2.0.21"
+tempfile = "3.27.0"
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "time", "signal", "sync", "process", "io-util"] }
 toml = "0.9.8"
 
 [dev-dependencies]
-tempfile = "3.27.0"
 tiktoken-rs = "0.12.1"
-rmcp = { git = "https://github.com/emmett08/eal-mcp", rev = "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9", default-features = false, features = ["server", "transport-io"] }
+rmcp = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4", default-features = false, features = ["server", "transport-io"] }
 tokio = { version = "1.54.1", features = ["io-std"] }
 
 [lints.rust]

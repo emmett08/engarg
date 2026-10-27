@@ -115,9 +115,15 @@ print(json.dumps({'schema':'eal.evidence-discovery/1','catalogue':catalogue,'adm
         let draft = json!({"argument":case,"support_elaboration_json":serde_json::to_string(&repaired).unwrap()}).to_string();
         let final_content = json!({"argument":case,"support_elaboration_json":serde_json::to_string(&pending).unwrap()}).to_string();
         let original = json!({
-            "schema_version":"engarg.run.v2","execution_mode":"provider_calls","mode":"hybrid",
+            "schema_version":"engarg.run.v3","execution_mode":"provider_calls","mode":"hybrid",
             "input_sha256":digest(&serde_json::to_string(&request).unwrap()),
-            "provider_config":{"retained":"private-provider-selection"},
+            "provider_config":{
+                "endpoint":"http://private-provider-selection.invalid/v1/responses",
+                "api":"responses","default_model":"private-retained-model",
+                "requested_service_tier":null,"requested_reasoning_effort":null,
+                "role_models":{},"max_output_tokens":4096,
+                "request_timeout_secs":30,"timeout_secs":60
+            },
             "run_config":engarg::engine::RunConfig {max_calls:7,max_repairs:1,..Default::default()},
             "request":request,"argument":case,"limitations":["private original limitation"],"tooling":null,
             "transcript":[

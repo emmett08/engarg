@@ -235,6 +235,25 @@ fn run_ticket(config: &Value, root: &Path) -> (Output, Value, PathBuf) {
     } else {
         Value::Null
     };
+    if !output.status.success() {
+        for relative in [
+            "author/command.stdout",
+            "author/command.stderr",
+            "journal/author-response.bin",
+        ] {
+            let path = workspace.join(relative);
+            if let Ok(bytes) = fs::read(&path) {
+                let displayed = bytes.len().min(65_536);
+                eprintln!(
+                    "ticket failure diagnostic {} ({} bytes, displaying {}):\n{}",
+                    path.display(),
+                    bytes.len(),
+                    displayed,
+                    String::from_utf8_lossy(&bytes[..displayed])
+                );
+            }
+        }
+    }
     (output, report, workspace)
 }
 fn assert_output(output: &Output, report: &Value, root: &Path) {
@@ -298,6 +317,19 @@ fn direct_ticket_executes_through_every_selected_native_topology() {
         assert!(!workspace.join("execute/source-registration.json").exists());
         assert!(!workspace.join("integrate/connections.ready.json").exists());
         assert!(workspace.join("export/tools/source.py").is_file());
+        let authored = read(&workspace.join("author/analysis.json"));
+        assert_eq!(
+            authored["schema_version"],
+            engarg::report::RUN_REPORT_SCHEMA
+        );
+        assert_eq!(authored["target_runtime"]["language"], "EAL/4");
+        assert_eq!(authored["target_runtime"]["kind"], "selected_host");
+        assert!(authored["support_elaboration"].is_object());
+        assert!(
+            fs::read_to_string(workspace.join("export/case.eal"))
+                .unwrap()
+                .starts_with("language \"EAL/4\"")
+        );
         let calls = provider.calls.lock().unwrap();
         let debate: DebateConfig = serde_json::from_value(config["debate"].clone()).unwrap();
         let graph = debate.graphs().unwrap().remove(0);
@@ -360,4 +392,39 @@ fn unbound_operation_blocks_before_export_or_evidence_collection() {
     assert_eq!(integration["reason"], "required_operation_unbound");
     assert!(!workspace.join("export").exists());
     assert!(!workspace.join("execute").exists());
+}
+
+#[test]
+#[ignore = "requires EAL companions; set ENGARG_EAL_HOST and ENGARG_EAL_COORDINATE"]
+fn authorised_generation_preserves_missing_semantics_without_coding_or_docker_calls() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let (request, case, elaboration) = prepare(root, false, false);
+    fs::write(root.join("tools.toml"), "[tools]\n").unwrap();
+    let provider = Provider::new(case, elaboration);
+    let mut config = configuration(root, &provider, request, "ring");
+    write(
+        &root.join("toolchain.json"),
+        &json!({
+            "schema":"engarg.toolchain/1","language":"python","docker":"must-not-start","image":"operator-selected",
+            "build_argv":[],"run_argv":["python3"],"inherit_env":[],"runtime_network":"none","timeout_seconds":30,"memory_mb":128,"output_bytes":1048576
+        }),
+    );
+    config["collector_environment"] = json!(["PATH", "HOME"]);
+    config["implementation"] = json!({"language":"python","toolchain":"toolchain.json","store":"store","provider_args":["--model","must-not-call","--endpoint","http://127.0.0.1:1/v1/responses"],"max_calls":2,"timeout_seconds":120});
+    let (output, report, workspace) = run_ticket(&config, root);
+    assert!(!output.status.success());
+    assert_eq!(report["status"], "blocked", "{report}");
+    let implemented = read(&workspace.join("integrate/implementation/analysis.with-tools.json"));
+    assert_eq!(implemented["tooling"]["model_calls"], 0);
+    assert_eq!(
+        implemented["tooling"]["deferred"].as_array().unwrap().len(),
+        2
+    );
+    assert!(!root.join("store").exists());
+    assert_eq!(
+        read(&workspace.join("integrate/integration.json"))["reason"],
+        "required_operation_unbound"
+    );
+    assert!(!workspace.join("export").exists());
 }

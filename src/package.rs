@@ -1,6 +1,8 @@
 //! Build portable EAL source and direct tool bindings from an authored argument.
 mod files;
 pub(crate) mod publication;
+mod tools;
+pub use tools::merge_tool_exports;
 
 use crate::{
     Error,
@@ -77,8 +79,6 @@ pub fn build(
         }
     }
     manifest.validate().map_err(Error::InvalidInput)?;
-    let tools_toml = toml::to_string_pretty(&manifest)
-        .map_err(|error| Error::InvalidInput(error.to_string()))?;
     let program = eal_core::composition::compile(
         &compiled.bundle.source,
         None,
@@ -94,6 +94,9 @@ pub fn build(
     let resources = files::resources(root, &manifest)?;
     let mut publication = publication::Publication::new(output)?;
     let mut pins = files::copy(root, &manifest, resources, &mut publication)?;
+    files::pin_implementations(&mut manifest, &pins)?;
+    let tools_toml = toml::to_string_pretty(&manifest)
+        .map_err(|error| Error::InvalidInput(error.to_string()))?;
     publication.write(
         Path::new("case.eal"),
         compiled.bundle.source.as_bytes(),
@@ -107,7 +110,7 @@ pub fn build(
     pins.insert("tools.toml".into(), files::digest(tools_toml.as_bytes()));
     let receipt = json!({
         "schema":"engarg.executable-package/1",
-        "language":"EAL/3", "profile":"execution/1",
+        "language":eal_core::LANGUAGE,
         "source_digest":program.source_digest,
         "executable_digest":executable_digest,
         "files":pins,

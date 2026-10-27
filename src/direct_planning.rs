@@ -3,7 +3,7 @@ use crate::{
     Error, domain::ArgumentCase, engine::RouteResolver, support_requirements::SupportElaboration,
 };
 use eal_collector_contracts::RegistryDocument;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::Path};
 
@@ -13,12 +13,29 @@ pub struct DirectPlanner {
     operations: Vec<Value>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DirectPlan {
     pub schema: String,
     pub manifest_sha256: String,
     pub bindings: BTreeMap<String, String>,
     pub unbound_operations: Vec<String>,
+}
+
+impl DirectPlan {
+    /// Preserve each unresolved operation explicitly until operator TOML is supplied.
+    pub fn unbound(elaboration: &SupportElaboration) -> Self {
+        Self {
+            schema: "engarg.direct-bindings/1".into(),
+            manifest_sha256: crate::authoring_checkpoint::digest(b"[tools]\n"),
+            bindings: BTreeMap::new(),
+            unbound_operations: elaboration
+                .acquisitions
+                .iter()
+                .map(|a| a.id.clone())
+                .collect(),
+        }
+    }
 }
 
 impl Default for DirectPlanner {
@@ -137,12 +154,9 @@ fn pinned_schema(
     Ok(schema)
 }
 
-impl RouteResolver for DirectPlanner {
-    type Plan = DirectPlan;
-    fn authoring_context(&self) -> Option<Value> {
-        Some(json!({"operations":self.operations}))
-    }
-    async fn resolve(
+impl DirectPlanner {
+    /// Resolve the complete authored operation set without discovery or async IO.
+    pub fn resolve_operations(
         &self,
         case: &ArgumentCase,
         elaboration: &SupportElaboration,
@@ -180,6 +194,20 @@ impl RouteResolver for DirectPlanner {
             bindings,
             unbound_operations,
         })
+    }
+}
+
+impl RouteResolver for DirectPlanner {
+    type Plan = DirectPlan;
+    fn authoring_context(&self) -> Option<Value> {
+        Some(json!({"operations":self.operations}))
+    }
+    async fn resolve(
+        &self,
+        case: &ArgumentCase,
+        elaboration: &SupportElaboration,
+    ) -> Result<DirectPlan, Error> {
+        self.resolve_operations(case, elaboration)
     }
 }
 

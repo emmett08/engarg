@@ -1,7 +1,7 @@
 //! Public file admission rejects special files and bounds allocation before parsing.
 
 use engarg::{Error, bounded_file};
-use serde_json::{Value, json};
+use serde_json::json;
 use std::{
     fs::{self, File},
     io::Write,
@@ -10,6 +10,15 @@ use std::{
     time::{Duration, Instant},
 };
 use tempfile::TempDir;
+
+#[path = "common/executable_case.rs"]
+mod executable_case;
+#[allow(dead_code)]
+#[path = "common/reasoning.rs"]
+mod reasoning;
+#[allow(dead_code)]
+#[path = "common/reasoning_graph.rs"]
+mod reasoning_graph;
 
 const MIB: usize = 1_048_576;
 const DIGEST: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -21,12 +30,11 @@ enum Entry {
     RenderReport,
     ValidateRequest,
     ValidateCase,
-    PrepareReport,
-    PrepareCatalogue,
-    PreparePolicy,
+    BuildReport,
+    BuildTools,
+    BuildPolicy,
     ExportReport,
-    ExportPlan,
-    ExportCatalogue,
+    ExportTools,
     ExportPolicy,
     SourceValidate,
     SourcePlan,
@@ -47,12 +55,11 @@ const ENTRIES: &[Entry] = &[
     Entry::RenderReport,
     Entry::ValidateRequest,
     Entry::ValidateCase,
-    Entry::PrepareReport,
-    Entry::PrepareCatalogue,
-    Entry::PreparePolicy,
+    Entry::BuildReport,
+    Entry::BuildTools,
+    Entry::BuildPolicy,
     Entry::ExportReport,
-    Entry::ExportPlan,
-    Entry::ExportCatalogue,
+    Entry::ExportTools,
     Entry::ExportPolicy,
     Entry::SourceValidate,
     Entry::SourcePlan,
@@ -85,12 +92,19 @@ impl Fixtures {
         let registry = directory.path().join("tools.toml");
         fs::write(&request, include_bytes!("../examples/request.json")).unwrap();
         fs::write(&case, include_bytes!("../examples/case.json")).unwrap();
-        fs::write(&report, serde_json::to_vec(&json!({
-            "request":serde_json::from_slice::<Value>(include_bytes!("../examples/request.json")).unwrap(),
-            "argument":serde_json::from_slice::<Value>(include_bytes!("../examples/case.json")).unwrap()
-        })).unwrap()).unwrap();
-        fs::write(&source, "language \"EAL/3\"\n").unwrap();
-        fs::write(&registry, "").unwrap();
+        let (build_request, argument, support) = executable_case::fixture();
+        let value = json!({
+            "schema_version":engarg::report::RUN_REPORT_SCHEMA,
+            "execution_mode":"offline_synthetic_fixture",
+            "input_sha256":eal_collector_contracts::execution::canonical_digest(&build_request).unwrap(),
+            "mode":"single", "request":build_request, "argument":argument,
+            "transcript":[], "support_elaboration":support, "limitations":[],
+        });
+        engarg::report::read_direct(&value).unwrap();
+        fs::write(&report, serde_json::to_vec(&value).unwrap()).unwrap();
+        fs::write(&source, "language \"EAL/4\"\n").unwrap();
+        fs::write(directory.path().join("measurement.json"), b"{}").unwrap();
+        fs::write(&registry,"[tools.premise_source]\nkind='json_file'\nversion='1'\npath='measurement.json'\n[tools.applicability_source]\nkind='json_file'\nversion='1'\npath='measurement.json'\n").unwrap();
         Self {
             directory,
             request,
@@ -112,9 +126,9 @@ impl Entry {
             Self::AnalyseTools
             | Self::ValidateRequest
             | Self::ValidateCase
-            | Self::PrepareCatalogue
-            | Self::PreparePolicy
-            | Self::ExportCatalogue
+            | Self::BuildTools
+            | Self::BuildPolicy
+            | Self::ExportTools
             | Self::ExportPolicy
             | Self::Registry
             | Self::ScopedInputs
@@ -176,23 +190,27 @@ impl Entry {
                         &fixtures.case
                     });
             }
-            Self::PrepareReport | Self::PrepareCatalogue | Self::PreparePolicy => {
-                command.args(["eal", "prepare", "--input"]).arg(
-                    if matches!(self, Self::PrepareReport) {
+            Self::BuildReport | Self::BuildTools | Self::BuildPolicy => {
+                command
+                    .args(["build", "--input"])
+                    .arg(if matches!(self, Self::BuildReport) {
                         target
                     } else {
                         &fixtures.report
-                    },
-                );
-                command.arg("--output-dir").arg(fixtures.path("prepared"));
-                if matches!(self, Self::PrepareCatalogue) {
-                    command.arg("--collector-catalogue").arg(target);
-                }
-                if matches!(self, Self::PreparePolicy) {
+                    });
+                command
+                    .arg("--tools")
+                    .arg(if matches!(self, Self::BuildTools) {
+                        target
+                    } else {
+                        &fixtures.registry
+                    });
+                command.arg("--output-dir").arg(fixtures.path("package"));
+                if matches!(self, Self::BuildPolicy) {
                     command.arg("--export-policy").arg(target);
                 }
             }
-            Self::ExportReport | Self::ExportPlan | Self::ExportCatalogue | Self::ExportPolicy => {
+            Self::ExportReport | Self::ExportTools | Self::ExportPolicy => {
                 command.args(["eal", "export", "--input"]).arg(
                     if matches!(self, Self::ExportReport) {
                         target
@@ -200,18 +218,16 @@ impl Entry {
                         &fixtures.report
                     },
                 );
-                command.arg("--output").arg(fixtures.path("export.eal"));
-                match self {
-                    Self::ExportPlan => {
-                        command.arg("--acquisition-plan").arg(target);
-                    }
-                    Self::ExportCatalogue => {
-                        command.arg("--collector-catalogue").arg(target);
-                    }
-                    Self::ExportPolicy => {
-                        command.arg("--export-policy").arg(target);
-                    }
-                    _ => {}
+                command
+                    .arg("--tools")
+                    .arg(if matches!(self, Self::ExportTools) {
+                        target
+                    } else {
+                        &fixtures.registry
+                    });
+                command.arg("--output").arg(fixtures.path("package"));
+                if matches!(self, Self::ExportPolicy) {
+                    command.arg("--export-policy").arg(target);
                 }
             }
             Self::SourceValidate
@@ -330,7 +346,14 @@ fn output(entry: Entry, fixtures: &Fixtures, path: &Path) -> Output {
 fn failure(entry: Entry, fixtures: &Fixtures, path: &Path) -> String {
     let output = output(entry, fixtures, path);
     assert!(!output.status.success(), "{entry:?} accepted {path:?}");
-    String::from_utf8_lossy(&output.stderr).into_owned()
+    let message = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        !message.contains("unrecognized subcommand")
+            && !message.contains("unexpected argument")
+            && !message.contains("the following required arguments were not provided"),
+        "{entry:?} did not reach its file admission boundary: {message}"
+    );
+    message
 }
 
 #[test]
@@ -420,9 +443,12 @@ fn untrusted_leaf_aliases_are_rejected_and_registry_aliases_reach_host_admission
         let alias = fixtures.path("input-alias");
         symlink(&real, &alias).unwrap();
         let message = failure(*entry, &fixtures, &alias);
-        if matches!(entry, Entry::Registry) {
-            // The selected canonical file passes file admission. The deliberately
-            // absent host then fails without an external process or service.
+        if matches!(
+            entry,
+            Entry::Registry | Entry::BuildTools | Entry::ExportTools
+        ) {
+            // Operator-selected registry aliases resolve to one canonical file.
+            // Invalid TOML or the deliberately absent host stops the request.
             assert!(
                 !message.contains("registry must") && !message.contains("regular file"),
                 "{message}"

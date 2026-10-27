@@ -11,7 +11,7 @@ pub(super) async fn run(
         "--input".into(),
         process::path(&previous(request, "analysis_ready")?)?,
         "--tools".into(),
-        process::path(&config.tools)?,
+        process::path(&previous(request, "integrated_tools")?)?,
         "--output-dir".into(),
         process::path(&dir)?,
     ];

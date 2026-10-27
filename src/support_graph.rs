@@ -316,7 +316,6 @@ fn expected_graph(
         // This source limit is independent of downstream evaluation ages and
         // remains binding even for unavailable operations without route proofs.
         step.max_age_seconds = blueprint.contract.time.max_age_seconds;
-        step.coverage_proof = None;
         step.source.historical_interval = historical_interval(&blueprint.contract)?;
         if matches!(step.availability, SourceAvailability::Configured)
             && let Some(interval) = &step.source.historical_interval

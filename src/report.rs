@@ -10,14 +10,19 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::Path};
 
+mod current;
 pub mod freshness;
+pub use current::{
+    AuthoringRecovery, RUN_REPORT_SCHEMA, SupportRecovery, read, read_direct, validate, with_direct,
+};
 
 pub const REPLANNING_SCHEMA: &str = "engarg.evidence-replan/1";
 pub const MAX_REPLANNING_HISTORY: usize = 16;
 
 #[derive(Debug, Clone)]
 pub enum EvidencePlanningReport {
-    Flat,
+    Unplanned,
+    Direct(Box<crate::engine::RunReport>),
     Graph(Box<SupportPlanning<RoutePlan>>),
 }
 
@@ -31,7 +36,14 @@ pub fn classify_evidence_planning(raw: &Value) -> Result<EvidencePlanningReport,
         .get("evidence_planning")
         .filter(|value| !value.is_null())
     else {
-        return Ok(EvidencePlanningReport::Flat);
+        return if raw
+            .get("support_elaboration")
+            .is_some_and(|value| !value.is_null())
+        {
+            Ok(EvidencePlanningReport::Direct(Box::new(read_direct(raw)?)))
+        } else {
+            Ok(EvidencePlanningReport::Unplanned)
+        };
     };
     let planning: SupportPlanning<RoutePlan> = serde_json::from_value(value.clone())?;
     if planning.schema != "engarg.support-planning/1"
@@ -101,11 +113,18 @@ pub fn retain_replanning_with_freshness(
         previous_planning_sha256: digest(old)?,
         current_planning_sha256: digest(new)?,
         previous_evidence_planning: old.clone(),
-        previous_extensions: ["tooling", "replanning", "support_recovery"]
-            .into_iter()
-            .filter(|key| *key != "support_recovery" || clarification.is_some())
-            .filter_map(|key| previous.get(key).map(|value| (key.into(), value.clone())))
-            .collect(),
+        previous_extensions: [
+            "tooling",
+            "replanning",
+            "support_recovery",
+            "support_elaboration",
+            "direct_bindings",
+            "design_review",
+        ]
+        .into_iter()
+        .filter(|key| *key != "support_recovery" || clarification.is_some())
+        .filter_map(|key| previous.get(key).map(|value| (key.into(), value.clone())))
+        .collect(),
         model_calls: 0,
         freshness_clarification: clarification,
     };
@@ -124,14 +143,21 @@ pub fn retain_replanning_with_freshness(
 /// original planning metadata; no new model-call accounting is invented.
 pub fn validate_replanning(raw: &Value, executable: &Path) -> Result<(), Error> {
     validate_support_recovery(raw)?;
-    validate_replanning_limit(raw, executable, MAX_REPLANNING_HISTORY)
+    validate_replanning_limit(raw, Some(executable), MAX_REPLANNING_HISTORY)
+}
+
+/// Check imported provenance without reading or executing referenced tool files.
+/// Tool-package qualification remains a separate admission at its use boundary.
+fn validate_history(raw: &Value) -> Result<(), Error> {
+    validate_support_recovery(raw)?;
+    validate_replanning_limit(raw, None, MAX_REPLANNING_HISTORY)
 }
 
 /// Reserve one retained-history slot before discovery can issue external reads.
 /// Existing maximum-depth reports remain valid for export and assessment.
 pub fn validate_replanning_for_update(raw: &Value, executable: &Path) -> Result<(), Error> {
     validate_support_recovery(raw)?;
-    validate_replanning_limit(raw, executable, MAX_REPLANNING_HISTORY - 1)
+    validate_replanning_limit(raw, Some(executable), MAX_REPLANNING_HISTORY - 1)
 }
 
 /// Recovery retains complete prior reports, with a small independent depth bound.
@@ -261,7 +287,11 @@ pub fn validate_support_recovery(raw: &Value) -> Result<(), Error> {
     Ok(())
 }
 
-fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> Result<(), Error> {
+fn validate_replanning_limit(
+    raw: &Value,
+    executable: Option<&Path>,
+    maximum: usize,
+) -> Result<(), Error> {
     let mut current = raw.clone();
     for depth in 0..=maximum {
         let Some(value) = current.get("replanning").filter(|value| !value.is_null()) else {
@@ -277,10 +307,17 @@ fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> 
         let record: ReplanningRecord = serde_json::from_value(value.clone())?;
         if record.schema != REPLANNING_SCHEMA
             || record.model_calls != 0
-            || record
-                .previous_extensions
-                .keys()
-                .any(|key| !matches!(key.as_str(), "tooling" | "replanning" | "support_recovery"))
+            || record.previous_extensions.keys().any(|key| {
+                !matches!(
+                    key.as_str(),
+                    "tooling"
+                        | "replanning"
+                        | "support_recovery"
+                        | "support_elaboration"
+                        | "direct_bindings"
+                        | "design_review"
+                )
+            })
         {
             return Err(invalid(
                 "invalid replanning provenance schema or extension fields",
@@ -314,11 +351,16 @@ fn validate_replanning_limit(raw: &Value, executable: &Path, maximum: usize) -> 
         );
         object.remove("tooling");
         object.remove("replanning");
+        object.remove("support_elaboration");
+        object.remove("direct_bindings");
+        object.remove("design_review");
         object.extend(record.previous_extensions);
         if digest(&current)? != record.input_report_sha256 {
             return Err(invalid("replanning changed the retained original report"));
         }
-        crate::tooling::capability::revalidate_report(&current, executable)?;
+        if let Some(executable) = executable {
+            crate::tooling::direct::revalidate_report(&current, executable)?;
+        }
         validate_support_recovery(&current)?;
     }
     unreachable!("bounded replanning loop returns at its limit")
@@ -335,11 +377,11 @@ fn invalid(message: &str) -> Error {
 mod tests {
     use super::*;
     #[test]
-    fn absent_and_null_extensions_are_flat_and_malformed_graphs_are_rejected() {
+    fn absent_and_null_extensions_are_unplanned_and_malformed_graphs_are_rejected() {
         for value in [json!({}), json!({"evidence_planning":null})] {
             assert!(matches!(
                 classify_evidence_planning(&value).unwrap(),
-                EvidencePlanningReport::Flat
+                EvidencePlanningReport::Unplanned
             ));
         }
         for value in [

@@ -9,7 +9,6 @@ use engarg::{
     acquisition::{self, AcquisitionPlan, PlannedArgument, ToolArgument},
     collector_catalogue::CollectorCatalogue,
     domain::{ArgumentCase, Request},
-    eal_acquisition::{export_with_catalogue, reconstruct_bundle},
     engine::{CallRecord, Mode, RunConfig, run_with_tools},
     provider::{Completion, CompletionRequest, LanguageModel},
 };
@@ -339,85 +338,6 @@ fn default_planning_exposes_implemented_adapters_and_hides_execution_settings() 
     assert!(lab.get("command").is_none());
     assert!(!view.to_string().contains("LAB_API_TOKEN"));
     assert!(!view.to_string().contains("operator.collector"));
-}
-
-#[test]
-fn known_collectors_keep_real_implementations_while_missing_inputs_remain_unresolved() {
-    let (request, case) = fixture();
-    for id in [
-        "artifact_json",
-        "scoped_json",
-        "kubectl_get",
-        "gh_api_get",
-        "http_json_get",
-    ] {
-        let mut planned = plans(&case);
-        planned[0] = AcquisitionPlan {
-            input_preparation: None,
-            need_id: case.evidence_plan[0].id.clone(),
-            tool_id: id.into(),
-            arguments: vec![],
-            unresolved_arguments: acquisition::required_arguments(id)
-                .unwrap()
-                .iter()
-                .map(|name| (*name).into())
-                .collect(),
-        };
-        assert!(acquisition::validate_selected(&case, &planned, None).is_empty());
-        let export = export_with_catalogue(&request, &case, &planned, None).unwrap();
-        assert!(
-            export
-                .registry
-                .tools
-                .values()
-                .any(|binding| binding.argv == ["engarg", "eal", "observe", "--tool", id])
-        );
-        let saved = export.bundle.acquisition_plan.unwrap().entries;
-        assert_eq!(saved[0].tool_id, id);
-        assert!(saved[0].arguments.is_empty());
-        assert_eq!(
-            saved[0].unresolved_arguments.len(),
-            planned[0].unresolved_arguments.len()
-        );
-        assert_eq!(
-            export.registry.tools["engarg_review_contract"].argv,
-            ["/REPLACE_WITH_INDEPENDENT_REVIEW_COLLECTOR"]
-        );
-    }
-}
-
-#[test]
-fn v3_identity_binds_selected_contracts_and_preserves_producer_compatibility() {
-    let (request, case) = fixture();
-    let selected = catalogue();
-    let planned = plans(&case);
-    let first = export_with_catalogue(&request, &case, &planned, Some(&selected)).unwrap();
-    let mut changed = selected.clone();
-    changed.collectors[0].command.timeout_seconds += 1;
-    let second = export_with_catalogue(&request, &case, &planned, Some(&changed)).unwrap();
-    assert_ne!(first.bundle.revision, second.bundle.revision);
-    assert_eq!(first.bundle.schema_version, "engarg.eal-export/3");
-    assert_eq!(
-        first.bundle.semantics_version.as_deref(),
-        Some("engarg.eal-projection/3")
-    );
-    assert_eq!(
-        first.bundle.collector_catalogue,
-        Some(serde_json::to_value(&selected).unwrap())
-    );
-    assert_eq!(
-        serde_json::to_value(reconstruct_bundle(&first.bundle).unwrap()).unwrap(),
-        serde_json::to_value(&first.bundle).unwrap()
-    );
-    let mut earlier_producer = first.bundle.clone();
-    earlier_producer.exporter_version = "0.1.0".into();
-    assert_eq!(
-        serde_json::to_value(reconstruct_bundle(&earlier_producer).unwrap()).unwrap(),
-        serde_json::to_value(&earlier_producer).unwrap()
-    );
-    let mut tampered = first.bundle;
-    tampered.collector_catalogue = Some(serde_json::to_value(changed).unwrap());
-    assert!(reconstruct_bundle(&tampered).is_err());
 }
 
 struct CaptureModel {

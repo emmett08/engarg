@@ -88,6 +88,7 @@ fn executable_inventory_collects_actual_mcp_and_command_observations() {
             "scenario {scenario}: {envelope}"
         );
         let result = &envelope["result"];
+        assert_eq!(result["assessment"]["language"], "EAL/4");
         assert_eq!(result["assessment"]["valid"], true);
         assert_eq!(
             result["assessment"]["claims"]["inventory_verified"]["status"],

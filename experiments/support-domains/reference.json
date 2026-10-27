@@ -206,7 +206,7 @@
         },
         {
           "id": "execution",
-          "criterion": "Retain the generated package identity through registration, replanning, export, collection and assessment."
+          "criterion": "Retain the verified implementation identity through direct binding, package build, collection and assessment."
         }
       ]
     }

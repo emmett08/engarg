@@ -34,7 +34,8 @@ that the author may refer to:
 
 ```bash
 engarg analyse --input request.json --evidence-planning direct \
-  --tools tools.toml --output analysis.json
+  --tools tools.toml --model configured-model --format json --output analysis.json \
+  --eal-host /opt/eal/bin/eal-host
 ```
 
 The model receives operation names, versions and pinned interface schemas. Executable paths, environment

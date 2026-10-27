@@ -162,7 +162,7 @@ The graph contract constrains context visibility and resource use. It supplies n
 
 This uses static strategy selection through ordinary functions. A trait hierarchy would add indirection to these closed, data-selected variants without changing the executor's graph contract. A new structure requires a builder, its enum variant and graph tests. Execution and final validation remain independent of the graph shape.
 
-Saved reports keep the existing `engarg.run.v2` schema. Earlier configurations without `debate` still load and use the legacy workflow. Rust callers constructing `RunConfig` with an exhaustive struct literal must add `debate: None` and `coordinator: None`, or use `..RunConfig::default()`. Public engine type paths remain unchanged after configuration extraction.
+Saved reports use the current `engarg.run.v3` schema. Omitting `debate` selects the ordinary role sequence; supplying it selects the declared debate topology. Rust callers can construct `RunConfig` with `..RunConfig::default()` for optional configuration fields.
 
 ## Relation to the protocol case study
 

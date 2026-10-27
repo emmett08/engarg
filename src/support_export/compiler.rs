@@ -2,6 +2,7 @@
 //!
 //! The execution plan is a compiler input. No plan, catalogue or connection JSON
 //! participates in execution of the emitted source.
+mod conditions;
 mod methods;
 mod requirements;
 mod values;
@@ -185,6 +186,7 @@ fn compile_evidence(
     values::compile(plan, policy, &mut compiled.declarations)?;
 
     requirements::compile(elaboration, plan, policy, &mut compiled)?;
+    conditions::complete(case, policy, &mut compiled)?;
     methods::compile(case, elaboration, plan, policy, &mut compiled)?;
     Ok(compiled)
 }

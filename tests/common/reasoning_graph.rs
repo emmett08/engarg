@@ -180,7 +180,6 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
         acquisitions: routes
             .iter()
             .map(|route| AcquisitionStep {
-                coverage_proof: None,
                 id: route.blueprint_id.clone(),
                 source: source(&route.capability),
                 arguments: json!({"fixture":"frozen-fixture-v1"}),

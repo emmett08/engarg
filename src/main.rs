@@ -56,7 +56,7 @@ enum Command {
         #[command(subcommand)]
         command: authoring_commands::AuthoringCommand,
     },
-    /// Convert to EAL/3 and invoke eal-mcp through its official host.
+    /// Convert to EAL/4 and invoke eal-mcp through its official host.
     Eal {
         #[command(subcommand)]
         command: Box<eal_commands::EalCommand>,
@@ -195,6 +195,10 @@ struct Analyse {
     /// Direct operator TOML bindings. Safe interfaces enter authoring, not credentials.
     #[arg(long, conflicts_with_all = ["evidence_config", "no_tool_planning"])]
     tools: Option<PathBuf>,
+    /// Selected execution host; its EAL/4 contracts are checked before authoring.
+    /// Without a host, portable source targets the linked EAL contracts.
+    #[arg(long, env = "EAL_HOST")]
+    eal_host: Option<PathBuf>,
     /// Generate and verify missing collector implementations after argument planning.
     #[arg(long, conflicts_with = "no_tool_planning")]
     implement_tools: bool,
@@ -438,6 +442,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         }
     };
     validate_request(&request).map_err(|v| Error::InvalidInput(v.join("; ")))?;
+    let target_runtime = engarg::runtime_compatibility::preflight(args.eal_host.as_deref()).await?;
     if args.tools.is_some() && args.evidence_planning != EvidencePlanning::Direct {
         return Err(Error::InvalidInput(
             "--tools requires --evidence-planning direct".into(),
@@ -449,8 +454,8 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         if args.evidence_config.is_some() {
             return Err(Error::InvalidInput("direct planning uses --tools; capability configuration belongs to explicit graph planning".into()));
         }
-        if args.implement_tools {
-            return Err(Error::InvalidInput("direct authoring does not execute tool generation; construct and verify missing tool implementations separately, then supply direct TOML bindings".into()));
+        if args.implement_tools && args.tools.is_none() {
+            return Err(Error::InvalidInput("direct tool generation requires --tools with operator-authorised existing bindings".into()));
         }
         Some(
             args.tools
@@ -665,12 +670,9 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             let result =
                 engarg::engine::run_with_support(&model, &request, &config, &observer, planner)
                     .await?;
-            let mut value = serde_json::to_value(&result.report)?;
-            value["support_elaboration"] =
-                serde_json::to_value(result.evidence_planning.elaboration)?;
-            value["direct_bindings"] = serde_json::to_value(result.evidence_planning.routes)?;
-            value["design_review"] = serde_json::to_value(result.evidence_planning.design_review)?;
-            Ok(value)
+            let mut report = engarg::report::with_direct(result)?;
+            report.target_runtime = Some(target_runtime.clone());
+            serde_json::to_value(report).map_err(Error::from)
         } else if let Some(planner) = &graph_planner {
             serde_json::to_value(
                 engarg::engine::run_with_support(&model, &request, &config, &observer, planner)
@@ -691,6 +693,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
     match result {
         Ok(mut report) => {
             report["provider_config"] = serde_json::to_value(provider_config)?;
+            report["target_runtime"] = serde_json::to_value(&target_runtime)?;
             report["limitations"].as_array_mut().ok_or_else(||Error::InvalidOutput("Run limitations missing".into()))?.push(json!(format!("HTTP transport allows {} retries per logical call with a maximum retry delay of {} seconds and {} concurrent request sequences. HTTP attempts have a separate bound from the logical model-call budget.", transport_config.max_http_retries,transport_config.retry_max_delay_secs,transport_config.max_concurrent_requests)));
             let argument: ArgumentCase = serde_json::from_value(report["argument"].clone())?;
             let original = report;
@@ -698,9 +701,12 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             let final_report = match &tooling_model {
                 Some(model) => {
                     progress.phase("implementing and verifying missing tools");
-                    let stage_result = tooling_commands::capability::run_capability_fallback(
+                    let stage_result = tooling_commands::run_direct_implementation(
                         model,
                         &original,
+                        args.tools.as_deref().ok_or_else(|| {
+                            Error::InvalidInput("tool generation requires --tools".into())
+                        })?,
                         &args.tooling,
                         args.max_input_bytes,
                         args.max_response_bytes,

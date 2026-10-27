@@ -160,7 +160,6 @@ pub(super) fn compile_fixed(
             result.execution.acquisitions.push(AcquisitionStep {
                 id: blueprint.id.clone(),
                 max_age_seconds: blueprint.contract.time.max_age_seconds,
-                coverage_proof: None,
                 source: SourceIdentity {
                     provider_id: "unavailable".into(),
                     capability_id: "unavailable".into(),
@@ -258,7 +257,6 @@ pub(super) fn compile_fixed(
         result.execution.acquisitions.push(AcquisitionStep {
             id: blueprint.id.clone(),
             max_age_seconds: blueprint.contract.time.max_age_seconds,
-            coverage_proof: None,
             source,
             arguments,
             bindings: blueprint.bindings.clone(),

@@ -186,3 +186,92 @@ fn accepted_report_bytes_preserve_the_existing_consumer_limit() {
     );
     assert_eq!(admitted_report_bytes(&json!({})).unwrap(), b"{}\n");
 }
+
+fn routed_checkpoint() -> Checkpoint {
+    use crate::engine::topology::{DebateConfig, Topology};
+    let mut saved = checkpoint();
+    saved.config.debate = Some(DebateConfig {
+        participants: 4,
+        rounds: 1,
+        topology: Topology::preset("ring", 4).unwrap(),
+        adaptation: Default::default(),
+    });
+    saved.config.max_calls = 11;
+    let roles = [Role::Constructor, Role::Sceptic, Role::EvidenceAuditor];
+    for (round, participants) in [[3, 2, 0, 1], [1, 3, 2, 0]].into_iter().enumerate() {
+        for participant in participants {
+            let mut record = call(&saved, roles[participant % roles.len()]);
+            record.prompt.user =
+                json!({"request":saved.request,"debate":{"participant":participant,"round":round}})
+                    .to_string();
+            saved.transcript.push(record);
+        }
+    }
+    for role in [Role::Synthesiser, Role::FinalCritic, Role::Adjudicator] {
+        saved.transcript.push(call(&saved, role));
+    }
+    saved
+}
+
+#[test]
+fn routed_rounds_preserve_each_participant_identity_and_parallel_arrival_order() {
+    let saved = routed_checkpoint();
+    saved.validate().unwrap();
+    let ordered = saved.ordered_transcript().unwrap();
+    for (index, record) in ordered[..8].iter().enumerate() {
+        let prompt = exact_json(record.prompt.user.as_bytes()).unwrap();
+        assert_eq!(prompt["debate"]["participant"], index % 4);
+        assert_eq!(prompt["debate"]["round"], index / 4);
+    }
+    assert_eq!(ordered[8].role, Role::Synthesiser);
+    let (mut metadata, order) = saved.compact_parent().unwrap();
+    assert_eq!(order, vec![3, 2, 0, 1, 5, 7, 6, 4, 8, 9, 10]);
+    metadata.transcript = order.iter().map(|index| ordered[*index].clone()).collect();
+    assert_eq!(
+        digest(serde_json::to_vec(&metadata).unwrap()),
+        digest(serde_json::to_vec(&saved).unwrap())
+    );
+    assert_eq!(saved.inspection()["resumable"], true);
+    for incomplete in [6, 8, 9, 10] {
+        let mut partial = saved.clone();
+        partial.transcript.truncate(incomplete);
+        partial.validate().unwrap();
+        assert_eq!(partial.inspection()["resumable"], false);
+    }
+}
+
+#[test]
+fn routed_checkpoint_rejects_duplicate_cross_round_and_wrong_role_calls() {
+    let saved = routed_checkpoint();
+    let mut duplicate = saved.clone();
+    duplicate.transcript[1] = duplicate.transcript[0].clone();
+    assert!(
+        duplicate
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("duplicate")
+    );
+    let mut crossed = saved.clone();
+    crossed.transcript.swap(0, 4);
+    assert!(
+        crossed
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("round")
+    );
+    let mut wrong_role = saved.clone();
+    wrong_role.transcript[0].role = Role::Sceptic;
+    wrong_role.transcript[0].prompt.role = Role::Sceptic;
+    assert!(
+        wrong_role
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("role")
+    );
+    let mut skipped = saved;
+    skipped.transcript.remove(0);
+    assert!(skipped.validate().is_err());
+}

@@ -1,0 +1,2 @@
+{"input": {"scenario": "positive"}, "operation": "snapshot"}
+{"input": {"items": ["Alpha", "Beta", "Gamma"]}, "operation": "audit"}

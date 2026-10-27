@@ -11,7 +11,7 @@ pub struct ExportPolicy {
     pub schema: String,
     pub review_max_age_seconds: u64,
     pub acquisition_max_age_seconds: u64,
-    /// Resolved entries cover every evidence need in a persisted v3 bundle.
+    /// Resolved entries cover every authored evidence need.
     #[serde(default)]
     pub acquisition_per_need: BTreeMap<String, u64>,
 }
@@ -55,11 +55,5 @@ impl ExportPolicy {
                 .or_insert(self.acquisition_max_age_seconds);
         }
         Ok(resolved)
-    }
-    pub(crate) fn acquisition_age(&self, id: &str) -> u64 {
-        self.acquisition_per_need
-            .get(id)
-            .copied()
-            .expect("policy resolved for every need")
     }
 }

@@ -303,7 +303,7 @@ where
     run_limitations.push("Evidence requirements were extracted independently of capability discovery. Binding previews describe acquisition possibilities; they are not acquired evidence or verified support.".into());
     Ok(SupportRunReport {
         report: RunReport {
-            schema_version: "engarg.run.v2".into(),
+            schema_version: "engarg.run.v3".into(),
             execution_mode: "provider_calls".into(),
             input_sha256: sha256_hex(serde_json::to_vec(request)?),
             provider_config: None,
@@ -313,6 +313,15 @@ where
             argument: candidate.argument,
             transcript,
             tooling: None,
+            support_elaboration: None,
+            direct_bindings: None,
+            design_review: None,
+            argument_revisions: Vec::new(),
+            target_runtime: None,
+            authoring_recovery: None,
+            evidence_planning: None,
+            replanning: None,
+            support_recovery: None,
             limitations: run_limitations,
         },
         evidence_planning: SupportPlanning {
@@ -858,7 +867,7 @@ mod tests {
         assert!(value.get("evidence_planning").is_some());
         assert!(value.get("report").is_none());
         let restored: SupportRunReport<Value> = serde_json::from_value(value).unwrap();
-        assert_eq!(restored.report.schema_version, "engarg.run.v2");
+        assert_eq!(restored.report.schema_version, "engarg.run.v3");
     }
 
     #[tokio::test]

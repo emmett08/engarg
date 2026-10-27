@@ -1,0 +1,13 @@
+[tools.snapshot_source]
+kind="command"
+version="1"
+argv=["/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3", "tools/measure.py", "snapshot"]
+timeout_seconds=10
+max_output_bytes=65536
+
+[tools.identifier_audit]
+kind="command"
+version="1"
+argv=["/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3", "tools/measure.py", "audit"]
+timeout_seconds=10
+max_output_bytes=65536

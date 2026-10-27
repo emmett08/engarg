@@ -32,7 +32,7 @@ status=int(os.environ.get('BUILD_STATUS' if kind=='build' else 'RUN_STATUS','0')
 if status: raise SystemExit(status)
 if kind=='build':
     out=pathlib.Path(sys.argv[sys.argv.index('--output-dir')+1]);out.mkdir(parents=True)
-    (out/'case.eal').write_text('language "EAL/3"\\n')
+    (out/'case.eal').write_text('language "EAL/4"\\n')
     (out/'tools.toml').write_text('[tools]\\n')
     (out/'build.json').write_text(json.dumps({{'claims':{{'current_claim':'claim_63757272656e745f636c61696d'}}}}))
 else: print(json.dumps({{'status':'supported'}}))
@@ -85,7 +85,7 @@ else: print(json.dumps({{'status':'supported'}}))
         self.assertTrue((self.output/'tools/snapshot.py').is_file())
         self.assertTrue((self.output/'tools/audit.py').is_file())
         self.assertIn('kind = "mcp_stdio"', (self.output/'tools.toml').read_text())
-        self.assertIn('profile "execution/1"', (self.output/'case.eal').read_text())
+        self.assertIn('language "EAL/4"\n', (self.output/'case.eal').read_text())
         self.assertFalse((self.output/'registered-planning.json').exists())
 
     def test_existing_output_and_mixed_modes_are_rejected_without_execution(self):

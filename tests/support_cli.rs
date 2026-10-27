@@ -269,3 +269,231 @@ sha256 = "{}"
     assert_eq!(resumed["authoring_recovery"]["new_model_calls"], 0);
     engarg::authoring_checkpoint::validate_recovery_report(&resumed).unwrap();
 }
+
+#[path = "common/executable_case.rs"]
+mod executable_case;
+#[allow(dead_code)]
+#[path = "common/reasoning.rs"]
+mod reasoning;
+#[allow(dead_code)]
+#[path = "common/reasoning_graph.rs"]
+mod reasoning_graph;
+
+fn authored_revision_package(host: Option<&std::path::Path>) {
+    use std::fs;
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let (request, case, elaboration) = executable_case::fixture();
+    fs::create_dir(root.join("tools")).unwrap();
+    fs::write(
+        root.join("tools/source.py"),
+        r#"import json,sys
+request=json.load(sys.stdin)
+if request['input']['operation']=='premise_source':
+    values=['a','b','c']
+    value={'measurement':{'count':len(values),'distinct':len(set(values))==len(values)}}
+else:
+    value={'applies':True}
+print(json.dumps({'value':value,'observed_at':'2026-10-25T12:00:00Z'}))
+"#,
+    )
+    .unwrap();
+    let manifest = root.join("tools.toml");
+    fs::write(&manifest,"[tools.premise_source]\nkind='command'\nversion='1'\nargv=['python3','tools/source.py']\ninherit_env=['PATH']\n[tools.applicability_source]\nkind='command'\nversion='1'\nargv=['python3','tools/source.py']\ninherit_env=['PATH']\n").unwrap();
+    let input = root.join("request.json");
+    fs::write(&input, serde_json::to_vec_pretty(&request).unwrap()).unwrap();
+    let provider_value = json!({"argument":live_output::generation_value(&case),"support_elaboration_json":serde_json::to_string(&elaboration).unwrap()});
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let endpoint = format!("http://{}/v1/responses", listener.local_addr().unwrap());
+    let server = thread::spawn(move || {
+        let (mut stream, _) = receive(&listener, 0);
+        let response = json!({"id":"revision-source","status":"completed","model":"fixture","output":[{"type":"message","content":[{"type":"output_text","text":provider_value.to_string()}]}]}).to_string();
+        write!(stream,"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}",response.len()).unwrap();
+    });
+    let authored = root.join("analysis.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["analyse", "--input"])
+        .arg(&input)
+        .arg("--tools")
+        .arg(&manifest)
+        .args([
+            "--model",
+            "fixture",
+            "--endpoint",
+            &endpoint,
+            "--mode",
+            "single",
+            "--max-calls",
+            "1",
+            "--max-repairs",
+            "0",
+            "--http-retries",
+            "0",
+            "--format",
+            "json",
+            "--output",
+        ])
+        .arg(&authored)
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("EAL_HOST")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    server.join().unwrap();
+    let original_bytes = fs::read(&authored).unwrap();
+    let original = load(&authored);
+    assert_eq!(original["schema_version"], "engarg.run.v3");
+    assert!(original["design_review"].is_object());
+    let mut changed_review = original.clone();
+    changed_review["design_review"]["active_acquisitions"] = json!(999);
+    assert!(engarg::report::read_direct(&changed_review).is_err());
+    let mut stale_target = original.clone();
+    stale_target["target_runtime"]["language"] = json!("obsolete-language");
+    assert!(engarg::report::read_direct(&stale_target).is_err());
+    let mut unrecorded_revision = original.clone();
+    unrecorded_revision["argument"]["adjudication"] =
+        json!("Edited outside the revision protocol.");
+    assert!(engarg::report::read_direct(&unrecorded_revision).is_err());
+    let mut omitted_review = original.clone();
+    omitted_review
+        .as_object_mut()
+        .unwrap()
+        .remove("design_review");
+    assert!(engarg::report::read_direct(&omitted_review).is_err());
+
+    let mut argument: ArgumentCase = serde_json::from_value(original["argument"].clone()).unwrap();
+    let support = root.join("support.json");
+    fs::write(&support, serde_json::to_vec_pretty(&elaboration).unwrap()).unwrap();
+    let candidate = root.join("candidate.json");
+    argument
+        .adjudication
+        .push_str(" The explicit revision retains the declared finite snapshot.");
+    fs::write(&candidate, serde_json::to_vec_pretty(&argument).unwrap()).unwrap();
+    let missing_support = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["eal", "revise", "--input"])
+        .arg(&authored)
+        .arg("--argument")
+        .arg(&candidate)
+        .arg("--output")
+        .arg(root.join("rejected.json"))
+        .output()
+        .unwrap();
+    assert!(!missing_support.status.success());
+    assert!(String::from_utf8_lossy(&missing_support.stderr).contains("--support-elaboration"));
+    assert!(!root.join("rejected.json").exists());
+    let mut previous = authored.clone();
+    for index in 1..=2 {
+        let target = root.join(format!("revision-{index}.json"));
+        let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
+            .args(["eal", "revise", "--input"])
+            .arg(&previous)
+            .arg("--argument")
+            .arg(&candidate)
+            .arg("--support-elaboration")
+            .arg(&support)
+            .arg("--tools")
+            .arg(&manifest)
+            .arg("--output")
+            .arg(&target)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let revised = load(&target);
+        assert_eq!(
+            revised["argument_revisions"].as_array().unwrap().len(),
+            index
+        );
+        assert_eq!(revised["transcript"], original["transcript"]);
+        assert_eq!(revised["direct_bindings"]["unbound_operations"], json!([]));
+        engarg::report::read_direct(&revised).unwrap();
+        argument = serde_json::from_value(revised["argument"].clone()).unwrap();
+        argument
+            .adjudication
+            .push_str(" All prior dissent remains retained.");
+        fs::write(&candidate, serde_json::to_vec_pretty(&argument).unwrap()).unwrap();
+        previous = target;
+    }
+    assert_eq!(fs::read(&authored).unwrap(), original_bytes);
+    let mut tampered = load(&previous);
+    tampered["argument_revisions"][0]["previous_report"]["argument"]["adjudication"] =
+        json!("replacement");
+    assert!(engarg::report::read_direct(&tampered).is_err());
+    let package = root.join("package");
+    let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["build", "--input"])
+        .arg(&previous)
+        .arg("--tools")
+        .arg(&manifest)
+        .arg("--output-dir")
+        .arg(&package)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let receipt: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let source = fs::read_to_string(package.join("case.eal")).unwrap();
+    assert!(source.starts_with("language \"EAL/4\""));
+    assert!(!source.contains("profile \"execution"));
+    if let Some(host) = host {
+        let host = host.canonicalize().unwrap();
+        let moved = tempfile::tempdir().unwrap();
+        fs::create_dir(moved.path().join("tools")).unwrap();
+        for file in ["case.eal", "tools.toml", "tools/source.py"] {
+            fs::copy(package.join(file), moved.path().join(file)).unwrap();
+        }
+        drop(directory);
+        let claim = receipt["claims"]["current_claim"].as_str().unwrap();
+        let output = Command::new(host)
+            .current_dir(moved.path())
+            .args([
+                "run",
+                "case.eal",
+                "--tools",
+                "tools.toml",
+                "--workspace",
+                "run",
+                "--claim",
+                claim,
+                "--now",
+                reasoning::NOW,
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let executed: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(executed["is_error"], false, "{executed}");
+        assert_eq!(
+            executed["result"]["assessment"]["claims"][claim]["status"], "supported",
+            "{executed}"
+        );
+    }
+}
+
+#[test]
+fn public_authoring_revision_revision_and_build_share_one_report_contract() {
+    authored_revision_package(None);
+}
+
+#[test]
+#[ignore = "requires installed ENGARG_EAL_HOST"]
+fn revised_public_authoring_package_executes_after_original_sources_are_removed() {
+    let host =
+        std::path::PathBuf::from(std::env::var_os("ENGARG_EAL_HOST").expect("ENGARG_EAL_HOST"));
+    authored_revision_package(Some(&host));
+}

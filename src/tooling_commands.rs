@@ -3,7 +3,7 @@ use clap::Args;
 use engarg::{
     Error,
     provider::LanguageModel,
-    tooling::{ToolchainProfile, ToolingConfig, ToolingSession},
+    tooling::{ToolchainProfile, capability::CapabilityImplementationConfig},
 };
 use serde_json::Value;
 use std::{
@@ -12,12 +12,8 @@ use std::{
     time::Duration,
 };
 
-pub mod capability;
-pub mod integration;
-mod native_provider;
 pub mod preflight;
 pub mod provider;
-pub mod registration;
 pub mod replay;
 
 #[derive(Args, Default)]
@@ -53,39 +49,14 @@ impl ToolOptions {
         })
     }
 
-    pub fn admit(
-        &self,
-        enabled: bool,
-        max_input_bytes: usize,
-        max_response_bytes: usize,
-    ) -> Result<Option<ToolingSession>, Error> {
-        self.config(enabled, max_input_bytes, max_response_bytes)?
-            .map(ToolingSession::admit)
-            .transpose()
-    }
-
-    /// Reuse operator-owned options while keeping capability coding separate from
-    /// legacy per-need overrides. Calling this method does not admit Docker or a model.
+    /// Admit the supplied toolchain authority without starting Docker or a model.
     pub fn capability_config(
         &self,
         enabled: bool,
         max_input_bytes: usize,
         max_response_bytes: usize,
-    ) -> Result<Option<engarg::tooling::capability::CapabilityImplementationConfig>, Error> {
-        Ok(self
-            .config(enabled, max_input_bytes, max_response_bytes)?
-            .map(
-                |config| engarg::tooling::capability::CapabilityImplementationConfig {
-                    language: config.language,
-                    profile: config.profile,
-                    store: config.store,
-                    max_calls: config.max_calls,
-                    max_input_bytes: config.max_input_bytes,
-                    max_response_bytes: config.max_response_bytes,
-                    supervisor: config.supervisor,
-                    engarg_executable: config.engarg_executable,
-                },
-            ))
+    ) -> Result<Option<CapabilityImplementationConfig>, Error> {
+        self.config(enabled, max_input_bytes, max_response_bytes)
     }
 
     fn config(
@@ -93,7 +64,7 @@ impl ToolOptions {
         enabled: bool,
         max_input_bytes: usize,
         max_response_bytes: usize,
-    ) -> Result<Option<ToolingConfig>, Error> {
+    ) -> Result<Option<CapabilityImplementationConfig>, Error> {
         let requested = self.tool_language.is_some()
             || self.toolchain.is_some()
             || self.tool_store.is_some()
@@ -128,11 +99,16 @@ impl ToolOptions {
         let store = self.tool_store.clone().ok_or_else(|| {
             Error::InvalidInput("tool implementation requires --tool-store".into())
         })?;
-        let config = ToolingConfig {
+        let output = self.output_dir()?;
+        if output.symlink_metadata().is_ok() {
+            return Err(Error::InvalidInput(
+                "tool implementation requires a new output directory".into(),
+            ));
+        }
+        let config = CapabilityImplementationConfig {
             language,
             profile,
             store,
-            output_dir: self.output_dir()?.to_path_buf(),
             max_calls: self.tool_max_calls.unwrap_or(16),
             max_input_bytes,
             max_response_bytes,
@@ -153,17 +129,27 @@ pub fn supervisor() -> Result<PathBuf, Error> {
     Ok(current.with_file_name(name))
 }
 
-/// Dropping an implementation future cancels its active verification runner.
-pub async fn run_stage<M: LanguageModel>(
-    session: &ToolingSession,
+/// The same direct operation stage serves explicit implementation and authoring.
+/// Dropping its future cancels active isolated verification through its RAII owner.
+pub async fn run_direct_implementation<M: LanguageModel>(
     model: &M,
     original: &Value,
-    timeout_seconds: u64,
+    tools: &Path,
+    options: &ToolOptions,
+    max_input_bytes: usize,
+    max_response_bytes: usize,
 ) -> Result<Value, Error> {
+    let implementation = options
+        .capability_config(true, max_input_bytes, max_response_bytes)?
+        .ok_or_else(|| Error::InvalidInput("tool implementation was not enabled".into()))?;
+    let config = engarg::tooling::direct::DirectImplementationConfig {
+        implementation,
+        output_dir: options.output_dir()?.to_path_buf(),
+    };
     let result = tokio::select! {
         result = tokio::time::timeout(
-            Duration::from_secs(timeout_seconds),
-            session.implement(model, original),
+            Duration::from_secs(options.deadline()),
+            engarg::tooling::direct::implement(model, original, tools, config),
         ) => result.map_err(|_| Error::Budget("tool implementation deadline exceeded".into()))?,
         interrupted = tokio::signal::ctrl_c() => {
             interrupted?;
@@ -174,14 +160,20 @@ pub async fn run_stage<M: LanguageModel>(
             return Err(Error::Budget("tool implementation terminated".into()));
         }
     }?;
-    result.with_tooling(original)
+    serde_json::to_value(result).map_err(Error::from)
 }
 
 #[derive(Args)]
 pub struct ImplementArgs {
-    /// Saved canonical analysis or supported EAL export bundle.
+    /// Saved canonical analysis with complete support elaboration.
     #[arg(long)]
     input: PathBuf,
+    /// Selected execution host, checked before implementation model calls.
+    #[arg(long, env = "EAL_HOST")]
+    eal_host: Option<PathBuf>,
+    /// Existing operator-authorised direct bindings; generated tools are added to a new copy.
+    #[arg(long = "tools")]
+    tools_manifest: PathBuf,
     /// Report phases, model calls and a ten-second waiting heartbeat on stderr.
     #[arg(long)]
     progress: bool,
@@ -211,44 +203,26 @@ async fn implement_with_progress(
     if output.exists() {
         return Err(Error::InvalidInput("output file already exists".into()));
     }
-    engarg::report::validate_replanning(&original, &std::env::current_exe()?)?;
-    let graph = matches!(
-        engarg::report::classify_evidence_planning(&original)?,
-        engarg::report::EvidencePlanningReport::Graph(_)
-    );
-    // Graph routes classify genuine implementation gaps before admitting Docker.
-    // The flat stage retains its existing image/runner/directory preflight.
-    let session = if graph {
-        args.tools.capability_config(
-            true,
-            args.provider.max_input_bytes,
-            args.provider.max_response_bytes,
-        )?;
-        None
-    } else {
-        args.tools.admit(
-            true,
-            args.provider.max_input_bytes,
-            args.provider.max_response_bytes,
-        )?
-    };
+    let mut admitted = engarg::report::read_direct(&original)?;
+    args.tools.capability_config(
+        true,
+        args.provider.max_input_bytes,
+        args.provider.max_response_bytes,
+    )?;
+    admitted.target_runtime =
+        Some(engarg::runtime_compatibility::preflight(args.eal_host.as_deref()).await?);
+    let original = serde_json::to_value(admitted)?;
     let model = progress.model(args.provider.model()?);
-    progress.phase("implementing and verifying missing tools");
-    let report = if graph {
-        capability::run_capability_fallback(
-            &model,
-            &original,
-            &args.tools,
-            args.provider.max_input_bytes,
-            args.provider.max_response_bytes,
-        )
-        .await?
-    } else {
-        let session = session
-            .as_ref()
-            .ok_or_else(|| Error::InvalidInput("implementation stage was not enabled".into()))?;
-        run_stage(session, &model, &original, args.tools.deadline()).await?
-    };
+    progress.phase("implementing and verifying missing operations");
+    let report = run_direct_implementation(
+        &model,
+        &original,
+        &args.tools_manifest,
+        &args.tools,
+        args.provider.max_input_bytes,
+        args.provider.max_response_bytes,
+    )
+    .await?;
     progress.phase("writing implemented analysis");
     let bytes = serde_json::to_vec_pretty(&report)?;
     let mut file = super::private_file(&output)?;

@@ -3,7 +3,6 @@ use engarg::{
     acquisition::{self, AcquisitionPlan, ToolArgument},
     collector_catalogue::CollectorCatalogue,
     domain::{ArgumentCase, Request},
-    eal_acquisition::{export_with_catalogue, reconstruct_bundle},
 };
 use serde_json::{Value, json};
 
@@ -76,8 +75,8 @@ fn optional_inputs_remain_absent_and_command_parameters_remain_required() {
     assert!(!acquisition::validate_with_catalogue(&case, &planned, Some(&catalogue)).is_empty());
 }
 #[test]
-fn explicit_null_and_unresolved_optional_values_preserve_saved_v3_reconstruction() {
-    let (request, case) = case();
+fn explicit_null_and_unresolved_optional_values_preserve_typed_inputs() {
+    let (_, case) = case();
     let catalogue = openapi_catalogue();
     for (optional, unresolved) in [
         (vec![arg("body", "null")], vec!["query".into()]),
@@ -95,11 +94,7 @@ fn explicit_null_and_unresolved_optional_values_preserve_saved_v3_reconstruction
                 unresolved_arguments: unresolved,
             },
         );
-        let exported = export_with_catalogue(&request, &case, &planned, Some(&catalogue)).unwrap();
-        assert_eq!(
-            serde_json::to_value(reconstruct_bundle(&exported.bundle).unwrap()).unwrap(),
-            serde_json::to_value(&exported.bundle).unwrap()
-        );
+        assert!(acquisition::validate_with_catalogue(&case, &planned, Some(&catalogue)).is_empty());
         let tool = catalogue.get("openapi.fixture").unwrap();
         let input = tool.input(&planned[0]).unwrap();
         if !planned[0].unresolved_arguments.is_empty() {
@@ -128,7 +123,7 @@ fn third_native_catalogue_preserves_typed_telemetry_and_delivery_plans() {
     let catalogue =
         CollectorCatalogue::from_json(include_bytes!("../contracts/collectors/native-v3.json"))
             .unwrap();
-    let (request, case) = case();
+    let (_, case) = case();
     for (id, arguments) in [
         (
             "datadog_logs",
@@ -172,10 +167,15 @@ fn third_native_catalogue_preserves_typed_telemetry_and_delivery_plans() {
         };
         let input = catalogue.get(id).unwrap().input(&plan).unwrap();
         assert!(input.get("start_unix").is_none_or(|v| v.is_u64()));
-        let exported =
-            export_with_catalogue(&request, &case, &plans(&case, plan), Some(&catalogue)).unwrap();
-        reconstruct_bundle(&exported.bundle).unwrap();
-        assert!(exported.tools_toml.contains("kind = \"command\""));
-        assert!(!exported.tools_toml.contains("observational"));
+        assert!(
+            acquisition::validate_with_catalogue(
+                &case,
+                &plans(&case, plan.clone()),
+                Some(&catalogue)
+            )
+            .is_empty()
+        );
+        let binding = catalogue.get(id).unwrap().binding(&plan).unwrap();
+        assert!(!binding.argv.is_empty());
     }
 }

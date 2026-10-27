@@ -44,6 +44,9 @@ pub struct ResumeArgs {
     /// Optional capability-discovery configuration for an explicitly graph-authored checkpoint.
     #[arg(long)]
     evidence_config: Option<PathBuf>,
+    /// Selected execution host to admit before any repair model call.
+    #[arg(long, env = "EAL_HOST")]
+    eal_host: Option<PathBuf>,
     #[arg(long)]
     output: PathBuf,
     #[arg(long)]
@@ -218,6 +221,7 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
         require_new(path)?;
     }
     let direct = args.evidence_config.is_none();
+    let target_runtime = engarg::runtime_compatibility::preflight(args.eal_host.as_deref()).await?;
     let planner = if let Some(path) = &args.evidence_config {
         RecoveryPlanner::Discovery(Box::new(crate::support_commands::admit(path).await?))
     } else {
@@ -268,17 +272,22 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
         )
         .await?;
         let added = report.report.transcript.len() - saved.transcript.len();
-        let mut value = serde_json::to_value(report)?;
+        let mut canonical = report.report;
+        let planning = report.evidence_planning;
         if direct {
-            let planning = value
-                .as_object_mut()
-                .unwrap()
-                .remove("evidence_planning")
-                .unwrap();
-            value["support_elaboration"] = planning["elaboration"].clone();
-            value["direct_bindings"] = planning["routes"].clone();
-            value["design_review"] = planning["design_review"].clone();
+            canonical.support_elaboration = Some(planning.elaboration);
+            canonical.direct_bindings = Some(serde_json::from_value(planning.routes)?);
+            canonical.design_review = planning.design_review;
+        } else {
+            canonical.evidence_planning = Some(engarg::engine::SupportPlanning {
+                schema: planning.schema,
+                elaboration: planning.elaboration,
+                routes: serde_json::from_value(planning.routes)?,
+                design_review: planning.design_review,
+            });
         }
+        canonical.target_runtime = Some(target_runtime.clone());
+        let mut value = serde_json::to_value(canonical)?;
         let (parent_metadata, parent_call_order) = saved.compact_parent()?;
         value["authoring_recovery"] = json!({"schema":"engarg.authoring-recovery/1","parent_checkpoint_sha256":parent_digest,"previous_checkpoint":parent_metadata,"previous_call_order":parent_call_order,
             "recorded_calls":saved.transcript.len(),"new_model_calls":added,"additional_repair_limit":args.max_repairs,
@@ -286,8 +295,8 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
             "previous_provider_config":saved.provider_config,"provider_config":args.provider.metadata(),
             "protocol_migration":saved.protocol_identity!=authoring_checkpoint::protocol_identity(),
             "previous_protocol":saved.protocol_identity,"current_protocol":authoring_checkpoint::protocol_identity()});
-        engarg::authoring_checkpoint::validate_recovery_report(&value)?;
-        publish(&args.output, &value)?;
+        let canonical = engarg::report::read(&value)?;
+        publish(&args.output, &serde_json::to_value(canonical)?)?;
         append(&audit, &json!({"event":"success","new_model_calls":added}))?;
         Ok(())
     };

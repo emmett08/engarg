@@ -1,5 +1,5 @@
 // Synthetic finite observation; no assertion about an external catalogue population.
-language "EAL/3" profile "execution/1"
+language "EAL/4"
 environment fixture {
   require true == true
 }

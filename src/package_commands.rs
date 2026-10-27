@@ -1,9 +1,7 @@
 //! CLI input admission for the portable executable package compiler.
 use clap::Args;
 use engarg::{
-    Error,
-    domain::{ArgumentCase, Request},
-    export_policy::ExportPolicy,
+    Error, domain::ArgumentCase, export_policy::ExportPolicy,
     support_requirements::SupportElaboration,
 };
 use std::path::PathBuf;
@@ -26,16 +24,13 @@ pub struct BuildArgs {
 
 pub fn build(args: BuildArgs) -> Result<(), Error> {
     let raw: serde_json::Value = super::read_json(&args.input, 16 * 1_048_576)?;
-    let request: Request = serde_json::from_value(raw["request"].clone())?;
-    let argument: ArgumentCase = serde_json::from_value(raw["argument"].clone())?;
-    let elaboration: SupportElaboration = serde_json::from_value(
-        raw.get("support_elaboration")
-            .or_else(|| raw.pointer("/evidence_planning/elaboration"))
-            .ok_or_else(|| {
-                Error::InvalidInput("Build requires the authored support_elaboration".into())
-            })?
-            .clone(),
-    )?;
+    let report = engarg::report::read_direct(&raw)?;
+    let request = &report.request;
+    let argument = &report.argument;
+    let elaboration = report
+        .support_elaboration
+        .as_ref()
+        .expect("validated direct report");
     let policy: ExportPolicy = args
         .export_policy
         .as_ref()
@@ -46,9 +41,9 @@ pub fn build(args: BuildArgs) -> Result<(), Error> {
         .transpose()?
         .unwrap_or_default();
     let receipt = engarg::package::build(
-        &request,
-        &argument,
-        &elaboration,
+        request,
+        argument,
+        elaboration,
         &args.tools,
         &args.output_dir,
         &policy,
@@ -65,6 +60,12 @@ pub struct ReviseArgs {
     /// Complete proposed ArgumentCase, including retained dissent applications.
     #[arg(long)]
     argument: PathBuf,
+    /// Complete revised support requirements; required when executable argument semantics change.
+    #[arg(long)]
+    support_elaboration: Option<PathBuf>,
+    /// Operator manifest used to recompute bindings for the revised operation set.
+    #[arg(long)]
+    tools: Option<PathBuf>,
     /// Inspect exact change contexts without accepting the revision.
     #[arg(long)]
     preview: bool,
@@ -75,26 +76,40 @@ pub struct ReviseArgs {
 
 pub fn revise(args: ReviseArgs) -> Result<(), Error> {
     use std::io::Write;
-    let mut raw: serde_json::Value = super::read_json(&args.input, 16 * 1_048_576)?;
-    // These are report extensions, not fields of the immutable authoring run.
-    for key in [
-        "evidence_planning",
-        "replanning",
-        "support_recovery",
-        "support_elaboration",
-        "direct_bindings",
-    ] {
-        raw.as_object_mut()
-            .ok_or_else(|| Error::InvalidInput("Report must be an object".into()))?
-            .remove(key);
-    }
-    let report: engarg::engine::RunReport = serde_json::from_value(raw)?;
+    let raw: serde_json::Value = super::read_json(&args.input, 16 * 1_048_576)?;
+    let report = if raw
+        .get("evidence_planning")
+        .is_some_and(|value| !value.is_null())
+    {
+        engarg::report::read_direct(&raw)?
+    } else {
+        engarg::report::read(&raw)?
+    };
     let argument: ArgumentCase = super::read_json(&args.argument, 16 * 1_048_576)?;
     let result = if args.preview {
         engarg::engine::support::revision::preview(&report, &argument)?
     } else {
-        serde_json::to_value(engarg::engine::support::revision::revise(
-            &report, argument,
+        let support: Option<SupportElaboration> = args
+            .support_elaboration
+            .as_ref()
+            .map(|path| super::read_json(path, 16 * 1_048_576))
+            .transpose()?;
+        let bindings = args
+            .tools
+            .as_ref()
+            .map(|path| {
+                let support = support
+                    .as_ref()
+                    .or(report.support_elaboration.as_ref())
+                    .ok_or_else(|| {
+                        Error::InvalidInput("--tools requires complete support_elaboration".into())
+                    })?;
+                engarg::direct_planning::DirectPlanner::from_tools(path)?
+                    .resolve_operations(&argument, support)
+            })
+            .transpose()?;
+        serde_json::to_value(engarg::engine::support::revision::revise_with_support(
+            &report, argument, support, bindings,
         )?)?
     };
     let mut output = std::fs::OpenOptions::new()

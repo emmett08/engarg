@@ -126,6 +126,16 @@ pub(super) fn copy(
     resources: BTreeSet<PathBuf>,
     publication: &mut super::publication::Publication,
 ) -> Result<BTreeMap<String, String>, Error> {
+    copy_prefixed(root, manifest, resources, publication, Path::new(""))
+}
+
+pub(super) fn copy_prefixed(
+    root: &Path,
+    manifest: &RegistryDocument,
+    resources: BTreeSet<PathBuf>,
+    publication: &mut super::publication::Publication,
+    prefix: &Path,
+) -> Result<BTreeMap<String, String>, Error> {
     let mut expected = BTreeMap::new();
     for binding in manifest.tools.values() {
         for pin in binding.pinned_files.iter().chain(
@@ -176,8 +186,61 @@ pub(super) fn copy(
             use std::os::unix::fs::PermissionsExt;
             permissions.set_mode(0o600 | (permissions.mode() & 0o111));
         }
-        publication.write(&relative, &bytes, Some(permissions))?;
-        pins.insert(relative.to_string_lossy().into_owned(), identity);
+        let destination = prefix.join(&relative);
+        publication.write(&destination, &bytes, Some(permissions))?;
+        pins.insert(destination.to_string_lossy().into_owned(), identity);
     }
     Ok(pins)
+}
+
+/// Freeze copied command inputs as implementation resources. Data selected by a
+/// tool at runtime stays an observation; additional implementation dependencies
+/// are declared explicitly with pinned_files rather than guessed by extension.
+pub(super) fn pin_implementations(
+    manifest: &mut RegistryDocument,
+    copied: &BTreeMap<String, String>,
+) -> Result<(), Error> {
+    for binding in manifest.tools.values_mut().filter(|binding| {
+        matches!(
+            binding.kind,
+            eal_collector_contracts::ToolKind::Command
+                | eal_collector_contracts::ToolKind::McpStdio
+        )
+    }) {
+        let mut pins = binding
+            .pinned_files
+            .iter()
+            .map(|pin| {
+                let path = Path::new(&pin.path)
+                    .components()
+                    .filter(|part| !matches!(part, Component::CurDir))
+                    .collect::<PathBuf>();
+                (path.to_string_lossy().into_owned(), pin.sha256.clone())
+            })
+            .collect::<BTreeMap<_, _>>();
+        for argument in &binding.argv {
+            let path = Path::new(argument);
+            if path.is_absolute() {
+                continue;
+            }
+            let key = path
+                .components()
+                .filter(|part| !matches!(part, Component::CurDir))
+                .collect::<PathBuf>();
+            if let Some(key) = key.to_str()
+                && let Some(sha256) = copied.get(key)
+                && let Some(previous) = pins.insert(key.into(), sha256.clone())
+                && previous != *sha256
+            {
+                return Err(Error::InvalidInput(
+                    "Copied implementation conflicts with an operator pin".into(),
+                ));
+            }
+        }
+        binding.pinned_files = pins
+            .into_iter()
+            .map(|(path, sha256)| eal_collector_contracts::PinnedFile { path, sha256 })
+            .collect();
+    }
+    manifest.validate().map_err(Error::InvalidInput)
 }
