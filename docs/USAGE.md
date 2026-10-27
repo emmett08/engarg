@@ -1,15 +1,23 @@
-# Using EngArg and EAL/4
+# From a claim to an executable investigation
 
-An investigation has four stages: author an argument, bind its observations to
-tools, build an executable EAL package, then collect evidence and assess the
-claim. `engarg analyse` performs the first stage. It does not fetch the evidence
-or establish the claim. `eal-host run` executes the EAL through `eal-mcp`, calls
-the configured tools, retains observations and performs the assessment.
+[Documentation](index.md) · [How the argument works](DOMAIN_MODEL.md)
+
+Consider a proposed CI change: run independent test groups in parallel to shorten
+the pipeline while preserving their outcomes. A plausible timing argument gives
+us a reason to investigate. To justify the change, we also need observations of
+the specified workload and evidence that concurrent groups do not interfere.
+
+The workflow below follows that distinction through four stages. `engarg analyse`
+authors the argument and its evidence obligations. You bind those obligations to
+actual tools and build an executable package. `eal-host run` then executes the EAL
+through `eal-mcp`, acquires observations and assesses the claim against its declared
+criteria. The final assessment can justify the bounded claim or explain what
+prevents support.
 
 The commands below use the public CLIs directly. No catalogue, tool registration
 or catalogue-authoring wrapper is required. Run them in Bash on Linux or macOS.
-Use new output paths for another attempt: reports, audits, checkpoints and
-package directories are retained rather than overwritten.
+Use new output paths for another attempt. Reports, audits, checkpoints and
+package directories preserve the earlier investigation.
 
 ## 1. Install the paired applications
 
@@ -31,15 +39,16 @@ engarg eal describe --eal-host "$EAL_HOST" --workspace "$ENGARG_REPO" \
 The installation helper builds the exact EAL revision pinned by this EngArg
 checkout. It installs the host, MCP server, method worker, process supervisor,
 collector and generated-tool runner together. Reuse the printed absolute host
-path; copying only `eal-host` leaves required companions missing. The helper is
+path and retain its companion directory. Copying only `eal-host` leaves required
+companions missing. The helper is
 an installation step and performs no argument authoring or evidence collection.
 The repositories declare their Rust toolchains in `rust-toolchain.toml`.
 
 `EAL_HOST` selects the runtime checked before authoring and tool generation.
 `ENGARG_EAL_HOST` supplies the default for `engarg eal collect`, `assess` and
 other runtime commands. Every example also supplies `--eal-host` explicitly.
-The default host starts its sibling `eal-mcp` over stdio for each invocation;
-you do not need to start a separate server or register one elsewhere.
+The default host starts its sibling `eal-mcp` over stdio for each invocation.
+That connection is established automatically within the selected installation.
 
 ## 2. State the question and available sources
 
@@ -69,8 +78,8 @@ the repository, revision and measurement scope with the actual intended case:
 }
 ```
 
-Supplied evidence excerpts help author the argument; their source URLs are not
-automatically fetched. Source access, measurement design and reviewer judgement
+Supplied evidence excerpts help author the argument. Fetching their source URLs
+requires an explicit acquisition. Source access, measurement design and reviewer judgement
 still need concrete evidence. A successful argument about this finite experiment
 would not establish that parallelisation improves every CI pipeline.
 
@@ -103,7 +112,8 @@ EAL acquisition request on stdin and emits an observation envelope such as
 `{"value": {...}, "observed_at": "ORIGINAL_UTC_MEASUREMENT_TIME"}` on stdout.
 The request contains `evidence_id`, `environment`, `tool`, `tool_version`,
 `input` and `context`. Keep diagnostics on stderr. Preserve original source
-timestamps for historical runs; reading them today does not make them fresh.
+timestamps for historical runs so their age remains visible when they are read
+again.
 
 Direct MCP tools also work. For an existing server, use the following shape,
 with the actual acquisition ID and operation name:
@@ -127,7 +137,7 @@ observed_at_pointer = "/observed_at"
 Commands and MCP stdio servers inherit only manifest-selected environment
 variables. The authoring model sees operation contracts, not command lines or
 credential values. Relative paths resolve from the manifest's directory. See
-[private tools](docs/PRIVATE_COLLECTORS.md) for the transport boundary.
+[private tools](PRIVATE_COLLECTORS.md) for the transport boundary.
 
 ## 3. Author and inspect the argument
 
@@ -148,7 +158,7 @@ jq '{bindings: .direct_bindings,
 export AUTHORING_REPORT="$PWD/analysis.json"
 ```
 
-Hybrid authoring normally uses six logical model calls; the command reserves
+Hybrid authoring normally uses six logical model calls. The command reserves
 one additional call for structurally invalid final output. It authorises a
 ten-minute deadline per logical call and a forty-minute overall deadline. Those are
 maximum waits, not expected durations or a claim that a slow model will finish.
@@ -162,11 +172,11 @@ An empty list does not mean that evidence or required reviews have been supplied
 
 ### If authoring times out
 
-The original command's default per-call deadline is 120 seconds; its overall
-deadline is 480 seconds. A provider timeout is separate from an EAL host or
+The default per-call deadline is 120 seconds and the overall deadline is
+480 seconds. A provider timeout is separate from an EAL host or
 collector timeout. Raising `--timeout-secs` alone does not raise the per-call
 deadline. Use both explicit deadline flags and `--progress` as above.
-Connection establishment also has a separate 15-second limit; increasing
+Connection establishment also has a separate 15-second limit. Increasing
 `--request-timeout-secs` does not raise it. A `connection_timeout` calls for
 checking network reachability and proxy configuration, rather than assuming
 the model needs more generation time.
@@ -190,15 +200,84 @@ export AUTHORING_REPORT="$PWD/resumed-analysis.json"
 ```
 
 The tools configuration must match the original authoring bytes. Recovery can
-finish or repair a retained final candidate; it cannot resume an interrupted
-specialist call or invent its absent completion. If `resumable` is false, use a
-fresh authoring attempt with new output, audit and checkpoint paths. A timed-out
+finish or repair a retained final candidate once the primary authoring stages
+are present. An interrupted specialist call leaves that prerequisite unmet.
+If `resumable` is false, use a fresh authoring attempt with new output, audit and
+checkpoint paths. A timed-out
 request is not automatically retried: the provider may have processed or billed
 it even when no response arrived.
 
+### If a structured response is rejected
+
+An HTTP 200 response means that the provider returned an envelope. EngArg must
+still check that it completed successfully and contains the selected API's
+structured output. Refusal, incomplete generation, invalid JSON and malformed
+envelope metadata require different actions.
+
+The audit retains a `response_rejected` receipt with the authoring role, HTTP
+attempt, status and a bounded `response_failure` record. Inspect it alongside the
+terminal failure:
+
+```sh
+jq 'select(.event == "failure" or
+           (.event == "http_attempt" and
+            (.record.kind == "response_rejected" or
+             .record.kind == "invalid_response_json")))' \
+  analysis.audit.jsonl
+```
+
+The record contains safe `kind` and `reason` labels, provider status or Chat
+finish reason, reported input/output/reasoning tokens, the configured output-token
+cap and a valid bounded response ID when supplied. It excludes generated text,
+refusal text and remote error messages. Missing provider usage remains unknown.
+
+| Retained finding | What to investigate next |
+|---|---|
+| `incomplete` with reason `max_output_tokens`, or Chat `length` | Inspect reported usage, input size and the model's context window. An output or context limit interrupted generation. A larger output budget helps only when the context still has room. |
+| `refusal` or `content_filter` | Review the request and the provider's stated policy. A longer deadline does not address this response. |
+| `invalid_response_json` or `malformed` | Check that the endpoint supports the selected Responses or Chat protocol and the requested structured-output contract. |
+| Another non-completed status or an unknown reason | Retain the safe receipt and investigate the provider result before changing budgets. |
+
+The older message `refused, incomplete or malformed structured response` combined
+these cases and did not retain the rejected envelope's diagnostic metadata. An
+audit showing three completed specialists followed by a synthesiser HTTP 200 and
+that message establishes the failure stage, but cannot identify which case
+occurred. A 10,000-token allowance makes exhaustion a plausible explanation, not
+a demonstrated cause.
+
+For reasoning models, the provider's output allowance includes reasoning as well
+as visible output. See the [OpenAI reasoning guide](https://developers.openai.com/api/docs/guides/reasoning)
+for that contract. The default 10,000-token cap, 131,072-byte retained-content
+limit and time deadlines are separate bounds. Increasing time alone cannot fix
+a token limit. A larger response may also need an explicitly larger byte allowance.
+
+If the receipt and available context identify an insufficient output allowance,
+the following is a new, larger-budget attempt using the same request and tools.
+It authorises up to 32,768 output tokens
+per call and a 1 MiB response, so consider the additional generation cost before
+running it. Use new paths again for any later attempt:
+
+```sh
+engarg analyse --input request.json --tools tools.toml \
+  --model "$ENGARG_MODEL" --api-key-env OPENAI_API_KEY \
+  --eal-host "$EAL_HOST" --format json \
+  --max-output-tokens 32768 --max-response-bytes 1048576 \
+  --request-timeout-secs 600 --timeout-secs 2400 \
+  --max-calls 7 --max-repairs 1 --progress \
+  --audit analysis-002.audit.jsonl --checkpoint analysis-002.checkpoint.json \
+  --output analysis-002.json
+export AUTHORING_REPORT="$PWD/analysis-002.json"
+```
+
+Refusal and truncation do not enter the structural repair loop or trigger an
+automatic retry. `--max-repairs` applies to invalid final model content after a
+completed response. A checkpoint ending before a completed synthesiser response
+cannot resume final validation because its primary stages are incomplete.
+
 ## 4. Supply or generate the missing tools
 
-An existing collector can be bound directly; code generation is optional.
+Bind an existing collector directly when it supplies the required acquisition.
+Use code generation when an operation needs an implementation.
 Generation requires a complete authored `operation_spec`, source access and a
 testable input/output contract. It cannot create missing production measurements,
 credentials, historical observations or independent review judgements.
@@ -206,7 +285,7 @@ credentials, historical observations or independent review judgements.
 EngArg freezes verification cases before coding, then builds and tests the
 candidate in the operator-selected container. Install Docker, prepare the trusted
 images and run the appropriate toolchain check before any coding calls. The
-full prerequisites are in [tool implementation](docs/TOOL_IMPLEMENTATION.md).
+full prerequisites are in [tool implementation](TOOL_IMPLEMENTATION.md).
 
 Build the selected trusted image before checking it:
 
@@ -239,11 +318,11 @@ jq '.runtime_network = "bridge" | .inherit_env = ["CI_READ_TOKEN"]' \
   operator-typescript.json > ci-typescript.json
 ```
 
-Docker `bridge` permits network access; it is not a host allowlist. Keep source
+Docker `bridge` permits network access without restricting it to selected hosts. Keep source
 selection and access restrictions in the tool's contract and deployment policy.
 For retained-data calculations, leave the network-disabled operator copies in
-place. The runner resolves the selected image to its immutable local identity;
-it does not pull an absent image during execution.
+place. The runner resolves the selected image to its immutable local identity
+and requires that image to exist locally before execution.
 
 Choose **one** language for an implementation attempt. These commands generate
 the same acquisition contracts in different implementation languages:
@@ -287,13 +366,14 @@ engarg eal implement --input "$AUTHORING_REPORT" --tools tools.toml \
 
 The stage retains source, frozen fixtures, build/test results and passing
 verification receipts. Its new `analysis.with-tools.json` is the canonical report
-for the next stage; `bindings/tools.toml` merges original and generated bindings.
-Generated packages run through the paired `eal-tool-run`; keep it installed with
-the host and supervisor. Passing fixtures establishes the recorded cases, not
+for the next stage. Its `bindings/tools.toml` merges original and generated bindings.
+Generated packages run through the paired `eal-tool-run`, which must remain
+installed with the host and supervisor. Passing fixtures establishes the recorded cases, not
 the empirical truth of a CI performance claim. A failed implementation remains a
 failed attempt with diagnostics, not a usable binding.
 
-Set the selected inputs for the remaining commands; this example uses Rust:
+Set the selected inputs for the remaining commands. This example selects the Rust
+implementation:
 
 ```sh
 export ANALYSIS="$PWD/implemented-rust/analysis.with-tools.json"
@@ -321,8 +401,8 @@ contain unanswered review obligations.
 
 For any `pending_reviews`, obtain genuine reviews of the exact criterion, target
 and scope. The request already includes the export context needed for identity
-checks. This command prepares a document for reviewers; its null values are
-deliberately unusable until the reviewers supply their decisions:
+checks. The following command prepares a document for reviewers. Its null values
+remain unusable until the reviewers supply their decisions:
 
 ```sh
 export TOOL_ROOT="$(dirname "$TOOLS")"
@@ -335,12 +415,12 @@ jq '{schema: "eal.review-inputs/2", reviews:
 Each `value` must repeat the request's `criterion`, `target` and `scope` and add
 the actual `reviewer`, `verdict`, nonempty `reasons` and original UTC
 `reviewed_at`. Verdicts are `supported`, `rejected` or `inconclusive`. Review the
-recorded evidence and assumptions before deciding; do not manufacture positive
-reviews to unblock execution. An unavailable measurement cannot be replaced by
+recorded evidence and assumptions before deciding. The verdict must express that
+review rather than an attempt to unblock execution. An unavailable measurement cannot be replaced by
 an affirmative review.
 
 For example, a completed `value` has this shape. Copy `criterion`, `target` and
-the complete JSON `scope` from that request; replace all illustrative content
+the complete JSON `scope` from that request, then replace the illustrative content
 with the actual review. `reviewed_at` is when the reviewer made the judgement,
 not when this file was imported:
 
@@ -356,9 +436,9 @@ not when this file was imported:
 }
 ```
 
-A request with missing scope or an unavailable measurement is a design/evidence
-gap; do not fill it with a positive review. Supply its observation or explicitly
-revise the support contract.
+A request with missing scope or an unavailable measurement needs its stated
+observation or an explicit support-contract revision. An affirmative review alone
+cannot resolve that gap.
 
 Once the records are complete, add the importer binding to the selected manifest
 and build a new package. Copy the manifest beside the original first, preserving
@@ -381,12 +461,12 @@ EOF
 engarg build --input "$ANALYSIS" --tools "$TOOLS" --output-dir reviewed-investigation
 ```
 
-Do not add a duplicate table if the manifest already binds
-`engarg_review_contract`; update that operator binding instead. If there are no
+If the manifest already binds `engarg_review_contract`, update that operator
+binding in the copied manifest. TOML requires each table to be unique. If there are no
 reviews, use the original `investigation` package. Missing, rejected,
 inconclusive, stale or mismatched reviews remain visible in the assessment.
-The importer checks correspondence and age; it does not authenticate reviewer
-identity or establish their independence.
+The importer checks correspondence and age. Reviewer identity and independence
+require their own assurance.
 
 ## 6. Execute the EAL, collect and assess
 
@@ -407,14 +487,14 @@ jq '{is_error, error, collection_id: .result.collection.collection_id,
 
 This is execution through `eal-mcp`: the host initializes MCP, discovers the
 operation schema and invokes `execute`. The EAL program selects evidence
-dependencies; TOML grants the concrete command/MCP/file/HTTP authority. Collection
+dependencies. TOML grants the concrete command/MCP/file/HTTP authority. Collection
 retains original observation clocks and request identities in the run store,
 and assessment applies the evidence predicates and reasoning methods. Keep the
 run directory and `execution.json` together with the source package.
 
 Set source credentials in the environment before running. A binding can access
 only the names granted in its `inherit_env`. This direct host command uses the
-calling environment; the EngArg runtime wrappers below add a second explicit
+calling environment. The EngArg runtime wrappers below add a second explicit
 forwarding boundary through `--collector-env`.
 
 The host's `--timeout 3600` bounds the whole MCP exchange. It does not raise a
@@ -426,14 +506,14 @@ Host exit status zero means the operation returned successfully. Inspect the
 assessment too: `valid: true` and `complete: true` do not mean the claim is
 supported. Claim `unsupported` is not a finding that the claim is false. Examine
 unavailable evidence, failed predicates, rejected premises and objections to
-understand a non-supporting result. A measured negative is useful evidence;
-source failure and missing observations are different outcomes.
+understand a non-supporting result. A measured negative is useful evidence.
+Source failure and missing observations leave different questions unresolved.
 
 ### Collect and assess as separate operations
 
 Use this alternative when you need to inspect the collection before assessment.
 Both commands must use the same package, context and run store. Create the
-workspace first; EngArg's wrapper requires it to exist.
+workspace first because EngArg's wrapper requires it to exist.
 
 ```sh
 mkdir run-staged
@@ -460,8 +540,8 @@ engarg eal packet --assessment-id "$ASSESSMENT_ID" --claim "$CLAIM" \
   --eal-host "$EAL_HOST" --workspace "$PWD/run-staged" --output packet.json
 ```
 
-For a credentialed collector, add `--collector-env CI_READ_TOKEN` to `collect`;
-the name must also occur in the selected manifest's `inherit_env`. A bare command
+For a credentialed collector, add `--collector-env CI_READ_TOKEN` to `collect`.
+The name must also occur in the selected manifest's `inherit_env`. A bare command
 such as `python3` may also need `--collector-env PATH`. Only operator-declared
 public configuration should additionally use `--public-collector-env NAME`.
 No API model key is needed for validation, planning, collection or assessment
@@ -471,7 +551,7 @@ unless an explicitly bound evidence tool itself uses that service.
 again. It preserves the original evidence age. To obtain new measurements, run
 `collect` again with a new output path, then assess its new collection ID.
 Do not change the EAL or context and attach an old collection to it.
-The explicit assessment clock above retains fractional seconds; truncating the
+The explicit assessment clock above retains fractional seconds. Truncating the
 current time can incorrectly place a just-collected observation in the future.
 
 ## 7. Resolve gaps and revise explicitly
@@ -479,12 +559,12 @@ current time can incorrectly place a just-collected observation in the future.
 | Finding | Required next action |
 |---|---|
 | Missing direct binding | Supply the actual operation or generate a verified implementation, then build a new package. |
-| Missing source access or observations | Grant the intended source permissions or perform the defined measurements; collect again. |
+| Missing source access or observations | Grant the intended source permissions or perform the defined measurements, then collect again. |
 | Required review absent or inconclusive | Obtain the exact scoped review and retain its original time and reasons. |
-| Valid negative measurement | Retain it; reconsider or narrow the claim rather than changing its acceptance threshold after observing it. |
+| Valid negative measurement | Retain the result and reconsider or narrow the claim through an explicit revision. |
 | Inapplicable assumption or unresolved challenge | Obtain its specified evidence or explicitly revise the argument. |
 | Method/query or acceptance criterion is wrong | Make an explicit argument/support revision, rebuild and collect against the new requests. |
-| Tool process deadline | Inspect its receipt; adjust the operator tool timeout and host deadline only when justified. This is separate from model authoring timeouts. |
+| Tool process deadline | Inspect its receipt and adjust the operator tool timeout and host deadline only when justified. This is separate from model authoring timeouts. |
 
 Do not hand-edit the accepted report and retain its old provenance. Export the
 current argument and elaboration as starting points for a reviewed revision:
@@ -531,6 +611,6 @@ jq '.result.assessment | {valid, complete, claim: .claims.inventory_verified}' \
 Expect a supported claim about exactly the retrieved three-entry synthetic
 snapshot. This verifies installation and execution, not the CI performance
 claim or an external catalogue's population. For API and contract details, see
-[executable packages](docs/executable-packages.md),
-[reasoning methods](docs/REASONING_METHODS.md) and
+[executable packages](executable-packages.md),
+[reasoning methods](REASONING_METHODS.md) and
 [EAL direct tool manifests](https://github.com/emmett08/eal-mcp/blob/main/docs/direct-tools.md).

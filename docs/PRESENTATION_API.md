@@ -1,73 +1,79 @@
-# Bounded argument presentations
+# Present an argument without losing its conditions
 
-EngArg 0.10 replaces the public `String` rendering results with
-`Result<String, RenderError>`.
-Callers must handle an explicit resource error before writing a result.
-The CLI uses these checked entry points.
-A successful result contains the complete requested view.
-An error never returns a truncated document as a successful assessment.
+[Documentation](index.md) · [Argument model](DOMAIN_MODEL.md)
 
-Every backend shares `RenderLimits`.
-The default ceilings permit 100,000 records and 500,000 reference edges.
-They permit 16 MiB of encoded argument input and 16 MiB of output.
-Working storage is charged conservatively against 192 MiB.
-The work allowance is eight million conservative visit units.
-An index query reserves enough units for its traversal and formatting passes.
-These are logical allocation and work bounds rather than operating system RSS
-or wall-clock deadlines.
-The `*_with_limits` entry points let applications select lower ceilings.
-The encoded input is counted without allocating a second encoded document.
-Output storage stops growing when its byte allowance is exhausted.
-The extended template streams repeated evidence and condition descriptions from
-borrowed records through its escaping writer.
-It does not retain one expanded source copy per reference or build all fourteen
-argument entries before checking the output allowance.
-A failed output write stops the remaining cell and record expansion.
-Composition summaries use the same streaming path, including inspection views
-with duplicate composition diagnostics.
-Repeated lookups of one retained rationale therefore share the output allowance
-without first allocating one rationale copy per record.
+A short view of the CI claim still needs to show the conditions on which it
+depends. Hiding a deeper derivation should not make a conditional conclusion
+appear unconditional. EngArg's renderers therefore share the admitted argument
+view and retain consequential selected-route conditions at display boundaries.
 
-The shared borrowed `PresentationView` consumes the index from
-`ValidatedArgument` when domain admission succeeds.
-It owns canonical claim lookup and route selection for every formatter.
-It also owns consequential conditions, warrant-specific dependencies and
-attachment traversal.
-It indexes supplied evidence and its uses once.
-The formatting backends own escaping, anchors and layout.
-They use literal authored propositions and retain the recorded assessment.
-Rendering does not establish that the propositions are true.
+Public rendering functions return `Result<String, RenderError>`. Callers handle
+the error before writing a result. A successful result contains the complete
+requested view within its declared limits. Exhausting a limit produces an error,
+so a partial document cannot be mistaken for a complete assessment. The CLI uses
+these checked entry points.
 
-The convenience functions also retain the existing inspection behaviour for
-reports that have narrative or assessment-policy validation errors.
-Conflicting identities and broken graph references require repair before rendering.
-This compatibility path builds an inspection index after failed admission.
-It has the same resource ceilings and never treats its index as an admission
-certificate.
-Every backend places an inspection notice and its domain diagnostics beside
-the report heading.
-The notice states that domain validation failed and that the recorded assessments
-require repair.
-The extended template also retains the diagnostics in its composition checks.
-Canonical CLI reports undergo domain admission before rendering.
+## Share meaning and bound the presentation work
 
-Attachment traversal uses an explicit stack.
-It visits assumptions before their nested attachments and then challenges.
-Investigations follow the attachments of their target.
-Shared targets and attachment cycles expand once per traversal.
-Claim indentation is bounded.
-Deeper support appears in shallow detail records or in the explicitly selected
-display-depth summary.
-Consequential selected-route conditions remain available at a display-depth boundary.
-In HTML, the closed heading retains the qualification and a reliance-condition count.
-The full condition statements sit outside `summary` so the native disclosure
-control can hide and reveal them with the supporting argument.
-Those statements remain in the disclosed body when display depth omits deeper support.
+`PresentationView` borrows the index from `ValidatedArgument` after admission.
+It supplies canonical claim lookup, selected routes, warrant dependencies and
+attached conditions to every formatter. Evidence and its uses are indexed once.
+Backends own escaping, anchors and layout. They display literal authored
+propositions and the recorded assessment, whose truth still depends on evidence.
 
-`with_audit` now accepts decoded `serde_json::Value`.
-It checks JSON depth and work iteratively before pretty printing.
-It shares the output and working-storage ceilings of the other renderers.
-Its fence is longer than any embedded run of backticks.
-A failed JSON or output budget rejects the audit append.
-The generic `Serialize` entry point was removed because arbitrary user-supplied
-serialisers provide no inspectable traversal boundary.
+Every backend accepts the same `RenderLimits`:
+
+| Resource | Default ceiling |
+| --- | ---: |
+| Records | 100,000 |
+| Reference edges | 500,000 |
+| Conservative visit units | 8,000,000 |
+| Encoded argument input | 16 MiB |
+| Output | 16 MiB |
+| Conservatively charged working storage | 192 MiB |
+
+These are logical allocation and work bounds. They do not measure operating
+system RSS or impose a wall-clock deadline. The `*_with_limits` entry points
+allow applications to select lower ceilings. Index queries reserve work for
+their traversal and formatting passes before execution.
+
+The input is counted without allocating a second encoded document, and output
+storage stops growing at its allowance. Repeated evidence, conditions and
+composition rationales stream from borrowed records through the escaping writer.
+A failed write stops further expansion. This keeps repeated references from
+allocating a complete source copy for every occurrence before the output bound
+can be checked.
+
+## Keep inspection distinct from accepted input
+
+Library convenience functions can show arguments with narrative or assessment
+policy errors when their identities and graph references remain safe. They build
+an inspection index with the same resource ceilings and place a notice and domain
+diagnostics beside the report heading. The notice identifies the failed domain
+validation and the need to repair the recorded assessments. Conflicting identities
+or broken graph references require repair before rendering. Canonical CLI reports
+undergo domain admission before presentation.
+
+Attachment traversal uses an explicit stack. It visits assumptions and their
+nested attachments before challenges, and follows investigations attached to each
+target. Shared targets and cycles expand once per traversal. Bounded indentation
+keeps deep arguments readable, with deeper support in shallow detail records or
+an explicitly selected display-depth summary.
+
+In HTML, a closed heading retains the qualification and the number of reliance
+conditions. Their full statements appear in the disclosure body, outside
+`summary`, so the native control can hide and reveal them with the supporting
+argument. Those conditions remain available when the display-depth setting omits
+deeper derivations.
+
+## Append a retained audit safely
+
+`with_audit` accepts a decoded `serde_json::Value`. It checks JSON depth and work
+iteratively before pretty printing, and shares the renderer's output and working
+storage ceilings. Its Markdown fence is longer than any embedded backtick run.
+Exhausting a JSON or output budget rejects the append. Accepting decoded JSON
+gives the function an inspectable traversal boundary.
+
+Use the rendering commands in [USAGE.md](USAGE.md) to inspect a retained report.
+The [validation guide](VALIDATION.md) explains the checks that distinguish a
+well-formed presentation from an adequately supported claim.

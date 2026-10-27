@@ -1,9 +1,12 @@
-# Private evidence tools
+# Connect evidence from a private system
 
-Private collectors are ordinary direct bindings in an operator-owned
-`tools.toml`. EAL/4 owns acquisition dependencies, derived values, acceptance
-criteria, reasoning methods and scoped review obligations. Tools supply
-observations; they do not certify the argument merely by returning successfully.
+[Documentation](index.md) · [Support requirements](support-planning.md)
+
+A CI investigation often needs records that only the engineering team can read.
+The operator binds that source in `tools.toml`, choosing the executable or MCP
+endpoint and the credentials it may use. The authored EAL programme specifies
+which observations are needed and how they affect the claim. This separates the
+question being investigated from the authority to access a particular system.
 
 For example, bind an existing MCP tool to an authored acquisition ID:
 
@@ -23,15 +26,25 @@ value_pointer = "/value"
 observed_at_pointer = "/observed_at"
 ```
 
-Keep endpoint selection, credentials and executable paths in operator
-configuration. Environment values are supplied at execution; secret values must
-not be embedded in source, reports or generated code. The authoring model sees
-operation names, versions and any pinned interface schemas.
+The response projection extracts the observation value and its original time.
+A successful MCP exchange establishes that a response was obtained. The EAL
+requirements separately check whether that value meets the claim's acceptance
+criteria, scope and freshness requirements.
+
+Keep endpoint selection and executable paths in operator configuration. Supply
+secret values through the runtime environment rather than source, reports or
+generated code. Authoring receives operation names, versions and any pinned
+interface schemas. It can reason about the declared operation without receiving
+credential values or choosing a new executable.
+
+## Build with the bindings that will actually run
+
+After configuring the host as described in [USAGE.md](USAGE.md), author and build:
 
 ```sh
 engarg analyse --input request.json --tools tools.toml \
-  --model configured-model --format json --output analysis.json \
-  --eal-host /opt/eal/bin/eal-host
+  --model "$ENGARG_MODEL" --api-key-env OPENAI_API_KEY --format json --output analysis.json \
+  --eal-host "$EAL_HOST"
 
 engarg build --input analysis.json --tools tools.toml --output-dir investigation
 
@@ -40,25 +53,30 @@ eal-host run investigation/case.eal --tools investigation/tools.toml \
 ```
 
 The build copies admitted local resources and verifies declared pins. Relative
-paths remain relative to the manifest directory after moving the package.
-Declare required source credentials explicitly through the runtime's environment
-options. An unavailable source, missing permission, historical gap or stale
-observation remains an execution gap.
+paths resolve from the manifest directory, including after the package is moved.
+The direct `eal-host` command uses the calling environment, subject to the
+manifest's `inherit_env` list. EngArg's separate collection wrappers add an
+explicit `--collector-env` forwarding boundary, as shown in [USAGE.md](USAGE.md).
+A missing permission, unavailable source or stale observation remains an
+acquisition gap in the retained execution result.
 
-An acquisition without a binding can be implemented when its authored
-`operation_spec` supplies a parameterised function definition and input/output
-contracts. Use the explicit [tool implementation stage](TOOL_IMPLEMENTATION.md)
-with an operator-selected toolchain and call budget. It freezes synthetic
-fixtures before coding, verifies the implementation, exports its portable tool
-package, and merges its binding into a new TOML. A successful synthetic fixture
-run is not evidence that a private production claim is true.
+## Implement a missing operation from its contract
 
-There is one executable package workflow. The former `eal prepare`, JSON export
-bundles and automatically manufactured custom stubs have been removed. Reauthor
-or explicitly revise old reports into the current canonical report with complete
-support elaboration, then build the package. Optional capability discovery can
-help select tools; execution requires only the EAL source, concrete TOML and
-referenced implementations.
+An unbound acquisition can be implemented when its authored `operation_spec`
+defines a parameterised operation and its input/output contracts. The explicit
+[tool implementation stage](TOOL_IMPLEMENTATION.md) freezes synthetic fixtures,
+generates or repairs source under a selected toolchain and call budget, then
+verifies and exports a portable package. A passing fixture demonstrates the
+recorded implementation cases. Production evidence still requires access to the
+actual source under the intended scope.
 
-See [executable packages](executable-packages.md),
-[reasoning methods](REASONING_METHODS.md) and [tickets](TICKETS.md).
+Review obligations follow the same identity discipline. A scoped judgement
+needs the exact criterion, target and context, with the reviewer's original
+verdict, reasons and time. Reading a retained review file preserves its original
+age. See [the compiler mapping](EAL_MAPPING.md#scoped-reviews) for that contract
+and [USAGE.md](USAGE.md) for importing reviews before execution.
+
+Once these bindings are present, the [package workflow](executable-packages.md)
+uses the EAL source, TOML and referenced implementations directly. Optional
+[tickets](TICKETS.md) coordinate the same stages when a durable run record is
+useful.

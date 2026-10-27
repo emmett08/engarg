@@ -1,9 +1,12 @@
-# Optional tool implementation
+# Implement the operation that the claim needs
 
-Tool authoring is a separate, explicit stage. An existing implementation can be
-bound directly in `tools.toml`; no generation or qualification catalogue is
-required. When an operation is missing, retain its input/output contract and
-acceptance tests before generating or writing an implementation.
+[Documentation](index.md) · [Support requirements](support-planning.md)
+
+A claim about CI duration might need a reader for pipeline traces or a calculation
+over retained run records. Bind an existing implementation in `tools.toml` when
+one meets that requirement. If the operation is missing, first establish its
+input/output contract and acceptance cases. Those determine what the generated
+implementation must do and what its tests can establish.
 
 EngArg's optional implementation stage supports operator-selected toolchains
 and bounded model calls. The configuration fixes the compiler or interpreter,
@@ -40,7 +43,7 @@ eal-host run investigation/case.eal --tools investigation/tools.toml --workspace
 The selected host's EAL/4 capabilities are checked before implementation model
 calls. `implemented/analysis.with-tools.json` uses the same typed report contract
 as authoring, revision and build. Its `tooling.tools` field identifies the merged
-manifest; `tooling.operations` retains the exact tested package per acquisition.
+manifest. `tooling.operations` retains the exact tested package per acquisition.
 Original bindings and their environment grants are preserved. Missing operation
 semantics remain explicit gaps, and missing source access or credentials cannot
 be supplied by code generation.
@@ -48,13 +51,13 @@ be supplied by code generation.
 `analyse --implement-tools` runs this same stage after authoring when `--tools`,
 `--format json`, `--output` and the toolchain/store/budget options above are
 supplied. `engarg ticket` can opt into the same stage through an explicit
-`implementation` configuration. Neither command uses per-need custom stubs or a
-second registration workflow.
+`implementation` configuration. All three entry points retain the same
+contracts, verification receipts and generated package identities.
 
-## Rust, Go and TypeScript generation
+## Select a prepared language toolchain
 
 Build the trusted images once from the repository root. This is the stage that
-may download compilers and dependencies; generated collectors build and run
+may download compilers and dependencies. Generated collectors build and run
 without dependency installation or fixture network access.
 
 ```sh
@@ -70,7 +73,8 @@ engarg eal toolchain-check --toolchain examples/toolchains/typescript.json --out
 Each preflight actually compiles or checks its host-owned probe, reads stdin and
 a fixture, and verifies that source and fixture mounts are read-only. Inspect the
 receipt's `passed` field before spending model calls. The runner resolves a local
-tag to an immutable image ID and retains that identity; it never pulls an image.
+tag to an immutable image ID and retains that identity. The image must already
+be available locally.
 For reproducible deployment, select the inspected image ID in a copy of the
 operator JSON before preflight, then keep that copy with the run:
 
@@ -80,7 +84,7 @@ docker image inspect --format '{{.Id}}' engarg-go-tools:1.25.14
 
 Use the following alternatives against the same admitted `analysis.json` and
 operator `tools.toml`. Select one language per implementation attempt and a new
-output directory. The model authors the frozen fixtures and source; the runner
+output directory. The model authors the frozen fixtures and source. The runner
 compiles and verifies them before exporting a usable binding.
 
 ```sh
@@ -105,16 +109,16 @@ engarg eal implement --input analysis.json --tools tools.toml \
 
 | Language | Entry source | Available dependencies | Build and runtime |
 |---|---|---|---|
-| Rust | `main.rs` | Rust standard library, pinned `serde`, `serde_json`, `reqwest` | Fixed `rustc` wrapper; `/build/collector` |
-| Go | `main.go` | Precompiled pure-Go standard library | Fixed `go tool compile`/`link` wrapper; `/build/collector` |
-| TypeScript | `collector.ts` | TypeScript 5.9.3, Node 24 API declarations | Strict `tsc` compile; Node executes `/build/collector.js` |
+| Rust | `main.rs` | Rust standard library, pinned `serde`, `serde_json`, `reqwest` | Fixed `rustc` wrapper. Runs `/build/collector` |
+| Go | `main.go` | Precompiled pure-Go standard library | Fixed `go tool compile`/`link` wrapper. Runs `/build/collector` |
+| TypeScript | `collector.ts` | TypeScript 5.9.3, Node 24 API declarations | Strict `tsc` compile. Node executes `/build/collector.js` |
 
 The Go wrapper does not load Go modules or compile cgo. The TypeScript image
-installs the checked-in npm lockfile during its trusted build; generated source
-cannot install packages. Supply a deliberately extended trusted image and
+installs the checked-in npm lockfile during its trusted build. Generated source
+uses those prepared dependencies. Supply a deliberately extended trusted image and
 operator toolchain when an investigation needs another dependency. Runtime
-network access remains `none` in these examples; a real external collector needs
-an explicit operator network and credential grant. See [USAGE.md](../USAGE.md)
+network access remains `none` in these examples. A real external collector needs
+an explicit operator network and credential grant. See [USAGE.md](USAGE.md)
 for the complete authoring, implementation, evidence and assessment sequence.
 
 ## Verify and retain
@@ -122,9 +126,9 @@ for the complete authoring, implementation, evidence and assessment sequence.
 The measurement contract and fixtures are frozen before coding. Verification
 checks positive, measured-negative and acquisition-error cases, malformed
 requests, request identity, output schema and bounded execution. Original source
-timestamps remain necessary for observations; a calculator's execution time
-cannot refresh its inputs. Passing fixtures demonstrate the recorded cases,
-not general scientific adequacy or source completeness.
+timestamps remain necessary for observations. A calculator retains the age of
+its inputs. Passing fixtures demonstrate the recorded cases. Scientific adequacy
+and source completeness need their own evidence.
 
 Repairs retain the frozen contract, previous candidate, bounded failure
 diagnostics and remaining budgets. Source/build/test defects can receive another
@@ -155,8 +159,8 @@ engarg eal tool-export --package PATH/package.json \
 The new directory contains the source, pinned input/output schemas,
 `verification.json`, `tool.toml`, a direct `tools.toml` binding and execution
 instructions. It invokes EAL's `eal-tool-run`, which enforces the package's pinned
-image, schemas, build/run arguments and resource policy. EAL executes this tool
-without the EngArg authoring executable, a capability registry or a model.
+image, schemas, build/run arguments and resource policy. EAL can execute that
+exported implementation independently of EngArg authoring.
 Install the matching `eal-tool-run` and `eal-process-supervisor` companions,
 Docker and the already verified immutable image. The runner does not pull images.
 
@@ -165,7 +169,8 @@ binding and referenced files into the investigation's operator manifest, then:
 
 ```sh
 engarg analyse --input request.json --tools tools.toml \
-  --model configured-model --format json --output analysis.json
+  --model configured-model --eal-host /opt/eal/bin/eal-host \
+  --format json --output analysis.json
 engarg build --input analysis.json --tools tools.toml --output-dir investigation
 eal-host run investigation/case.eal --tools investigation/tools.toml --workspace run
 ```

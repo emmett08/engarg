@@ -245,3 +245,171 @@ async fn rejected_effort_fails_without_retry_or_fallback() {
     assert!(error.to_string().contains("no automatic retry"));
     assert!(!error.to_string().contains("private"));
 }
+
+#[tokio::test]
+async fn rejected_response_receipts_distinguish_truncation_refusal_and_wire_errors() {
+    use engarg::provider::{HttpEvent, HttpObserver, TransportConfig};
+    use std::sync::{Arc, Mutex};
+    let cases = [
+        (
+            ApiStyle::Responses,
+            json!({"id":"resp_safe-123", "status":"incomplete", "incomplete_details":{"reason":"max_output_tokens"}, "usage":{"input_tokens":200, "output_tokens":128, "output_tokens_details":{"reasoning_tokens":100}}, "output":[]}),
+            "incomplete",
+            "max_output_tokens",
+        ),
+        (
+            ApiStyle::Responses,
+            json!({"status":"incomplete", "incomplete_details":{"reason":"content_filter"}, "output":[]}),
+            "incomplete",
+            "content_filter",
+        ),
+        (
+            ApiStyle::Responses,
+            json!({"status":"completed", "output":[{"type":"message","content":[{"type":"refusal","refusal":"private refusal text"}]}]}),
+            "refused",
+            "refusal",
+        ),
+        (
+            ApiStyle::Responses,
+            json!({"status":"failed", "error":{"code":"server_error","message":"private provider text"}}),
+            "failed",
+            "server_error",
+        ),
+        (
+            ApiStyle::Responses,
+            json!({"status":"completed", "output":{}}),
+            "malformed",
+            "invalid_output",
+        ),
+        (
+            ApiStyle::Responses,
+            json!({"status":"completed", "output":[{"type":"message","status":"incomplete","content":[{"type":"output_text","text":"{}"}]}]}),
+            "incomplete",
+            "message_incomplete",
+        ),
+        (
+            ApiStyle::Responses,
+            json!({"status":"completed", "output":[{"type":"message","content":[{"type":"output_text","text":"{}"}]}],"reasoning":42}),
+            "malformed",
+            "invalid_reasoning",
+        ),
+        (
+            ApiStyle::Chat,
+            json!({"choices":[{"finish_reason":"length","message":{"content":"partial private content"}}]}),
+            "incomplete",
+            "max_output_tokens",
+        ),
+        (
+            ApiStyle::Chat,
+            json!({"choices":[{"finish_reason":"content_filter","message":{"content":null}}]}),
+            "incomplete",
+            "content_filter",
+        ),
+        (
+            ApiStyle::Chat,
+            json!({"choices":[{"finish_reason":"stop","message":{"refusal":"private refusal text","content":null}}]}),
+            "refused",
+            "refusal",
+        ),
+        (
+            ApiStyle::Chat,
+            json!({"choices":[]}),
+            "malformed",
+            "invalid_choices",
+        ),
+    ];
+    for (style, body, kind, reason) in cases {
+        let (endpoint, handle) = server("200 OK", body.to_string(), "");
+        let events = Arc::new(Mutex::new(Vec::<HttpEvent>::new()));
+        let saved = Arc::clone(&events);
+        let observer: HttpObserver = Arc::new(move |event| {
+            saved.lock().unwrap().push(event.clone());
+            Ok(())
+        });
+        let model = HttpModel::new_with_transport(
+            HttpConfig {
+                endpoint,
+                api_key: Some("private-api-key".into()),
+                model: "test-model".into(),
+                role_models: HashMap::new(),
+                service_tier: None,
+                reasoning_effort: None,
+                style,
+                timeout: Duration::from_secs(5),
+                max_output_tokens: 128,
+                max_body_bytes: 8192,
+            },
+            TransportConfig::default(),
+            observer,
+        )
+        .unwrap();
+        let error = model.complete(request()).await.unwrap_err().to_string();
+        handle.join().unwrap();
+        assert!(error.contains("sceptic"), "{error}");
+        assert!(error.contains(kind), "{error}");
+        assert!(error.contains(reason), "{error}");
+        assert!(error.contains("no automatic retry"), "{error}");
+        let receipt = serde_json::to_value(&*events.lock().unwrap()).unwrap();
+        assert_eq!(receipt.as_array().unwrap().len(), 2);
+        assert_eq!(receipt[1]["kind"], "response_rejected");
+        assert_eq!(receipt[1]["attempt"], 1);
+        assert_eq!(receipt[1]["status"], 200);
+        assert_eq!(receipt[1]["response_failure"]["kind"], kind);
+        assert_eq!(receipt[1]["response_failure"]["reason"], reason);
+        assert_eq!(receipt[1]["response_failure"]["max_output_tokens"], 128);
+        assert!(!receipt.to_string().contains("private"));
+        assert!(!error.contains("private"));
+        if body["id"] == "resp_safe-123" {
+            assert_eq!(
+                receipt[1]["response_failure"]["request_id"],
+                "resp_safe-123"
+            );
+            assert_eq!(receipt[1]["response_failure"]["input_tokens"], 200);
+            assert_eq!(receipt[1]["response_failure"]["output_tokens"], 128);
+            assert_eq!(receipt[1]["response_failure"]["reasoning_tokens"], 100);
+            assert_eq!(receipt[1]["response_failure"]["status"], "incomplete");
+            assert!(error.contains("--max-output-tokens"));
+        }
+    }
+}
+
+#[tokio::test]
+async fn non_json_success_is_audited_without_echoing_the_body() {
+    use engarg::provider::{HttpEvent, HttpObserver, TransportConfig};
+    use std::sync::{Arc, Mutex};
+    let (endpoint, handle) = server("200 OK", "private invalid JSON".into(), "");
+    let events = Arc::new(Mutex::new(Vec::<HttpEvent>::new()));
+    let saved = Arc::clone(&events);
+    let observer: HttpObserver = Arc::new(move |event| {
+        saved.lock().unwrap().push(event.clone());
+        Ok(())
+    });
+    let model = HttpModel::new_with_transport(
+        HttpConfig {
+            endpoint,
+            api_key: None,
+            model: "test-model".into(),
+            role_models: HashMap::new(),
+            service_tier: None,
+            reasoning_effort: None,
+            style: ApiStyle::Responses,
+            timeout: Duration::from_secs(5),
+            max_output_tokens: 128,
+            max_body_bytes: 8192,
+        },
+        TransportConfig::default(),
+        observer,
+    )
+    .unwrap();
+    let error = model.complete(request()).await.unwrap_err().to_string();
+    handle.join().unwrap();
+    assert!(error.contains("response was not JSON"));
+    assert!(error.contains("sceptic"));
+    let events = events.lock().unwrap();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[1].kind, "invalid_response_json");
+    assert_eq!(events[1].attempt, 1);
+    assert_eq!(events[1].status, 200);
+    assert!(!error.contains("private"));
+    assert!(!serde_json::to_string(&*events).unwrap().contains("private"));
+}

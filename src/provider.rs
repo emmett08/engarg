@@ -3,8 +3,10 @@
 use crate::Error;
 use reqwest::Url;
 mod http;
+mod response;
 mod retry_policy;
 pub use http::{HttpEvent, HttpObserver, TransportConfig};
+pub use response::ResponseFailure;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::HashMap, fmt, future::Future, net::IpAddr, str::FromStr, time::Duration};
@@ -234,94 +236,38 @@ impl HttpModel {
     }
 }
 
-fn decode(value: Value, style: ApiStyle, fallback_model: &str) -> Result<Completion, Error> {
-    let failure = || Error::Provider("refused, incomplete or malformed structured response".into());
-    let (content, input, output) = match style {
-        ApiStyle::Responses => {
-            if value["status"] != "completed" {
-                return Err(failure());
-            }
-            let mut content = String::new();
-            for item in value["output"].as_array().ok_or_else(failure)? {
-                if item["type"] == "message" {
-                    for block in item["content"].as_array().ok_or_else(failure)? {
-                        if block["type"] == "refusal" {
-                            return Err(failure());
-                        }
-                        if block["type"] == "output_text" {
-                            content.push_str(block["text"].as_str().ok_or_else(failure)?);
-                        }
-                    }
-                }
-            }
-            (
-                content,
-                value["usage"]["input_tokens"].as_u64(),
-                value["usage"]["output_tokens"].as_u64(),
-            )
-        }
-        ApiStyle::Chat => {
-            let choices = value["choices"].as_array().ok_or_else(failure)?;
-            if choices.len() != 1
-                || choices[0]["finish_reason"] != "stop"
-                || !choices[0]["message"]["refusal"].is_null()
-            {
-                return Err(failure());
-            }
-            (
-                choices[0]["message"]["content"]
-                    .as_str()
-                    .ok_or_else(failure)?
-                    .to_owned(),
-                value["usage"]["prompt_tokens"].as_u64(),
-                value["usage"]["completion_tokens"].as_u64(),
-            )
-        }
-    };
-    if content.trim().is_empty() {
-        return Err(failure());
-    }
-    let service_tier = match value.get("service_tier") {
-        None | Some(Value::Null) => None,
-        Some(Value::String(tier)) => Some(tier.clone()),
-        Some(_) => return Err(failure()),
-    };
-    let effort = match style {
-        ApiStyle::Responses => match value.get("reasoning") {
-            None | Some(Value::Null) => None,
-            Some(Value::Object(reasoning)) => reasoning.get("effort"),
-            Some(_) => return Err(failure()),
-        },
-        ApiStyle::Chat => value.get("reasoning_effort"),
-    };
-    let reasoning_effort = match effort {
-        None | Some(Value::Null) => None,
-        Some(Value::String(effort)) => Some(effort.clone()),
-        Some(_) => return Err(failure()),
-    };
-    Ok(Completion {
-        content,
-        model: value["model"].as_str().unwrap_or(fallback_model).into(),
-        input_tokens: input,
-        output_tokens: output,
-        request_id: value["id"].as_str().map(str::to_owned),
-        service_tier,
-        reasoning_effort,
-    })
-}
-
 impl LanguageModel for HttpModel {
     async fn complete(&self, request: CompletionRequest) -> Result<Completion, Error> {
         let body = self.body(&request);
-        let value = self.http.post(body, request.role).await?;
+        let response = self.http.post(body, request.role).await?;
         let model = self.role_models.get(&request.role).unwrap_or(&self.model);
-        decode(value, self.style, model)
+        match response::decode(response.value, self.style, model, self.max_output_tokens) {
+            Ok(completion) => Ok(completion),
+            Err(failure) => {
+                let error = failure.error(request.role);
+                self.http.reject_response(
+                    request.role,
+                    response.attempt,
+                    response.status,
+                    failure,
+                )?;
+                Err(error)
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn decode(
+        value: Value,
+        style: ApiStyle,
+        model: &str,
+    ) -> Result<Completion, Box<ResponseFailure>> {
+        response::decode(value, style, model, 128)
+    }
 
     #[test]
     fn endpoints_reject_secrets_and_unencrypted_remote_hosts() {
