@@ -534,18 +534,30 @@ host_report="$run_dir/evidence-plan.json"
   --eal-host "$eal_host" --workspace "$run_dir" --timeout-secs "$eal_timeout" --output "$host_report"
 host_report=''
 if [[ $collect_and_assess -eq 1 ]]; then
+  # The graph registry is generated from the admitted operator configuration.
+  # The host separately validates every forwarded name against the actual TOML.
+  # Read names from the JSON copy rather than parsing TOML in Bash/Python 3.7.
+  set --
+  if [[ $evidence_planning == graph ]]; then
+    catalog_sync collector-environment "$run_dir/argument.bundle.json" > "$run_dir/collector-environment.names"
+    while IFS= read -r collector_variable; do
+      set -- "$@" --collector-env "$collector_variable"
+    done < "$run_dir/collector-environment.names"
+  fi
   set_stage 'EAL evidence collection'
   host_report="$run_dir/evidence-collection.json"
   "$engarg_bin" eal collect --input "$run_dir/argument.bundle.json" --input-format json --claim current_claim \
     --eal-host "$eal_host" --workspace "$run_dir" --database "$run_dir/eal.sqlite" \
-    --tools "$run_dir/argument.tools.toml" --timeout-secs "$eal_collection_timeout" --output "$host_report"
+    --tools "$run_dir/argument.tools.toml" "$@" \
+    --timeout-secs "$eal_collection_timeout" --output "$host_report"
   collection_id=$(catalog_sync collection-id "$host_report")
   set_stage 'EAL argument assessment'
   host_report="$run_dir/eal-assessment.json"
   assessed_at=$(catalog_sync utc-now)
   "$engarg_bin" eal assess --input "$run_dir/argument.bundle.json" --input-format json \
     --eal-host "$eal_host" --workspace "$run_dir" --database "$run_dir/eal.sqlite" \
-    --tools "$run_dir/argument.tools.toml" --timeout-secs "$eal_collection_timeout" --now "$assessed_at" \
+    --tools "$run_dir/argument.tools.toml" "$@" \
+    --timeout-secs "$eal_collection_timeout" --now "$assessed_at" \
     --collection-id "$collection_id" --output "$host_report"
   catalog_sync assessment "$run_dir"
   host_report=''

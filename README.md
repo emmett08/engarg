@@ -321,6 +321,8 @@ Choose the explicit assessment instant appropriate to the retained observations.
 
 Local credentials remain explicit. `--collector-env NAME` forwards a variable declared by the selected local tools registry. A scientific collector can therefore request `LAB_API_TOKEN`, while infrastructure bindings can request their own configured names. HTTP bearer collection requires both `--collector-env ENGARG_COLLECTOR_TOKEN` and `--collector-env ENGARG_COLLECTOR_ORIGIN`. Set the latter to the exact HTTPS origin such as `https://tempo.example:443`. The adapter sends the token only to that origin and follows no redirects. These settings apply to a local registry. Remote collection uses the remote service's configured collectors and credentials.
 
+The catalogue script's graph workflow forwards present, nonempty variable names from its exported operator registry during collection and assessment. This includes `SSH_AUTH_SOCK` when the registered provider requires it. The host checks every name against the emitted TOML registry. Public process defaults such as `HOME`, `PATH` and `LANG` retain their existing treatment. The run retains the additional names in `collector-environment.names`; their values remain in the process environment.
+
 | Command or option | Purpose |
 | --- | --- |
 | `eal explain --assessment-id ID` | Recover the retained assessment explanation, optionally restricted by `--claim EAL_IDENTIFIER` |
