@@ -1,180 +1,174 @@
-# Executable evidence architecture
+# Preserve the boundary between an argument and its evidence
 
-EngArg owns argument construction, explicit revision, tool construction and
-compilation. EAL owns the language, method contracts, acquisition, observation
-storage and assessment. Operator TOML supplies concrete execution authority.
+[Documentation](index.md) · [Engineer workflow](USAGE.md)
 
-## One semantic program and compiler
+A CI timing argument can remain valid as algebra while its production premises
+remain untested. The implementation must preserve both facts. EngArg owns the
+construction and explicit revision of the argument, and compiles the required
+investigation. EAL owns acquisition, retained observations and assessment.
+Operator TOML supplies authority to contact sources or execute code. Each
+boundary answers a different question before the next stage can proceed.
 
-The compiler emits `language "EAL/4"`. This version defines executable semantics
-directly; it has no execution selector. Evidence `bind`
-fields express input dependencies; `derive` expresses bounded pure calculations
-and separate acceptance checks over shared observations. Claims, methods,
-assumptions, backing and objections are in the same source. A derived result is
-recomputed against its retained parents during assessment and keeps their original
-age. Reusing one observation does not create independent evidence.
+## Compile one executable meaning
 
-The build receipt records source and executable-program digests separately.
-Removing it does not remove executable semantics. Static formal queries are
-authored program data. Tool implementations supply empirical inputs, not echoed
-copies of the query. An unsupported conclusion remains distinct from failed tool
-execution and from a completed measurement that contradicts a predicate.
+`engarg build` and `engarg eal export` use the same package builder and
+`support_export::compile_direct`. Its passes lower acquisition dependencies,
+exact requirement checks, native method applications and the argument into one
+EAL/4 programme. The package contains that source, `tools.toml` and referenced
+local resources. Its `build.json` receipt records hashes, claim names and pending
+reviews for inspection. Removing the receipt leaves the executable meaning intact.
 
-`engarg build` and `engarg eal export` call the same package builder and
-`support_export::compile_direct`. Acquisition lowering, exact requirement checks,
-native method applications and argument construction are passes within this
-compiler. There is no public authored-only exporter or second bundle-obligation
-model. EAL's method descriptors define query shapes and result paths; EngArg does
-not maintain an independent method schema registry.
+The source carries the reasoning. Evidence `bind` fields express dependencies,
+while `derive` expresses bounded pure calculations over observations. Claims,
+methods, assumptions and objections belong to the same programme. EAL executes
+the selected claim's dependency closure. One acquired CI run may supply several
+checks, but every use retains the same source identity and original age.
 
-The runtime executes the selected claim's dependency closure. Each source
-operation has a stable identity and each canonical requirement has one evaluator.
-Shared source observations remain shared, including their age and provenance.
-Assessment checks retained derivations against their parents; this integrity
-check does not introduce another authored obligation.
+A method query is authored programme data. Acquired values supply the empirical
+inputs to that query. EAL-owned descriptors define each method's input schema,
+result paths and computational limits. EngArg consumes those descriptors rather
+than maintaining another method schema registry. During assessment, EAL
+recomputes retained derivations against their parents to check integrity.
+This does not create another observation or independent confirmation.
 
-## Authoring, revision and generated tools
+The [compiler mapping](EAL_MAPPING.md) explains how argument elements become
+source declarations. The [package contract](executable-packages.md) explains
+which files move with the executable investigation.
 
-The current report is the strict `engarg.run.v3` contract. The public authoring,
-tool implementation, revision, ticket and build paths consume this contract.
-Direct support, bindings, acquisition design review, target-runtime receipt and
-revision history are typed fields. Optional graph discovery can supply authored
-support contracts; operator TOML determines the concrete execution bindings.
-The declared origin is either provider authoring or an explicit synthetic fixture.
-Retained completions constrain the original argument and the presence and content
-of authored support across direct, discovery and argument-only reports. Recovery
-and replanning are checked at their retained source cut before that comparison.
-These checks establish consistency of unsigned records, not authenticated origin.
-Original authoring calls retain their configured call and byte bounds. A resumed
-repair records its exact transcript cut and separate allowance; repeated repairs
-cannot retroactively broaden earlier limits. Checkpoint admission and report
-admission share this policy, including zero-call recovery stages. Sparse allowance
-records preserve the budget history without duplicate transcript snapshots.
+## Admit a report before changing or executing it
 
-An explicit revision preserves the original request, authoring exchanges and
-dissent. Each bounded revision record retains its exact parent identity and
-source snapshot. Changed executable arguments require a complete support
-elaboration; changed requirements identify their previous digest and revision
-reason. The host revalidates support and recomputes acquisition design review.
-Bindings are resolved from the supplied TOML or marked unbound, and previous
-tooling, collection and assessment claims cannot silently attach to the revision.
-The resulting report can be revised again and passed directly to the same builder.
-Route-only replanning retains sparse encoding differences for optional fields
-and typed defaults. Restoration must preserve the complete typed report before
-the exact parent JSON digest is checked. Encoding metadata cannot conceal an
-argument, support or provenance change, and does not duplicate the whole report.
-For coordinated authoring, replay uses the configured participants and rounds,
-preserves parallel arrival accounting and retains each participant/round's
-objection identities even when several participants share the same role.
+The current report contract is `engarg.run.v3`. Authoring, tool implementation,
+revision, ticket and build paths read the same typed report. It retains the
+argument, support elaboration, concrete binding state, acquisition design review
+and target-runtime receipt. Its declared origin is either provider authoring or
+an explicit synthetic fixture.
 
-Missing operations with an authored parameterised specification use the existing
-isolated tool builder and frozen verification fixtures. The direct generation
-stage exports verified implementations, merges their bindings with the operator's
-manifest and preserves the source report and generation audit. Both
-`analyse --implement-tools` and `eal implement` use this stage; ticket execution
-uses it when the ticket explicitly enables implementation. Missing source access,
-credentials, operation semantics or reviewer judgement remain explicit gaps.
-Neither generated code nor interface qualification establishes those facts.
+Retained completions constrain what the original author actually supplied.
+Direct, optional-discovery and argument-only reports all check that relationship
+at their original authoring state. Recovery and replanning first reconstruct
+and validate their retained parent. These checks establish consistency of
+unsigned records. They do not authenticate a provider or an external source.
 
-Before provider calls, EngArg checks the selected `--eal-host`/`EAL_HOST` language,
-execution features and method contracts. Its receipt records the selected
-executable identity. With no selected host, portable authoring checks the exact
-embedded EAL/4 contract and labels that receipt as an embedded contract rather
-than an executed-host probe. Ticket execution always checks its selected host.
-Later tool implementation admits its current selected host without rewriting the
-source report's authoring receipt or revision history.
+Before model calls, EngArg checks a selected `--eal-host` or `EAL_HOST` for EAL/4
+features and method contracts. The receipt identifies the selected executable.
+Portable authoring without a selected host instead checks the exact linked EAL
+contracts and labels the result accordingly. Ticket execution always checks its
+selected host. Later tool implementation checks its current host while preserving
+the report's original authoring receipt.
 
-## Transport authority, pins and lifetime
+Authoring budgets constrain both live execution and later report admission.
+Original calls retain their configured count and byte allowances. Each explicit
+repair records its position in the transcript and its own allowance, including a
+repair stage that makes no call. Later repairs cannot enlarge earlier budgets.
+Checkpoint and report admission share this policy through small allowance records,
+without copying the transcript for each repair.
 
-`tools.toml` supplies command, MCP, HTTP and file authority. Prompts receive
-operation contracts rather than command lines, endpoints or credential values.
-The executable EAL file contains dependencies, predicates, method queries and
-argument relationships; TOML does not become a second reasoning language.
-Package publication freezes admitted local implementation files referenced by
-command arguments with SHA-256 pins, preserving any operator-declared pins.
-Rebuilding or executing a modified pinned script is rejected. Source data outside
-those explicit implementation pins remains acquired data with observation
-identity; it is not automatically asserted to be a frozen implementation.
+A checkpoint can complete or repair final validation once the primary authoring
+stages are present. It cannot continue a missing specialist response. See the
+[provider failure and recovery instructions](USAGE.md#3-author-and-inspect-the-argument)
+for the distinction between a retained candidate and a failed provider exchange.
 
-Optional EAL preparation initialises selected MCP interfaces and lists tools. It
-never calls an acquisition tool or creates evidence. A preparation receipt and a
-new private TOML manifest retain server/protocol identities and canonical input
-and output schema hashes. Runtime checks supplied pins before `tools/call`.
-Preparation and collection share whole-closure admission: an invalid configured
-version, credential policy, local implementation pin or complete literal input
-fails before an earlier source can execute. A missing tool binding remains a
-durable unavailable outcome during collection.
-Unpinned execution retains the actual observed interface, and completed MCP error
-responses retain it too. Advertised server identity is not binary attestation.
+## Make revisions explicit
 
-MCP stdio uses the official SDK over a bounded duplex stream owned by the existing
+An accepted argument may need a narrower population, a different inference or a
+corrected criterion. `engarg eal revise` makes that change visible. Its bounded
+history retains the parent identity and source snapshot, original request,
+authoring exchanges and dissent. Changed executable arguments require complete
+support elaboration. Changed requirements identify their previous digest and
+explain the revision.
+
+The host revalidates support and recomputes acquisition design review. It resolves
+bindings from the supplied TOML or marks them unbound. Previous tooling,
+collection and assessment claims cannot silently attach to the new argument.
+The revised report remains a normal report that can be revised again or built.
+
+Route-only replanning preserves the argument's meaning. Sparse encoding metadata
+can restore omitted defaults or null encodings for an exact parent digest check,
+but the restored report must preserve the complete typed content. It cannot hide
+a changed warrant, support requirement or provenance record.
+
+Coordinated authoring also retains participant and round identities. Replay
+uses the admitted debate configuration and preserves parallel arrival accounting.
+Two participants sharing a role still have distinct objections and histories.
+
+## Construct tools without granting them evidence status
+
+A missing acquisition with an authored parameterised specification can enter the
+isolated tool builder. Verification cases are frozen before coding. A passing
+candidate retains its implementation, verification receipts and generation audit,
+then contributes concrete bindings to a new operator manifest. Main authoring,
+`eal implement` and explicitly enabled ticket implementation use this same stage.
+
+A generated CI reader can be tested against its protocol and fixtures. That
+result leaves production access, measurement design and reviewer judgement as
+separate obligations. The source argument and original manifest remain retained.
+[Tool implementation](TOOL_IMPLEMENTATION.md) gives the code-generation contracts
+and Rust, Go and TypeScript toolchain boundaries.
+
+## Keep transport authority in the manifest
+
+`tools.toml` selects command, MCP, HTTP and file access. Prompts receive operation
+contracts, while execution receives resolved transport settings and explicitly
+selected environment variables. The EAL source continues to own dependencies,
+predicates, method queries and argument relationships.
+
+Package publication pins admitted local implementation files referenced by
+command arguments with SHA-256, preserving operator-declared pins. Rebuilding or
+executing a modified pinned script fails admission. Acquired source data has its
+own observation identity. A data file becomes a fixed implementation dependency
+only when the operator explicitly pins it as such.
+
+EAL's optional interface preparation initialises selected MCP servers and lists
+their tools. It creates no observation. Its receipt and new private manifest
+retain server/protocol identities and canonical schema hashes. Runtime admission
+checks supplied pins before calling a tool. Both preparation and collection admit
+the entire selected closure first, so an invalid configured version, credential
+policy, local pin or complete literal input fails before an earlier source can run.
+An absent binding instead remains a durable unavailable collection outcome.
+
+An unpinned call retains the observed interface, including completed MCP error
+responses. Advertised server identity identifies the protocol peer. Binary
+attestation requires separate evidence.
+
+## Bound process ownership and cancellation
+
+MCP stdio uses the official SDK over a bounded duplex stream owned by the
 process supervisor. Command execution and MCP stdio share process-group cleanup
-and Linux subreaping. Session completion, timeout, cancellation and host death
-close the owner channel and trigger descendant cleanup before the acquisition
-lease is released. Request, input, output, stderr and time bounds remain explicit.
-HTTP MCP sessions use the SDK without local child ownership. No automatic retry
-is implied for an interrupted acquisition whose external effect is unknown.
+and Linux subreaping. Completion, timeout, cancellation and host death close the
+owner channel and trigger descendant cleanup before releasing the acquisition
+lease. Input, output, stderr and time bounds remain explicit.
 
-## SOLID in the Rust boundaries
+HTTP MCP sessions use the SDK without local child ownership. An interrupted
+acquisition may have produced an external effect, so it does not imply an
+automatic retry. Retained failure distinguishes that uncertainty from an
+observed negative result.
 
-| Principle | Concrete responsibility | Verification |
+## Apply design principles at the changing boundaries
+
+| Principle | Responsibility boundary | Verification |
 |---|---|---|
-| Single responsibility | Grammar/lowering, pure evaluation, tool transport, observation persistence and argument compilation are separate modules | Parser, method, adapter and package tests exercise each boundary |
-| Open–closed | Concrete tool transports share the acquisition contract; method queries use EAL-owned descriptors | Command/MCP/HTTP/file substitution cases and descriptor admission |
-| Liskov substitution | Every adapter preserves request identity, observation age, failures and bounded output | Real subprocess and loopback HTTP tests, stale and malformed observations |
-| Interface segregation | Authoring sees operation/schema metadata; runtime receives resolved transport authority | Prompt tests exclude argv, endpoints and credential values |
-| Dependency inversion | Pure core has no IO; reusable MCP client has no dependency on the EAL server; EngArg consumes EAL contracts | Cargo dependency graph and independent EAL package execution |
+| Single responsibility | Recognition, pure evaluation, transport, persistence and argument compilation have separate owners. | Parser, method, adapter and package suites. |
+| Open–closed | Transport variants share the acquisition contract. Method queries consume EAL-owned descriptors. | Command/MCP/HTTP/file substitution and descriptor admission. |
+| Liskov substitution | Every adapter preserves identity, observation age, failures and output bounds. | Real subprocess/HTTP, stale and malformed-observation cases. |
+| Interface segregation | Authoring receives contracts. Runtime receives execution authority. | Prompts exclude command arguments, endpoints and secret values. |
+| Dependency inversion | Pure evaluation has no IO. The reusable MCP client does not depend on the server. | Cargo dependencies and independently executed packages. |
 
-Transport adapters own their external protocols. Reasoning methods are
-strategies behind the same typed input/result contract. Acquisition requests are
-bounded command data, and RAII brackets process cancellation, store leases and
-package publication. These patterns have concrete variation or lifetime duties;
-there is no global service locator or abstract factory for a single implementation.
+Transport adapters handle external protocols. Method strategies share typed
+input/result contracts. RAII brackets process cancellation, store leases and
+package publication. These choices isolate actual variation and lifetime
+responsibilities. A second registry or global service locator would add another
+source of authority for the engineer to reconcile.
 
-## Maintenance and migration
+## Verify the boundary that changed
 
-The appended support-gate projection, graph-JSON executor and `engarg_support_graph`
-tool have been removed. Frozen legacy source-reconstruction modules and the old
-supervisor executable alias have been removed. The canonical companion is
-`eal-process-supervisor`. Historical observations remain immutable data; a new
-argument revision invalidates derived plans and assessments rather than rewriting
-their identities or timestamps.
+EAL/4 is the supported language and `engarg.run.v3` is the current report
+contract. Older source and report shapes require explicit reconstruction of their
+current contracts. Historical observations retain their original content and
+measurement times.
 
-This is a breaking language and report cutover. EAL/3 source, selector-bearing
-programs and the former execution-field IR are rejected. Roots are version-checked
-before import resolution; imported modules must use EAL/4 too. Current authoring
-reports use `engarg.run.v3`; old reports require explicit reconstruction of their
-current source contracts. Historical files remain available as immutable records.
-The removed `eal prepare`, `integrate` and `register-tools` EngArg commands are
-replaced by direct implementation and package building. EAL's optional interface
-preparation is a distinct, current operation.
-
-Optional discovery and qualification tools may help author an investigation.
-They do not grant authority to execute a newly discovered operation, and their
-catalogues are not required by a resolved package. Missing reviewer judgement is
-represented by a scoped review request, not by an automatically accepted Boolean.
-
-## Acceptance and measured scope
-
-The acceptance suites exercise real MCP stdio and HTTP, supervised commands, retained
-files, copied packages and independently stated numeric/logical outcomes. It
-covers native deductive, inductive, abductive, causal, counterfactual and bounded
-analogical methods, plus practical reasoning through an explicit policy review.
-The synthetic finite-inventory example checks count, distinctness and explicit
-population scope. These tests establish the implemented boundaries, not the
-truth of arbitrary engineering premises, completeness of an external catalogue
-or universal adequacy of analogy and decision policies. The composed matrix
-defines seven EngArg modes across nine execution worlds, with further scoped
-review adversities. An installed-host run is required: merely validating its
-fixtures does not establish executable acceptance. See
-[EXECUTABLE_ACCEPTANCE.md](EXECUTABLE_ACCEPTANCE.md).
-
-Rust edition 2024 and each repository's pinned minimum toolchain remain in force.
-Formatting, Clippy, workspace tests, parser regeneration and installed CLI/MCP
-smoke checks are required. Model authoring quality and cost require separately
-frozen trials with actual selected providers; deterministic protocol tests do
-not claim those results. The finite before/after harness records actual request,
-observation, file, byte and timing measurements for one fixed question; it does
-not establish broad performance improvements. Its protocol is in
-[EAL4_MEASUREMENT.md](EAL4_MEASUREMENT.md). The completion mapping and reproducible
-verification commands are in [EAL4_COMPLETION.md](EAL4_COMPLETION.md).
+[Verification](VALIDATION.md) gives the current repository and installed-runtime
+checks, including moved packages, actual MCP acquisition, method limits and
+adverse reviews. [Evaluation](EVALUATION.md) addresses a different question:
+whether this architecture and authoring workflow improve decisions at an
+acceptable total cost. Synthetic acceptance cases establish implementation
+behaviour within their declared scope. They leave that empirical question open.

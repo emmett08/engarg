@@ -1,10 +1,17 @@
-# Durable argument tickets
+# Coordinate an investigation with a durable ticket
 
-`engarg ticket` retains an authoring run, validates its direct tool bindings,
-compiles a standalone package, and executes its EAL through the official MCP
-host. The coordinator records each stage and its artifacts. The package contains
-`case.eal`, `tools.toml`, tool implementations and an inspection-only `build.json`.
-The EAL source and TOML are the executable inputs.
+[Documentation](index.md) · [Run the individual commands](USAGE.md)
+
+Once an investigation has a declared source and execution policy, a ticket can
+coordinate its authoring, tool integration, compilation and evidence execution.
+`engarg ticket` uses the same public stages described in [USAGE.md](USAGE.md),
+while the coordinator records each stage and its artefacts. This is useful when
+an interrupted run must retain exactly which inputs and results belonged to
+each stage.
+
+The resulting package contains `case.eal`, `tools.toml`, tool implementations and
+an inspection-only `build.json`. The official MCP host executes the EAL source
+with the operator bindings. The receipt lets an engineer inspect that work.
 
 ```sh
 engarg ticket --spec ticket.json --run runs/example \
@@ -28,9 +35,9 @@ A ticket configuration uses `engarg.ticket/2`:
     "topology": { "kind": "ring" }
   },
   "tools": "tools.toml",
-  "authoring_args": ["--model", "configured-model"],
+  "authoring_args": ["--model", "configured-model", "--api-key-env", "OPENAI_API_KEY"],
   "eal_host": "/opt/eal/bin/eal-host",
-  "environment": ["PATH", "HOME", "ENGARG_API_KEY"],
+  "environment": ["PATH", "HOME", "OPENAI_API_KEY"],
   "collector_environment": ["PATH"],
   "timeout_seconds": 3600,
   "stage_timeout_seconds": 900,
@@ -45,7 +52,7 @@ The coordinator defaults to the host's sibling `eal-coordinate` unless supplied
 explicitly. `export_policy` can name an explicit review freshness policy.
 
 `tools.toml` declares the operator's concrete operations. Tool keys match authored
-acquisition IDs; the compiler assigns their EAL names. A command example is:
+acquisition IDs. The compiler assigns their EAL names. A command example is:
 
 ```toml
 [tools.inventory]
@@ -70,7 +77,7 @@ unbound operations as reported gaps:
   "language": "python",
   "toolchain": "toolchains/python.json",
   "store": ".engarg-tools",
-  "provider_args": ["--model", "configured-coding-model"],
+  "provider_args": ["--model", "configured-coding-model", "--api-key-env", "OPENAI_API_KEY"],
   "max_calls": 16,
   "timeout_seconds": 900
 }
@@ -87,10 +94,12 @@ The ticket pins its configuration, tool manifest, implementation resources,
 explicit additional input files, host and coordinator. Each stage rechecks those
 identities. Package resources must remain within the manifest directory. Retained input files
 have a 16 MiB individual bound and a 48 MiB aggregate bound, with at most 127
-files; the configuration receipt reserves the remaining coordinator capacity.
+files. The configuration receipt reserves the remaining coordinator capacity.
 Executable inputs are hashed with a separate 256 MiB bound.
 
-The four stages are:
+## Follow the retained stages
+
+The coordinator advances through four stages:
 
 1. **Author:** `analyse --evidence-planning direct --tools ...` runs the selected
    debate topology and retains the argument and its support elaboration.
@@ -111,9 +120,7 @@ claim. Missing, stale or failed required evidence blocks completion. An accepted
 ticket is therefore not a declaration that its claim is true. Inspection-only
 receipts do not provide observations or replace runtime assessment.
 
-The previous ticket configuration schema is intentionally rejected. Migrate the
-operator bindings into `tools.toml`; there is no registration, qualification or
-mandatory application-register stage in the current workflow.
+## Verify the installed path
 
 Native integration tests use a real EAL installation and a local bounded fixture:
 
@@ -126,3 +133,7 @@ cargo test --test ticket_native -- --ignored
 
 Omit `ENGARG_TICKET_TOPOLOGIES` to exercise all nine topology presets. The tests
 also check measured negatives, unavailable sources and missing operation bindings.
+
+For package resources and movement, continue with [executable packages](executable-packages.md).
+The [validation guide](VALIDATION.md) explains what these fixture runs establish
+and why a completed ticket can still leave its engineering claim unsupported.

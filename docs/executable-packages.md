@@ -1,24 +1,28 @@
-# Build an executable evidence package
+# Build the investigation that the argument requires
 
-An EngArg build emits `case.eal`, `tools.toml` and the tool implementations or
-retained resources referenced by that manifest. EAL executes those artefacts
-without an EngArg runtime, capability catalogue, registration directory or
-semantic execution-plan sidecar.
+[Documentation](index.md) · [Engineer workflow](USAGE.md)
+
+Once the CI argument has explicit evidence requirements and usable source tools,
+the builder makes their relationship executable. It emits `case.eal`,
+`tools.toml` and the local implementation or retained-resource files referenced
+by the manifest. EAL can then execute that package independently of EngArg.
+
+The [engineer workflow](USAGE.md) covers authoring and tool construction. This
+chapter explains what a successful build promises and what still needs evidence.
+
+## Connect requirements to actual tools
+
+An analysis must contain support requirements, acceptance criteria and acquisition
+dependencies. Bind each acquisition identifier in the operator manifest, or use
+its compiler-generated EAL operation name. Then build a new package:
 
 ```sh
-engarg analyse --input request.json --tools tools.toml \
-  --model configured-model --format json --output analysis.json \
-  --eal-host /opt/eal/bin/eal-host
-engarg build --input analysis.json --tools tools.toml --output-dir package
-/opt/eal/bin/eal-host run package/case.eal --tools package/tools.toml --workspace run
+engarg build --input analysis.json --tools tools.toml --output-dir investigation
+jq '{claims, pending_reviews, limitations}' investigation/build.json
 ```
 
-The analysis must contain explicit support requirements, acceptance criteria and
-acquisition dependencies. Bind each acquisition identifier in `tools.toml`, or
-use its compiler-generated EAL operation name. The compiler rejects an absent
-binding, conflicting compiler context and a formal query represented as an
-acquired observation. Formal queries are authored program data; acquired values
-are observations or scoped reviews.
+A command binding can take this form when `measurement` is the actual acquisition
+and `tools/measure.py` is its implementation:
 
 ```toml
 [tools.measurement]
@@ -30,62 +34,75 @@ timeout_seconds = 15
 max_output_bytes = 1048576
 ```
 
-A command receives the EAL acquisition request on stdin. It returns a JSON
-observation envelope with `value` and, when it reports an existing measurement,
-its original `observed_at` timestamp. Direct MCP stdio/HTTP, fixed-authority HTTP
-GET and retained-file bindings are also supported by EAL; their concrete
-transport and response mappings belong in the manifest.
+The command consumes the bounded EAL request on stdin and returns an observation
+envelope with `value`. If it reports an existing measurement, it must preserve the
+original `observed_at` time. Direct MCP stdio/HTTP, fixed-authority HTTP GET and
+retained-file bindings follow the same acquisition boundary. Their protocol and
+response mapping belong to the manifest, as described in
+[private collectors](PRIVATE_COLLECTORS.md).
 
-Commands inherit no ambient environment by default. `inherit_env` names the
-operator-selected variables; credentials remain external values. Relative paths
-and command working directories are anchored to the manifest's directory, so a
-package can move independently of its run store. Custom implementations belong
-under `tools/`; explicit schema, retained-file and dependency-pin resources are
-copied as well. A non-executable data argument outside `tools/` should be a
-literal existing relative file or an explicit pinned dependency. Dynamic file
-names and external services remain explicit tool inputs, not hidden bundled
-resources.
+The compiler rejects an absent binding, conflicting compiler context or a formal
+query misrepresented as an observation. The query is authored programme data.
+Source tools provide observations or scoped review records that the programme
+uses to evaluate it.
 
-`build.json` is an inspection receipt containing source and executable hashes,
-file hashes, emitted claim names and pending reviews. It is not an executable
-input. Copying `case.eal`, `tools.toml` and the referenced implementations to a
-fresh directory is sufficient to run. A successful build does not supply a
-missing review or imply that the claim is supported; the EAL assessment states
-which observations and arguments are usable.
+## Preserve the package's identity when moving it
+
+Relative paths and command working directories are anchored to the manifest's
+directory. Commands inherit only selected environment variables. Custom
+implementations belong under `tools/`. Explicit schema, retained-file and pinned
+dependency resources are copied with them. A data argument outside `tools/` needs
+to be an existing literal relative file or an explicitly pinned dependency.
+Dynamic filenames and external services remain tool inputs with declared scope.
+
+`build.json` is an inspection receipt containing source/programme digests, file
+hashes, emitted claim names and pending reviews. Execution needs `case.eal`,
+`tools.toml` and their referenced resources. It does not read the receipt as an
+additional semantic plan.
 
 The builder validates before publication and stages files privately. It reads
 regular resources within the manifest root without following links, checks
-supplied SHA-256 pins, bounds the complete written package to 256 MiB, and
-preserves executable permission bits. Linux and Apple platforms publish the
-completed directory atomically without replacing an existing output. A failed
-copy or pin check removes the stage and leaves no final package directory.
+SHA-256 pins and bounds the written package to 256 MiB. It preserves executable
+permission bits. Linux and Apple platforms publish the completed directory
+atomically, without replacing an existing output. A copy or pin failure removes
+the stage and leaves the final path absent.
 
-The regression `tests/executable_package.rs` builds a bounded synthetic example,
-moves only its executable artefacts, destroys the original build inputs and
-executes it through a real EAL MCP host. Run the installed integration check with:
+## Fulfil reviews, then acquire evidence
 
-```sh
-ENGARG_EAL_HOST=/path/to/eal-host cargo test --test executable_package -- --ignored
-```
+A successful build may still list pending reviews. Those requests carry the
+final merged operator/compiler context, which the importer checks against the
+actual acquisition. A review needs the exact criterion, target and scope, an
+identified reviewer, verdict, reasons and original review time. Follow the
+[review workflow](USAGE.md#5-build-and-fulfil-scoped-reviews) to retain those
+judgements and rebuild using the reviewed manifest.
 
-The integration checks also acquire one explicitly requested finite batch once
-for several requirements. Omitted, duplicated, substituted, truncated and
-unavailable results cannot satisfy its declared checks. This establishes
-coverage of the enumerated request, not completeness of an external population.
-
-The other package tests cover conflicting context, reserved output names, path
-escape, symbolic links, resource bounds, late pin failure and executable bits.
-These tests establish packaging and execution behaviour, not the empirical
-truth of an arbitrary claim.
-
-`tests/executable_modes.rs` additionally compiles and moves seven bounded mode
-cases, then executes their EAL through the same installed host. The native
-cases assert the expected entailment, Wilson bound, Bayesian posterior, mean
-contrast, affine intervention result and declared feature match. The practical
-case consumes a scoped reviewer record; it does not infer a universal decision
-procedure. Negative applicability, stale observations, source failures and
-wrong or incomplete review records cannot support the selected conclusion.
+Run the completed package with the paired EAL host:
 
 ```sh
-ENGARG_EAL_HOST=/path/to/eal-host cargo test --test executable_modes -- --ignored
+export CLAIM="$(jq -er '.claims.current_claim' investigation/build.json)"
+"$EAL_HOST" run investigation/case.eal --tools investigation/tools.toml \
+  --workspace investigation-run-001 --claim "$CLAIM" > execution.json
+jq '.result.assessment | {valid, complete, claims}' execution.json
 ```
+
+An accepted tool binding permits execution. An observation supplies a value.
+Claim support additionally depends on the criterion, applicable assumptions,
+reasoning and material challenges. Keep these distinctions when examining an
+unsupported result or deciding whether to revise the argument.
+
+## Verify portability and correspondence
+
+The package integration tests move only executable artefacts to a new workspace,
+remove the original build inputs and execute through a real EAL MCP host. They
+also reject conflicting context, reserved output names, path escape, symbolic
+links, excessive resources, changed local pins and invalid executable modes.
+
+The mode suite adds actual native calculations and adverse reviews after the
+same relocation. A shared finite batch is acquired once for several requirements,
+while omitted, duplicated, substituted, truncated and unavailable results fail
+their declared checks. These tests establish coverage of the enumerated request.
+An external population's completeness still requires its own evidence.
+
+See [verification](VALIDATION.md) for prerequisites and commands. When the accepted
+argument itself needs to change, use [explicit revision](USAGE.md#7-resolve-gaps-and-revise-explicitly)
+and build the resulting report into a new package before collection.

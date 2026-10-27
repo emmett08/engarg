@@ -1,25 +1,33 @@
-# Argument-driven engineering
+# A historical proposal for argument-driven engineering
 
-Article template and presentation prepared on 26 October 2026.
+[Documentation](../index.md) · [Current evaluation design](../EVALUATION.md)
 
-| File | Contents |
-| --- | --- |
-| [argument-driven-engineering-article.pdf](argument-driven-engineering-article.pdf) | Six-page IEEE-style article with a method proposal and prospective evaluation. |
-| [argument-driven-engineering-latex.zip](argument-driven-engineering-latex.zip) | Editable LaTeX source, BibTeX references, TikZ workflow figure and IEEEtran support files. |
-| [argument-driven-engineering-presentation.pptx](argument-driven-engineering-presentation.pptx) | 21-slide presentation with editable diagrams, speaker notes and references. |
+These research artefacts were prepared on 26 October 2026. They propose a process
+in which a versioned engineering case guides work towards justified decisions,
+using a hypothetical retry-safe submission feature as the example. Their
+comparative benefits remain hypotheses awaiting the proposed study.
 
-The article and presentation connect evidence-based engineering and the software development lifecycle to a proposed process in which arguments guide AI-assisted engineering work.
+The article describes repository foundations at its cited revisions. Its account
+of registered assessment and future integration work is historical. Use the
+[current engineer workflow](../USAGE.md) and [architecture](../EXECUTABLE_ARCHITECTURE.md)
+for the implemented EAL/4 package and execution contracts. The article and slides
+remain unchanged so their original claims can be read against their citations.
 
-## Build the article
+| Retained artefact | Purpose |
+|---|---|
+| [Article](argument-driven-engineering-article.pdf) | Six-page IEEE-style method proposal and prospective evaluation. |
+| [LaTeX source](argument-driven-engineering-latex.zip) | Editable source, bibliography, workflow figure and IEEEtran support. |
+| [Presentation](argument-driven-engineering-presentation.pptx) | 21-slide presentation with diagrams, speaker notes and references. |
 
-Extract the source archive and run the following command from its `argument-driven-engineering` directory.
+To reproduce the article, extract the source archive and run this command from
+its `argument-driven-engineering` directory with a TeX distribution containing
+TikZ and `latexmk`:
 
 ```sh
 latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 ```
 
-A TeX distribution with TikZ and `latexmk` is required.
-
-## Prepare for submission
-
-Select the intended IEEE publication and apply its author instructions. Replace the affiliation and contact placeholder. The evaluation is prospective. Add empirical results after conducting and analysing the study, then recheck the cited repository revisions.
+A new submission needs the intended publication's template, actual author details,
+an updated account of the implementation and independently reviewed empirical
+results. Preserve the distinction between the proposed method and measured
+benefit when preparing that revision.

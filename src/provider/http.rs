@@ -1,5 +1,8 @@
 //! Bounded HTTP attempts with explicit transient-error recovery and transport receipts.
-use crate::{Error, provider::Role};
+use crate::{
+    Error,
+    provider::{ResponseFailure, Role},
+};
 use reqwest::{Client, Response, Url};
 use serde::Serialize;
 use serde_json::Value;
@@ -47,7 +50,7 @@ impl TransportConfig {
         Ok(())
     }
 }
-/// Credential-free receipt. Strings are fixed application labels or allowlisted codes.
+/// Credential-free receipt with fixed labels and bounded response metadata.
 #[derive(Debug, Clone, Serialize)]
 pub struct HttpEvent {
     pub role: Role,
@@ -57,6 +60,8 @@ pub struct HttpEvent {
     pub kind: &'static str,
     pub provider_code: Option<&'static str>,
     pub wait_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_failure: Option<Box<ResponseFailure>>,
 }
 pub type HttpObserver = Arc<dyn Fn(&HttpEvent) -> Result<(), Error> + Send + Sync>;
 
@@ -100,6 +105,12 @@ struct CallProgress {
     attempt: u8,
     status: u16,
     phase: CallPhase,
+}
+
+pub(super) struct HttpResponse {
+    pub value: Value,
+    pub attempt: u8,
+    pub status: u16,
 }
 
 pub(super) struct HttpTransport {
@@ -146,7 +157,7 @@ impl HttpTransport {
             observer,
         })
     }
-    pub async fn post(&self, body: Value, role: Role) -> Result<Value, Error> {
+    pub async fn post(&self, body: Value, role: Role) -> Result<HttpResponse, Error> {
         // Queueing, bodies and retry waits share this one logical deadline.
         let deadline = tokio::time::Instant::now()
             .checked_add(self.timeout)
@@ -180,6 +191,7 @@ impl HttpTransport {
                     },
                     provider_code: None,
                     wait_ms: None,
+                    response_failure: None,
                 })?;
                 Err(Error::Provider(timeout_diagnostic(
                     self.timeout,
@@ -190,13 +202,31 @@ impl HttpTransport {
             }
         }
     }
+    pub fn reject_response(
+        &self,
+        role: Role,
+        attempt: u8,
+        status: u16,
+        failure: Box<ResponseFailure>,
+    ) -> Result<(), Error> {
+        (self.observer)(&HttpEvent {
+            role,
+            attempt,
+            status,
+            kind: "response_rejected",
+            provider_code: None,
+            wait_ms: None,
+            response_failure: Some(failure),
+        })
+    }
+
     async fn post_bounded(
         &self,
         body: Value,
         role: Role,
         deadline: tokio::time::Instant,
         progress: &mut CallProgress,
-    ) -> Result<Value, HttpFailure> {
+    ) -> Result<HttpResponse, HttpFailure> {
         let _permit = self
             .permits
             .acquire()
@@ -232,12 +262,27 @@ impl HttpTransport {
                 kind: "response",
                 provider_code: None,
                 wait_ms: None,
+                response_failure: None,
             };
             (self.observer)(&event)?;
             if status.is_success() {
                 let bytes = read_body(response, self.max_body_bytes).await?;
-                return serde_json::from_slice(&bytes)
-                    .map_err(|_| Error::Provider("response was not JSON".into()).into());
+                let value = match serde_json::from_slice(&bytes) {
+                    Ok(value) => value,
+                    Err(_) => {
+                        event.kind = "invalid_response_json";
+                        (self.observer)(&event)?;
+                        return Err(Error::Provider(format!(
+                            "{role}: response was not JSON; no automatic retry"
+                        ))
+                        .into());
+                    }
+                };
+                return Ok(HttpResponse {
+                    value,
+                    attempt,
+                    status: status.as_u16(),
+                });
             }
             if !super::retry_policy::retryable_status(status.as_u16()) {
                 return Err(Error::Provider(format!("HTTP {status}; no automatic retry")).into());

@@ -153,6 +153,7 @@ struct Analyse {
     max_input_bytes: usize,
     #[arg(long, default_value_t = 131_072)]
     max_response_bytes: usize,
+    /// Per-call provider output cap, including reasoning tokens where applicable.
     #[arg(long, default_value_t = 10_000)]
     max_output_tokens: u32,
     /// Extra HTTP attempts after 429, 500, 502, 503 or 504 responses. Logical calls stay fixed.

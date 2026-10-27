@@ -1,6 +1,15 @@
-# Specialist debate topologies
+# Let specialists examine one another's arguments
 
-EngArg supports the nine communication structures described in [Motger et al., *Multi-Agent Debate Strategies: Survey, Taxonomy, and Challenges*, section 5.1](https://arxiv.org/html/2607.26212v1#S5.SS1). A topology determines which specialist assessments another specialist receives. The execution protocol uses simultaneous logical rounds. Graph selection and scheduling have separate configuration.
+[Documentation](index.md) · [Authoring and support planning](support-planning.md)
+
+Independent specialists can expose different weaknesses in the CI argument. Peer
+exchange then lets a specialist respond to selected earlier assessments before
+global synthesis. A topology defines who receives whose assessment. Round
+scheduling defines when that information becomes available. Keeping these choices
+separate makes the resulting prompts and call budgets inspectable.
+
+EngArg provides nine directed communication structures with synchronous logical
+rounds. The structural categories follow [Motger et al., section 5.1](https://arxiv.org/html/2607.26212v1#S5.SS1). The directions and defaults below specify EngArg's implementation.
 
 The default `--mode hybrid` workflow retains its six calls. Selecting `--topology` or `--topology-config` adds peer exchange between the independent specialist assessments and the existing synthesis, final critique and adjudication. These options require hybrid mode. Single mode remains a one-call baseline.
 
@@ -9,7 +18,7 @@ The default `--mode hybrid` workflow retains its six calls. Selecting `--topolog
 ```sh
 engarg analyse \
   --claim 'Parallelising independent CI test groups reduces pipeline duration under workload W.' \
-  --model YOUR_MODEL_ID \
+  --model "$ENGARG_MODEL" --api-key-env OPENAI_API_KEY --eal-host "$EAL_HOST" \
   --topology ring --debate-participants 6 --debate-rounds 2 \
   --max-calls 21 \
   --format json --audit ring.audit.jsonl --output ring.json
@@ -62,7 +71,7 @@ An edge `{ "from": u, "to": v }` permits participant `v` to receive participant 
 | `sparse` | Only declared directed edges carry assessments | Bidirectional ring |
 | `bipartite` | Complete exchange across two partitions in both directions | Two contiguous partitions |
 
-`fully_connected` is accepted as an alias for `fully-connected`. JSON uses `fully_connected`. The grouped structure implements within-group exchange. Cross-group exchange can be introduced through a scheduled graph or occurs at the final global synthesis. Tree direction towards the root and star direction towards the hub are EngArg's aggregation choices. The survey does not prescribe a unique direction or parameterisation for every structure.
+`fully_connected` is accepted as an alias for `fully-connected`. JSON uses `fully_connected`. The grouped structure implements within-group exchange. Cross-group exchange can be introduced through a scheduled graph or occurs at the final global synthesis. Tree direction towards the root and star direction towards the hub are EngArg's aggregation choices. Those choices determine how quickly a local objection can reach an aggregation participant.
 
 Information travels one edge per peer round. A chain needs enough rounds for an initial assessment to traverse multiple participants. The tree similarly needs sufficient rounds for a leaf assessment to reach its root. A participant's generated assessment can carry information received in earlier rounds. These rules constrain immediate prompt inputs rather than guaranteeing secrecy between participants.
 
@@ -71,7 +80,7 @@ Information travels one edge per peer round. A chain needs enough rounds for an 
 Use a complete JSON configuration when a preset does not express the intended arrangement:
 
 ```sh
-engarg analyse --input examples/request.json --model YOUR_MODEL_ID \
+engarg analyse --input examples/request.json --model "$ENGARG_MODEL" --api-key-env OPENAI_API_KEY --eal-host "$EAL_HOST" \
   --topology-config examples/debate/sparse.json --max-calls 15 \
   --format json --output sparse.json
 ```
@@ -141,7 +150,7 @@ The [scheduled example](../examples/debate/scheduled.json) uses two groups in it
 ```
 
 ```sh
-engarg analyse --input examples/request.json --model YOUR_MODEL_ID \
+engarg analyse --input examples/request.json --model "$ENGARG_MODEL" --api-key-env OPENAI_API_KEY --eal-host "$EAL_HOST" \
   --topology-config examples/debate/scheduled.json --max-calls 21 \
   --format json --output scheduled.json
 ```
@@ -162,12 +171,25 @@ The graph contract constrains context visibility and resource use. It supplies n
 
 This uses static strategy selection through ordinary functions. A trait hierarchy would add indirection to these closed, data-selected variants without changing the executor's graph contract. A new structure requires a builder, its enum variant and graph tests. Execution and final validation remain independent of the graph shape.
 
-Saved reports use the current `engarg.run.v3` schema. Omitting `debate` selects the ordinary role sequence; supplying it selects the declared debate topology. Rust callers can construct `RunConfig` with `..RunConfig::default()` for optional configuration fields.
+Saved reports use the current `engarg.run.v3` schema. Omitting `debate` selects the ordinary role sequence. Supplying it selects the declared debate topology. Rust callers can construct `RunConfig` with `..RunConfig::default()` for optional configuration fields.
 
-## Relation to the protocol case study
+## Judge quality separately from connectivity
 
-Marandi's [*The impact of multi-agent debate protocols on debate quality: a controlled case study*](https://arxiv.org/abs/2603.28813) varies context visibility and turn scheduling. Those are separate design choices from the nine graph structures. EngArg implements synchronous, graph-routed exchange of the immediately preceding round. It does not claim to reproduce the study's protocols.
+The graph and journal establish which information reached each call. Argument
+quality requires a separate comparison with controlled claims, model assignments,
+budgets and independent assessment. The [evaluation guide](EVALUATION.md) records
+that distinction and the evidence needed for a quality claim.
 
-Within-Round allows later turns to see earlier same-round contributions. Cross-Round excludes same-round contributions. Rank-Adaptive Cross-Round adds judge-based ranking, randomised turn order and configured participant silencing. EngArg's scheduled edge replacement implements none of those judge or participation policies. Every participant still executes each round. An empty graph permits isolated self-revision, with global review afterwards.
+The design's research context includes [Du et al.](https://composable-models.github.io/llm_debate/),
+[Choi, Zhu and Li](https://arxiv.org/html/2508.17536v1),
+[Wynn et al.](https://arxiv.org/html/2509.05396v2), and
+[Marandi's protocol case study](https://arxiv.org/abs/2603.28813).
+These sources motivate examining debate and independent initial responses.
+EngArg's implemented contract remains the previous-round routing described here.
+It has no within-round exchange, judge-based ranking or participant silencing.
+Every participant executes in each declared round, and the final stages retain
+the complete objection register.
 
-The paper's three-model, two-round macroeconomic case study does not establish which topology improves engineering arguments. Convergence and peer references are different outcomes from correctness. Any future protocol extension needs explicit history, turn-order, participation and judge-call budgets, while retaining objections independently of later consensus or silencing.
+To coordinate authoring with subsequent tool integration and evidence execution,
+use a [durable ticket](TICKETS.md). To inspect an individual run's results, return
+to [USAGE.md](USAGE.md).

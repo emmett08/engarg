@@ -807,3 +807,121 @@ async fn cli_timeout_retains_failure_audit_and_checkpoint_without_a_report() {
     assert_eq!(events.last().unwrap()["event"], "failure");
     assert!(!events.iter().any(|event| event["event"] == "completion"));
 }
+
+#[tokio::test]
+async fn cli_incomplete_synthesis_retains_specialists_and_rejection_without_repairing() {
+    let mut specialist = Reply::success();
+    let mut envelope: Value = serde_json::from_str(&specialist.body).unwrap();
+    envelope["output"][0]["content"][0]["text"] = json!(
+        json!({"findings":["An explicit scoped evaluation is required."],"objections":[],"evidence_gaps":[]}).to_string()
+    );
+    specialist.body = envelope.to_string();
+    let failed = json!({
+        "id":"resp_failed_synthesis", "status":"incomplete",
+        "incomplete_details":{"reason":"max_output_tokens"},
+        "usage":{"input_tokens":200,"output_tokens":10000,"output_tokens_details":{"reasoning_tokens":9000}},
+        "output":[{"type":"message","content":[{"type":"output_text","text":"private partial output"}]}]
+    });
+    let server = Server::new(vec![
+        specialist.clone(),
+        specialist.clone(),
+        specialist,
+        Reply::failure(200, "", &failed.to_string()),
+    ]);
+    let directory = tempfile::tempdir().unwrap();
+    let audit = directory.path().join("audit.jsonl");
+    let checkpoint = directory.path().join("checkpoint.json");
+    let report = directory.path().join("report.json");
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["analyse", "--mode", "hybrid", "--max-calls", "7", "--max-repairs", "1",
+            "--request-timeout-secs", "5", "--timeout-secs", "20",
+            "--model", "test-model", "--endpoint"])
+        .arg(&server.endpoint)
+        .args(["--claim", "Parallelising independent CI test groups reduces pipeline duration without changing test outcomes.",
+            "--api-key-env", "ENGARG_HTTP_RETRY_TEST_UNUSED_KEY", "--format", "json"])
+        .arg("--audit").arg(&audit)
+        .arg("--checkpoint").arg(&checkpoint)
+        .arg("--output").arg(&report)
+        .env_remove("ENGARG_HTTP_RETRY_TEST_UNUSED_KEY")
+        .output().unwrap();
+    assert!(!output.status.success());
+    assert!(!report.exists());
+    assert_eq!(
+        server.count(),
+        4,
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("synthesiser: incomplete structured response (max_output_tokens"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("private partial output"));
+    let saved: Value = serde_json::from_slice(&std::fs::read(checkpoint).unwrap()).unwrap();
+    assert_eq!(saved["transcript"].as_array().unwrap().len(), 3);
+    assert!(
+        saved["failure"]
+            .as_str()
+            .unwrap()
+            .contains("max_output_tokens")
+    );
+    let audit = std::fs::read_to_string(audit).unwrap();
+    assert!(!audit.contains("private partial output"));
+    let events = audit
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event["event"] == "completion")
+            .count(),
+        3
+    );
+    let rejected = events
+        .iter()
+        .filter(|event| event["record"]["kind"] == "response_rejected")
+        .collect::<Vec<_>>();
+    assert_eq!(rejected.len(), 1);
+    let record = &rejected[0]["record"];
+    assert_eq!(record["role"], "synthesiser");
+    assert_eq!(record["attempt"], 1);
+    assert_eq!(record["status"], 200);
+    assert_eq!(record["response_failure"]["reason"], "max_output_tokens");
+    assert_eq!(record["response_failure"]["reasoning_tokens"], 9000);
+    assert_eq!(
+        record["response_failure"]["request_id"],
+        "resp_failed_synthesis"
+    );
+    assert_eq!(events.last().unwrap()["event"], "failure");
+}
+
+#[tokio::test]
+async fn response_rejection_keeps_the_successful_http_attempt_after_a_retry() {
+    let server = Server::new(vec![
+        Reply::failure(503, "Retry-After: 0\r\n", "{}"),
+        Reply::failure(
+            200,
+            "",
+            &json!({"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}})
+                .to_string(),
+        ),
+    ]);
+    let (observer, events) = recorder();
+    let failure = model(&server, TransportConfig::default(), observer)
+        .complete(request())
+        .await
+        .unwrap_err();
+    assert!(failure.to_string().contains("max_output_tokens"));
+    assert_eq!(server.count(), 2);
+    let events = events.lock().unwrap();
+    let rejected = events.last().unwrap();
+    assert_eq!(rejected.kind, "response_rejected");
+    assert_eq!(rejected.attempt, 2);
+    assert_eq!(rejected.status, 200);
+    assert_eq!(
+        events.iter().filter(|event| event.kind == "retry").count(),
+        1
+    );
+}
