@@ -40,6 +40,11 @@ tool implementation, revision, ticket and build paths consume this contract.
 Direct support, bindings, acquisition design review, target-runtime receipt and
 revision history are typed fields. Optional graph discovery can supply authored
 support contracts; operator TOML determines the concrete execution bindings.
+The declared origin is either provider authoring or an explicit synthetic fixture.
+Retained completions constrain the original argument and the presence and content
+of authored support across direct, discovery and argument-only reports. Recovery
+and replanning are checked at their retained source cut before that comparison.
+These checks establish consistency of unsigned records, not authenticated origin.
 
 An explicit revision preserves the original request, authoring exchanges and
 dissent. Each bounded revision record retains its exact parent identity and
@@ -49,6 +54,10 @@ reason. The host revalidates support and recomputes acquisition design review.
 Bindings are resolved from the supplied TOML or marked unbound, and previous
 tooling, collection and assessment claims cannot silently attach to the revision.
 The resulting report can be revised again and passed directly to the same builder.
+Route-only replanning retains sparse encoding differences for optional fields
+and typed defaults. Restoration must preserve the complete typed report before
+the exact parent JSON digest is checked. Encoding metadata cannot conceal an
+argument, support or provenance change, and does not duplicate the whole report.
 For coordinated authoring, replay uses the configured participants and rounds,
 preserves parallel arrival accounting and retains each participant/round's
 objection identities even when several participants share the same role.
@@ -67,6 +76,8 @@ execution features and method contracts. Its receipt records the selected
 executable identity. With no selected host, portable authoring checks the exact
 embedded EAL/4 contract and labels that receipt as an embedded contract rather
 than an executed-host probe. Ticket execution always checks its selected host.
+Later tool implementation admits its current selected host without rewriting the
+source report's authoring receipt or revision history.
 
 ## Transport authority, pins and lifetime
 

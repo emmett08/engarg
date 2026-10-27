@@ -36,6 +36,164 @@ fn current_report(mut report: Value) -> Value {
     report
 }
 
+fn current_graph_report(root: &Path) -> Value {
+    let (request, case, elaboration, _, _) = support_fixture::fixture();
+    let catalogue = CapabilityCatalogue {
+        schema: eal_collector_contracts::capability::CAPABILITY_CATALOGUE_SCHEMA.into(),
+        capabilities: vec![],
+    };
+    let configuration: PlanningConfig = serde_json::from_value(json!({
+        "schema":engarg::route_planning::PLANNING_CONFIG_SCHEMA,
+        "collector":root.join("not-executed"), "connections":root.join("connections.json"),
+        "store":root.join("store"), "environment":[],
+        "ranking":{"dimensions":["execution_requests"]},
+        "scheduling":{"maximum_concurrent_sources":2,"per_provider":{}}, "bindings":[]
+    }))
+    .unwrap();
+    let routes = engarg::route_planning::compile(
+        &case,
+        &elaboration,
+        &catalogue,
+        &configuration,
+        &DiscoverySnapshot::default(),
+    )
+    .unwrap();
+    current_report(json!({
+        "request":request,"argument":case,
+        "evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":routes}
+    }))
+}
+
+#[test]
+fn nullable_authoring_metadata_survives_raw_replanning_and_typed_reading() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut original = current_graph_report(directory.path());
+    original["authoring_recovery"] = Value::Null;
+    report::read_direct(&original).unwrap();
+    let mut replanned = original.clone();
+    report::retain_replanning(&original, &mut replanned).unwrap();
+    assert_eq!(replanned.get("authoring_recovery"), Some(&Value::Null));
+    assert_eq!(
+        replanned["replanning"]["input_report_sha256"],
+        eal_collector_contracts::execution::canonical_digest(&original).unwrap()
+    );
+    // Raw history is intact before the consumer converts the same report into
+    // typed fields. An optional null cannot make that conversion lose its origin.
+    report::validate_replanning(&replanned, Path::new(env!("CARGO_BIN_EXE_engarg"))).unwrap();
+    report::read_direct(&replanned).unwrap();
+    let mut invalid_parent = original.clone();
+    invalid_parent
+        .as_object_mut()
+        .unwrap()
+        .remove("schema_version");
+    let mut proposal = original;
+    proposal["evidence_planning"]["routes"]["discovery"]
+        .as_object_mut()
+        .unwrap()
+        .remove("limits");
+    let before = proposal.clone();
+    assert!(report::retain_replanning(&invalid_parent, &mut proposal).is_err());
+    assert_eq!(
+        proposal, before,
+        "failed admission changed the proposed report"
+    );
+}
+
+#[test]
+fn nested_optional_and_default_encodings_survive_repeated_typed_replanning() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut original = current_graph_report(directory.path());
+    let mut request: engarg::domain::Request =
+        serde_json::from_value(original["request"].clone()).unwrap();
+    request.context.clear();
+    original["request"] = serde_json::to_value(&request).unwrap();
+    original["input_sha256"] = json!(engarg::authoring_checkpoint::digest(
+        serde_json::to_vec(&request).unwrap()
+    ));
+    original["request"]
+        .as_object_mut()
+        .unwrap()
+        .remove("context");
+    original["argument"]["dissent_revisions"] = Value::Null;
+    original["argument"]["warrants"][0]["reasoning_method"] = Value::Null;
+    original["evidence_planning"]["routes"]["discovery"]
+        .as_object_mut()
+        .unwrap()
+        .remove("limits");
+    report::read_direct(&original).unwrap();
+    let parent_digest = eal_collector_contracts::execution::canonical_digest(&original).unwrap();
+    let mut replanned = original.clone();
+    report::retain_replanning(&original, &mut replanned).unwrap();
+    assert_eq!(
+        replanned["replanning"]["input_report_sha256"],
+        parent_digest
+    );
+    let encoding = replanned["replanning"]["previous_encoding"]
+        .as_object()
+        .unwrap();
+    for pointer in [
+        "/request/context",
+        "/argument/dissent_revisions",
+        "/argument/warrants/0/reasoning_method",
+    ] {
+        assert!(encoding.contains_key(pointer), "missing encoding {pointer}");
+    }
+    assert!(
+        !encoding
+            .keys()
+            .any(|pointer| pointer.starts_with("/evidence_planning"))
+    );
+    assert!(replanned["evidence_planning"]["routes"]["discovery"]["limits"].is_null());
+    let typed = serde_json::to_value(report::read_direct(&replanned).unwrap()).unwrap();
+    report::validate_replanning(&typed, Path::new(env!("CARGO_BIN_EXE_engarg"))).unwrap();
+    let mut next = typed.clone();
+    report::retain_replanning(&typed, &mut next).unwrap();
+    let typed_next = serde_json::to_value(report::read_direct(&next).unwrap()).unwrap();
+    report::validate_replanning(&typed_next, Path::new(env!("CARGO_BIN_EXE_engarg"))).unwrap();
+    assert_eq!(
+        typed_next["replanning"]["previous_extensions"]["replanning"]["input_report_sha256"],
+        parent_digest
+    );
+}
+
+#[test]
+fn encoding_restore_cannot_conceal_a_changed_argument() {
+    let directory = tempfile::tempdir().unwrap();
+    let original = current_graph_report(directory.path());
+    let mut replanned = original.clone();
+    report::retain_replanning(&original, &mut replanned).unwrap();
+    replanned["argument"]["adjudication"] = json!("This unrecorded argument was changed.");
+    replanned["replanning"]["previous_encoding"]["/argument/adjudication"] =
+        json!({"kind":"value", "value":original["argument"]["adjudication"]});
+    assert!(
+        report::validate_replanning(&replanned, Path::new(env!("CARGO_BIN_EXE_engarg"))).is_err()
+    );
+    assert!(report::read_direct(&replanned).is_err());
+}
+
+#[test]
+fn encoding_restore_cannot_conceal_changed_support_semantics() {
+    let directory = tempfile::tempdir().unwrap();
+    let original = current_graph_report(directory.path());
+    let mut replanned = original.clone();
+    report::retain_replanning(&original, &mut replanned).unwrap();
+    let pointer = "/elaboration/requirements/0/acceptance_rationale";
+    let mut forged_planning = original["evidence_planning"].clone();
+    *forged_planning.pointer_mut(pointer).unwrap() =
+        json!("This support rationale was changed outside an explicit revision.");
+    replanned["evidence_planning"] = forged_planning.clone();
+    replanned["replanning"]["previous_evidence_planning"] = forged_planning.clone();
+    let digest = eal_collector_contracts::execution::canonical_digest(&forged_planning).unwrap();
+    replanned["replanning"]["current_planning_sha256"] = json!(digest);
+    replanned["replanning"]["previous_planning_sha256"] = json!(digest);
+    replanned["replanning"]["previous_encoding"][format!("/evidence_planning{pointer}")] =
+        json!({"kind":"value", "value":original["evidence_planning"].pointer(pointer).unwrap()});
+    assert!(
+        report::validate_replanning(&replanned, Path::new(env!("CARGO_BIN_EXE_engarg"))).is_err()
+    );
+    assert!(report::read_direct(&replanned).is_err());
+}
+
 #[test]
 fn credentials_restore_routes_without_changing_the_argument_or_requesting_model_calls() {
     let directory = tempfile::tempdir().unwrap();

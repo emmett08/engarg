@@ -497,3 +497,192 @@ fn revised_public_authoring_package_executes_after_original_sources_are_removed(
         std::path::PathBuf::from(std::env::var_os("ENGARG_EAL_HOST").expect("ENGARG_EAL_HOST"));
     authored_revision_package(Some(&host));
 }
+
+fn one_call_provider_report(root: &Path) -> Value {
+    provider_report(root, true)
+}
+
+fn provider_report(root: &Path, with_support: bool) -> Value {
+    use std::fs;
+    let (request, argument, support) = executable_case::fixture();
+    let input = root.join("origin-request.json");
+    let manifest = root.join("origin-tools.toml");
+    let report_path = root.join("origin-report.json");
+    fs::write(&input, serde_json::to_vec(&request).unwrap()).unwrap();
+    fs::write(&manifest, "[tools]\n").unwrap();
+    let value = if with_support {
+        json!({"argument":live_output::generation_value(&argument),"support_elaboration_json":serde_json::to_string(&support).unwrap()})
+    } else {
+        live_output::generation_value(&argument)
+    };
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let endpoint = format!("http://{}/responses", listener.local_addr().unwrap());
+    let server = thread::spawn(move || {
+        let (mut stream, _) = receive(&listener, 0);
+        let body = json!({"id":"retained-origin","status":"completed","model":"fixture","output":[{"type":"message","content":[{"type":"output_text","text":value.to_string()}]}]}).to_string();
+        write!(stream,"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();
+    });
+    let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
+    command.args(["analyse", "--input"]).arg(input);
+    if with_support {
+        command.arg("--tools").arg(manifest);
+    } else {
+        command.arg("--no-tool-planning");
+    }
+    let output = command
+        .args([
+            "--model",
+            "fixture",
+            "--endpoint",
+            &endpoint,
+            "--mode",
+            "single",
+            "--max-calls",
+            "1",
+            "--max-repairs",
+            "0",
+            "--http-retries",
+            "0",
+            "--format",
+            "json",
+            "--output",
+        ])
+        .arg(&report_path)
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("EAL_HOST")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    server.join().unwrap();
+    let report = load(&report_path);
+    engarg::report::read(&report).unwrap();
+    report
+}
+
+#[test]
+fn retained_provider_origin_cannot_be_reclassified_to_skip_revision_checks() {
+    let directory = tempfile::tempdir().unwrap();
+    let original = one_call_provider_report(directory.path());
+    for mode in ["offline_synthetic_fixture", "explicit_fixture"] {
+        let mut changed = original.clone();
+        changed["execution_mode"] = json!(mode);
+        changed["argument"]["adjudication"] =
+            json!("This unrecorded edit changes the retained authoring result.");
+        assert!(
+            engarg::report::read_direct(&changed).is_err(),
+            "inconsistent provider origin accepted as {mode}"
+        );
+    }
+    let mut retained_provider_workflow = original;
+    retained_provider_workflow["execution_mode"] = json!("offline_synthetic_fixture");
+    retained_provider_workflow
+        .as_object_mut()
+        .unwrap()
+        .remove("provider_config");
+    assert!(retained_provider_workflow["run_config"].is_object());
+    assert!(engarg::report::read_direct(&retained_provider_workflow).is_err());
+}
+
+#[test]
+fn unrecognised_authored_report_execution_modes_are_rejected() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut changed = one_call_provider_report(directory.path());
+    changed["execution_mode"] = json!("provider_call_typo");
+    assert!(engarg::report::read_direct(&changed).is_err());
+}
+
+#[test]
+fn ordinary_graph_provider_reports_reject_unrecorded_argument_edits() {
+    use eal_collector_contracts::capability::CapabilityCatalogue;
+    use engarg::route_planning::{DiscoverySnapshot, PlanningConfig};
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let mut graph = one_call_provider_report(root);
+    let argument: ArgumentCase = serde_json::from_value(graph["argument"].clone()).unwrap();
+    let support: engarg::support_requirements::SupportElaboration =
+        serde_json::from_value(graph["support_elaboration"].clone()).unwrap();
+    let catalogue = CapabilityCatalogue {
+        schema: eal_collector_contracts::capability::CAPABILITY_CATALOGUE_SCHEMA.into(),
+        capabilities: vec![],
+    };
+    let config: PlanningConfig = serde_json::from_value(json!({
+        "schema":engarg::route_planning::PLANNING_CONFIG_SCHEMA,
+        "collector":root.join("not-executed"), "connections":root.join("connections.json"),
+        "store":root.join("store"), "environment":[],
+        "ranking":{"dimensions":["execution_requests"]},
+        "scheduling":{"maximum_concurrent_sources":2,"per_provider":{}}, "bindings":[]
+    }))
+    .unwrap();
+    let routes = engarg::route_planning::compile(
+        &argument,
+        &support,
+        &catalogue,
+        &config,
+        &DiscoverySnapshot::default(),
+    )
+    .unwrap();
+    graph["evidence_planning"] = json!({
+        "schema":"engarg.support-planning/1", "elaboration":support,
+        "routes":routes, "design_review":graph["design_review"]
+    });
+    for key in ["support_elaboration", "direct_bindings", "design_review"] {
+        graph.as_object_mut().unwrap().remove(key);
+    }
+    engarg::report::read_direct(&graph).unwrap();
+    graph["argument"]["adjudication"] =
+        json!("This graph argument was edited after its retained final completion.");
+    assert!(engarg::report::read_direct(&graph).is_err());
+}
+
+#[test]
+fn argument_only_provider_reports_preserve_the_retained_final_argument() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut report = provider_report(directory.path(), false);
+    assert!(report.get("support_elaboration").is_none());
+    report["argument"]["adjudication"] =
+        json!("This edit was not part of the retained argument-only response.");
+    assert!(engarg::report::read(&report).is_err());
+}
+
+#[test]
+fn plain_provider_support_requires_an_explicit_revision() {
+    let directory = tempfile::tempdir().unwrap();
+    let original = provider_report(directory.path(), false);
+    let source = engarg::report::read(&original).unwrap();
+    let (_, _, support) = executable_case::fixture();
+    let revised = engarg::engine::support::revision::revise_with_support(
+        &source,
+        source.argument.clone(),
+        Some(support.clone()),
+        None,
+    )
+    .unwrap();
+    let revised_value = serde_json::to_value(revised).unwrap();
+    engarg::report::read_direct(&revised_value).unwrap();
+    assert_eq!(
+        revised_value["argument_revisions"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let review = engarg::support_requirements::review_acquisition_design(
+        &support,
+        &source.transcript,
+        engarg::authoring_checkpoint::MAX_BYTES,
+    )
+    .unwrap();
+    let mut injected = original;
+    injected["support_elaboration"] = serde_json::to_value(&support).unwrap();
+    injected["direct_bindings"] =
+        serde_json::to_value(engarg::direct_planning::DirectPlan::unbound(&support)).unwrap();
+    injected["design_review"] = serde_json::to_value(review).unwrap();
+    assert!(engarg::report::read(&injected).is_err());
+    assert!(engarg::report::read_direct(&injected).is_err());
+}

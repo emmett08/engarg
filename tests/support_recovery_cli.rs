@@ -34,10 +34,10 @@ fn digest(content: &str) -> String {
         .collect()
 }
 
-fn receipt(role: &str, content: String) -> Value {
+fn receipt(role: &str, content: String, request: &Value) -> Value {
     json!({
         "role":role,
-        "prompt":{"role":role,"system":"private retained instructions","user":"{}","schema":{}},
+        "prompt":{"role":role,"system":"private retained instructions","user":json!({"request":request}).to_string(),"schema":{}},
         "response":{"content":content,"model":"private-retained-model","input_tokens":7,"output_tokens":5,"request_id":"private-retained-request","service_tier":null,"reasoning_effort":null},
         "response_content_bytes":content.len(),"response_content_sha256":digest(&content),
         "response_content_omitted":false,"elapsed_ms":1,
@@ -114,6 +114,7 @@ print(json.dumps({'schema':'eal.evidence-discovery/1','catalogue':catalogue,'adm
         let assessment = json!({"findings":[],"objections":[],"evidence_gaps":[]}).to_string();
         let draft = json!({"argument":case,"support_elaboration_json":serde_json::to_string(&repaired).unwrap()}).to_string();
         let final_content = json!({"argument":case,"support_elaboration_json":serde_json::to_string(&pending).unwrap()}).to_string();
+        let recorded_request = serde_json::to_value(&request).unwrap();
         let original = json!({
             "schema_version":"engarg.run.v3","execution_mode":"provider_calls","mode":"hybrid",
             "input_sha256":digest(&serde_json::to_string(&request).unwrap()),
@@ -127,10 +128,10 @@ print(json.dumps({'schema':'eal.evidence-discovery/1','catalogue':catalogue,'adm
             "run_config":engarg::engine::RunConfig {max_calls:7,max_repairs:1,..Default::default()},
             "request":request,"argument":case,"limitations":["private original limitation"],"tooling":null,
             "transcript":[
-                receipt("constructor",assessment.clone()),receipt("sceptic",assessment.clone()),
-                receipt("evidence_auditor",assessment.clone()),receipt("synthesiser",draft),
-                receipt("final_critic",assessment),receipt("adjudicator",final_content.clone()),
-                receipt("adjudicator",final_content),
+                receipt("constructor",assessment.clone(), &recorded_request),receipt("sceptic",assessment.clone(), &recorded_request),
+                receipt("evidence_auditor",assessment.clone(), &recorded_request),receipt("synthesiser",draft, &recorded_request),
+                receipt("final_critic",assessment, &recorded_request),receipt("adjudicator",final_content.clone(), &recorded_request),
+                receipt("adjudicator",final_content, &recorded_request),
             ],
             "evidence_planning":{"schema":"engarg.support-planning/1","elaboration":pending,"routes":routes},
         });
@@ -469,9 +470,13 @@ fn recovery_repairs_legacy_missing_freshness_without_repeating_authoring() {
         json!({"freshness":{"max_age_seconds":3600,"require_original_observation_time":true}})
             .to_string()
     );
-    fixture.original["input_sha256"] = json!(digest(
-        &serde_json::to_string(&fixture.original["request"]).unwrap()
-    ));
+    let retained_request: engarg::domain::Request =
+        serde_json::from_value(fixture.original["request"].clone()).unwrap();
+    fixture.original["input_sha256"] =
+        json!(digest(&serde_json::to_string(&retained_request).unwrap()));
+    for call in fixture.original["transcript"].as_array_mut().unwrap() {
+        call["prompt"]["user"] = json!(json!({"request":retained_request}).to_string());
+    }
     let configuration: PlanningConfig =
         serde_json::from_slice(&std::fs::read(&fixture.config).unwrap()).unwrap();
     let connections: Value =
@@ -501,9 +506,12 @@ fn recovery_repairs_legacy_missing_freshness_without_repeating_authoring() {
     let legacy_content = json!({"argument":fixture.original["argument"],
         "support_elaboration_json":serde_json::to_string(&legacy).unwrap()})
     .to_string();
-    fixture.original["transcript"][3] = receipt("synthesiser", legacy_content.clone());
+    let recorded_request = fixture.original["request"].clone();
+    fixture.original["transcript"][3] =
+        receipt("synthesiser", legacy_content.clone(), &recorded_request);
     for index in [5, 6] {
-        fixture.original["transcript"][index] = receipt("adjudicator", legacy_content.clone());
+        fixture.original["transcript"][index] =
+            receipt("adjudicator", legacy_content.clone(), &recorded_request);
     }
 
     fixture

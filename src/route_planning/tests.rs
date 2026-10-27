@@ -420,8 +420,17 @@ fn operator_definitions_change_only_implementation_and_preserve_replanning_histo
     authored.input_schema["properties"]["expression"]["x-engarg-unit"] = json!("json");
     authored.output_schema["properties"]["result"]["x-engarg-unit"] = json!("1");
     let baseline = compile(&case, &elaboration, &catalogue, &config, &discovery).unwrap();
-    let original = json!({"argument":case,"transcript":[],
-        "evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":baseline}});
+    let request: crate::domain::Request =
+        serde_json::from_str(include_str!("../../examples/claim-only-request.json")).unwrap();
+    let original = json!({
+        "schema_version":crate::report::RUN_REPORT_SCHEMA,
+        "execution_mode":"offline_synthetic_fixture",
+        "input_sha256":eal_collector_contracts::execution::canonical_digest(&request).unwrap(),
+        "mode":"single", "request":request, "argument":case, "transcript":[],
+        "limitations":["Synthetic operator-definition and route-history fixture."],
+        "evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":baseline}
+    });
+    crate::report::read_direct(&original).unwrap();
     let mut retained = original.clone();
     crate::report::retain_replanning(&original, &mut retained).unwrap();
     let mut pinned = elaboration.acquisitions[0].operation_spec.clone().unwrap();

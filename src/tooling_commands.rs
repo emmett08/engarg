@@ -203,14 +203,15 @@ async fn implement_with_progress(
     if output.exists() {
         return Err(Error::InvalidInput("output file already exists".into()));
     }
-    let mut admitted = engarg::report::read_direct(&original)?;
+    let admitted = engarg::report::read_direct(&original)?;
     args.tools.capability_config(
         true,
         args.provider.max_input_bytes,
         args.provider.max_response_bytes,
     )?;
-    admitted.target_runtime =
-        Some(engarg::runtime_compatibility::preflight(args.eal_host.as_deref()).await?);
+    // The source receipt identifies its immutable authoring cut. Admit the
+    // implementation target without rewriting that receipt or revision history.
+    engarg::runtime_compatibility::preflight(args.eal_host.as_deref()).await?;
     let original = serde_json::to_value(admitted)?;
     let model = progress.model(args.provider.model()?);
     progress.phase("implementing and verifying missing operations");
