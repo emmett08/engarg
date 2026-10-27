@@ -5,7 +5,6 @@ pub mod contracts;
 pub mod direct;
 mod execution_diagnostics;
 pub mod export;
-pub mod generated_registration;
 pub mod generation;
 pub mod package;
 pub mod profile;

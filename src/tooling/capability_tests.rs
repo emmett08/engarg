@@ -318,63 +318,6 @@ async fn two_calls_freeze_contract_then_observe_tests_before_registration() {
 }
 
 #[tokio::test]
-async fn generated_registration_keeps_source_interface_and_requires_separate_qualification() {
-    use crate::tooling::generated_registration::*;
-    let directory = tempfile::tempdir().unwrap();
-    let request = operation();
-    let selected = config(directory.path());
-    let runner = Arc::new(FakeRunner::new(&selected));
-    let model = Model::new(vec![draft_response(&request), code_response("correct")]);
-    let record = implement_with_runner(
-        &request,
-        ImplementationGapKind::Operation,
-        selected,
-        &model,
-        runner,
-    )
-    .await
-    .unwrap();
-    let executable = std::env::current_exe().unwrap();
-    let template =
-        native_provider_template(&record, &executable, &executable, &Default::default()).unwrap();
-    assert!(template["capability"]["semantics"].is_null());
-    assert!(validate_qualified_provider(&template, &template).is_err());
-    assert_eq!(
-        operation_contract(&record).unwrap().identity().unwrap(),
-        request.identity().unwrap()
-    );
-    let mut reviewed = template.clone();
-    reviewed["capability"]["semantics"] = json!({
-        "qualification_reference":"independent-synthetic-function-review/1",
-        "support_types":["calculation"],"subject_kinds":["synthetic_flag"],"methods":["synthetic_flag/1"],
-        "identity_dimensions":["mode"],"scope_constraints":{},"scope_bindings":{"mode":"/mode"},
-        "quantities":[],"coverage":[{"strength":"exact_calculation","population":null,"completeness_pointer":null}],
-        "time":{"historical_intervals":false,"historical_input":null,"original_observation_time":false,"uncertainty_seconds":0},
-        "provenance":{"authorities":["synthetic-review"],"transformation_history":true},
-        "limitations":["Synthetic function qualification only; no domain evidence acquired."]
-    });
-    reviewed["mapping"]["observation_time"] = json!({"kind":"collection_time"});
-    reviewed["mapping"]["scope_pointers"] = json!({"mode":"/request/input/mode"});
-    validate_qualified_provider(&template, &reviewed).unwrap();
-    // A pending registration can be replaced by the reviewed contract without
-    // authorizing a different executable, package, protocol or function schema.
-    validate_provider_binding(&template, &template).unwrap();
-    for pointer in [
-        "/transport/program",
-        "/pinned_files/0/sha256",
-        "/capability/input_schema_sha256",
-        "/mapping/value_pointer",
-    ] {
-        let mut forged = reviewed.clone();
-        *forged.pointer_mut(pointer).unwrap() = json!("changed");
-        assert!(
-            validate_qualified_provider(&template, &forged).is_err(),
-            "{pointer}"
-        );
-    }
-}
-
-#[tokio::test]
 async fn current_records_retain_credential_authority_and_revalidate_before_zero_call_reuse() {
     let directory = tempfile::tempdir().unwrap();
     let request = operation();

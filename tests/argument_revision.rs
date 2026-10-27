@@ -18,7 +18,7 @@ fn report() -> RunReport {
         live_output::case(include_str!("../examples/claim-only-case.json"));
     RunReport {
         schema_version: "engarg.run.v3".into(),
-        execution_mode: "explicit_fixture".into(),
+        execution_mode: "offline_synthetic_fixture".into(),
         input_sha256: eal_collector_contracts::execution::canonical_digest(&request).unwrap(),
         provider_config: None,
         mode: Mode::Single,

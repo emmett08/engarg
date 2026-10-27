@@ -10,7 +10,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::Path};
 
+mod authorship;
 mod current;
+mod encoding;
+pub use encoding::FieldEncoding as RetainedFieldEncoding;
 pub mod freshness;
 pub use current::{
     AuthoringRecovery, RUN_REPORT_SCHEMA, SupportRecovery, read, read_direct, validate, with_direct,
@@ -18,6 +21,7 @@ pub use current::{
 
 pub const REPLANNING_SCHEMA: &str = "engarg.evidence-replan/1";
 pub const MAX_REPLANNING_HISTORY: usize = 16;
+pub(crate) const MAX_SUPPORT_RECOVERY_HISTORY: usize = 3;
 
 #[derive(Debug, Clone)]
 pub enum EvidencePlanningReport {
@@ -83,6 +87,9 @@ pub struct ReplanningRecord {
     /// Preserve presence, nulls and exact values of the previous extensions.
     #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_map_exact")]
     pub previous_extensions: BTreeMap<String, Value>,
+    /// Sparse raw encodings lost when a consumer normalises typed defaults.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub previous_encoding: BTreeMap<String, RetainedFieldEncoding>,
     pub model_calls: u32,
     /// Explicit operator-authorised age additions. Older route-only records omit this.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -107,35 +114,49 @@ pub fn retain_replanning_with_freshness(
         .get("evidence_planning")
         .filter(|value| !value.is_null())
         .ok_or_else(|| invalid("replanning requires a graph report"))?;
+    // A new route plan has one current typed encoding. The parent keeps its
+    // exact original encoding and digest through the sparse restoration below.
+    let canonical: SupportPlanning<RoutePlan> = serde_json::from_value(new.clone())?;
+    let canonical = serde_json::to_value(canonical)?;
+    let previous_extensions: BTreeMap<String, Value> = [
+        "tooling",
+        "replanning",
+        "support_recovery",
+        "support_elaboration",
+        "direct_bindings",
+        "design_review",
+    ]
+    .into_iter()
+    .filter(|key| *key != "support_recovery" || clarification.is_some())
+    .filter_map(|key| previous.get(key).map(|value| (key.into(), value.clone())))
+    .collect();
+    let excluded_roots: Vec<_> = previous_extensions
+        .keys()
+        .map(String::as_str)
+        .chain(std::iter::once("evidence_planning"))
+        .collect();
+    let previous_encoding = encoding::capture(previous, &excluded_roots)?;
     let record = ReplanningRecord {
         schema: REPLANNING_SCHEMA.into(),
         input_report_sha256: digest(previous)?,
         previous_planning_sha256: digest(old)?,
-        current_planning_sha256: digest(new)?,
+        current_planning_sha256: digest(&canonical)?,
         previous_evidence_planning: old.clone(),
-        previous_extensions: [
-            "tooling",
-            "replanning",
-            "support_recovery",
-            "support_elaboration",
-            "direct_bindings",
-            "design_review",
-        ]
-        .into_iter()
-        .filter(|key| *key != "support_recovery" || clarification.is_some())
-        .filter_map(|key| previous.get(key).map(|value| (key.into(), value.clone())))
-        .collect(),
+        previous_extensions,
+        previous_encoding,
         model_calls: 0,
         freshness_clarification: clarification,
     };
+    let encoded_record = serde_json::to_value(&record)?;
     let object = current
         .as_object_mut()
         .ok_or_else(|| invalid("saved analysis must be a JSON object"))?;
+    object.insert("evidence_planning".into(), canonical);
     object.remove("tooling");
     if record.freshness_clarification.is_some() {
         object.remove("support_recovery");
     }
-    object.insert("replanning".into(), serde_json::to_value(record)?);
+    object.insert("replanning".into(), encoded_record);
     Ok(())
 }
 
@@ -163,14 +184,14 @@ pub fn validate_replanning_for_update(raw: &Value, executable: &Path) -> Result<
 /// Recovery retains complete prior reports, with a small independent depth bound.
 pub fn support_recovery_depth(raw: &Value) -> Result<usize, Error> {
     let mut current = raw;
-    for depth in 0..=3 {
+    for depth in 0..=MAX_SUPPORT_RECOVERY_HISTORY {
         let Some(record) = current
             .get("support_recovery")
             .filter(|record| !record.is_null())
         else {
             return Ok(depth);
         };
-        if depth == 3 {
+        if depth == MAX_SUPPORT_RECOVERY_HISTORY {
             return Err(invalid("support recovery history exceeds three revisions"));
         }
         current = record
@@ -344,26 +365,69 @@ fn validate_replanning_limit(
                 "replanning changed its original requirements or planning identities",
             ));
         }
-        let object = current.as_object_mut().expect("classified report object");
-        object.insert(
-            "evidence_planning".into(),
-            record.previous_evidence_planning,
-        );
-        object.remove("tooling");
-        object.remove("replanning");
-        object.remove("support_elaboration");
-        object.remove("direct_bindings");
-        object.remove("design_review");
-        object.extend(record.previous_extensions);
-        if digest(&current)? != record.input_report_sha256 {
-            return Err(invalid("replanning changed the retained original report"));
-        }
+        restore_replanning_parent(&mut current, record)?;
         if let Some(executable) = executable {
             crate::tooling::direct::revalidate_report(&current, executable)?;
         }
         validate_support_recovery(&current)?;
     }
     unreachable!("bounded replanning loop returns at its limit")
+}
+
+/// Restore the exact parent bytes represented by a checked route-only transition.
+/// Nullable extension presence is part of the retained identity.
+fn restore_replanning_parent(current: &mut Value, record: ReplanningRecord) -> Result<(), Error> {
+    let object = current
+        .as_object_mut()
+        .ok_or_else(|| invalid("replanning requires a report object"))?;
+    object.insert(
+        "evidence_planning".into(),
+        record.previous_evidence_planning,
+    );
+    for key in [
+        "tooling",
+        "replanning",
+        "support_elaboration",
+        "direct_bindings",
+        "design_review",
+    ] {
+        object.remove(key);
+    }
+    object.extend(record.previous_extensions);
+    encoding::restore(current, &record.previous_encoding)?;
+    if digest(current)? != record.input_report_sha256 {
+        return Err(invalid("replanning changed the retained original report"));
+    }
+    Ok(())
+}
+
+/// Select the original authoring cut after its recovery/replanning history has
+/// passed validate_history. Repairs own their later support changes; initial
+/// authored output is checked against the retained source before those changes.
+pub(super) fn authoring_cut(
+    report: &crate::engine::RunReport,
+) -> Result<crate::engine::RunReport, Error> {
+    let mut current = serde_json::to_value(report)?;
+    let maximum = (MAX_REPLANNING_HISTORY + 1) * (MAX_SUPPORT_RECOVERY_HISTORY + 1);
+    for _ in 0..=maximum {
+        if let Some(record) = current.get("replanning").filter(|value| !value.is_null()) {
+            let record: ReplanningRecord = serde_json::from_value(record.clone())?;
+            restore_replanning_parent(&mut current, record)?;
+        } else if let Some(record) = current
+            .get("support_recovery")
+            .filter(|value| !value.is_null())
+        {
+            current = record
+                .get("previous_report")
+                .cloned()
+                .ok_or_else(|| invalid("support recovery omits previous report"))?;
+        } else {
+            return serde_json::from_value(current).map_err(Error::from);
+        }
+    }
+    Err(invalid(
+        "authoring origin exceeds its retained history bounds",
+    ))
 }
 
 fn digest(value: &impl Serialize) -> Result<String, Error> {

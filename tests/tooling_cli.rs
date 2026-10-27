@@ -208,3 +208,140 @@ fn hidden_launcher_rejects_an_unverified_manifest_without_observations() {
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
 }
+
+fn revised_selected_runtime_report(path: &Path) -> Value {
+    authored(path);
+    let mut report = engarg::report::read_direct(
+        &serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap(),
+    )
+    .unwrap();
+    let mut target = engarg::runtime_compatibility::embedded().unwrap();
+    target.kind = engarg::runtime_compatibility::TargetKind::SelectedHost;
+    target.implementation_version = Some("synthetic-authoring-host".into());
+    target.executable_sha256 = Some("a".repeat(64));
+    report.target_runtime = Some(target);
+    let mut argument = report.argument.clone();
+    argument
+        .adjudication
+        .push_str(" The explicit revision retains the finite fixture scope.");
+    let revised = engarg::engine::support::revision::revise_with_support(
+        &report,
+        argument,
+        report.support_elaboration.clone(),
+        None,
+    )
+    .unwrap();
+    let value = serde_json::to_value(revised).unwrap();
+    engarg::report::read_direct(&value).unwrap();
+    fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
+    value
+}
+
+fn implementation_command(root: &Path, endpoint: &str) -> Command {
+    let toolchain = root.join("toolchain.json");
+    fs::write(
+        &toolchain,
+        serde_json::to_vec(&json!({
+            "schema":"engarg.toolchain/1", "language":"python",
+            "docker":"must-not-start", "image":"must-not-start",
+            "build_argv":[], "run_argv":["python3"], "inherit_env":[],
+            "runtime_network":"none", "timeout_seconds":30,
+            "memory_mb":128, "output_bytes":1048576
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let mut invocation = command();
+    invocation
+        .env_remove("EAL_HOST")
+        .args(["eal", "implement", "--input"])
+        .arg(root.join("analysis.json"))
+        .arg("--tools")
+        .arg(tools(root))
+        .args(["--model", "fixture", "--endpoint", endpoint])
+        .args([
+            "--api-key-env",
+            "UNSET_TOOL_TEST_KEY",
+            "--http-retries",
+            "0",
+            "--request-timeout-secs",
+            "1",
+            "--tool-language",
+            "python",
+            "--toolchain",
+        ])
+        .arg(toolchain)
+        .arg("--tool-store")
+        .arg(root.join("store"))
+        .arg("--tool-output-dir")
+        .arg(root.join("attempt"))
+        .args(["--tool-timeout-secs", "5"]);
+    invocation
+}
+
+#[test]
+fn revised_report_keeps_its_authoring_runtime_when_implementation_uses_embedded_contracts() {
+    use std::{io, net::TcpListener};
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let original = revised_selected_runtime_report(&root.join("analysis.json"));
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let endpoint = format!("http://{}/responses", listener.local_addr().unwrap());
+    let output = implementation_command(root, &endpoint).output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let implemented: Value =
+        serde_json::from_slice(&fs::read(root.join("attempt/analysis.with-tools.json")).unwrap())
+            .unwrap();
+    engarg::report::read_direct(&implemented).unwrap();
+    assert_eq!(implemented["target_runtime"], original["target_runtime"]);
+    assert_eq!(
+        implemented["argument_revisions"],
+        original["argument_revisions"]
+    );
+    assert_eq!(implemented["tooling"]["model_calls"], 0);
+    assert_eq!(
+        implemented["tooling"]["deferred"].as_array().unwrap().len(),
+        2
+    );
+    assert!(!root.join("store").exists());
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn revised_implementation_admits_the_selected_host_before_provider_calls() {
+    use std::{io, net::TcpListener, os::unix::fs::PermissionsExt};
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    revised_selected_runtime_report(&root.join("analysis.json"));
+    let host = root.join("incompatible-host");
+    fs::write(
+        &host,
+        "#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' '{\"operation\":\"describe\",\"protocol_version\":\"2025-11-25\",\"is_error\":false,\"result\":{\"source_syntax\":\"EAL/3\"},\"content\":[]}'\n",
+    )
+    .unwrap();
+    fs::set_permissions(&host, fs::Permissions::from_mode(0o700)).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let endpoint = format!("http://{}/responses", listener.local_addr().unwrap());
+    let output = implementation_command(root, &endpoint)
+        .arg("--eal-host")
+        .arg(host)
+        .output()
+        .unwrap();
+    failed(output, "EAL_TARGET_INCOMPATIBLE");
+    assert!(!root.join("attempt").exists());
+    assert!(!root.join("store").exists());
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        io::ErrorKind::WouldBlock
+    );
+}

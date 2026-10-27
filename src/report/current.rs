@@ -114,7 +114,7 @@ pub fn validate(report: &RunReport) -> Result<(), Error> {
     let original_value = serde_json::to_value(&original)?;
     crate::authoring_checkpoint::validate_recovery_report(&original_value)?;
     super::validate_history(&original_value)?;
-    validate_direct_authoring(&original)?;
+    super::authorship::validate(&original)?;
     if let Some(planning) = &report.evidence_planning {
         if planning.schema != "engarg.support-planning/1"
             || planning.routes.schema != crate::route_planning::ROUTE_PLAN_SCHEMA
@@ -168,66 +168,6 @@ pub fn validate(report: &RunReport) -> Result<(), Error> {
         return Err(Error::InvalidInput(
             "Direct binding metadata requires support_elaboration".into(),
         ));
-    }
-    Ok(())
-}
-
-/// Initial provider authorship is tied to its final retained completion. Later
-/// semantic edits must pass through the revision chain, whose original cut is
-/// checked here. Discovery recovery has its own retained transition protocol.
-fn validate_direct_authoring(report: &RunReport) -> Result<(), Error> {
-    if report.execution_mode != "provider_calls"
-        || report.support_elaboration.is_none()
-        || report.evidence_planning.is_some()
-    {
-        return Ok(());
-    }
-    let invalid = || {
-        Error::InvalidInput(
-            "Direct authoring differs from its retained completion; use an explicit argument revision"
-                .into(),
-        )
-    };
-    let config = report.run_config.as_ref().ok_or_else(invalid)?;
-    if report.mode != config.mode
-        || report.input_sha256
-            != crate::authoring_checkpoint::digest(serde_json::to_vec(&report.request)?)
-        || report.design_review.is_none()
-        || report.direct_bindings.is_none()
-    {
-        return Err(invalid());
-    }
-    let mut checkpoint = Checkpoint::new(
-        report.request.clone(),
-        config.clone(),
-        serde_json::to_value(&report.provider_config)?,
-        String::new(),
-    );
-    checkpoint.transcript = report.transcript.clone();
-    checkpoint.validate_transcript()?;
-    if checkpoint.inspection()["resumable"] != true {
-        return Err(invalid());
-    }
-    let last = report.transcript.last().ok_or_else(invalid)?;
-    let mut candidate = crate::support_requirements::parse_supported_argument(
-        &last.response.content,
-        crate::authoring_checkpoint::MAX_REPORT_BYTES,
-    )?;
-    crate::engine::reconcile_retained_argument(
-        &report.request,
-        &mut candidate.argument,
-        &report.argument,
-        &report.transcript,
-    )?;
-    if super::digest(&candidate.argument)? != super::digest(&report.argument)?
-        || Some(super::digest(&candidate.support_elaboration)?)
-            != report
-                .support_elaboration
-                .as_ref()
-                .map(super::digest)
-                .transpose()?
-    {
-        return Err(invalid());
     }
     Ok(())
 }
