@@ -76,6 +76,25 @@ pub fn materialise_source_arguments(
     operator_arguments: Option<&Value>,
     input_bindings: &BTreeMap<String, String>,
 ) -> Result<(Value, Vec<String>), Error> {
+    materialise_source_arguments_with_composition(
+        blueprint,
+        capability,
+        operator_arguments,
+        input_bindings,
+        None,
+    )
+}
+
+/// A verified composition can bind exactly its source identity into the fixed
+/// selector. The runtime witness must then check the observed value against
+/// that fixed scope before invoking the calculator.
+pub(crate) fn materialise_source_arguments_with_composition(
+    blueprint: &AcquisitionBlueprint,
+    capability: &CapabilityDescriptor,
+    operator_arguments: Option<&Value>,
+    input_bindings: &BTreeMap<String, String>,
+    composition: Option<&super::composition::IdentifierAuditProof>,
+) -> Result<(Value, Vec<String>), Error> {
     if operator_arguments.is_some_and(|value| !value.is_object()) {
         return Err(Error::InvalidInput(
             "operator source arguments require a JSON object".into(),
@@ -150,7 +169,28 @@ pub fn materialise_source_arguments(
         for (dimension, pointer) in &semantics.scope_bindings {
             let overwritten = dynamic.iter().any(|dynamic| overlaps(pointer, dynamic));
             if overwritten {
-                if scope.contains_key(dimension) {
+                let proof_bound_identity = composition.is_some_and(|proof| {
+                    proof.identity_scope_key == *dimension
+                        && proof.argument_identity_pointer == *pointer
+                        && input_bindings
+                            .keys()
+                            .all(|mapped| !overlaps(pointer, mapped) || mapped == pointer)
+                        && fanout
+                            .as_ref()
+                            .is_none_or(|binding| !overlaps(pointer, &binding.argument_pointer))
+                        && dependencies
+                            .iter()
+                            .filter(|binding| overlaps(pointer, &binding.argument_pointer))
+                            .count()
+                            == 1
+                        && dependencies.iter().any(|binding| {
+                            binding.argument_pointer == *pointer
+                                && binding.output.step_id == proof.source_step_id
+                                && binding.output.pointer == proof.source_identity_pointer
+                                && binding.role.is_selection()
+                        })
+                });
+                if scope.contains_key(dimension) && !proof_bound_identity {
                     gaps.push(format!(
                         "Dynamic input may replace fixed scope selector {dimension}"
                     ));

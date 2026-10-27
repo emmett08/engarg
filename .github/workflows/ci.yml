@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: 9da53e5caf1936a29663192779dc4991a0dd550f
+      EAL_REVISION: b9e48835b6a40a91c9088c9c5f3fd9389d19750d
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -123,7 +123,7 @@ jobs:
           cargo +1.99.1 test --locked --bin engarg tooling_commands::native_provider -- --ignored
           cargo +1.99.1 test --locked --test tooling_docker generated_interface_native_preflight -- --ignored
           cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test support_cli --test support_export --test support_batch -- --ignored
-          cargo +1.99.1 test --locked --test support_method_export --test catalogue_workflow_native -- --ignored
+          cargo +1.99.1 test --locked --test support_method_export --test catalogue_workflow_native --test catalogue_composite_native -- --ignored
 
           # Keep one real CLI/coordinator smoke check in automatic compatibility.
           # Exhaustive native graph/ticket sweeps run in ticket-acceptance.yml.

@@ -37,6 +37,7 @@ def method_scope_identity(scope):
 
 SNAPSHOT = "demonstration-v1"
 METHOD = "catalogue.identifier-audit/1"
+SOURCE_METHOD = "catalogue.snapshot/1"
 CLAIM = "The demonstration-v1 catalogue snapshot contains three entries with distinct identifiers."
 METHOD_SCOPE = {
     'kind': 'catalogue_snapshot',
@@ -172,8 +173,18 @@ def request_for(inputs):
 
 
 def measurement_semantics(method=METHOD, count_unit="count"):
+    if method not in (METHOD, SOURCE_METHOD):
+        raise ValueError("Unsupported catalogue demonstration method")
     calculation = method == METHOD
-    return {
+    coverage = {"strength": "exact_calculation" if calculation else "complete_enumeration",
+                "population": None if calculation else "demonstration-v1 snapshot items",
+                "completeness_pointer": "/complete"}
+    if not calculation:
+        # The local MCP returns the whole bounded catalogue file unchanged.
+        # This operator-owned qualification links that population to its output
+        # quantity. The generated calculator never claims source authority.
+        coverage["population_quantity"] = "items"
+    semantics = {
         "qualification_reference": "engarg.local-catalogue-demonstration/1",
         "support_types": ["calculation" if calculation else "source_retrieval"],
         "subject_kinds": ["catalogue_snapshot"], "methods": [method],
@@ -187,15 +198,31 @@ def measurement_semantics(method=METHOD, count_unit="count"):
                        if calculation else [{"name": "snapshot", "unit": "1", "output_pointer": "/snapshot"},
                                             {"name": "items", "unit": "json", "output_pointer": "/items"},
                                             {"name": "complete", "unit": "boolean", "output_pointer": "/complete"}]),
-        "coverage": [{"strength": "exact_calculation" if calculation else "complete_enumeration",
-                      "population": None if calculation else "demonstration-v1 snapshot items",
-                      "completeness_pointer": "/complete"}],
+        "coverage": [coverage],
         "time": {"historical_intervals": False, "historical_input": None,
                  "original_observation_time": True, "uncertainty_seconds": 1},
         "provenance": {"authorities": ["catalogue-audit" if calculation else "catalogue-fixture"],
                        "transformation_history": True},
         "limitations": ["Local demonstration snapshot only. It establishes no private deployment facts."]
     }
+    if calculation:
+        # Operator-owned fixed operation; generated model text cannot supply or
+        # change these pointers. Qualification also runs independent probes.
+        semantics["identifier_audit"] = {
+            "argument_items_pointer": "/items",
+            "argument_complete_pointer": "/complete",
+            "argument_identity_pointer": "/snapshot",
+            "item_id_pointer": "/id",
+            "result_count_pointer": "/count",
+            "result_distinct_pointer": "/distinct",
+            "result_complete_pointer": "/complete",
+            "result_identity_pointer": "/snapshot",
+            "echoes": {"/formal_input": "/typed_input"},
+            "maximum_items": 32,
+            "minimum_id_chars": 1,
+            "maximum_id_chars": 64,
+        }
+    return semantics
 
 
 def audit_reference(value):
@@ -388,7 +415,7 @@ def configuration(directory, server, collector="managed"):
                      "configuration_sha256": digest(connection)},
         "input_schema": READ_INPUT, "input_schema_sha256": digest(READ_INPUT),
         "output_schema": READ_OUTPUT, "output_schema_sha256": digest(READ_OUTPUT),
-        "semantics": measurement_semantics("catalogue.snapshot/1"),
+        "semantics": measurement_semantics(SOURCE_METHOD),
         "configuration_requirements": [],
         "limits": {"timeout_seconds": 30, "output_bytes": 1_048_576, "concurrency": 1, "requests_per_minute": None},
         "costs": {name: {"value": value, "basis": "unknown" if value is None else "declared",

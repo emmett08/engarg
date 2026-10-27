@@ -115,8 +115,29 @@ interface and its independent probes. `tooling-operation-admission.json` records
 the binding before coding calls. Known unit annotations are checked separately
 from JSON Schema validation constraints. Cardinality units remain those of the
 admitted contract, and both source and audit qualifications declare the returned
-snapshot identifier. Qualifications retain their own source authority. Upstream
-authority requirements and unsupported scope selectors remain route gaps.
+snapshot identifier. The local MCP qualification explicitly identifies `items`
+as the whole enumeration of the named fixture population. Its fixture authority
+remains with the source, and the calculator retains its separate audit authority.
+
+The planner can qualify their combined route only when the selected source and
+the qualified calculation preserve the same population and snapshot scope. It
+checks the source-to-calculator bindings and the completeness gates against the
+fixed identifier-audit method. At execution, the EAL collector checks the actual
+complete source observation and recalculates the finite audit. A missing qualification,
+an incomplete source or an unsupported binding remains unresolved.
+Before authoring or collector generation, the simple example checks that the
+selected EAL collector advertises the composition capability. It retains the
+successful marker in `collector-capabilities.json`. An older incompatible
+collector stops the run before model calls.
+
+For other graph workflows, the script checks the selected collector whenever
+the compiled plan contains an `identifier_audit_v1` coverage proof. Graphs
+without that proof retain their existing collector behaviour. Direct
+`engarg eal export` and `engarg eal collect` invocations require the operator
+to check the bound collector separately: run `eal-collector capabilities` and
+require `identifier_audit_v1` in `coverage_proofs` and
+`qualified_population_quantity: true`. An older collector rejects the unknown
+proof field during collection.
 
 `--replan-analysis` can apply this current operator configuration to an earlier
 argument without repeating authoring. A package generated from the earlier

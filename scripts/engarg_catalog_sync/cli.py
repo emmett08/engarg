@@ -62,6 +62,9 @@ def main(argv=None):
     command("preflight", preflight.main,
             tuple(field.name for field in fields(preflight.PreflightOptions)), list_arguments=True)
     command("admit-collector", runtime.admit_collector, ("config_path", "selected_collector"))
+    command("validate-collector-capabilities", runtime.validate_collector_capabilities, ("collector", "receipt_path"))
+    command("validate-composed-collector", runtime.validate_composed_collector,
+            ("analysis_path", "collector", "receipt_path"))
     command("record-settings", runtime.record_settings, (
         "run_directory", "executable_path", "host_path", "host_selection", *runtime.SETTING_NAMES,
         "tool_model", "tool_reasoning_effort", "tool_output_tokens"))

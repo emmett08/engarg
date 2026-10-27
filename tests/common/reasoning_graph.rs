@@ -116,6 +116,7 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
     let routes = sources
         .iter()
         .map(|(id, contract)| AcquisitionRouteProof {
+            composition: None,
             batch: None,
             blueprint_id: (*id).into(),
             capability: capability(id, contract),
@@ -191,6 +192,7 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
         acquisitions: routes
             .iter()
             .map(|route| AcquisitionStep {
+                coverage_proof: None,
                 id: route.blueprint_id.clone(),
                 source: source(&route.capability),
                 arguments: json!({"fixture":"frozen-fixture-v1"}),
