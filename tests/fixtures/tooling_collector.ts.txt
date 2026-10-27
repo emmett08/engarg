@@ -1,0 +1,92 @@
+import { readFileSync } from "node:fs";
+
+try {
+  const source = readFileSync(0, "utf8");
+  if (Buffer.byteLength(source, "utf8") > 1048576) throw new Error("request limit");
+  const parsed = JSON.parse(source);
+  let offset = 0;
+  const raw: Record<string, string> = {};
+  function whitespace() {
+    while (offset < source.length && /\s/.test(source[offset])) offset++;
+  }
+  function string() {
+    const start = offset++;
+    while (offset < source.length) {
+      const character = source[offset++];
+      if (character === "\\") offset++;
+      else if (character === '"') return source.slice(start, offset);
+    }
+    throw new Error("unterminated string");
+  }
+  function value(capture = false): void {
+    whitespace();
+    if (source[offset] === "{") {
+      offset++;
+      whitespace();
+      const keys = new Set<string>();
+      if (source[offset] === "}") { offset++; return; }
+      while (offset < source.length) {
+        whitespace();
+        const key = JSON.parse(string());
+        if (keys.has(key)) throw new Error("duplicate key");
+        keys.add(key);
+        whitespace();
+        if (source[offset++] !== ":") throw new Error("colon");
+        whitespace();
+        const start = offset;
+        value();
+        if (capture) raw[key] = source.slice(start, offset);
+        whitespace();
+        if (source[offset] === "}") { offset++; return; }
+        if (source[offset++] !== ",") throw new Error("comma");
+      }
+      throw new Error("unterminated object");
+    }
+    if (source[offset] === "[") {
+      offset++;
+      whitespace();
+      if (source[offset] === "]") { offset++; return; }
+      while (offset < source.length) {
+        value();
+        whitespace();
+        if (source[offset] === "]") { offset++; return; }
+        if (source[offset++] !== ",") throw new Error("comma");
+      }
+      throw new Error("unterminated array");
+    }
+    if (source[offset] === '"') { string(); return; }
+    const start = offset;
+    while (offset < source.length && !/[\s,\]}]/.test(source[offset])) offset++;
+    if (offset === start) throw new Error("empty value");
+  }
+  value(true);
+  whitespace();
+  if (offset !== source.length) throw new Error("trailing data");
+  const required = ["evidence_id", "environment", "tool", "tool_version", "input", "context"];
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed) ||
+      Object.keys(parsed).sort().join(",") !== required.sort().join(",")) {
+    throw new Error("request fields");
+  }
+  for (const key of ["evidence_id", "environment", "tool", "tool_version"]) {
+    if (typeof parsed[key] !== "string" || parsed[key].length === 0) {
+      throw new Error("request identity");
+    }
+  }
+  if (parsed.context === null || typeof parsed.context !== "object" ||
+      Array.isArray(parsed.context) || parsed.input === null ||
+      typeof parsed.input !== "object" || Array.isArray(parsed.input) ||
+      Object.keys(parsed.input).join(",") !== "mode") {
+    throw new Error("request objects");
+  }
+  const mode = parsed.input.mode;
+  if (!["positive", "negative", "error"].includes(mode) || mode === "error") {
+    throw new Error("synthetic acquisition error");
+  }
+  const result = '{"value":' + JSON.stringify({collected: true, present: mode === "positive", mode}) +
+    ',"context":' + raw.context + ',"request":{"tool":' + raw.tool +
+    ',"tool_version":' + raw.tool_version + ',"input":' + raw.input +
+    ',"context":' + raw.context + '}}';
+  process.stdout.write(result + "\n");
+} catch {
+  process.exitCode = 2;
+}

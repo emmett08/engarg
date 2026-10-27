@@ -76,6 +76,8 @@ jobs:
           docker pull python:3.13-slim
           docker pull node:24-slim
           docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
+          docker build --tag engarg-go-tools:1.25.14 examples/toolchains/go
+          docker build --tag engarg-typescript-tools:5.9.3 examples/toolchains/typescript
           cargo test --locked --test tooling_docker -- --ignored
 
   eal-compatibility:
@@ -84,7 +86,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: 38c364b4319d84b916669836ead78004e44dbc61
+      EAL_REVISION: 18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'

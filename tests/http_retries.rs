@@ -33,6 +33,7 @@ struct Reply {
     body: String,
     headers: String,
     delay: Duration,
+    body_delay: Duration,
 }
 impl Reply {
     fn failure(status: u16, headers: &str, body: &str) -> Self {
@@ -41,13 +42,14 @@ impl Reply {
             body: body.into(),
             headers: headers.into(),
             delay: Duration::ZERO,
+            body_delay: Duration::ZERO,
         }
     }
     fn rate(headers: &str, body: Value) -> Self {
         Self::failure(429, headers, &body.to_string())
     }
     fn success() -> Self {
-        Self{status:200,body:json!({"status":"completed","id":"response-id","model":"actual-model","output":[{"type":"message","content":[{"type":"output_text","text":"{}"}]}]}).to_string(),headers:String::new(),delay:Duration::ZERO}
+        Self{status:200,body:json!({"status":"completed","id":"response-id","model":"actual-model","output":[{"type":"message","content":[{"type":"output_text","text":"{}"}]}]}).to_string(),headers:String::new(),delay:Duration::ZERO,body_delay:Duration::ZERO}
     }
 }
 #[derive(Default)]
@@ -97,9 +99,11 @@ impl Server {
                             let active=state.active.fetch_add(1,Ordering::SeqCst)+1;
                             state.peak.fetch_max(active,Ordering::SeqCst);
                             thread::sleep(reply.delay);
-                            let response=format!("HTTP/1.1 {} Test\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n{}",reply.status,reply.body.len(),reply.headers,reply.body);
+                            let response=format!("HTTP/1.1 {} Test\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{}\r\n",reply.status,reply.body.len(),reply.headers);
                             // Cancellation may close the peer after its request was recorded.
                             let _=socket.write_all(response.as_bytes());
+                            thread::sleep(reply.body_delay);
+                            let _=socket.write_all(reply.body.as_bytes());
                             state.active.fetch_sub(1,Ordering::SeqCst);
                         }));
                     }
@@ -457,6 +461,7 @@ async fn other_http_failures_and_invalid_successes_keep_single_attempt_semantics
             body: body.into(),
             headers: "Retry-After: 0\r\n".into(),
             delay: Duration::ZERO,
+            body_delay: Duration::ZERO,
         }]);
         let (observer, events) = recorder();
         let error = model(&server, TransportConfig::default(), observer)
@@ -711,4 +716,94 @@ async fn an_unrepresentable_call_deadline_fails_before_transport() {
     .unwrap();
     assert!(model.complete(request()).await.is_err());
     assert_eq!(server.state.requests.lock().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn timeout_diagnostics_retain_the_deadline_and_stage_without_resending() {
+    for (body_delay, expected_kind, expected_status) in [
+        (false, "request_timeout", 0),
+        (true, "response_body_timeout", 200),
+    ] {
+        let mut reply = Reply::success();
+        if body_delay {
+            reply.body_delay = Duration::from_millis(350);
+        } else {
+            reply.delay = Duration::from_millis(350);
+        }
+        let server = Server::new(vec![reply]);
+        let (observer, events) = recorder();
+        let model = HttpModel::new_with_transport(
+            config(&server.endpoint, Duration::from_millis(150)),
+            TransportConfig::default(),
+            observer,
+        )
+        .unwrap();
+        let failure = model.complete(request()).await.unwrap_err().to_string();
+        assert!(
+            failure.contains("logical-call deadline 0.150s"),
+            "{failure}"
+        );
+        assert!(failure.contains("no automatic retry"), "{failure}");
+        assert!(failure.contains("--request-timeout-secs"), "{failure}");
+        assert!(failure.contains("--timeout-secs"), "{failure}");
+        assert!(!failure.contains("sensitive"));
+        assert!(!failure.contains("test-private-key"));
+        assert_eq!(server.count(), 1);
+        let events = events.lock().unwrap();
+        let event = events.last().unwrap();
+        assert_eq!(event.kind, expected_kind);
+        assert_eq!(event.attempt, 1);
+        assert_eq!(event.status, expected_status);
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.kind == expected_kind)
+                .count(),
+            1
+        );
+        assert!(!events.iter().any(|event| event.kind == "retry"));
+    }
+}
+
+#[tokio::test]
+async fn cli_timeout_retains_failure_audit_and_checkpoint_without_a_report() {
+    let mut reply = Reply::success();
+    reply.delay = Duration::from_millis(1500);
+    let server = Server::new(vec![reply]);
+    let directory = tempfile::tempdir().unwrap();
+    let audit = directory.path().join("audit.jsonl");
+    let checkpoint = directory.path().join("checkpoint.json");
+    let report = directory.path().join("report.json");
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["analyse", "--mode", "single", "--max-calls", "1",
+            "--request-timeout-secs", "1", "--timeout-secs", "5",
+            "--model", "test-model", "--endpoint"])
+        .arg(&server.endpoint)
+        .args(["--claim", "Parallelising independent CI test groups reduces pipeline duration without changing test outcomes.",
+            "--api-key-env", "ENGARG_HTTP_RETRY_TEST_UNUSED_KEY", "--format", "json"])
+        .arg("--audit").arg(&audit)
+        .arg("--checkpoint").arg(&checkpoint)
+        .arg("--output").arg(&report)
+        .env_remove("ENGARG_HTTP_RETRY_TEST_UNUSED_KEY")
+        .output().unwrap();
+    assert!(!output.status.success());
+    assert!(!report.exists());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("logical-call deadline 1.000s"), "{stderr}");
+    assert!(stderr.contains("no automatic retry"), "{stderr}");
+    assert_eq!(server.count(), 1);
+    let saved: Value = serde_json::from_slice(&std::fs::read(checkpoint).unwrap()).unwrap();
+    assert_eq!(saved["transcript"], json!([]));
+    assert!(saved["failure"].as_str().unwrap().contains("timed out"));
+    let events = std::fs::read_to_string(audit)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .collect::<Vec<_>>();
+    assert!(
+        events.iter().any(|event| event["event"] == "http_attempt"
+            && event["record"]["kind"] == "request_timeout")
+    );
+    assert_eq!(events.last().unwrap()["event"], "failure");
+    assert!(!events.iter().any(|event| event["event"] == "completion"));
 }

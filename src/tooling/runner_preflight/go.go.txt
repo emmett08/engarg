@@ -1,0 +1,27 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+)
+
+func main() {
+	input, err := io.ReadAll(io.LimitReader(os.Stdin, 1024))
+	if err != nil || string(input) != "engarg-toolchain-check/1\n" {
+		panic("probe input")
+	}
+	fixture, err := os.ReadFile("/fixtures/engarg-preflight.txt")
+	if err != nil || string(fixture) != "engarg-read-only-fixture/1\n" {
+		panic("probe fixture")
+	}
+	for _, directory := range []string{"/src", "/fixtures"} {
+		if os.WriteFile(directory+"/engarg-write-probe", []byte("denied"), 0600) == nil {
+			panic("read-only mount is writable")
+		}
+	}
+	if err := os.WriteFile("/build/engarg-write-probe", []byte("allowed"), 0600); err != nil {
+		panic(err)
+	}
+	fmt.Println(`{"schema":"engarg.toolchain-probe/1","passed":true}`)
+}

@@ -23,6 +23,9 @@ mod reasoning_graph;
 #[path = "common/executable_case.rs"]
 mod executable_case;
 use executable_case::fixture;
+#[allow(dead_code)]
+#[path = "common/scoped_review_gates.rs"]
+mod scoped_review_gates;
 
 fn source(root: &Path) -> PathBuf {
     fs::create_dir_all(root.join("tools")).unwrap();
@@ -87,6 +90,60 @@ fn package_has_executable_source_direct_tools_and_inspection_only_receipt() {
             .keys()
             .all(|name| name.starts_with("source_"))
     );
+}
+
+#[test]
+fn pending_reviews_import_against_the_complete_operator_context() {
+    let root = TempDir::new().unwrap();
+    let tools = root.path().join("tools.toml");
+    fs::write(&tools, "[context]\nci_revision='actual-revision'\n").unwrap();
+    let request: Request = serde_json::from_str(include_str!("../examples/request.json")).unwrap();
+    let case: ArgumentCase = serde_json::from_str(include_str!("../examples/case.json")).unwrap();
+    let receipt = package::build(
+        &request,
+        &case,
+        &scoped_review_gates::elaboration(&case),
+        &tools,
+        &root.path().join("package"),
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    let manifest = eal_collector_contracts::RegistryDocument::from_toml(
+        &fs::read_to_string(root.path().join("package/tools.toml")).unwrap(),
+    )
+    .unwrap();
+    let context = serde_json::to_value(manifest.context).unwrap();
+    let reviews = receipt["pending_reviews"].as_array().unwrap();
+    assert!(!reviews.is_empty());
+    for retained in reviews {
+        assert_eq!(retained["context"], context);
+        let mut actual: eal_collector_contracts::AcquisitionRequest =
+            serde_json::from_value(retained.clone()).unwrap();
+        actual.context = context.clone();
+        let value = json!({
+            "criterion":actual.input["criterion"], "target":actual.input["target"],
+            "scope":actual.input["scope"], "reviewer":"independent-fixture-reviewer",
+            "verdict":"inconclusive", "reasons":["Synthetic import correspondence check only"],
+            "reviewed_at":"2026-10-27T12:00:00Z"
+        });
+        let recorded = eal_adapters::retained::Review {
+            request: actual.acquisition(),
+            value: value.clone(),
+        };
+        assert!(eal_adapters::retained::import_review(&actual, vec![recorded]).is_ok());
+        let mut different = actual.acquisition();
+        different["context"]["ci_revision"] = json!("different-revision");
+        assert!(
+            eal_adapters::retained::import_review(
+                &actual,
+                vec![eal_adapters::retained::Review {
+                    request: different,
+                    value
+                }]
+            )
+            .is_err()
+        );
+    }
 }
 
 #[test]

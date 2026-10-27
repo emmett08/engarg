@@ -60,7 +60,7 @@ pub fn build(
         versions.insert(acquisition.id.clone(), binding.version.clone());
         manifest.tools.insert(emitted, binding);
     }
-    let compiled =
+    let mut compiled =
         crate::support_export::compile_direct(request, case, elaboration, &versions, policy)?;
     for (key, value) in compiled
         .bundle
@@ -79,6 +79,12 @@ pub fn build(
         }
     }
     manifest.validate().map_err(Error::InvalidInput)?;
+    // Reviews are imported against the runtime acquisition identity, including
+    // operator context as well as the compiler's argument identity.
+    let context = serde_json::to_value(&manifest.context)?;
+    for review in &mut compiled.review_requests {
+        review.context = context.clone();
+    }
     let program = eal_core::composition::compile(
         &compiled.bundle.source,
         None,

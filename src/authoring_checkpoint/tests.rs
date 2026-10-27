@@ -41,6 +41,7 @@ fn completion_failure_preserves_in_memory_prefix() {
     let previous = directory.path().join("previous.json");
     let mut initial = checkpoint();
     initial.config.mode = Mode::Single;
+    initial.config.max_repairs = 1;
     let exchange = call(&initial, Role::Single);
     let store = Store::create(&path, initial).unwrap();
     store.completion(&exchange).unwrap();
@@ -274,4 +275,109 @@ fn routed_checkpoint_rejects_duplicate_cross_round_and_wrong_role_calls() {
     let mut skipped = saved;
     skipped.transcript.remove(0);
     assert!(skipped.validate().is_err());
+}
+
+#[test]
+fn initial_call_budgets_reject_oversize_content_and_unplanned_completions() {
+    let mut saved = checkpoint();
+    saved.config = RunConfig {
+        mode: Mode::Single,
+        max_calls: 1,
+        ..RunConfig::default()
+    };
+    saved.transcript.push(call(&saved, Role::Single));
+    saved.validate().unwrap();
+    let mut exact = saved.clone();
+    exact.config.max_input_bytes = serde_json::to_vec(&exact.transcript[0].prompt)
+        .unwrap()
+        .len();
+    exact.config.max_response_bytes = exact.transcript[0].response_content_bytes;
+    exact.validate().unwrap();
+    for field in ["input", "response", "calls"] {
+        let mut changed = exact.clone();
+        match field {
+            "input" => changed.config.max_input_bytes -= 1,
+            "response" => changed.config.max_response_bytes -= 1,
+            _ => changed.transcript.push(changed.transcript[0].clone()),
+        }
+        assert!(changed.validate().is_err(), "accepted {field} over budget");
+    }
+    let mut omitted = saved;
+    omitted.config.max_response_bytes = 1;
+    omitted.transcript[0].response_content_omitted = true;
+    omitted.transcript[0].response.content.clear();
+    omitted.validate().unwrap();
+    assert_eq!(omitted.inspection()["resumable"], false);
+}
+
+#[test]
+fn repeated_repair_stages_keep_original_limits_and_zero_call_cuts() {
+    let mut saved = checkpoint();
+    saved.config = RunConfig {
+        mode: Mode::Single,
+        max_calls: 1,
+        max_response_bytes: 2,
+        ..RunConfig::default()
+    };
+    saved.transcript.push(call(&saved, Role::Single));
+    let first = RepairAllowance {
+        recorded_calls: 1,
+        max_calls: 1,
+        max_input_bytes: 1_048_576,
+        max_response_bytes: 16,
+    };
+    saved.begin_repair(first.clone()).unwrap();
+    let mut large = call(&saved, Role::Single);
+    large.response.content = "{\"large\":true}".into();
+    large.response_content_bytes = large.response.content.len();
+    large.response_content_sha256 = digest(&large.response.content);
+    saved.transcript.push(large);
+    saved.validate().unwrap();
+    // A successful local replay can use no new calls and a smaller new limit.
+    saved
+        .begin_repair(RepairAllowance {
+            recorded_calls: 2,
+            max_calls: 1,
+            max_input_bytes: 1,
+            max_response_bytes: 1,
+        })
+        .unwrap();
+    saved.validate().unwrap();
+    saved
+        .begin_repair(RepairAllowance {
+            recorded_calls: 2,
+            max_calls: 1,
+            max_input_bytes: 1_048_576,
+            max_response_bytes: 16,
+        })
+        .unwrap();
+    saved.transcript.push(call(&saved, Role::Single));
+    saved.validate().unwrap();
+    let wire = serde_json::to_value(&saved).unwrap();
+    let reread: Checkpoint = serde_json::from_value(wire).unwrap();
+    reread.validate().unwrap();
+    for index in [0, 1] {
+        let mut changed = saved.clone();
+        if index == 0 {
+            changed.config.max_response_bytes = 1;
+        } else {
+            changed.repair_allowances[0].max_response_bytes = 2;
+        }
+        assert!(
+            changed.validate().is_err(),
+            "later allowance hid an oversized earlier call"
+        );
+    }
+    let mut wrong_source = saved.clone();
+    wrong_source.source["recorded_calls"] = json!(1);
+    assert!(wrong_source.validate().is_err());
+    let mut missing = saved.clone();
+    missing.repair_allowances.clear();
+    assert!(missing.validate().is_err());
+    let mut retroactive = saved.clone();
+    retroactive.repair_allowances[1].recorded_calls = 0;
+    assert!(retroactive.validate().is_err());
+    let before = serde_json::to_value(&saved).unwrap();
+    assert!(saved.begin_repair(first).is_err());
+    assert_eq!(serde_json::to_value(saved).unwrap(), before);
 }

@@ -95,6 +95,20 @@ pub(super) fn validate(report: &RunReport) -> Result<(), Error> {
 
 fn validate_provider(report: &RunReport) -> Result<(), Error> {
     let config = report.run_config.as_ref().ok_or_else(invalid)?;
+    let mut allowances = report
+        .authoring_recovery
+        .as_ref()
+        .map(|recovery| recovery.previous_checkpoint.repair_allowances.clone())
+        .unwrap_or_default();
+    if let Some(recovery) = &report.authoring_recovery {
+        allowances.push(crate::authoring_checkpoint::RepairAllowance {
+            recorded_calls: recovery.recorded_calls,
+            max_calls: recovery.additional_repair_limit,
+            max_input_bytes: recovery.stage_byte_limits.max_input_bytes,
+            max_response_bytes: recovery.stage_byte_limits.max_response_bytes,
+        });
+    }
+    crate::authoring_checkpoint::validate_call_allowances(config, &report.transcript, &allowances)?;
     if report.mode != config.mode
         || report.input_sha256
             != crate::authoring_checkpoint::digest(serde_json::to_vec(&report.request)?)
