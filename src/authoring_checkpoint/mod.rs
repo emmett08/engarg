@@ -9,6 +9,10 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
+mod budgets;
+pub use budgets::RepairAllowance;
+pub(crate) use budgets::validate_call_allowances;
+
 pub const SCHEMA: &str = "engarg.authoring-checkpoint/1";
 pub const MAX_BYTES: usize = 128 * 1_048_576;
 pub const MAX_CALLS: usize = 32;
@@ -38,6 +42,7 @@ pub fn protocol_identity() -> String {
         include_str!("../support_requirements/validation.rs"),
         include_str!("mod.rs"),
         include_str!("storage.rs"),
+        include_str!("budgets.rs"),
         include_str!("../authoring_commands.rs")
     ))
 }
@@ -60,6 +65,9 @@ pub struct Checkpoint {
     pub provider_config: Value,
     pub evidence_config_sha256: String,
     pub source: Value,
+    /// Separate, bounded authoring-resume allowances without copying exchanges.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repair_allowances: Vec<RepairAllowance>,
     pub transcript: Vec<CallRecord>,
     pub failure: Option<String>,
 }
@@ -80,6 +88,7 @@ impl Checkpoint {
             provider_config,
             evidence_config_sha256,
             source: json!({"kind":"initial_authoring"}),
+            repair_allowances: Vec::new(),
             transcript: vec![],
             failure: None,
         }
@@ -99,7 +108,31 @@ impl Checkpoint {
                 "unsupported or oversized graph authoring checkpoint".into(),
             ));
         }
-        self.validate_transcript()
+        self.validate_transcript()?;
+        validate_call_allowances(&self.config, &self.transcript, &self.repair_allowances)?;
+        budgets::validate_source(self)
+    }
+
+    /// Retain a fresh repair stage before any additional provider call. Each
+    /// stage starts at the exact current transcript cut and has its own limits.
+    pub fn begin_repair(&mut self, allowance: RepairAllowance) -> Result<(), Error> {
+        self.validate()?;
+        if allowance.recorded_calls != self.transcript.len() {
+            return Err(Error::InvalidInput(
+                "repair allowance must start at the current authoring cut".into(),
+            ));
+        }
+        let source = json!({"kind":"authoring_resume",
+            "recorded_calls":allowance.recorded_calls,
+            "additional_repair_limit":allowance.max_calls,
+            "stage_byte_limits":{"max_input_bytes":allowance.max_input_bytes,
+                "max_response_bytes":allowance.max_response_bytes}});
+        let mut allowances = self.repair_allowances.clone();
+        allowances.push(allowance);
+        validate_call_allowances(&self.config, &self.transcript, &allowances)?;
+        self.source = source;
+        self.repair_allowances = allowances;
+        Ok(())
     }
     /// Validate the authoring protocol independently of checkpoint storage limits.
     /// Current provider reports can contain a larger admitted debate than the
@@ -117,7 +150,7 @@ impl Checkpoint {
                 "checkpoint has invalid resource or argument-depth bounds".into(),
             ));
         }
-        self.config.required_calls()?;
+        self.config.validate()?;
         crate::domain::validate_request(&self.request)
             .map_err(|e| Error::InvalidInput(e.join("; ")))?;
         let expected_request = serde_json::to_value(&self.request)?;
@@ -366,6 +399,7 @@ pub fn validate_recovery_report(raw: &Value) -> Result<(), Error> {
     previous.validate()?;
     if record["parent_checkpoint_sha256"] != digest(serde_json::to_vec(&previous)?)
         || record["previous_protocol"] != previous.protocol_identity
+        || record["previous_provider_config"] != previous.provider_config
         || raw["request"] != serde_json::to_value(&previous.request)?
         || raw["run_config"] != serde_json::to_value(&previous.config)?
     {
@@ -402,6 +436,12 @@ pub fn validate_recovery_report(raw: &Value) -> Result<(), Error> {
         return Err(invalid());
     }
     let mut combined = previous;
+    combined.begin_repair(RepairAllowance {
+        recorded_calls: count,
+        max_calls: allowance as u8,
+        max_input_bytes: usize::try_from(max_input).map_err(|_| invalid())?,
+        max_response_bytes: usize::try_from(max_response).map_err(|_| invalid())?,
+    })?;
     combined.transcript = transcript;
     combined.validate()?;
     let argument: crate::domain::ArgumentCase = serde_json::from_value(raw["argument"].clone())?;

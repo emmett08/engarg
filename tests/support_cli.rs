@@ -268,6 +268,15 @@ sha256 = "{}"
     assert_eq!(resumed["direct_bindings"], saved["direct_bindings"]);
     assert_eq!(resumed["authoring_recovery"]["new_model_calls"], 0);
     engarg::authoring_checkpoint::validate_recovery_report(&resumed).unwrap();
+    let mut changed_provider = resumed.clone();
+    changed_provider["authoring_recovery"]["previous_provider_config"]["default_model"] =
+        json!("unrecorded-prior-provider");
+    assert!(engarg::authoring_checkpoint::validate_recovery_report(&changed_provider).is_err());
+    let mut changed_prefix_budget = resumed;
+    changed_prefix_budget["run_config"]["max_response_bytes"] = json!(1);
+    changed_prefix_budget["authoring_recovery"]["previous_checkpoint"]["config"]["max_response_bytes"] =
+        json!(1);
+    assert!(engarg::report::read_direct(&changed_prefix_budget).is_err());
 }
 
 #[path = "common/executable_case.rs"]
@@ -562,6 +571,40 @@ fn provider_report(root: &Path, with_support: bool) -> Value {
     let report = load(&report_path);
     engarg::report::read(&report).unwrap();
     report
+}
+
+#[test]
+fn provider_history_must_fit_its_retained_authoring_allowances() {
+    let directory = tempfile::tempdir().unwrap();
+    let original = one_call_provider_report(directory.path());
+    let mut exact = original.clone();
+    let call: engarg::engine::CallRecord =
+        serde_json::from_value(exact["transcript"][0].clone()).unwrap();
+    exact["run_config"]["max_input_bytes"] = json!(serde_json::to_vec(&call.prompt).unwrap().len());
+    exact["run_config"]["max_response_bytes"] = json!(call.response_content_bytes);
+    engarg::report::read_direct(&exact).unwrap();
+    let mut accepted = Vec::new();
+    for (field, value) in [
+        ("max_calls", json!(0)),
+        ("max_input_bytes", json!(1)),
+        ("max_response_bytes", json!(1)),
+    ] {
+        let mut changed = original.clone();
+        changed["run_config"][field] = value;
+        if engarg::report::read_direct(&changed).is_ok() {
+            accepted.push(field);
+        }
+    }
+    let mut repeated = original;
+    let extra = repeated["transcript"][0].clone();
+    repeated["transcript"].as_array_mut().unwrap().push(extra);
+    if engarg::report::read_direct(&repeated).is_ok() {
+        accepted.push("unbudgeted_extra_call");
+    }
+    assert!(
+        accepted.is_empty(),
+        "provider history accepted outside retained allowances: {accepted:?}"
+    );
 }
 
 #[test]

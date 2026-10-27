@@ -156,6 +156,12 @@ fn probe_source(profile: &ToolchainProfile) -> Result<SourceFile, Error> {
             "main.rs",
             include_str!("runner_preflight/rust.rs.txt"),
         ),
+        "go" => ("go", "main.go", include_str!("runner_preflight/go.go.txt")),
+        "typescript" => (
+            "ts",
+            "collector.ts",
+            include_str!("runner_preflight/typescript.ts.txt"),
+        ),
         "python" => (
             "py",
             "collector.py",
@@ -309,6 +315,11 @@ mod tests {
                 include_str!("../../examples/toolchains/rust.json"),
                 "main.rs",
             ),
+            (include_str!("../../examples/toolchains/go.json"), "main.go"),
+            (
+                include_str!("../../examples/toolchains/typescript.json"),
+                "collector.ts",
+            ),
             (
                 include_str!("../../examples/toolchains/python.json"),
                 "collector.py",
@@ -319,6 +330,7 @@ mod tests {
             ),
         ] {
             let profile: ToolchainProfile = serde_json::from_str(source).unwrap();
+            profile.validate().unwrap();
             assert_eq!(probe_source(&profile).unwrap().path, path);
         }
         let mut profile = profile();

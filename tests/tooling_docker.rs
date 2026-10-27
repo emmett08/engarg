@@ -192,6 +192,9 @@ try {
 }
 "###;
 
+const GO_COLLECTOR: &str = include_str!("fixtures/tooling_collector.go.txt");
+const TYPESCRIPT_COLLECTOR: &str = include_str!("fixtures/tooling_collector.ts.txt");
+
 const RUST_COLLECTOR: &str = include_str!("fixtures/tooling_collector.rs");
 
 struct MockServer {
@@ -565,9 +568,14 @@ fn saved_report(path: &Path) {
 }
 
 fn profile(path: &Path, language: &str, image: &str, entry: &str) {
-    if language == "rust" {
-        let mut value: Value =
-            serde_json::from_str(include_str!("../examples/toolchains/rust.json")).unwrap();
+    let builtin = match language {
+        "rust" => Some(include_str!("../examples/toolchains/rust.json")),
+        "go" => Some(include_str!("../examples/toolchains/go.json")),
+        "typescript" => Some(include_str!("../examples/toolchains/typescript.json")),
+        _ => None,
+    };
+    if let Some(builtin) = builtin {
+        let mut value: Value = serde_json::from_str(builtin).unwrap();
         assert_eq!(value["image"], image);
         value["docker"] =
             json!(std::env::var("ENGARG_TOOL_DOCKER").unwrap_or_else(|_| "docker".into()));
@@ -1200,6 +1208,23 @@ fn rust_direct_operation_is_compiled_executed_and_reused_with_exact_protocol_ide
         "engarg-rust-tools:1.99.1",
         "main.rs",
         RUST_COLLECTOR,
+    );
+}
+
+#[test]
+#[ignore = "requires Docker and the preloaded engarg-go-tools:1.25.14 image"]
+fn go_direct_operation_is_compiled_executed_and_reused_with_exact_protocol_identity() {
+    exercise("go", "engarg-go-tools:1.25.14", "main.go", GO_COLLECTOR);
+}
+
+#[test]
+#[ignore = "requires Docker and the preloaded engarg-typescript-tools:5.9.3 image"]
+fn typescript_direct_operation_is_compiled_executed_and_reused_with_exact_protocol_identity() {
+    exercise(
+        "typescript",
+        "engarg-typescript-tools:5.9.3",
+        "collector.ts",
+        TYPESCRIPT_COLLECTOR,
     );
 }
 

@@ -18,6 +18,9 @@ The TOML binds named operations directly to commands or MCP servers. No capabili
 catalogue, registration directory or execution-plan JSON is required.
 `build.json` is a diagnostic receipt; EAL and the tool bindings define execution.
 Missing evidence and scoped reviews remain visible in the assessment. See
+[USAGE.md](USAGE.md) for the complete engineer workflow, including runtime setup,
+Rust/Go/TypeScript tool generation, evidence collection, execution and timeout
+recovery. See also
 [executable packages](docs/executable-packages.md) and
 [architecture decisions](docs/EXECUTABLE_ARCHITECTURE.md).
 
@@ -162,8 +165,8 @@ The previous case remains retained and its derived execution artifacts are
 invalidated. Replanning does not replace a warrant or acceptance criterion.
 
 Add `--checkpoint authoring.checkpoint.json` to retain each completed authoring
-exchange before final validation. Inspect or resume it without repeating prior
-specialist calls:
+exchange before final validation. Inspect it to determine whether final validation
+can resume without repeating completed specialist calls:
 
 ```sh
 engarg authoring inspect --checkpoint authoring.checkpoint.json
@@ -175,7 +178,8 @@ engarg authoring resume --checkpoint authoring.checkpoint.json \
 
 Resume checks the original configuration identity and requires new output paths.
 A valid saved candidate can finish without another model call. Incomplete or
-omitted responses remain blockers. A changed protocol needs explicit
+omitted responses remain blockers; an interrupted specialist stage requires a
+fresh authoring run with new paths. A changed protocol needs explicit
 `--accept-protocol-migration` and revalidation. Checkpoints retain at most 32 calls
 and 128 MiB; published reports retain the 16 MiB admission bound. Historical
 observations are not rewritten or relabelled during migration.

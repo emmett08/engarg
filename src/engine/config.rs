@@ -120,7 +120,7 @@ impl RunConfig {
         Ok(calls + u32::from(self.max_repairs))
     }
 
-    pub(super) fn validate(&self) -> Result<(), Error> {
+    pub(crate) fn validate(&self) -> Result<(), Error> {
         if self
             .max_argument_depth
             .is_some_and(|depth| !(1..=16).contains(&depth))

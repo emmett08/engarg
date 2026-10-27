@@ -1,0 +1,116 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
+	"os"
+)
+
+// Reject duplicates throughout the request before decoding any map. Preserve
+// metadata as RawMessage so arbitrary integers and decimal tokens are not rounded.
+func unique(decoder *json.Decoder, depth int) error {
+	if depth > 128 {
+		return errors.New("request depth")
+	}
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	switch token {
+	case json.Delim('{'):
+		keys := map[string]bool{}
+		for decoder.More() {
+			token, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := token.(string)
+			if !ok || keys[key] {
+				return errors.New("duplicate key")
+			}
+			keys[key] = true
+			if err := unique(decoder, depth+1); err != nil {
+				return err
+			}
+		}
+		token, err = decoder.Token()
+		if err != nil || token != json.Delim('}') {
+			return errors.New("object end")
+		}
+	case json.Delim('['):
+		for decoder.More() {
+			if err := unique(decoder, depth+1); err != nil {
+				return err
+			}
+		}
+		token, err = decoder.Token()
+		if err != nil || token != json.Delim(']') {
+			return errors.New("array end")
+		}
+	}
+	return nil
+}
+
+func collect() error {
+	source, err := io.ReadAll(io.LimitReader(os.Stdin, 1048577))
+	if err != nil || len(source) > 1048576 {
+		return errors.New("request limit")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(source))
+	decoder.UseNumber()
+	if err := unique(decoder, 0); err != nil {
+		return err
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		return errors.New("trailing data")
+	}
+	var request map[string]json.RawMessage
+	if err := json.Unmarshal(source, &request); err != nil {
+		return err
+	}
+	if len(request) != 6 {
+		return errors.New("request fields")
+	}
+	for _, key := range []string{"evidence_id", "environment", "tool", "tool_version"} {
+		var identity string
+		if err := json.Unmarshal(request[key], &identity); err != nil || identity == "" {
+			return errors.New("request identity")
+		}
+	}
+	var context, input map[string]json.RawMessage
+	if err := json.Unmarshal(request["context"], &context); err != nil || context == nil {
+		return errors.New("request context")
+	}
+	if err := json.Unmarshal(request["input"], &input); err != nil || len(input) != 1 {
+		return errors.New("request input")
+	}
+	var mode string
+	if err := json.Unmarshal(input["mode"], &mode); err != nil || (mode != "positive" && mode != "negative") {
+		return errors.New("synthetic acquisition error")
+	}
+	value, err := json.Marshal(struct {
+		Collected bool   `json:"collected"`
+		Present   bool   `json:"present"`
+		Mode      string `json:"mode"`
+	}{true, mode == "positive", mode})
+	if err != nil {
+		return err
+	}
+	output := map[string]any{
+		"value":   json.RawMessage(value),
+		"context": request["context"],
+		"request": map[string]json.RawMessage{
+			"tool": request["tool"], "tool_version": request["tool_version"],
+			"input": request["input"], "context": request["context"],
+		},
+	}
+	return json.NewEncoder(os.Stdout).Encode(output)
+}
+
+func main() {
+	if collect() != nil {
+		os.Exit(2)
+	}
+}

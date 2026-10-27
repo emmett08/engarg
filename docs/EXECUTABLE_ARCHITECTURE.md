@@ -45,6 +45,11 @@ Retained completions constrain the original argument and the presence and conten
 of authored support across direct, discovery and argument-only reports. Recovery
 and replanning are checked at their retained source cut before that comparison.
 These checks establish consistency of unsigned records, not authenticated origin.
+Original authoring calls retain their configured call and byte bounds. A resumed
+repair records its exact transcript cut and separate allowance; repeated repairs
+cannot retroactively broaden earlier limits. Checkpoint admission and report
+admission share this policy, including zero-call recovery stages. Sparse allowance
+records preserve the budget history without duplicate transcript snapshots.
 
 An explicit revision preserves the original request, authoring exchanges and
 dissent. Each bounded revision record retains its exact parent identity and

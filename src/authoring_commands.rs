@@ -236,9 +236,24 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
     let model = args.provider.model()?;
     let audit = Mutex::new(authoring_checkpoint::private_new(&args.audit)?);
     let mut next = saved.clone();
-    next.source = json!({"kind":"authoring_resume","parent_checkpoint_sha256":parent_digest,
-        "previous_protocol":saved.protocol_identity,"protocol_migration":saved.protocol_identity!=authoring_checkpoint::protocol_identity(),
-        "additional_repair_limit":args.max_repairs,"stage_byte_limits":{"max_input_bytes":args.provider.max_input_bytes,"max_response_bytes":args.provider.max_response_bytes},"previous_provider_config":saved.provider_config});
+    next.begin_repair(authoring_checkpoint::RepairAllowance {
+        recorded_calls: saved.transcript.len(),
+        max_calls: args.max_repairs,
+        max_input_bytes: args.provider.max_input_bytes,
+        max_response_bytes: args.provider.max_response_bytes,
+    })?;
+    next.source
+        .as_object_mut()
+        .expect("repair source object")
+        .extend(
+            json!({"parent_checkpoint_sha256":parent_digest,
+            "previous_protocol":saved.protocol_identity,
+            "protocol_migration":saved.protocol_identity!=authoring_checkpoint::protocol_identity(),
+            "previous_provider_config":saved.provider_config})
+            .as_object()
+            .expect("source metadata object")
+            .clone(),
+        );
     next.protocol_identity = authoring_checkpoint::protocol_identity();
     next.producer_version = env!("CARGO_PKG_VERSION").into();
     next.provider_config = args.provider.metadata();

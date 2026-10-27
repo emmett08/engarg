@@ -165,6 +165,7 @@ mod tests {
         };
         let config = crate::engine::RunConfig {
             mode: Mode::Single,
+            max_repairs: 1,
             ..Default::default()
         };
         let mut store = Store::create(

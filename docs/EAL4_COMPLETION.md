@@ -15,6 +15,8 @@ execution. A fixture-validation test alone does not close an execution blocker.
 | Typed reading lost nullable/default encodings in replanning history | Sparse encoding records restore the exact parent JSON value only when its complete typed meaning is unchanged. New current planning uses its typed encoding before its digest is recorded. | Nullable and nested repeated-roundtrip cases, precise-number wire tests, forged argument/support rejection and failed-admission state preservation in `replan_cli` and `report::encoding` |
 | Edited source or stale metadata could bypass revision | Direct, discovery and argument-only reports check their declared origin and retained final completion at the original authoring cut. Adding support outside an explicit revision is rejected. Review, target-runtime receipt and revision identities are validated. | Tampered argument, origin relabelling, unsupported origin, injected support, missing/changed review, stale target and changed parent cases in `support_cli` |
 | Tool implementation changed a revised report's source identity | Implementation checks its selected runtime before provider calls and preserves the immutable authoring-runtime receipt. | Revised-report implementation and incompatible-host admission in `tooling_cli` |
+| Retained calls could exceed declared authoring budgets | Original calls and each explicit resumed repair have separate admitted call and byte allowances. Sparse repair records retain the exact call cut and limits; later limits cannot broaden previous calls. Previous provider metadata must match its retained checkpoint. | Adverse provider reports in `support_cli`; original, repeated and zero-call repair cases in `authoring_checkpoint` |
+| Review imports failed when operator context was present | Package review requests retain the final merged operator/compiler context used by runtime acquisition. | Exact review import and changed-context rejection in `executable_package` |
 | Valid debate transcripts were rejected as checkpoint histories | Ordering, replay and compaction derive participant identities and rounds from the admitted debate configuration, retaining parallel arrival order and routed dissent. | Participant/round/order tampering and replay tests; installed tickets across all nine topologies |
 | Missing-operation generation remained tied to registry scaffolding | `tooling::direct` derives requests from acquisition specifications, verifies generated implementations and merges direct TOML exports. Main authoring and `eal implement` share this stage. | `direct_implementation`; Python, JavaScript and Rust public chains in `tooling_docker` |
 | Ticket execution bypassed direct generation | An explicit ticket `implementation` section selects the same generation stage, with pinned toolchain and bounded provider calls; resulting tools feed the same package builder. | Configuration admission tests and installed `ticket_native` cases |
@@ -26,6 +28,10 @@ execution. A fixture-validation test alone does not close an execution blocker.
 | Copied local tool scripts could change without invalidating the package | Package building and generated-export merging pin admitted local implementation files referenced by command arguments, preserving operator pins. Source data remains observation input unless explicitly pinned. | Package mutation tests reject rebuilding a changed copied script and installed execution before that script runs |
 | Reasoning modes lacked composed adverse execution | Seven EngArg modes use the same compiler/runtime across nine worlds, plus scoped-review adversities. Native methods have explicit work admission; practical custom policy has its own declared finite budget. | Installed `executable_modes` matrix and EAL `method_work`; see [EXECUTABLE_ACCEPTANCE.md](EXECUTABLE_ACCEPTANCE.md) |
 | Predicates ignored configured limits and object construction could exceed them | Environments, evidence checks, reasoning predicates and proposition results use their compiled programme's limits. Pure object construction admits each field against an exact streaming canonical footprint before retaining it. | EAL `predicate_limits`, `expression_construction` and canonical encoding tests |
+| Method admission imposed hidden defaults or ignored lowered limits | Sources, authored queries, computational inputs and results use the same programme JSON footprint policy. Selected method schemas retain their specific constraints; unrelated evidence does not acquire a method's numerical schema. | Five EAL `methods` regression groups, including large strings, raised depth, lowered nodes, exact integers and input/output bytes |
+| Go and TypeScript could not pass toolchain preflight | Host-owned probes, operator toolchains and prepared dependency images support both languages through the same generator and runtime as Rust. | Preflight source tests; actual compiler/protocol checks; Go and TypeScript public Docker chains |
+| Provider timeouts were difficult to diagnose | Safe HTTP receipts distinguish connection, admission, request, response-body and retry-wait timeouts. Diagnostics name the configured deadline and separate the fixed connection policy. | Delayed-header/body and retained CLI audit/checkpoint tests; connection diagnostic control |
+| Engineers needed the catalogue example wrapper to discover the full flow | [USAGE.md](../USAGE.md) documents the public commands for authoring, tool generation, reviews, package execution, staged collection/assessment and revision. | Shell admission and executed finite MCP/command workflow; no live-model quality claim |
 | Performance/generalisation claims exceeded observations | A frozen finite-snapshot before/after harness records source requests, observations, files, bytes, latency and source-change inventory. Actual-provider authoring quality/cost remains a separate study. | [EAL4_MEASUREMENT.md](EAL4_MEASUREMENT.md) and retained harness output |
 | Legacy commands and hidden execution dependencies remained | Current packages contain EAL, TOML and declared tools. The old graph executor, source reconstruction, per-need generation, registration commands and unused generated-provider registration helpers are removed. | Full repository checks, moved-package tests, caller audit and current CLI help |
 
@@ -121,14 +127,14 @@ intermediate-construction, revised-implementation, authoring-origin and nullable
 history failures before applying their repairs. The implementation rows above
 include those additional cases.
 
-Current local checks use EAL `38c364b4319d84b916669836ead78004e44dbc61`, pinned
+Current local checks use EAL `18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7`, pinned
 identically in EngArg's manifest, lockfile and producer/consumer workflow. No local
 Cargo patch is used. The consumer source is the revision containing this record.
 The declared toolchains remain Rust 1.90.0 for EAL and 1.99.1 for EngArg.
 
-- EAL: 696 workspace tests, warnings-denied all-target Clippy, formatting and the
+- EAL: 701 workspace tests, warnings-denied all-target Clippy, formatting and the
   release build passed. The grammar and checked-in recogniser are unchanged.
-- EngArg: 686 standard Rust tests, 46 Python tests, warnings-denied all-target
+- EngArg: 693 standard Rust tests, 46 Python tests, warnings-denied all-target
   Clippy, formatting, shell admission checks and the release build passed.
 - Installed EAL: all eleven application smoke groups passed, covering all
   seventeen operations, real command/MCP acquisition and transport admission.
@@ -159,3 +165,25 @@ These software checks use synthetic inputs and scripted authoring providers.
 They establish the stated executable contracts, not arbitrary external premise
 truth or unmeasured model-provider quality, cost or human comprehension. Those
 empirical studies remain separate from implementation completion.
+
+## Second and third review passes
+
+The next two passes reviewed merged EngArg
+`7e72772ce5c2cb258b8aeb99dca7f0b86d31a3cb` and EAL
+`e19a39fcf4597f7d78d7207fe16ea013ab6e8645`, followed by the repairs above.
+They reproduced method admission, authoring-budget and operator-context review
+failures, checked the repaired boundaries independently, and exercised the
+engineer-facing commands. The third pass also checked repeated-repair budgets,
+TypeScript compiler interoperability, connection diagnostics, explicit generated
+tool network grants and preservation of the original generated manifest.
+
+An initial checkpoint keeps an empty repair allowance list. Every subsequent
+repair records its current call cut and separate limits without copying the
+transcript. Previously resumed checkpoints lacking those records are rejected
+with a diagnostic; their budgets are not inferred or silently broadened. A
+checkpoint with an absent specialist completion still cannot resume final
+validation. The usage guide distinguishes this limitation from retained final
+candidates that can be repaired without repeating completed primary calls.
+
+These passes close the identified implementation defects; they do not establish
+the truth of an arbitrary claim or measure a live model's authoring quality.
