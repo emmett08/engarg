@@ -15,10 +15,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[path = "common/argument_assertions.rs"]
-mod argument_assertions;
-#[path = "common/live_output.rs"]
-mod live_output;
 #[allow(dead_code)]
 #[path = "fixtures/tooling_collector.rs"]
 mod rust_collector_fixture;
@@ -1880,98 +1876,50 @@ fn generated_package_can_be_qualified_registered_and_replanned_without_reanalysi
 #[ignore = "requires Docker and the preloaded python:3.13-slim image"]
 fn coding_failure_preserves_the_original_analysis_output() {
     let directory = tempfile::tempdir().unwrap();
-    let fixture_path = directory.path().join("fixture.json");
-    saved_report(&fixture_path);
-    let mut fixture: Value = serde_json::from_slice(&fs::read(&fixture_path).unwrap()).unwrap();
-    // This response enters live generation. Keep the shared saved-report
-    // fixture's historical import/export semantics unchanged for other tests.
-    fixture["argument"] = live_output::value(&fixture["argument"].to_string());
-    let mut planned: Value = serde_json::from_str(
-        fixture["transcript"][0]["response"]["content"]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
-    planned["argument"] = fixture["argument"].clone();
-    let request_path = directory.path().join("request.json");
-    fs::write(
-        &request_path,
-        serde_json::to_vec_pretty(&fixture["request"]).unwrap(),
-    )
-    .unwrap();
+    let analysis = directory.path().join("analysis.json");
+    // Tool implementation consumes a separately authored report. Its failure
+    // cannot replace that report or publish an augmented success artifact.
+    saved_report(&analysis);
+    let original_bytes = fs::read(&analysis).unwrap();
+    let original: Value = serde_json::from_slice(&original_bytes).unwrap();
     let toolchain = directory.path().join("toolchain.json");
     profile(&toolchain, "python", "python:3.13-slim", "collector.py");
     let tool_store = directory.path().join("store");
     let tool_output = directory.path().join("tools");
-    let normal_output = directory.path().join("analysis.json");
     let server = MockServer::new(vec![
-        planned,
         draft_response(),
         json!({
             "language": "python",
             "files": [{"path": "collector.py", "content": "def invalid_python(:\n"}]
         }),
     ]);
-    let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
-        .args(["analyse", "--input"])
-        .arg(&request_path)
-        .args([
-            "--model",
-            "fixture",
-            "--endpoint",
-            &server.endpoint,
-            "--api-key-env",
-            "UNSET_TOOL_TEST_KEY",
-            "--mode",
-            "single",
-            "--max-calls",
-            "1",
-            "--implement-tools",
-            "--tool-language",
-            "python",
-            "--toolchain",
-        ])
-        .arg(&toolchain)
-        .arg("--tool-store")
-        .arg(&tool_store)
-        .arg("--tool-output-dir")
-        .arg(&tool_output)
-        .args([
-            "--tool-max-calls",
-            "2",
-            "--tool-timeout-secs",
-            "120",
-            "--http-retries",
-            "0",
-            "--format",
-            "json",
-            "--output",
-        ])
-        .arg(&normal_output)
-        .env_remove("UNSET_TOOL_TEST_KEY")
-        .output()
-        .unwrap();
+    let output = implement(
+        &analysis,
+        &toolchain,
+        &tool_store,
+        &tool_output,
+        &server.endpoint,
+        "python",
+    );
     assert!(
         !output.status.success(),
         "invalid Python unexpectedly passed collector admission"
     );
     assert_eq!(
         server.requests().len(),
-        3,
+        2,
         "stdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    let original: Value = serde_json::from_slice(&fs::read(&normal_output).unwrap()).unwrap();
-    assert_eq!(original["request"], fixture["request"]);
-    argument_assertions::assert_authored_argument(&original, &fixture["argument"]);
-    assert_eq!(original["transcript"].as_array().unwrap().len(), 1);
-    assert_eq!(original["transcript"][0]["role"], "single");
+    assert_eq!(fs::read(&analysis).unwrap(), original_bytes);
     assert!(original.get("tooling").is_none());
     let checkpoint: Value =
         serde_json::from_slice(&fs::read(tool_output.join("argument.analysis.json")).unwrap())
             .unwrap();
+    assert_eq!(checkpoint["request"], original["request"]);
     assert_eq!(checkpoint["argument"], original["argument"]);
+    assert_eq!(checkpoint["transcript"], original["transcript"]);
     assert!(checkpoint.get("tooling").is_none());
     assert!(!tool_output.join("analysis.with-tools.json").exists());
 }
