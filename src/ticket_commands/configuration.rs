@@ -619,7 +619,14 @@ mod tests {
         fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
         let prepared = prepare(args).unwrap();
         let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
-        assert!(snapshot.pins.iter().any(|pin| pin.path == toolchain));
+        // Admission records canonical paths; temporary roots can use platform aliases.
+        let admitted_toolchain = toolchain.canonicalize().unwrap();
+        assert!(
+            snapshot
+                .pins
+                .iter()
+                .any(|pin| pin.path == admitted_toolchain)
+        );
         assert!(!root.path().join("store").exists());
         fs::write(&toolchain, b"{}").unwrap();
         assert!(load(&prepared.snapshot, &prepared.snapshot_sha256).is_err());

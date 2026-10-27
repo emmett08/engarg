@@ -871,7 +871,7 @@ fn export_manifest(report_path: &Path, directory: &Path) -> (String, PathBuf) {
     let revised = directory.join("revised.json");
     successful(
         &Command::new(env!("CARGO_BIN_EXE_engarg"))
-            .args(["revise", "--input"])
+            .args(["eal", "revise", "--input"])
             .arg(report_path)
             .arg("--argument")
             .arg(proposed)
@@ -1001,14 +1001,17 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     };
     successful_implementation(&output, &store);
     assert_eq!(server.requests().len(), expected_calls);
-    let report_path = first.join("analysis.with-tools.json");
+    let report_path = if combined {
+        directory.path().join("combined.json")
+    } else {
+        first.join("analysis.with-tools.json")
+    };
     let report: Value = serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
     if combined {
-        let published: Value =
-            serde_json::from_slice(&fs::read(directory.path().join("combined.json")).unwrap())
-                .unwrap();
-        assert_eq!(published, report);
-        engarg::report::read_direct(&published).unwrap();
+        let implementation: Value =
+            serde_json::from_slice(&fs::read(first.join("implementation.json")).unwrap()).unwrap();
+        assert_eq!(implementation, report["tooling"]);
+        engarg::report::read_direct(&report).unwrap();
         // A later independent implementation consumes the exact pre-tool report
         // retained by combined authoring, without reconstructing an envelope.
         fs::copy(
