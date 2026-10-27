@@ -19,6 +19,25 @@ def producer_step(action, marker):
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_compatibility_producer_matches_every_eal_dependency_pin(self):
+        manifest = (ROOT / "Cargo.toml").read_text()
+        dependencies = re.findall(r'(?m)^eal-[\w-]+\s*=', manifest)
+        matches = re.findall(
+            r'(?m)^eal-[\w-]+\s*=\s*\{\s*git\s*=\s*"([^"]+)"\s*,\s*rev\s*=\s*"([^"]+)"',
+            manifest,
+        )
+        self.assertTrue(dependencies)
+        self.assertEqual(len(matches), len(dependencies))
+        pins = set(matches)
+        self.assertEqual(len(pins), 1)
+        url, revision = pins.pop()
+        self.assertEqual(url, "https://github.com/emmett08/eal-mcp")
+        self.assertRegex(revision, r"^[0-9a-f]{40}$")
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        match = re.search(r"(?m)^\s+EAL_REVISION:\s*([0-9a-f]{40})\s*$", workflow)
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), revision)
+
     def test_native_selection_covers_every_ignored_integration_target(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         commands = [
