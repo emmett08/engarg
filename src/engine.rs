@@ -795,7 +795,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn critic_11_findings_28_objections_41_gaps_complete_flat_and_graph_adjudication() {
+    async fn critic_11_findings_28_objections_41_gaps_complete_argument_and_support_adjudication() {
         use crate::support_requirements::{self, SupportElaboration, tests::pending};
 
         struct OverflowModel {

@@ -130,51 +130,29 @@ fn registry_contract_corpus_agrees_with_authoritative_owner() {
 }
 
 #[test]
-fn historical_v2_from_the_reviewed_old_binary_preserves_exact_source_and_identity() {
-    let bytes = include_bytes!("fixtures/export-compatibility/v2.json");
-    let old: engarg::eal_export::EalExport = serde_json::from_slice(bytes).unwrap();
-    assert_eq!(old.schema_version, "engarg.eal-export/2");
-    let rebuilt = reconstruct_bundle(&old).unwrap();
-    assert_eq!(
-        serde_json::to_value(&rebuilt).unwrap(),
-        serde_json::to_value(&old).unwrap()
-    );
-    let fresh = export_with_policy(
-        &old.original_request,
-        &old.original_case,
-        &[],
-        None,
-        &ExportPolicy::default(),
-    )
-    .unwrap()
-    .bundle;
-    assert_ne!(old.revision, fresh.revision);
-}
-
-#[test]
-fn historical_v1_from_the_reviewed_old_binary_preserves_exact_source_and_identity() {
-    let old: engarg::eal_export::EalExport =
-        serde_json::from_slice(include_bytes!("fixtures/export-compatibility/v1.json")).unwrap();
-    assert_eq!(old.schema_version, "engarg.eal-export/1");
-    assert_eq!(
-        serde_json::to_value(reconstruct_bundle(&old).unwrap()).unwrap(),
-        serde_json::to_value(&old).unwrap()
-    );
-}
-
-#[test]
-fn historical_decimal_contracts_keep_arbitrary_precision_and_exact_authored_source() {
-    let old: engarg::eal_export::EalExport = serde_json::from_slice(include_bytes!(
-        "fixtures/export-compatibility/v2-decimals.json"
-    ))
-    .unwrap();
-    assert!(old.source.contains("0.12345678901234567890123456789"));
-    let rebuilt = reconstruct_bundle(&old).unwrap();
-    assert_eq!(old.source, rebuilt.source);
-    assert_eq!(
-        serde_json::to_value(old).unwrap(),
-        serde_json::to_value(rebuilt).unwrap()
-    );
+fn unsupported_export_formats_require_explicit_reexport() {
+    let (request, case) = fixture();
+    let current = export_with_policy(&request, &case, &[], None, &ExportPolicy::default())
+        .unwrap()
+        .bundle;
+    for variant in 0..6 {
+        let mut obsolete = current.clone();
+        match variant {
+            0 => obsolete.schema_version = "engarg.eal-export/1".into(),
+            1 => obsolete.schema_version = "engarg.eal-export/2".into(),
+            2 => obsolete.acquisition_plan = None,
+            3 => obsolete.export_policy = None,
+            4 => obsolete.semantics_version = None,
+            _ => obsolete
+                .source
+                .push_str("\n// engarg_acquisition_plan []\n"),
+        }
+        let error = reconstruct_bundle(&obsolete).unwrap_err().to_string();
+        assert!(
+            error.contains("unsupported export schema"),
+            "variant {variant}: {error}"
+        );
+    }
 }
 
 #[test]

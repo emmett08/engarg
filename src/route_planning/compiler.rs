@@ -102,18 +102,6 @@ pub(super) fn compile_fixed(
         configuration: config.clone(),
         selection: Some(selection),
     };
-    for alternative in crate::support_requirements::legacy_alternative_gaps(case, elaboration) {
-        result.gaps.push(PlanningGap {
-            acquisition_id: None,
-            requirement_id: None,
-            kind: GapKind::Clarification,
-            description: format!(
-                "Legacy support planning has no obligation for {}: {}",
-                alternative.alternative_id, alternative.distinguishing_test
-            ),
-            implementation: None,
-        });
-    }
     for requirement in &elaboration.requirements {
         for gap in &requirement.gaps {
             result.gaps.push(PlanningGap {
@@ -207,12 +195,7 @@ pub(super) fn compile_fixed(
             .bindings
             .iter()
             .find(|binding| binding.capability_id == capability.id);
-        let (mut arguments, mut gaps) = arguments::materialise_with_composition(
-            blueprint,
-            capability,
-            binding,
-            prepared.composition.as_ref(),
-        )?;
+        let (mut arguments, mut gaps) = arguments::materialise(blueprint, capability, binding)?;
         let mappings_resolved = binding.is_none_or(|binding| {
             binding.input_bindings.iter().all(|(physical, logical)| {
                 arguments.pointer(physical).is_some()
@@ -298,7 +281,6 @@ pub(super) fn compile_fixed(
                 batch: batches.get(&blueprint.id).cloned(),
                 blueprint_id: blueprint.id.clone(),
                 capability: capability.clone(),
-                composition: prepared.composition.clone(),
                 operator_arguments: binding.map(|binding| binding.arguments.clone()),
                 input_bindings: binding
                     .map(|b| b.input_bindings.clone())

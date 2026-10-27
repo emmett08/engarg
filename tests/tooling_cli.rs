@@ -76,7 +76,7 @@ fn implementation_requires_a_retained_json_output_before_provider_admission() {
 }
 
 #[test]
-fn implementation_requires_language_before_provider_credentials() {
+fn direct_authoring_refuses_in_process_tool_generation_before_provider_credentials() {
     let directory = tempfile::tempdir().unwrap();
     failed(
         command()
@@ -96,9 +96,33 @@ fn implementation_requires_language_before_provider_credentials() {
             .arg(directory.path().join("analysis.json"))
             .output()
             .unwrap(),
-        "requires --tool-language",
+        "direct authoring does not execute tool generation",
     );
     assert!(!directory.path().join("analysis.json").exists());
+}
+
+#[test]
+fn saved_implementation_requires_language_before_provider_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("analysis.json");
+    demo(&input);
+    failed(
+        command()
+            .args(["eal", "implement", "--input"])
+            .arg(input)
+            .args([
+                "--model",
+                "fixture",
+                "--api-key-env",
+                "UNSET_TOOL_TEST_KEY",
+                "--tool-output-dir",
+            ])
+            .arg(directory.path().join("attempt"))
+            .output()
+            .unwrap(),
+        "requires --tool-language",
+    );
+    assert!(!directory.path().join("attempt").exists());
 }
 
 #[test]

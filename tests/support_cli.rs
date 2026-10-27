@@ -1,15 +1,10 @@
-//! Native discovery and the CLI graph path against a local deterministic provider.
+//! Direct operation authoring retains every provider call without leaking bindings.
 #[path = "common/argument_assertions.rs"]
 mod argument_assertions;
 
 use engarg::{
     domain::{ArgumentCase, Request},
-    engine::SupportRunReport,
-    route_planning::RoutePlan,
-    support_requirements::{
-        SUPPORT_ELABORATION_SCHEMA, SupportElaboration, alternative_obligations, material_targets,
-        validate_elaboration,
-    },
+    support_requirements::validate_elaboration,
 };
 use serde_json::{Value, json};
 use std::{
@@ -23,35 +18,9 @@ use std::{
 
 #[path = "common/live_output.rs"]
 mod live_output;
-
-fn pending(case: &ArgumentCase) -> SupportElaboration {
-    let mut requirements = Vec::new();
-    let mut evaluations = Vec::new();
-    for target in material_targets(case) {
-        let mut needs = case
-            .evidence_plan
-            .iter()
-            .filter(|need| need.target_id == target)
-            .collect::<Vec<_>>();
-        needs.sort_by_key(|need| &need.id);
-        let id = format!("requirement_{target}");
-        let criterion = json!({"kind":"unavailable","reason":"The source and method require operator clarification."});
-        requirements.push(json!({
-            "id":id,"target_id":target,"evidence_need_ids":needs.iter().map(|need|&need.id).collect::<Vec<_>>(),
-            "original_acceptance_criteria":needs.iter().map(|need|&need.acceptance_criterion).collect::<Vec<_>>(),
-            "contract":null,"discriminating_evidence":["Retain adverse findings against the same scope."],
-            "acceptance":criterion,"acceptance_rationale":"Source availability has not been established.",
-            "gaps":[{"kind":"clarification","description":"Declare the source and qualified method before acquisition."}],
-        }));
-        evaluations.push(json!({"id":format!("evaluation_{id}"),"requirement_id":id,"inputs":[],"criterion":criterion,"max_age_seconds":null,"required_coverage":"unspecified","applicability":[],"challenges":[]}));
-    }
-    let alternative_support=alternative_obligations(case).into_iter().map(|alternative| {
-        let requirement=requirements.last_mut().unwrap();
-        requirement["discriminating_evidence"].as_array_mut().unwrap().push(json!(alternative.distinguishing_test));
-        json!({"alternative_id":alternative.alternative_id,"distinguishing_test":alternative.distinguishing_test,"claim_ids":alternative.claim_ids,"requirement_ids":[requirement["id"]]})
-    }).collect::<Vec<_>>();
-    serde_json::from_value(json!({"schema":SUPPORT_ELABORATION_SCHEMA,"requirements":requirements,"acquisitions":[],"derivations":[],"evaluations":evaluations,"revisions":[],"alternative_support":alternative_support})).unwrap()
-}
+#[path = "common/pending_support.rs"]
+mod pending_support;
+use pending_support::pending;
 
 fn receive(listener: &TcpListener, index: usize) -> (TcpStream, Value) {
     let deadline = Instant::now() + Duration::from_secs(15);
@@ -101,42 +70,41 @@ fn receive(listener: &TcpListener, index: usize) -> (TcpStream, Value) {
     }
 }
 
-fn successful(command: &mut Command) {
-    let output = command.output().unwrap();
-    assert!(
-        output.status.success(),
-        "command failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
 fn load(path: &Path) -> Value {
     serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
 }
 
 #[test]
-#[ignore = "requires the matching native EAL_COLLECTOR binary; exercised by EAL compatibility CI"]
-fn graph_analyse_uses_native_discovery_six_local_calls_and_exports_without_flat_overrides() {
-    let collector = std::env::var_os("EAL_COLLECTOR")
-        .expect("EAL_COLLECTOR must identify the matching native binary");
-    let collector = Path::new(&collector).canonicalize().unwrap();
+fn direct_analyse_retains_six_local_calls_and_redacts_operator_configuration() {
     let directory = tempfile::tempdir().unwrap();
-    let connections = directory.path().join("connections.json");
-    std::fs::write(
-        &connections,
-        json!({"schema":"eal.evidence-config/1","connections":[]}).to_string(),
-    )
-    .unwrap();
-    let config = directory.path().join("planning.json");
+    let config = directory.path().join("tools.toml");
+    let input_schema = json!({"type":"object","description":"Observe the declared subject.","properties":{"subject":{"type":"string"}},"required":["subject"],"additionalProperties":false});
+    let output_schema = json!({"type":"object","properties":{"count":{"type":"integer"}},"required":["count"],"additionalProperties":false});
+    let input_bytes = serde_json::to_vec(&input_schema).unwrap();
+    let output_bytes = serde_json::to_vec(&output_schema).unwrap();
+    std::fs::write(directory.path().join("input.schema.json"), &input_bytes).unwrap();
+    std::fs::write(directory.path().join("output.schema.json"), &output_bytes).unwrap();
+    let descriptor = json!({"operations":[{"operation":"explicit_source","version":"7","input_schema":input_schema,"output_schema":output_schema}]});
     std::fs::write(
         &config,
-        json!({
-            "schema":"engarg.capability-planning-config/1","collector":collector,
-            "connections":connections,"store":"DO_NOT_SEND_OPERATOR_CONFIGURATION","environment":[],
-            "ranking":{"dimensions":["execution_requests"]},
-            "scheduling":{"maximum_concurrent_sources":2,"per_provider":{}},"bindings":[],
-        })
-        .to_string(),
+        format!(
+            r#"[tools.explicit_source]
+kind = "mcp_stdio"
+version = "7"
+argv = ["DO_NOT_EXECUTE_OR_SEND_OPERATOR_CONFIGURATION"]
+env = {{ OPERATOR_SECRET = "DO_NOT_SEND_OPERATOR_CONFIGURATION" }}
+[tools.explicit_source.direct]
+tool = "source_observe"
+[tools.explicit_source.direct.input_schema]
+path = "input.schema.json"
+sha256 = "{}"
+[tools.explicit_source.direct.output_schema]
+path = "output.schema.json"
+sha256 = "{}"
+"#,
+            engarg::authoring_checkpoint::digest(&input_bytes),
+            engarg::authoring_checkpoint::digest(&output_bytes)
+        ),
     )
     .unwrap();
     let case: ArgumentCase = live_output::case(include_str!("../examples/claim-only-case.json"));
@@ -163,12 +131,19 @@ fn graph_analyse_uses_native_discovery_six_local_calls_and_exports_without_flat_
                     "unexpected {forbidden} in provider call {index}"
                 );
             }
+            assert_eq!(data["available_operation_bindings"], descriptor);
+            assert!(
+                !body
+                    .to_string()
+                    .contains("DO_NOT_EXECUTE_OR_SEND_OPERATOR_CONFIGURATION")
+            );
             if index < 4 {
                 assert!(data.get("route_preview").is_none());
             }
             if index == 4 {
-                assert_eq!(data["route_preview"]["acquisition_count"], 0);
-                assert!(!data["route_preview"]["gaps"].as_array().unwrap().is_empty());
+                assert_eq!(data["route_preview"]["schema"], "engarg.direct-bindings/1");
+                assert_eq!(data["route_preview"]["bindings"], json!({}));
+                assert_eq!(data["route_preview"]["unbound_operations"], json!([]));
                 assert!(data["route_preview"].get("configuration").is_none());
             }
             let is_case = body["text"]["format"]["schema"]["properties"]
@@ -185,13 +160,9 @@ fn graph_analyse_uses_native_discovery_six_local_calls_and_exports_without_flat_
         }
     });
     let report_path = directory.path().join("analysis.json");
+    let checkpoint_path = directory.path().join("authoring.checkpoint.json");
     let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
-        .args([
-            "analyse",
-            "--evidence-planning",
-            "graph",
-            "--evidence-config",
-        ])
+        .args(["analyse", "--evidence-planning", "direct", "--tools"])
         .arg(&config)
         .args([
             "--input",
@@ -224,72 +195,77 @@ fn graph_analyse_uses_native_discovery_six_local_calls_and_exports_without_flat_
             "--output",
         ])
         .arg(&report_path)
+        .arg("--checkpoint")
+        .arg(&checkpoint_path)
         .env_remove("OPENAI_API_KEY")
         .output()
         .unwrap();
     assert!(
         output.status.success(),
-        "graph CLI failed: {}",
+        "direct CLI failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     server.join().unwrap();
     let saved = load(&report_path);
-    let report: SupportRunReport<RoutePlan> = serde_json::from_value(saved.clone()).unwrap();
-    assert_eq!(
-        serde_json::to_value(&report.report.request).unwrap(),
-        serde_json::to_value(request).unwrap()
-    );
+    assert_eq!(saved["request"], serde_json::to_value(request).unwrap());
     argument_assertions::assert_authored_argument(&saved, &serde_json::to_value(&case).unwrap());
     assert_eq!(
-        serde_json::to_value(&report.evidence_planning.elaboration).unwrap(),
+        saved["support_elaboration"],
         serde_json::to_value(elaboration).unwrap()
     );
-    assert_eq!(report.report.transcript.len(), 6);
-    assert!(
-        report
-            .evidence_planning
-            .routes
-            .discovery
-            .admitted_capabilities
-            .is_empty()
+    assert_eq!(saved["transcript"].as_array().unwrap().len(), 6);
+    assert_eq!(
+        saved["direct_bindings"]["schema"],
+        "engarg.direct-bindings/1"
     );
-    assert!(!report.evidence_planning.routes.gaps.is_empty());
+    assert_eq!(saved["direct_bindings"]["bindings"], json!({}));
+    assert_eq!(saved["direct_bindings"]["unbound_operations"], json!([]));
+    assert!(saved.get("evidence_planning").is_none());
     assert!(
-        saved
+        !saved
             .to_string()
             .contains("DO_NOT_SEND_OPERATOR_CONFIGURATION")
     );
-    let source = directory.path().join("argument.eal");
-    let manifest = directory.path().join("argument.bundle.json");
-    successful(
-        Command::new(env!("CARGO_BIN_EXE_engarg"))
-            .args(["eal", "export", "--input"])
-            .arg(&report_path)
-            .arg("--output")
-            .arg(&source)
-            .arg("--tools-output")
-            .arg(directory.path().join("argument.tools.toml"))
-            .arg("--manifest")
-            .arg(&manifest),
+    assert!(saved["transcript"].as_array().unwrap().iter().all(|call| {
+        call["prompt"]["user"]
+            .as_str()
+            .unwrap()
+            .contains("available_operation_bindings")
+    }));
+    // A valid retained final candidate needs no further provider request.
+    let resumed_path = directory.path().join("resumed.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["authoring", "resume", "--checkpoint"])
+        .arg(&checkpoint_path)
+        .arg("--tools")
+        .arg(&config)
+        .arg("--output")
+        .arg(&resumed_path)
+        .arg("--audit")
+        .arg(directory.path().join("resume.audit.jsonl"))
+        .arg("--next-checkpoint")
+        .arg(directory.path().join("resume.checkpoint.json"))
+        .args([
+            "--model",
+            "local-fixture",
+            "--endpoint",
+            "http://127.0.0.1:9/v1/responses",
+            "--api",
+            "responses",
+            "--http-retries",
+            "0",
+        ])
+        .env_remove("OPENAI_API_KEY")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "direct checkpoint resume failed: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(load(&manifest)["schema_version"], "engarg.support-export/1");
-    assert!(source.with_extension("evidence-plan.json").is_file());
-    assert!(source.with_extension("execution-plan.json").is_file());
-    let prepared = directory.path().join("prepared");
-    successful(
-        Command::new(env!("CARGO_BIN_EXE_engarg"))
-            .args(["eal", "prepare", "--input"])
-            .arg(&report_path)
-            .arg("--output-dir")
-            .arg(&prepared),
-    );
-    assert_eq!(
-        load(&prepared.join("argument.bundle.json"))["schema_version"],
-        "engarg.support-export/1"
-    );
-    assert!(prepared.join("evidence-plan.json").is_file());
-    assert_eq!(
-        load(&prepared.join("review-inputs.json"))["reviews"],
-        json!([])
-    );
+    let resumed = load(&resumed_path);
+    assert_eq!(resumed["support_elaboration"], saved["support_elaboration"]);
+    assert_eq!(resumed["direct_bindings"], saved["direct_bindings"]);
+    assert_eq!(resumed["authoring_recovery"]["new_model_calls"], 0);
+    engarg::authoring_checkpoint::validate_recovery_report(&resumed).unwrap();
 }

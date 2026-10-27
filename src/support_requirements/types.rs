@@ -37,10 +37,23 @@ pub struct AlternativeSupport {
     pub requirement_ids: Vec<String>,
 }
 
+/// A positive observation has a declared argumentative use. Challenge activity
+/// and its resolution are distinct obligations even when they share a target.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SupportRequirementRole {
+    #[default]
+    Support,
+    ChallengeActivation,
+    ChallengeResolution,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SupportRequirement {
     pub id: String,
+    #[serde(default)]
+    pub role: SupportRequirementRole,
     pub target_id: String,
     pub evidence_need_ids: Vec<String>,
     /// Exact clauses from linked EvidenceNeed records, ordered by evidence need ID.

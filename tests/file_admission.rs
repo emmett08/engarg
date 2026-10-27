@@ -17,7 +17,7 @@ const DIGEST: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 #[derive(Clone, Copy, Debug)]
 enum Entry {
     AnalyseRequest,
-    AnalyseCatalogue,
+    AnalyseTools,
     RenderReport,
     ValidateRequest,
     ValidateCase,
@@ -43,7 +43,7 @@ enum Entry {
 
 const ENTRIES: &[Entry] = &[
     Entry::AnalyseRequest,
-    Entry::AnalyseCatalogue,
+    Entry::AnalyseTools,
     Entry::RenderReport,
     Entry::ValidateRequest,
     Entry::ValidateCase,
@@ -109,7 +109,7 @@ impl Entry {
     fn limit(self) -> usize {
         match self {
             Self::AnalyseRequest => 4096,
-            Self::AnalyseCatalogue
+            Self::AnalyseTools
             | Self::ValidateRequest
             | Self::ValidateCase
             | Self::PrepareCatalogue
@@ -132,7 +132,7 @@ impl Entry {
             .env_remove("ENGARG_MODEL");
         let mut input = None;
         match self {
-            Self::AnalyseRequest | Self::AnalyseCatalogue => {
+            Self::AnalyseRequest | Self::AnalyseTools => {
                 command.args([
                     "analyse",
                     "--model",
@@ -150,7 +150,7 @@ impl Entry {
                     command.arg("--input").arg(target);
                 } else {
                     command
-                        .args(["--claim", "A bounded claim", "--collector-catalogue"])
+                        .args(["--claim", "A bounded claim", "--tools"])
                         .arg(target);
                 }
             }

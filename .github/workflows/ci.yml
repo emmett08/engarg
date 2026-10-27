@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: b9e48835b6a40a91c9088c9c5f3fd9389d19750d
+      EAL_REVISION: cf9d43d42e6983c69f7c09fc72cf2881fe7deef9
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -108,25 +108,22 @@ jobs:
           .eal-producer/target/debug/eal-collector describe --catalogue-version 3 > "$RUNNER_TEMP/eal-collector-catalogue-v3.json"
           python3 -c 'import json, os; from pathlib import Path; expected=json.loads(Path("contracts/collectors/native.json").read_text()); actual=json.loads((Path(os.environ["RUNNER_TEMP"])/"eal-collector-catalogue.json").read_text()); assert actual == expected, "published collector catalogue differs from the pinned consumer contract"'
           python3 -c 'import json, os; from pathlib import Path; expected=json.loads(Path("contracts/collectors/native-v3.json").read_text()); actual=json.loads((Path(os.environ["RUNNER_TEMP"])/"eal-collector-catalogue-v3.json").read_text()); assert actual == expected, "extended collector catalogue differs from the pinned consumer contract"'
-      - name: Exercise generated EAL, registries and independent collector domains
+      - name: Exercise portable EAL packages and independent collector domains
         run: |
           export ENGARG_EAL_HOST="$PWD/.eal-producer/target/debug/eal-host"
           export EAL_COLLECTOR="$PWD/.eal-producer/target/debug/eal-collector"
           export ENGARG_EAL_COORDINATE="$PWD/.eal-producer/target/debug/eal-coordinate"
           export EAL_CORE="$PWD/.eal-producer/target/debug/eal-core"
-          export ENGARG_CATALOGUE_MCP="$PWD/target/debug/examples/catalogue_mcp"
           test -x "$ENGARG_EAL_HOST"
           test -x "$EAL_CORE"
           test -x "$ENGARG_EAL_COORDINATE"
-          cargo +1.99.1 build --locked --example catalogue_mcp
-          test -x "$ENGARG_CATALOGUE_MCP"
           cargo +1.99.1 test --locked --bin engarg tooling_commands::native_provider -- --ignored
           cargo +1.99.1 test --locked --test tooling_docker generated_interface_native_preflight -- --ignored
-          cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live --test support_cli --test support_export --test support_batch -- --ignored
-          cargo +1.99.1 test --locked --test support_method_export --test catalogue_workflow_native --test catalogue_composite_native -- --ignored
+          cargo +1.99.1 test --locked --test eal_live --test eal_export --test eal_acquisition --test native_collectors --test collector_catalogue_live -- --ignored
+          cargo +1.99.1 test --locked --test catalogue_workflow_native --test executable_package --test executable_modes -- --ignored
 
           # Keep one real CLI/coordinator smoke check in automatic compatibility.
           # Exhaustive native graph/ticket sweeps run in ticket-acceptance.yml.
           cargo +1.99.1 test --locked --test coordination_live the_actual_cli_coordinates_a_ring -- --ignored
-          cargo +1.99.1 test --locked --test ticket_native unavailable_new_mcp -- --ignored --nocapture
-          cargo +1.99.1 test --locked --test ticket_native measured_negative -- --ignored --nocapture
+          cargo +1.99.1 test --locked --test ticket_native unbound_operation_blocks_before_export_or_evidence_collection -- --ignored --nocapture
+          cargo +1.99.1 test --locked --test ticket_native measured_negative_completes_and_unavailable_source_blocks -- --ignored --nocapture

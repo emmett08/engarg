@@ -7,6 +7,7 @@ pub mod acquisition;
 pub mod authoring_checkpoint;
 pub mod collector_catalogue;
 pub mod collector_preparation;
+pub mod direct_planning;
 pub mod domain;
 pub mod eal_acquisition;
 pub mod eal_export;
@@ -16,6 +17,7 @@ pub mod eal_prepare;
 pub mod engine;
 pub mod export_policy;
 pub mod glossary;
+pub mod package;
 pub mod presentations;
 pub mod prompts;
 pub mod provider;
@@ -33,16 +35,6 @@ pub mod trace_inspection;
 mod argument_depth;
 pub mod bounded_file;
 mod collector_registry;
-mod legacy_native_collectors;
-// Frozen persisted projection readers deliberately retain their historical rules.
-#[allow(dead_code)]
-mod legacy_acquisition;
-#[allow(dead_code)]
-mod legacy_catalogue;
-#[allow(dead_code)]
-mod legacy_export;
-#[allow(dead_code)]
-mod legacy_plans;
 mod output_validation;
 
 #[cfg(test)]
@@ -87,6 +79,19 @@ impl From<eal_coordination_contracts::Error> for Error {
         match error {
             eal_coordination_contracts::Error::InvalidInput(message) => Self::InvalidInput(message),
             eal_coordination_contracts::Error::Protocol(message) => Self::Provider(message),
+        }
+    }
+}
+
+impl From<eal_tool_runtime::Error> for Error {
+    fn from(error: eal_tool_runtime::Error) -> Self {
+        match error {
+            eal_tool_runtime::Error::InvalidInput(s) => Self::InvalidInput(s),
+            eal_tool_runtime::Error::InvalidOutput(s) => Self::InvalidOutput(s),
+            eal_tool_runtime::Error::ToolExecution(s) => Self::ToolExecution(s),
+            eal_tool_runtime::Error::Budget(s) => Self::Budget(s),
+            eal_tool_runtime::Error::Io(e) => Self::Io(e),
+            eal_tool_runtime::Error::Json(e) => Self::Json(e),
         }
     }
 }

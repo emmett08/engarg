@@ -9,6 +9,9 @@ use engarg::{
     eal_export::{EalExport, export, export_projection},
 };
 
+#[path = "common/scoped_review_gates.rs"]
+mod scoped_review_gates;
+
 fn fixtures() -> (Request, ArgumentCase) {
     (
         serde_json::from_str(include_str!("../examples/request.json")).unwrap(),
@@ -55,7 +58,11 @@ fn export_is_deterministic_and_preserves_complete_canonical_source() {
     assert_eq!(first.claim_names.len(), 3);
     assert!(first.claim_names.contains_key("current_claim"));
     assert!(first.claim_names.contains_key("stronger_target"));
-    assert!(first.source.starts_with("language \"EAL/3\"\n"));
+    assert!(
+        first
+            .source
+            .starts_with("language \"EAL/3\" profile \"execution/1\"\n")
+    );
     assert_eq!(first.target_language, "EAL/3");
     assert!(first.source.contains("method \"structured/1\""));
     assert!(!first.source.contains("method \"deductive/1\""));
@@ -105,10 +112,7 @@ fn checked_flag_and_model_status_never_become_accepted_observations() {
     let bundle = export(&request, &case).unwrap();
     assert!(bundle.source.contains("\"checked_by_user\":true"));
     assert!(!bundle.source.contains("\"accepted\":true"));
-    assert_eq!(
-        bundle.source.matches("require accepted == true").count(),
-        bundle.obligations.len()
-    );
+    scoped_review_gates::assert_scoped_review_gates(&bundle);
     assert!(bundle.obligations.iter().any(
         |obligation| obligation.kind == "ground_interpretation" && obligation.target_id == "G2"
     ));
@@ -444,7 +448,7 @@ fn synthetic_digest(value: &serde_json::Value) -> String {
         .collect()
 }
 
-fn synthetic_accepted_records(
+fn synthetic_scoped_review_records(
     program: &serde_json::Value,
     context: &serde_json::Value,
 ) -> serde_json::Value {
@@ -455,8 +459,10 @@ fn synthetic_accepted_records(
         let input = &evidence["input"];
         let acquisition = json!({"tool":tool["name"],"tool_version":tool["version"],"input":input,"context":context});
         let request = json!({"evidence_id":id,"environment":evidence["environment"],"tool":tool["name"],"tool_version":tool["version"],"input":input,"context":context});
-        let value =
-            json!({"accepted":true,"fixture":"synthetic assumption propagation regression only"});
+        assert_eq!(evidence["kind"], "scoped_review");
+        let value = json!({"criterion":input["criterion"],"target":input["target"],"scope":input["scope"],
+            "reviewer":"synthetic-assumption-reviewer","verdict":"supported",
+            "reasons":["Synthetic assumption propagation regression only."],"reviewed_at":"2026-10-23T12:00:00Z"});
         records.insert(id.clone(), json!({
             "evidence_id":id,
             "source_digest":program["source_digest"],
@@ -500,7 +506,7 @@ fn upstream_assumption_attack_invalidates_dependent_objection_when_available() {
     let program = core_output(&binary, workspace.path(), &["compile", "source.eal"]);
     let valid = core_output(&binary, workspace.path(), &["validate", "source.eal"]);
     assert_eq!(valid["valid"], true, "{valid}");
-    let all_records = synthetic_accepted_records(&program, &bundle.context);
+    let all_records = synthetic_scoped_review_records(&program, &bundle.context);
     let attack_gate = declaration(&bundle, "D2", "challenge_activation");
     let mut inactive_records = all_records.clone();
     inactive_records

@@ -333,3 +333,26 @@ pub async fn tool_run(args: ToolRunArgs) -> Result<(), Error> {
     lock.write_all(b"\n")?;
     Ok(())
 }
+
+#[derive(Args)]
+pub struct ToolExportArgs {
+    /// Frozen verified package manifest produced by tool authoring.
+    #[arg(long)]
+    package: PathBuf,
+    /// New directory for source, pinned execution TOML and direct EAL binding.
+    #[arg(long)]
+    output_dir: PathBuf,
+    /// EAL tool identifier to bind; defaults to the verified package ID.
+    #[arg(long)]
+    tool_id: Option<String>,
+}
+pub fn tool_export(args: ToolExportArgs) -> Result<(), Error> {
+    let result = engarg::tooling::export::export_verified(
+        &args.package,
+        &args.output_dir,
+        args.tool_id.as_deref(),
+    )?;
+    serde_json::to_writer_pretty(std::io::stdout().lock(), &result)?;
+    println!();
+    Ok(())
+}

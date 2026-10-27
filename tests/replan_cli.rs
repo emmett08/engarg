@@ -42,7 +42,7 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
     );
     std::fs::write(&collector, script).unwrap();
     std::fs::set_permissions(&collector, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let (request, case, elaboration, _execution, routes, _locations) = support_fixture::fixture();
+    let (request, case, elaboration, _execution, routes) = support_fixture::fixture();
     let catalogue = CapabilityCatalogue {
         schema: eal_collector_contracts::capability::CAPABILITY_CATALOGUE_SCHEMA.into(),
         capabilities: vec![routes[0].capability.clone()],
@@ -266,10 +266,21 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
         )
         .is_err()
     );
-    let exported = directory.path().join("argument.json");
+    // Discovery remains an optional authoring input. Execution receives explicit
+    // operator bindings rather than interpreting the retained route sidecar.
+    let tools = directory.path().join("tools.toml");
+    std::fs::write(
+        &tools,
+        "[tools.shared_source]\nkind='command'\nversion='1'\nargv=['/usr/bin/false']\n",
+    )
+    .unwrap();
+    let calls_before_export = std::fs::read(&log).unwrap();
+    let exported = directory.path().join("executable-package");
     let result = cli()
         .args(["eal", "export", "--format", "json", "--input"])
         .arg(&restored)
+        .arg("--tools")
+        .arg(&tools)
         .arg("--output")
         .arg(&exported)
         .output()
@@ -279,6 +290,19 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
+    let receipt: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(receipt["schema"], "engarg.executable-package/1");
+    assert_eq!(receipt["profile"], "execution/1");
+    assert_eq!(receipt["model_calls"], 0);
+    assert!(!receipt["pending_reviews"].as_array().unwrap().is_empty());
+    let source = std::fs::read_to_string(exported.join("case.eal")).unwrap();
+    assert!(source.starts_with("language \"EAL/3\" profile \"execution/1\""));
+    assert!(exported.join("tools.toml").is_file());
+    assert_eq!(std::fs::read(&log).unwrap(), calls_before_export);
+    assert!(
+        !directory.path().join("store").exists(),
+        "export must not acquire evidence"
+    );
     let prepared = directory.path().join("prepared");
     let result = cli()
         .args(["eal", "prepare", "--input"])
@@ -287,11 +311,13 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':config['local
         .arg(&prepared)
         .output()
         .unwrap();
+    assert!(!result.status.success());
     assert!(
-        result.status.success(),
-        "{}",
         String::from_utf8_lossy(&result.stderr)
+            .contains("Graph-sidecar preparation has been removed")
     );
+    assert!(!prepared.exists());
+    assert_eq!(std::fs::read(&log).unwrap(), calls_before_export);
     let mut tampered = updated.clone();
     tampered["argument"]["adjudication"] = json!("changed after replanning");
     assert!(
@@ -396,7 +422,7 @@ fn sole_missing_credential_recovers_the_complete_plan_without_model_calls() {
         "adjudication":"The only planned acquisition needs its configured credential. The claim remains unsupported until collection."
     })).unwrap();
     engarg::domain::validate_argument(&request, &case).unwrap();
-    let (_, _, shared, _, routes, _) = support_fixture::fixture();
+    let (_, _, shared, _, routes) = support_fixture::fixture();
     let contract = &shared.acquisitions[0].contract;
     let elaboration: SupportElaboration = serde_json::from_value(json!({
         "schema":SUPPORT_ELABORATION_SCHEMA,
@@ -520,7 +546,7 @@ print(json.dumps({{'schema':'eal.evidence-discovery/1','catalogue':catalogue,'ad
 
 #[test]
 fn operator_freshness_changes_only_selected_missing_bounds_and_rejects_overrides() {
-    let (_, _, mut elaboration, _, _, _) = support_fixture::fixture();
+    let (_, _, mut elaboration, _, _) = support_fixture::fixture();
     let requirement = elaboration
         .requirements
         .iter_mut()
@@ -607,7 +633,7 @@ fn operator_freshness_changes_only_selected_missing_bounds_and_rejects_overrides
 
 #[test]
 fn freshness_check_rejects_mismatched_evaluation_and_requirement() {
-    let (_, _, mut elaboration, _, _, _) = support_fixture::fixture();
+    let (_, _, mut elaboration, _, _) = support_fixture::fixture();
     let evaluation = elaboration
         .evaluations
         .iter_mut()

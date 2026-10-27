@@ -128,20 +128,13 @@ fn preparation_preserves_distinct_http_queries_and_exact_review_requests() {
     assert_eq!(
         review.argv,
         vec![
-            "/operator/bin/engarg",
-            "eal",
-            "observe",
-            "--tool",
-            "review_json",
+            "eal-collector",
+            "review-json",
             "--inputs",
-            directory
-                .path()
-                .join("review-inputs.json")
-                .to_str()
-                .unwrap()
+            "review-inputs.json"
         ]
     );
-    assert!(review.inherit_env.is_empty());
+    assert_eq!(review.inherit_env, vec!["PATH"]);
     assert!(!review.parallel_safe);
     let collector_bindings: Vec<_> = bindings
         .tools
@@ -155,6 +148,7 @@ fn preparation_preserves_distinct_http_queries_and_exact_review_requests() {
             .all(|(_, binding)| binding.argv[0] == "/operator/bin/engarg")
     );
     let pending: Value = serde_json::from_slice(&files["review-inputs.json"]).unwrap();
+    assert_eq!(pending["schema"], "eal.review-inputs/2");
     assert_eq!(pending["reviews"], json!([]));
     let reviews: Vec<ReviewRequest> =
         serde_json::from_slice(&files["review-requests.json"]).unwrap();

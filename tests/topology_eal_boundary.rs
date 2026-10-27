@@ -7,7 +7,6 @@ use eal_core::{ExecutionLimits, composition, planning::EvidencePlanner, validati
 use engarg::{
     Error,
     domain::{ArgumentCase, Request},
-    eal_acquisition, eal_export,
     engine::{
         RouteResolver, RunConfig, run, run_with_support, run_with_tools,
         topology::{DebateConfig, Topology},
@@ -149,6 +148,27 @@ fn config(topology: &str) -> RunConfig {
     }
 }
 
+fn compile_native(
+    request: &Request,
+    case: &ArgumentCase,
+    elaboration: &SupportElaboration,
+) -> engarg::eal_export::EalExport {
+    let versions = elaboration
+        .acquisitions
+        .iter()
+        .map(|source| (source.id.clone(), "1".into()))
+        .collect();
+    support_export::compile_direct(
+        request,
+        case,
+        elaboration,
+        &versions,
+        &ExportPolicy::default(),
+    )
+    .unwrap()
+    .bundle
+}
+
 fn assert_native_eal_plan(source: &str, claim: &str, expected_method: &str) {
     let program = composition::compile(source, None, "", ExecutionLimits::default()).unwrap();
     let diagnostics = validation::validate_default(&program);
@@ -165,15 +185,14 @@ fn assert_native_eal_plan(source: &str, claim: &str, expected_method: &str) {
     assert!(
         plan.calls
             .iter()
-            .any(|call| call.tool == "engarg_reasoning_input")
+            .all(|call| call.tool.as_deref() != Some("engarg_reasoning_input"))
     );
 }
 
 #[tokio::test]
 async fn every_topology_and_authoring_envelope_produces_schema_valid_native_eal() {
     let mode = reasoning::cases().remove(0);
-    let (request, expected, elaboration, execution, routes, locations) =
-        reasoning_graph::graph_fixture(&mode);
+    let (request, expected, elaboration, execution, _) = reasoning_graph::graph_fixture(&mode);
     let canonical = serde_json::to_value(&expected).unwrap();
 
     for topology in TOPOLOGIES {
@@ -193,28 +212,14 @@ async fn every_topology_and_authoring_envelope_produces_schema_valid_native_eal(
                             .await
                             .unwrap(),
                     };
-                    let bundle = if matches!(envelope, Envelope::Acquisition) {
+                    if matches!(envelope, Envelope::Acquisition) {
                         let planned = engarg::acquisition::parse_completion(
                             &report.transcript.last().unwrap().response.content,
                         )
                         .unwrap();
-                        let artifacts = eal_acquisition::export_with_plan(
-                            &request,
-                            &report.argument,
-                            &planned.acquisition_plan,
-                        )
-                        .unwrap();
-                        assert_eq!(
-                            eal_acquisition::plan_from_bundle(&artifacts.bundle)
-                                .unwrap()
-                                .unwrap()
-                                .len(),
-                            expected.evidence_plan.len()
-                        );
-                        artifacts.bundle
-                    } else {
-                        eal_export::export(&request, &report.argument).unwrap()
-                    };
+                        assert_eq!(planned.acquisition_plan.len(), expected.evidence_plan.len());
+                    }
+                    let bundle = compile_native(&request, &report.argument, &elaboration);
                     let claim = bundle.claim_names["current_claim"].clone();
                     (report, bundle.source, claim)
                 }
@@ -228,18 +233,13 @@ async fn every_topology_and_authoring_envelope_produces_schema_valid_native_eal(
                     )
                     .await
                     .unwrap();
-                    let artifacts = support_export::export(
+                    let bundle = compile_native(
                         &request,
                         &result.report.argument,
                         &result.evidence_planning.elaboration,
-                        &result.evidence_planning.routes,
-                        &routes,
-                        &locations,
-                        &ExportPolicy::default(),
-                    )
-                    .unwrap();
-                    let claim = artifacts.bundle.claim_names["current_claim"].clone();
-                    (result.report, artifacts.bundle.source, claim)
+                    );
+                    let claim = bundle.claim_names["current_claim"].clone();
+                    (result.report, bundle.source, claim)
                 }
             };
             argument_assertions::assert_authored_argument(
@@ -255,10 +255,10 @@ async fn every_topology_and_authoring_envelope_produces_schema_valid_native_eal(
 #[test]
 fn all_native_method_bindings_survive_provider_schema_and_eal_planning() {
     for mode in reasoning::cases() {
-        let (request, case): (Request, ArgumentCase) = reasoning::fixture(&mode);
+        let (request, case, elaboration, _, _) = reasoning_graph::graph_fixture(&mode);
         let generated = live_output::generation_value(&case);
         assert_schema(&engarg::domain::case_schema(), &generated, mode.kind);
-        let bundle = eal_export::export(&request, &case).unwrap();
+        let bundle = compile_native(&request, &case, &elaboration);
         assert_native_eal_plan(
             &bundle.source,
             &bundle.claim_names["current_claim"],

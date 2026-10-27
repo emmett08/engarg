@@ -158,7 +158,7 @@ The graph contract constrains context visibility and resource use. It supplies n
 
 ## Architecture
 
-`eal-coordination-contracts` contains the directed graph contract, a cohesive builder module for each structure and the pure round state machine. EngArg re-exports the topology types through `engine::topology`. A tagged Rust enum dispatches to stateless builders. EAL coordination owns routing, round barriers and durable dispatch receipts. EngArg owns domain prompts, provider calls, assessment validation and objection retention. Normal construction, flat tool planning and support-graph planning use the same adapter.
+`eal-coordination-contracts` contains the directed graph contract, a cohesive builder module for each structure and the pure round state machine. EngArg re-exports the topology types through `engine::topology`. A tagged Rust enum dispatches to stateless builders. EAL coordination owns routing, round barriers and durable dispatch receipts. EngArg owns domain prompts, provider calls, assessment validation and objection retention. Argument-only construction, direct operation planning and optional capability discovery use the same adapter.
 
 This uses static strategy selection through ordinary functions. A trait hierarchy would add indirection to these closed, data-selected variants without changing the executor's graph contract. A new structure requires a builder, its enum variant and graph tests. Execution and final validation remain independent of the graph shape.
 

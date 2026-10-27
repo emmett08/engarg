@@ -134,8 +134,9 @@ pub fn prepare_with_operator_inputs(
             "prepare requires absolute output and executable paths".into(),
         ));
     }
+    let (review_executable, review_inherit_env) = review_collector(executable)?;
     let executable = path_text(executable)?;
-    let review_path = path_text(&directory.join("review-inputs.json"))?;
+    let review_path = "review-inputs.json".to_owned();
     let plans = complete_plans(case, retained)?;
     let prepared = operator
         .map(|(inputs, base)| {
@@ -150,15 +151,12 @@ pub fn prepare_with_operator_inputs(
         .get_mut("engarg_review_contract")
         .ok_or_else(|| Error::InvalidInput("export omitted its review binding".into()))?;
     review.argv = vec![
-        executable.clone(),
-        "eal".into(),
-        "observe".into(),
-        "--tool".into(),
-        "review_json".into(),
+        review_executable,
+        "review-json".into(),
         "--inputs".into(),
         review_path,
     ];
-    review.inherit_env.clear();
+    review.inherit_env = review_inherit_env;
     review.parallel_safe = false;
     for binding in registry.tools.values_mut() {
         if binding.argv.first().is_some_and(|path| path == "engarg") {
@@ -179,7 +177,7 @@ pub fn prepare_with_operator_inputs(
     files.insert("acquisition-inputs.json".into(), bytes(plans)?);
     files.insert(
         "review-inputs.json".into(),
-        bytes(&json!({"schema": "engarg.review-inputs/1", "reviews": []}))?,
+        bytes(&json!({"schema": "eal.review-inputs/2", "reviews": []}))?,
     );
     files.insert(
         "review-requests.json".into(),
@@ -190,4 +188,27 @@ pub fn prepare_with_operator_inputs(
         files.extend(prepared.finish(&bundle.revision)?);
     }
     Ok(files)
+}
+
+/// Select the standalone EAL importer once while preparing the package.
+fn review_collector(executable: &Path) -> Result<(String, Vec<String>), Error> {
+    if let Some(selected) = std::env::var_os("EAL_COLLECTOR") {
+        let selected = std::path::PathBuf::from(selected);
+        if !selected.is_absolute() {
+            return Err(Error::InvalidInput(
+                "EAL_COLLECTOR must select an absolute executable path".into(),
+            ));
+        }
+        return Ok((path_text(&selected)?, Vec::new()));
+    }
+    let sibling = executable.with_file_name(if cfg!(windows) {
+        "eal-collector.exe"
+    } else {
+        "eal-collector"
+    });
+    if sibling.is_file() {
+        Ok((path_text(&sibling)?, Vec::new()))
+    } else {
+        Ok(("eal-collector".into(), vec!["PATH".into()]))
+    }
 }

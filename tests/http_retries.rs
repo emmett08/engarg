@@ -24,6 +24,8 @@ use std::{
 
 #[path = "common/live_output.rs"]
 mod live_output;
+#[path = "common/pending_support.rs"]
+mod pending_support;
 
 #[derive(Clone)]
 struct Reply {
@@ -586,8 +588,8 @@ async fn cli_recovers_with_one_logical_call_and_audits_both_http_attempts() {
     let request: Value =
         serde_json::from_str(include_str!("../examples/claim-only-request.json")).unwrap();
     let argument: Value = live_output::case(include_str!("../examples/claim-only-case.json"));
-    let plans = argument["evidence_plan"].as_array().unwrap().iter().map(|need| json!({"need_id":need["id"],"tool_id":"custom","arguments":[],"unresolved_arguments":["adapter"]})).collect::<Vec<_>>();
-    let content = json!({"argument":argument,"acquisition_plan":plans}).to_string();
+    let elaboration = pending_support::pending(&serde_json::from_value(argument.clone()).unwrap());
+    let content = json!({"argument":argument,"support_elaboration_json":serde_json::to_string(&elaboration).unwrap()}).to_string();
     let mut success = Reply::success();
     let mut envelope: Value = serde_json::from_str(&success.body).unwrap();
     envelope["output"][0]["content"][0]["text"] = json!(content);

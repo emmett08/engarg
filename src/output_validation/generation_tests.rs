@@ -40,6 +40,7 @@ fn historical_methods_remain_importable_but_live_computational_methods_are_requi
         ReasoningMethodKind::Abductive,
         ReasoningMethodKind::Causal,
         ReasoningMethodKind::Counterfactual,
+        ReasoningMethodKind::Analogical,
     ] {
         let mut candidate = current.clone();
         candidate.warrants[0].inference = method.inference();
@@ -59,7 +60,8 @@ fn historical_methods_remain_importable_but_live_computational_methods_are_requi
         });
         assert!(errors(&request, &candidate, &[], None).is_empty());
     }
-    for inference in [InferenceKind::Analogical, InferenceKind::Practical] {
+    {
+        let inference = InferenceKind::Practical;
         let mut candidate = current.clone();
         candidate.warrants[0].inference = inference;
         candidate.warrants[0].reasoning_method = None;

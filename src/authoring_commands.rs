@@ -3,7 +3,7 @@ use clap::{Args, Subcommand};
 use engarg::{
     Error,
     authoring_checkpoint::{self, Checkpoint, Store},
-    engine::CallRecord,
+    engine::{CallRecord, RouteResolver},
     provider::{Completion, CompletionRequest, LanguageModel},
 };
 use serde_json::{Value, json};
@@ -17,28 +17,19 @@ use std::{
 
 #[derive(Subcommand)]
 pub enum AuthoringCommand {
-    /// Inspect a private checkpoint or import a legacy run directory without inference.
+    /// Inspect a private checkpoint without inference.
     Inspect(Source),
     /// Resume final validation with a separately bounded repair allowance.
     Resume(Box<ResumeArgs>),
 }
 #[derive(Args)]
-#[group(required = true, multiple = false)]
 pub struct Source {
     #[arg(long)]
-    checkpoint: Option<PathBuf>,
-    #[arg(long)]
-    run_dir: Option<PathBuf>,
+    checkpoint: PathBuf,
 }
 impl Source {
     fn load(&self) -> Result<Checkpoint, Error> {
-        match (&self.checkpoint, &self.run_dir) {
-            (Some(path), None) => Checkpoint::read(path),
-            (None, Some(path)) => authoring_checkpoint::import_legacy(path),
-            _ => Err(Error::InvalidInput(
-                "select one checkpoint or legacy run directory".into(),
-            )),
-        }
+        Checkpoint::read(&self.checkpoint)
     }
 }
 #[derive(Args)]
@@ -47,8 +38,12 @@ impl Source {
 pub struct ResumeArgs {
     #[command(flatten)]
     source: Source,
+    /// Explicit direct operation bindings retained by the checkpoint.
+    #[arg(long, conflicts_with = "evidence_config")]
+    tools: Option<PathBuf>,
+    /// Optional capability-discovery configuration for an explicitly graph-authored checkpoint.
     #[arg(long)]
-    evidence_config: PathBuf,
+    evidence_config: Option<PathBuf>,
     #[arg(long)]
     output: PathBuf,
     #[arg(long)]
@@ -66,6 +61,39 @@ pub struct ResumeArgs {
     progress: bool,
     #[command(flatten)]
     provider: crate::tooling_commands::provider::ProviderArgs,
+}
+enum RecoveryPlanner {
+    Direct(engarg::direct_planning::DirectPlanner),
+    Discovery(Box<crate::support_commands::CliPlanner>),
+}
+impl RouteResolver for RecoveryPlanner {
+    type Plan = Value;
+    fn authoring_context(&self) -> Option<Value> {
+        match self {
+            Self::Direct(planner) => planner.authoring_context(),
+            Self::Discovery(planner) => planner.authoring_context(),
+        }
+    }
+    fn preview(&self, plan: &Value) -> Result<Value, Error> {
+        match self {
+            Self::Direct(_) => Ok(plan.clone()),
+            Self::Discovery(planner) => planner.preview(&serde_json::from_value(plan.clone())?),
+        }
+    }
+    async fn resolve(
+        &self,
+        case: &engarg::domain::ArgumentCase,
+        elaboration: &engarg::support_requirements::SupportElaboration,
+    ) -> Result<Value, Error> {
+        match self {
+            Self::Direct(planner) => {
+                serde_json::to_value(planner.resolve(case, elaboration).await?).map_err(Error::from)
+            }
+            Self::Discovery(planner) => {
+                serde_json::to_value(planner.resolve(case, elaboration).await?).map_err(Error::from)
+            }
+        }
+    }
 }
 fn append(audit: &Mutex<File>, event: &Value) -> Result<(), Error> {
     let mut file = audit
@@ -168,11 +196,11 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
             "requested repair allowance exceeds bounded checkpoint history".into(),
         ));
     }
-    let evidence = engarg::bounded_file::read(
-        &args.evidence_config,
-        1_048_576,
-        "resume evidence configuration",
-    )?;
+    let evidence = if let Some(path) = args.tools.as_ref().or(args.evidence_config.as_ref()) {
+        engarg::bounded_file::read(path, 1_048_576, "resume evidence configuration")?
+    } else {
+        b"[tools]\n".to_vec()
+    };
     if saved.evidence_config_sha256 != authoring_checkpoint::digest(&evidence) {
         return Err(Error::InvalidInput("resume evidence configuration differs from the recorded configuration; preserve the original configuration for authoring recovery and replan after acceptance".into()));
     }
@@ -189,7 +217,18 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
     for path in &paths {
         require_new(path)?;
     }
-    let planner = crate::support_commands::admit(&args.evidence_config).await?;
+    let direct = args.evidence_config.is_none();
+    let planner = if let Some(path) = &args.evidence_config {
+        RecoveryPlanner::Discovery(Box::new(crate::support_commands::admit(path).await?))
+    } else {
+        RecoveryPlanner::Direct(
+            args.tools
+                .as_deref()
+                .map(engarg::direct_planning::DirectPlanner::from_tools)
+                .transpose()?
+                .unwrap_or_default(),
+        )
+    };
     let model = args.provider.model()?;
     let audit = Mutex::new(authoring_checkpoint::private_new(&args.audit)?);
     let mut next = saved.clone();
@@ -230,6 +269,16 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
         .await?;
         let added = report.report.transcript.len() - saved.transcript.len();
         let mut value = serde_json::to_value(report)?;
+        if direct {
+            let planning = value
+                .as_object_mut()
+                .unwrap()
+                .remove("evidence_planning")
+                .unwrap();
+            value["support_elaboration"] = planning["elaboration"].clone();
+            value["direct_bindings"] = planning["routes"].clone();
+            value["design_review"] = planning["design_review"].clone();
+        }
         let (parent_metadata, parent_call_order) = saved.compact_parent()?;
         value["authoring_recovery"] = json!({"schema":"engarg.authoring-recovery/1","parent_checkpoint_sha256":parent_digest,"previous_checkpoint":parent_metadata,"previous_call_order":parent_call_order,
             "recorded_calls":saved.transcript.len(),"new_model_calls":added,"additional_repair_limit":args.max_repairs,

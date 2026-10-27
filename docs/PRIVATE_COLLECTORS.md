@@ -55,10 +55,10 @@ engarg eal prepare \
   --output-dir .engarg-local/example
 ```
 
-Use the same option during `engarg analyse` to make selected collectors available
-while the argument is being constructed. The run retains that catalogue for
-export and preparation. A custom scientific collector can supply its own
-versioned descriptors. Input schemas support JSON arrays and numbers as well as
+The catalogue option belongs to explicit adapter preparation and export. New
+argument authoring uses `engarg analyse --tools tools.toml`; it receives safe
+operation names and pinned interfaces from those concrete bindings. A custom
+scientific collector can supply its own versioned descriptors for adapter use. Input schemas support JSON arrays and numbers as well as
 strings. Named argument values encode non-string inputs as JSON, for example
 `{"name":"channels","value":"[0,2]"}`. Templates keep the executable under
 operator control and permit parameters only in declared argument positions.
@@ -350,26 +350,34 @@ An unsupported producing operation belongs in a `custom` acquisition plan.
 Unavailable independent reviews remain explicit evidence gaps until their
 authored decisions exist.
 
-## Independently retained reviews
+## Retained scoped reviews
 
-Independent review is a separate recorded decision. `review-inputs.json` starts
-with `{"schema":"engarg.review-inputs/1","reviews":[]}`. An empty file cannot
-discharge a review gate. Each authored record has these fields:
+Review is a separately recorded judgement. `review-inputs.json` starts with
+`{"schema":"eal.review-inputs/2","reviews":[]}`. Each record contains the exact
+acquisition `request` and a `value` with these fields:
 
-| Field | Required value |
+| Field in `value` | Required value |
 | --- | --- |
-| `request` | Exact `tool`, `tool_version`, `input` and `context` copied from one pending request in `review-requests.json` |
-| `observed_at` | Original UTC RFC3339 review time |
-| `value` | JSON object containing an explicit boolean `accepted`, with reviewer provenance and reasoning as appropriate |
+| `criterion`, `target`, `scope` | Exact values from the pending review request; scope must be explicit and nonempty |
+| `reviewer` | Identified reviewer; a name alone does not establish independence or authority |
+| `verdict` | `supported`, `rejected` or `inconclusive` |
+| `reasons` | Nonempty bounded list of stated reasons |
+| `reviewed_at` | Original UTC RFC3339 review time |
+| `provenance`, `evidence_refs` | Optional retained provenance; these do not silently confer authority |
 
-For example, a reviewer may retain
-`{"accepted":false,"reviewer":"independent reviewer","reason":"inventory coverage remains unresolved"}`
-as the record's `value`. The importer preserves negative decisions. It accepts
-exactly one matching correspondence record and rejects changed obligations,
-changed scoped context, stale export digests, missing decisions and duplicate
-matches. The program never derives `accepted` from successful acquisition or an
-argument generator's verdict. EAL applies each evidence declaration's age limit
-to the retained observation time.
+The standalone `eal-collector review-json --inputs review-inputs.json` command
+imports the record. Preparation selects `EAL_COLLECTOR` when explicitly supplied,
+otherwise an installed sibling `eal-collector`, otherwise the executable from
+`PATH`. The prepared manifest uses a package-relative input path and requires no
+EngArg runtime for review import.
+
+The importer preserves every verdict and uses `reviewed_at` as the observation
+clock. It rejects different requests, criteria, targets or scopes, missing
+identities/reasons and duplicate matching records. Old `accepted` booleans are
+not accepted by the current format; retained historical records remain unchanged.
+No successful acquisition or authoring result manufactures a review. Explicit EAL
+predicates apply reviewer policies and determine whether a verdict supports a
+claim or activates a challenge. A supported challenge can weaken the main claim.
 
 ## Explicit collection
 

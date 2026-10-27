@@ -9,7 +9,7 @@ use eal_collector_contracts::{
 };
 use engarg::{
     domain::{ArgumentCase, Request},
-    support_export::{self, AcquisitionRouteProof, SupportExportLocations},
+    support_export::{self, AcquisitionRouteProof},
     support_requirements::{
         AcquisitionBlueprint, RequirementGap, RequirementGapKind, SupportElaboration,
         SupportRequirement, material_targets,
@@ -23,7 +23,6 @@ pub fn fixture() -> (
     SupportElaboration,
     EvidenceExecutionPlan,
     Vec<AcquisitionRouteProof>,
-    SupportExportLocations,
 ) {
     let request: Request =
         serde_json::from_str(include_str!("../../examples/request.json")).unwrap();
@@ -43,6 +42,14 @@ pub fn fixture() -> (
             reason: "The independent source is not yet supplied".into(),
         };
         requirements.push(SupportRequirement {
+            // The fixture's D1 checks robustness to confounding; D2 checks no
+            // interference. Positive acceptance resolves those concerns.
+            role: match target.as_str() {
+                "D1" | "D2" => {
+                    engarg::support_requirements::SupportRequirementRole::ChallengeResolution
+                }
+                _ => engarg::support_requirements::SupportRequirementRole::Support,
+            },
             id: id.clone(),
             target_id: target,
             evidence_need_ids: needs.iter().map(|need| need.id.clone()).collect(),
@@ -86,6 +93,7 @@ pub fn fixture() -> (
             expected: json!(index),
         };
         requirements.push(SupportRequirement {
+            role: Default::default(),
             id: id.clone(),
             target_id: "G1".into(),
             evidence_need_ids: Vec::new(),
@@ -109,7 +117,7 @@ pub fn fixture() -> (
         let criterion = EvaluationCriterion::Unavailable {
             reason: "The separately qualified typed source has not been supplied".into(),
         };
-        requirements.push(SupportRequirement{id:id.into(),target_id:"G1".into(),evidence_need_ids:vec![],original_acceptance_criteria:vec![],contract:Some(typed),discriminating_evidence:vec![],acceptance:criterion.clone(),acceptance_rationale:"A shared empirical observation cannot stand in for a separately qualified calculation or proof".into(),gaps:vec![]});
+        requirements.push(SupportRequirement{role:Default::default(),id:id.into(),target_id:"G1".into(),evidence_need_ids:vec![],original_acceptance_criteria:vec![],contract:Some(typed),discriminating_evidence:vec![],acceptance:criterion.clone(),acceptance_rationale:"A shared empirical observation cannot stand in for a separately qualified calculation or proof".into(),gaps:vec![]});
         evaluations.push(serde_json::from_value(json!({"id":format!("evaluation_{id}"),"requirement_id":id,"inputs":[],"criterion":criterion,"max_age_seconds":300,"required_coverage":"witness"})).unwrap());
     }
     let judgement_id = "retained_judgement";
@@ -118,6 +126,7 @@ pub fn fixture() -> (
         scope: None,
     };
     requirements.push(SupportRequirement {
+        role: Default::default(),
         id: judgement_id.into(),
         target_id: "W1".into(),
         evidence_need_ids: Vec::new(),
@@ -133,7 +142,7 @@ pub fn fixture() -> (
     });
     evaluations.push(serde_json::from_value(json!({"id":"evaluation_retained_judgement","requirement_id":judgement_id,"inputs":[],"criterion":criterion})).unwrap());
     let mut elaboration = SupportElaboration {
-        schema: engarg::support_requirements::LEGACY_SUPPORT_ELABORATION_SCHEMA.into(),
+        schema: engarg::support_requirements::SUPPORT_ELABORATION_SCHEMA.into(),
         requirements,
         acquisitions: vec![AcquisitionBlueprint {
             id: "shared_source".into(),
@@ -177,14 +186,6 @@ pub fn fixture() -> (
         evaluations,
         scheduling: Default::default(),
     };
-    let locations = SupportExportLocations {
-        collector: "/operator/bin/eal-collector".into(),
-        execution_plan: "/operator/run/execution.json".into(),
-        connections: "/operator/run/evidence-connections.json".into(),
-        store: "/operator/evidence-store".into(),
-        environment: Vec::new(),
-        review_binding: None,
-    };
     let capability = descriptor();
     plan.acquisitions[0].source.authentication_scope_sha256 =
         eal_collector_contracts::capability::canonical_identity(
@@ -196,7 +197,6 @@ pub fn fixture() -> (
     plan.acquisitions[0].source.qualified_contract_sha256 =
         capability.measurement_identity().unwrap();
     let routes = vec![AcquisitionRouteProof {
-        composition: None,
         batch: None,
         blueprint_id: "shared_source".into(),
         capability,
@@ -205,7 +205,7 @@ pub fn fixture() -> (
         operator_arguments: None,
     }];
     support_export::project_execution_graph(&elaboration, &routes, &mut plan).unwrap();
-    (request, case, elaboration, plan, routes, locations)
+    (request, case, elaboration, plan, routes)
 }
 pub fn descriptor() -> CapabilityDescriptor {
     let schema = json!({"type":"object"});

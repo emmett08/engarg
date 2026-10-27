@@ -223,7 +223,7 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
     let binary = std::path::PathBuf::from(binary);
     let bin_dir = binary.parent().unwrap();
     let collector = bin_dir.join("eal-collector");
-    let supervisor = bin_dir.join("eal-command-supervisor");
+    let supervisor = bin_dir.join("eal-process-supervisor");
     assert!(
         collector.is_file() && supervisor.is_file(),
         "Build the current native collector and runtime binaries"

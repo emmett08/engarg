@@ -1,112 +1,95 @@
-# Typed warrant methods
+# Executable warrant methods
 
-A warrant's `inference` is an authored classification. Its `reasoning_method`
-connects an explicit formal problem and acquired evidence to an installed EAL
-method. The two are validated together. A successful computation supports only
-the declared result predicate under the stated scope and assumptions.
+A warrant's `inference` classifies the argument. Its `reasoning_method` identifies
+an installed EAL computation, the authored query, empirical premise bindings,
+applicability assumptions and a result predicate. EAL owns the query, input and
+output contracts. EngArg does not maintain parallel formula or model schemas.
 
-The binding has either `status: "bound"` or `status: "unresolved"`. An unresolved
-binding records the missing model or evidence and keeps that route unavailable.
-Existing saved cases without this field retain their authored `structured/1`
-projection and review obligations. New provider schemas require an explicit
-binding for the five computational inference modes. Analogical and practical
-warrants retain authored support in this profile.
+A bound method uses this canonical representation:
 
-## Bound inputs and evidence
+```json
+{
+  "identifier": "deductive/1",
+  "query": {
+    "premises": ["count_matches", "identifiers_distinct"],
+    "conclusion": {"and": ["count_matches", "identifiers_distinct"]}
+  }
+}
+```
 
-`method` contains a closed, mode-specific query. `input_evidence_need_id` names a
-separate requirement for acquiring a complete `EAL/typed-input/1` envelope.
-`formal_premises` bind every relied-upon premise and required formal input to a
-named argument node and its evidence need. `evidence_requirements` distinguish
-formal-input admission, premise observation, design/model evidence and
-applicability. `assumption_ids` retain named model assumptions as dependencies.
+Text-model responses carry the same query as `query_json`, a strict JSON string.
+This transport accommodates provider schemas that cannot express EAL's arbitrary
+mathematical JSON values. EngArg decodes it once, rejects duplicate keys and
+trailing documents, and retains exact numeric values in the canonical `query`.
+The pinned EAL method descriptors accompany authoring instructions. Query
+validation and result-path validation call EAL directly; `entailed` is a method
+output path, while `/premises/0` is a JSON pointer into an input.
 
-`conclusion` identifies the conclusion claim, subject, quantity, unit, structured
-target scope, validity interval and exact result predicate. EAL's scope identifier
-is derived from the target's kind, selectors and identity dimensions. It cannot be
-relabelled by replacing an opaque scope string. Formal input and premise evidence
-must retain those target identities. Additional sample selectors within the same
-population are allowed. A conflicting or missing target identity produces
-`scope_transfer_required`; this profile does not infer cross-population transfer.
-Sampling and model applicability remain separate evidence obligations.
+An unresolved binding states the missing model or evidence and keeps the route
+unavailable. Authoring requires an explicit bound or unresolved choice for the
+six computational classifications. Practical reasoning uses an explicit decision
+policy and scoped structured review. It does not invent objectives or weights.
 
-EAL checks the acquired envelope against these declarations before computing.
-The source acquisition's observation age remains separate from the proposition's
-interval. A timestamp does not prove physical continuity throughout that interval.
+## Authored queries and acquired evidence
 
-There are two explicit premise correspondences:
+A formula or fixed query is programme data. It needs no collector to echo it and
+no separate `formal_input` evidence obligation. `formal_premises` connect every
+warrant premise and required measured field to an actual evidence need.
+`evidence_requirements` retain empirical observations, sampling/intervention
+design, model adequacy and applicability as separate obligations.
 
-- `identity_value` selects an input of the named premise requirement using
-  `source_input_index`, then a `source_pointer` within that value. Its canonical
-  value must equal the formal payload's `input_pointer`. The native profile also
-  requires a compatible declared unit and scope. It performs no implicit unit
-  conversion. Different acquired data cannot be substituted just because both
-  requirements independently passed their predicates.
-- `accepted_premise` is limited to complete deductive `/premises/N` formulae.
-  The independently acquired premise requirement must be satisfied before its
-  explicitly authored interpretation can license that formal premise. This
-  checks the declared dependency, not the meaning of arbitrary prose.
+Two correspondence forms are supported:
 
-Every formal deductive premise must be mapped. Induction maps successes and
-trials. Abduction maps the observation and candidate probability model. Causal
-reasoning maps assignment, treatment and control. Counterfactual reasoning maps
-the structural model, intervention and outcome. Correspondences and model/design
-requirements cannot be discharged by the formal-input admission requirement.
+- `identity_value` selects an acquired value using `source_input_index` and a
+  `source_pointer`, then binds it to the method payload's `input_pointer`.
+  Scope, unit and source identity must remain explicit. Passing another predicate
+  does not authorise substitution of different data.
+- `accepted_premise` applies to complete deductive `/premises/N` formulae. The
+  premise's empirical acceptance predicate must be satisfied before its authored
+  interpretation licenses the formula. This dependency does not prove that prose
+  and formula have the same meaning.
 
-The `method_input` support criterion validates the envelope format against the
-installed method contract. It establishes neither premise truth nor a scientific
-conclusion. Its requirement targets only the bound warrant's formal-input need.
-The `engarg.reasoning-input/1` acquisition selects the exact retained execution
-reference, collects the joined premise closure, checks the correspondences and
-preserves the source observations, lineage and oldest measurement time.
+The conclusion names the claim, subject, quantity, unit, structured scope,
+validity interval and result predicate. Scope selectors and identity dimensions
+identify the represented population or system. They do not prove physical
+continuity. Source observation time remains distinct from acquisition time and
+from the conclusion's interval. Calculations and reuse cannot refresh source age.
 
-## Implemented bounded methods
+## Bounded computations
 
-| Mode and EAL method | Input and computation | Required qualification |
+| Method | Computation | Separate evidential obligations |
 | --- | --- | --- |
-| Deductive, `deductive/1` | Propositional entailment with consistency and countermodel checks, at most 12 atoms | Each formal premise has acquired support. Inconsistent premises cannot obtain support by vacuous entailment. This is not an arbitrary mathematical proof checker. |
-| Inductive, `inductive/1` | Wilson binomial interval from successes, trials and confidence | Sampling design, population correspondence and applicability have separate evidence requirements. The interval calculation does not verify these assumptions. |
-| Abductive, `abductive/1` | Bayesian conditioning over 2–128 supplied candidates with priors and likelihoods | The candidate model and applicability need evidence. A posterior ranks only the supplied candidates. Missing probabilities remain unresolved. |
-| Causal, `causal/1` | Two-group mean contrast and standard error under declared randomised assignment | Acquired treatment/control data and separate intervention-design evidence. Observational association cannot silently become randomised evidence. |
-| Counterfactual, `counterfactual/1` | Intervention in an acyclic affine structural model with at most 32 variables and supplied exogenous context | Model, context and applicability require evidence. The method neither discovers a causal model nor reconstructs unknown noise. The native bridge requires one explicit compatible unit basis. |
+| `deductive/1` | Finite propositional entailment and consistency | Each empirical premise and its interpretation; inconsistent premises do not provide support by vacuous entailment |
+| `inductive/1` | Wilson interval for acquired binomial successes and trials | Sampling design, population correspondence and applicability |
+| `abductive/1` | Bayesian conditioning within supplied hypotheses | Observation, priors, likelihood model and adequacy of the candidate set |
+| `causal/1` | Two-group mean contrast under declared randomised assignment | Treatment/control observations, intervention design and applicability |
+| `counterfactual/1` | Intervention in a supplied acyclic affine model with fixed exogenous context | Structural model correspondence, context and scope |
+| `analogical/1` | Declared feature correspondence | Relevance of the mapping, material differences and adequacy of the transfer |
+| Structured practical support | Authored option and decision-policy composition | Explicit objectives, constraints, consequences and scoped policy/application reviews |
 
-The counterfactual binding uses arrays of named variables and coefficients in the
-provider schema. Export lowers them to EAL's checked map representation. Duplicate
-names, missing variables, cycles and non-finite coefficients are rejected.
+Native method limits and exact schemas come from EAL descriptors. A successful
+calculation only establishes its declared result under those inputs. It does not
+validate an external scientific model or make an arbitrary interpretation true.
 
-## Export and outcomes
+## Compilation, revision and outcomes
 
-Typed cases use authored projection semantics `engarg.eal-projection/4`.
-Legacy cases keep version 3 and reconstruct their existing source and identities.
-Graph export adds native routes only when the declared method inputs and all
-required evidence gates are represented. It retains the original ground and
-claim identities so their objections still propagate. Open material challenges
-retain their independent resolution gate. A challenge to a model-applicability
-assumption leaves the native route pending in this profile. Cumulative
-composition retains its independent adequacy review.
+Execution packages put acquisitions, dependencies and argument relationships in
+EAL source. TOML binds actual named tools. Assumption objections remain attached
+to assumptions in the argument; a native method does not discard them or invent
+an accepted review. Reusing an acquisition for several requirements does not
+produce independent observations.
 
-Distinguish these results when inspecting an assessment:
+Explicit argument revision is separate from acquisition replanning. The revision
+API retains the previous argument and parent report digest, requires applications
+for dissent attached to changed targets, and invalidates old support elaboration,
+route plans, EAL exports, collections and assessments. Historical observations
+remain records of their original run.
 
-- A completed acquisition can contain a measured negative.
-- A completed computation can fail the conclusion's result predicate.
-- Missing, failed, stale or mismatched evidence keeps an application unavailable
-  or `not_run` rather than making the proposition false.
-- EAL source validation, completed computation and a supported claim are separate
-  results. Prose/formal correspondence remains declared by the argument author.
+Assessment distinguishes a usable negative observation, a false result predicate,
+a failed acquisition, unavailable or stale evidence, and exhausted computation.
+Source validation, completed execution and support for a claim are separate
+results. Missing evidence does not establish falsity.
 
-## Acceptance and example
-
-`tests/reasoning_methods.rs` checks all five kernels through exported EAL with
-known-answer test-bench observations. `tests/support_method_export.rs` also
-collects and assesses actual exported graphs through the pinned runtime, including
-substituted values and unavailable models. `tests/catalogue_workflow_native.rs`
-exercises an actual SDK MCP server and an independently authored custom-tool
-fixture, measured negatives, source failures and reuse without refreshing age.
-The producer/consumer CI job runs the native integration tests.
-
-For the complete model-authoring and generated-tool workflow, see
-[the catalogue example](CATALOG_SYNC_AUTHORING.md). The no-argument script uses a
-simple local catalogue claim, an additional read-only MCP server and a separately
-generated custom audit operation. It automatically collects and assesses the
-result, and reports support only after both EAL and the independent observation
-check pass. Live tool generation requires provider credentials and Docker.
+Current tests cover shared descriptor validation, exact authoring-query decoding,
+revision/dissent preservation and executable EAL compilation. Native EAL tests
+check the numerical and logical methods against independently specified cases.

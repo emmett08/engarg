@@ -21,6 +21,7 @@ use std::{
 mod authoring_commands;
 mod eal_commands;
 mod glossary_command;
+mod package_commands;
 mod path_admission;
 mod progress;
 mod support_commands;
@@ -41,6 +42,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Compile an authored argument into portable EAL and direct TOML tool bindings.
+    Build(package_commands::BuildArgs),
     /// Author, integrate and execute a durable engineering investigation ticket.
     Ticket(ticket_commands::TicketArgs),
     /// Internal supervised ticket-stage worker.
@@ -169,7 +172,7 @@ struct Analyse {
     /// Private JSONL audit, including completed calls even if a later stage fails.
     #[arg(long)]
     audit: Option<PathBuf>,
-    /// Durable graph authoring state, written after each completion before parsing.
+    /// Durable authoring state, written after each completion before parsing.
     #[arg(long)]
     checkpoint: Option<PathBuf>,
     /// Report phases, model calls and a ten-second waiting heartbeat on stderr.
@@ -178,20 +181,20 @@ struct Analyse {
     /// Omit acquisition tool planning when only the canonical argument is needed.
     #[arg(long)]
     no_tool_planning: bool,
-    /// Tool-independent support requirements and shared evidence graph, or legacy flat planning.
+    /// Direct tool bindings by default; optional capability discovery.
     #[arg(
         long,
         value_enum,
-        default_value = "flat",
+        default_value = "direct",
         conflicts_with = "no_tool_planning"
     )]
     evidence_planning: EvidencePlanning,
     /// Operator-owned capability planning configuration for graph mode.
     #[arg(long)]
     evidence_config: Option<PathBuf>,
-    /// Operator-selected versioned collector catalogue, for example eal-collector describe output.
-    #[arg(long, conflicts_with = "no_tool_planning")]
-    collector_catalogue: Option<PathBuf>,
+    /// Direct operator TOML bindings. Safe interfaces enter authoring, not credentials.
+    #[arg(long, conflicts_with_all = ["evidence_config", "no_tool_planning"])]
+    tools: Option<PathBuf>,
     /// Generate and verify missing collector implementations after argument planning.
     #[arg(long, conflicts_with = "no_tool_planning")]
     implement_tools: bool,
@@ -203,7 +206,7 @@ struct Analyse {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum EvidencePlanning {
-    Flat,
+    Direct,
     Graph,
 }
 
@@ -435,6 +438,30 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         }
     };
     validate_request(&request).map_err(|v| Error::InvalidInput(v.join("; ")))?;
+    if args.tools.is_some() && args.evidence_planning != EvidencePlanning::Direct {
+        return Err(Error::InvalidInput(
+            "--tools requires --evidence-planning direct".into(),
+        ));
+    }
+    let direct_planner = if args.evidence_planning == EvidencePlanning::Direct
+        && !args.no_tool_planning
+    {
+        if args.evidence_config.is_some() {
+            return Err(Error::InvalidInput("direct planning uses --tools; capability configuration belongs to explicit graph planning".into()));
+        }
+        if args.implement_tools {
+            return Err(Error::InvalidInput("direct authoring does not execute tool generation; construct and verify missing tool implementations separately, then supply direct TOML bindings".into()));
+        }
+        Some(
+            args.tools
+                .as_deref()
+                .map(engarg::direct_planning::DirectPlanner::from_tools)
+                .transpose()?
+                .unwrap_or_default(),
+        )
+    } else {
+        None
+    };
     let graph_planner = match (args.evidence_planning, args.evidence_config.as_deref()) {
         (EvidencePlanning::Graph, Some(path)) => Some(support_commands::admit(path).await?),
         (EvidencePlanning::Graph, None) => {
@@ -442,29 +469,20 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
                 "--evidence-planning graph requires --evidence-config".into(),
             ));
         }
-        (EvidencePlanning::Flat, Some(_)) => {
+        (EvidencePlanning::Direct, Some(_)) => {
             return Err(Error::InvalidInput(
                 "--evidence-config requires --evidence-planning graph".into(),
             ));
         }
         _ => None,
     };
-    if graph_planner.is_some() && args.collector_catalogue.is_some() {
-        return Err(Error::InvalidInput("Graph planning uses qualified capabilities from --evidence-config; --collector-catalogue configures flat planning".into()));
-    }
-    // Validate graph options before paid calls. Runner admission occurs only for
-    // an actual implementation gap after qualified candidate comparison.
-    let tooling_session = if graph_planner.is_some() && args.implement_tools {
-        args.tooling
-            .capability_config(true, args.max_input_bytes, args.max_response_bytes)?;
-        None
-    } else {
-        args.tooling.admit(
-            args.implement_tools,
-            args.max_input_bytes,
-            args.max_response_bytes,
-        )?
-    };
+    // Discovery implementation configuration is admitted before paid calls.
+    // A concrete runner is selected only for an actual missing operation.
+    args.tooling.capability_config(
+        args.implement_tools,
+        args.max_input_bytes,
+        args.max_response_bytes,
+    )?;
     let mut role_models = HashMap::new();
     for text in args.role_model {
         let (role, model) = text
@@ -493,14 +511,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         max_calls: args.max_calls,
         max_argument_depth: args.argument_depth,
         max_repairs: args.max_repairs,
-        collector_catalogue: args
-            .collector_catalogue
-            .as_deref()
-            .map(|path| {
-                let bytes = engarg::bounded_file::read(path, 1_048_576, "collector catalogue")?;
-                engarg::collector_catalogue::CollectorCatalogue::from_json(&bytes)
-            })
-            .transpose()?,
+        collector_catalogue: None,
         max_input_bytes: args.max_input_bytes,
         max_response_bytes: args.max_response_bytes,
     };
@@ -580,13 +591,15 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         },
     )?;
     let checkpoint = if let Some(path) = &args.checkpoint {
-        let configuration = args
-            .evidence_config
-            .as_ref()
-            .filter(|_| graph_planner.is_some())
-            .ok_or_else(|| {
-                Error::InvalidInput("--checkpoint requires graph evidence planning".into())
-            })?;
+        let configuration = if direct_planner.is_some() {
+            args.tools.as_ref()
+        } else if graph_planner.is_some() {
+            args.evidence_config.as_ref()
+        } else {
+            return Err(Error::InvalidInput(
+                "--checkpoint requires direct or graph evidence planning".into(),
+            ));
+        };
         let checkpoint_identity = engarg::authoring_checkpoint::output_identity(path)?;
         let mut collision = false;
         for other in [args.audit.as_deref(), args.output.output.as_deref()]
@@ -601,11 +614,15 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
                 "checkpoint, audit and report require distinct new paths".into(),
             ));
         }
-        let bytes = engarg::bounded_file::read(
-            configuration,
-            1_048_576,
-            "checkpoint evidence configuration",
-        )?;
+        let bytes = if let Some(configuration) = configuration {
+            engarg::bounded_file::read(
+                configuration,
+                1_048_576,
+                "checkpoint evidence configuration",
+            )?
+        } else {
+            b"[tools]\n".to_vec()
+        };
         Some(engarg::authoring_checkpoint::Store::create(
             path,
             engarg::authoring_checkpoint::Checkpoint::new(
@@ -644,20 +661,25 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
     };
     progress.phase("argument authoring and evidence planning");
     let run = async {
-        if let Some(planner) = &graph_planner {
+        if let Some(planner) = &direct_planner {
+            let result =
+                engarg::engine::run_with_support(&model, &request, &config, &observer, planner)
+                    .await?;
+            let mut value = serde_json::to_value(&result.report)?;
+            value["support_elaboration"] =
+                serde_json::to_value(result.evidence_planning.elaboration)?;
+            value["direct_bindings"] = serde_json::to_value(result.evidence_planning.routes)?;
+            value["design_review"] = serde_json::to_value(result.evidence_planning.design_review)?;
+            Ok(value)
+        } else if let Some(planner) = &graph_planner {
             serde_json::to_value(
                 engarg::engine::run_with_support(&model, &request, &config, &observer, planner)
                     .await?,
             )
             .map_err(Error::from)
-        } else if args.no_tool_planning {
-            serde_json::to_value(
-                engarg::engine::run_with_observer(&model, &request, &config, &observer).await?,
-            )
-            .map_err(Error::from)
         } else {
             serde_json::to_value(
-                engarg::engine::run_with_tools(&model, &request, &config, &observer).await?,
+                engarg::engine::run_with_observer(&model, &request, &config, &observer).await?,
             )
             .map_err(Error::from)
         }
@@ -673,30 +695,17 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             let argument: ArgumentCase = serde_json::from_value(report["argument"].clone())?;
             let original = report;
             let input_sha256 = original["input_sha256"].clone();
-            let final_report = match (&tooling_session, &tooling_model) {
-                (session, Some(model)) => {
+            let final_report = match &tooling_model {
+                Some(model) => {
                     progress.phase("implementing and verifying missing tools");
-                    let stage_result = if graph_planner.is_some() {
-                        tooling_commands::capability::run_capability_fallback(
-                            model,
-                            &original,
-                            &args.tooling,
-                            args.max_input_bytes,
-                            args.max_response_bytes,
-                        )
-                        .await
-                    } else {
-                        let session = session.as_ref().ok_or_else(|| {
-                            Error::InvalidInput("Implementation session was not admitted".into())
-                        })?;
-                        tooling_commands::run_stage(
-                            session,
-                            model,
-                            &original,
-                            args.tooling.deadline(),
-                        )
-                        .await
-                    };
+                    let stage_result = tooling_commands::capability::run_capability_fallback(
+                        model,
+                        &original,
+                        &args.tooling,
+                        args.max_input_bytes,
+                        args.max_response_bytes,
+                    )
+                    .await;
                     match stage_result {
                         Ok(value) => value,
                         Err(error) => {
@@ -750,6 +759,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
 
 async fn execute(cli: Cli) -> Result<(), Error> {
     match cli.command {
+        Command::Build(args) => package_commands::build(args),
         Command::Ticket(args) => ticket_commands::run(args).await,
         Command::TicketStage => ticket_commands::stage().await,
         Command::Analyse(args) => analyse(*args).await,

@@ -118,7 +118,7 @@ async fn exported_case_validates_and_plans_unfulfilled_review_contracts() {
         .unwrap();
     assert!(planned.contains(composition_review.eal_evidence_name.as_str()));
     assert!(plan["calls"].as_array().unwrap().iter().all(|call| {
-        call["tool"] == "engarg_review_contract" && call["evidence_kind"] == "review"
+        call["tool"] == "engarg_review_contract" && call["evidence_kind"] == "scoped_review"
     }));
     assert!(ids(&plan["dependencies"]["claims"]).contains(current.as_str()));
 }

@@ -6,7 +6,7 @@ use eal_collector_contracts::{
 };
 use engarg::{
     domain::{ArgumentCase, Request},
-    support_export::{self, AcquisitionRouteProof, SupportExportLocations},
+    support_export::{self, AcquisitionRouteProof},
     support_requirements::{
         AcquisitionBlueprint, SupportElaboration, SupportRequirement, material_targets,
     },
@@ -19,7 +19,6 @@ pub type GraphFixture = (
     SupportElaboration,
     EvidenceExecutionPlan,
     Vec<AcquisitionRouteProof>,
-    SupportExportLocations,
 );
 
 pub fn contract(support_type: &str, strength: &str, quantity: &str, unit: &str) -> SupportContract {
@@ -88,7 +87,6 @@ pub fn source(capability: &CapabilityDescriptor) -> SourceIdentity {
 
 pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
     let (request, case) = argument_fixture(mode);
-    let input_contract = contract("source_retrieval", "clarification", "typed_input", "json");
     let premise_contract = contract(
         "observation",
         "existential_witness",
@@ -98,7 +96,6 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
     let applicability_contract =
         contract("observation", "existential_witness", "applies", "boolean");
     let sources = [
-        ("formal_source", input_contract.clone()),
         ("premise_source", premise_contract.clone()),
         ("applicability_source", applicability_contract.clone()),
     ];
@@ -116,7 +113,6 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
     let routes = sources
         .iter()
         .map(|(id, contract)| AcquisitionRouteProof {
-            composition: None,
             batch: None,
             blueprint_id: (*id).into(),
             capability: capability(id, contract),
@@ -135,14 +131,6 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
             .collect::<Vec<_>>();
         needs.sort_by_key(|need| &need.id);
         let (contract, criterion, reference, coverage) = match target.as_str() {
-            "W1" => (
-                Some(input_contract.clone()),
-                EvaluationCriterion::MethodInput {
-                    method: format!("{}/1", mode.kind),
-                },
-                Some(("formal_source", "/typed_input")),
-                "unspecified",
-            ),
             "G1" => (
                 Some(premise_contract.clone()),
                 EvaluationCriterion::Equals {
@@ -151,7 +139,7 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
                 Some(("premise_source", "/measurement")),
                 "witness",
             ),
-            "A1" | "current_claim" => (
+            "A1" | "W1" | "current_claim" => (
                 Some(applicability_contract.clone()),
                 EvaluationCriterion::AllTrue,
                 Some(("applicability_source", "/applies")),
@@ -168,7 +156,7 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
         };
         let id = format!("requirement_{target}");
         requirements.push(SupportRequirement {
-            id:id.clone(),target_id:target,evidence_need_ids:needs.iter().map(|need|need.id.clone()).collect(),original_acceptance_criteria:needs.iter().map(|need|need.acceptance_criterion.clone()).collect(),contract,
+                role: Default::default(),            id:id.clone(),target_id:target,evidence_need_ids:needs.iter().map(|need|need.id.clone()).collect(),original_acceptance_criteria:needs.iter().map(|need|need.acceptance_criterion.clone()).collect(),contract,
             discriminating_evidence:vec![],acceptance:criterion.clone(),acceptance_rationale:"Evaluate only this frozen fixture's retained source and declared method-input format; physical adequacy remains outside the conclusion.".into(),
             gaps:if reference.is_none(){vec![serde_json::from_value(json!({"kind":"source_unavailable","description":"The wider deployment is unobserved."})).unwrap()]}else{vec![]},
         });
@@ -210,13 +198,5 @@ pub fn graph_fixture(mode: &ModeCase) -> GraphFixture {
     support_export::project_execution_graph(&elaboration, &routes, &mut plan).unwrap();
     let errors = engarg::support_requirements::validate_elaboration(&case, &elaboration);
     assert!(errors.is_empty(), "{}", errors.join("; "));
-    let locations = SupportExportLocations {
-        collector: "/operator/bin/eal-collector".into(),
-        execution_plan: "/operator/run/plan.json".into(),
-        connections: "/operator/run/connections.json".into(),
-        store: "/operator/store".into(),
-        environment: vec![],
-        review_binding: None,
-    };
-    (request, case, elaboration, plan, routes, locations)
+    (request, case, elaboration, plan, routes)
 }

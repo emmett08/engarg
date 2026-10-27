@@ -1,6 +1,5 @@
 //! Format-independent compilation of qualified support acquisition graphs.
 mod batch;
-pub mod composition;
 mod inputs;
 use crate::{Error, support_requirements::SupportElaboration};
 pub use batch::{BatchRouteProof, QualifiedBatchCorrespondence};
@@ -11,11 +10,10 @@ use eal_collector_contracts::{
         validate_historical_input,
     },
     execution::{
-        CoverageProof, DerivationOperation, DerivationStep, EvidenceExecutionPlan, OutputReference,
+        DerivationOperation, DerivationStep, EvidenceExecutionPlan, OutputReference,
         SourceAvailability, canonical_digest, valid_pointer,
     },
 };
-pub(crate) use inputs::materialise_source_arguments_with_composition;
 pub use inputs::{materialise_source_arguments, physical_dependencies, set_pointer};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,9 +27,6 @@ pub struct AcquisitionRouteProof {
     pub blueprint_id: String,
     pub capability: CapabilityDescriptor,
     pub projection_id: Option<String>,
-    /// Independently replayable source-to-calculation qualification, if needed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub composition: Option<composition::IdentifierAuditProof>,
     /// Physical input pointer -> original logical argument pointer.
     #[serde(default)]
     pub input_bindings: BTreeMap<String, String>,
@@ -118,38 +113,7 @@ fn expected_graph(
             return Err(invalid("route proofs must be unique per logical source"));
         }
         route.capability.validate().map_err(Error::InvalidInput)?;
-        if let Some(proof) = &route.composition {
-            if route.batch.is_some() {
-                return Err(invalid(
-                    "identifier audit composition does not admit batch rewrites",
-                ));
-            }
-            let source_blueprint = logical
-                .get(proof.source_step_id.as_str())
-                .ok_or_else(|| invalid("composition names an unknown source operation"))?;
-            let source_route = routes
-                .iter()
-                .find(|candidate| candidate.blueprint_id == proof.source_step_id)
-                .ok_or_else(|| {
-                    invalid("composition requires the selected qualified source route")
-                })?;
-            let (recomputed, _) = composition::identifier_audit_proof(
-                elaboration,
-                blueprint,
-                source_blueprint,
-                &route.capability,
-                &source_route.capability,
-                &route.input_bindings,
-            )?;
-            if &recomputed != proof
-                || source_route.batch.is_some()
-                || source_route.projection_id.is_none()
-            {
-                return Err(invalid(
-                    "composition differs from its selected source qualification or bindings",
-                ));
-            }
-        } else if !compatible(&blueprint.contract, &route.capability).adequate {
+        if !compatible(&blueprint.contract, &route.capability).adequate {
             return Err(invalid(
                 "selected source does not satisfy its tool-independent acquisition contract",
             ));
@@ -174,12 +138,11 @@ fn expected_graph(
             }
         }
         let step = actual[route.blueprint_id.as_str()];
-        let (expected_arguments, gaps) = materialise_source_arguments_with_composition(
+        let (expected_arguments, gaps) = materialise_source_arguments(
             blueprint,
             &route.capability,
             route.operator_arguments.as_ref(),
             &route.input_bindings,
-            route.composition.as_ref(),
         )?;
         if canonical_digest(&expected_arguments).map_err(Error::InvalidInput)?
             != canonical_digest(&step.arguments).map_err(Error::InvalidInput)?
@@ -353,45 +316,7 @@ fn expected_graph(
         // This source limit is independent of downstream evaluation ages and
         // remains binding even for unavailable operations without route proofs.
         step.max_age_seconds = blueprint.contract.time.max_age_seconds;
-        // Runtime coverage witness is derived from the checked pair, never
-        // accepted from an operator's execution-plan input.
-        step.coverage_proof = match admitted_routes
-            .get(step.id.as_str())
-            .and_then(|route| route.composition.as_ref())
-        {
-            Some(proof) => {
-                let producer = admitted_routes
-                    .get(proof.source_step_id.as_str())
-                    .ok_or_else(|| invalid("composition producer route is missing"))?;
-                let source_step_id = producer
-                    .projection_id
-                    .clone()
-                    .ok_or_else(|| invalid("composition producer projection is missing"))?;
-                Some(CoverageProof::IdentifierAuditV1 {
-                    source_step_id,
-                    source_acquisition_id: proof.source_step_id.clone(),
-                    source_qualified_contract_sha256: proof.source_qualification_sha256.clone(),
-                    population: proof.population.clone(),
-                    population_quantity: proof.population_quantity.clone(),
-                    source_raw_items_pointer: proof.source_raw_items_pointer.clone(),
-                    source_raw_complete_pointer: proof.source_raw_complete_pointer.clone(),
-                    source_items_pointer: proof.source_items_pointer.clone(),
-                    source_complete_pointer: proof.source_complete_pointer.clone(),
-                    source_identity_pointer: proof.source_identity_pointer.clone(),
-                    argument_items_pointer: proof.argument_items_pointer.clone(),
-                    argument_complete_pointer: proof.argument_complete_pointer.clone(),
-                    argument_identity_pointer: proof.argument_identity_pointer.clone(),
-                    result_count_pointer: proof.result_count_pointer.clone(),
-                    result_distinct_pointer: proof.result_distinct_pointer.clone(),
-                    result_complete_pointer: proof.result_complete_pointer.clone(),
-                    result_identity_pointer: proof.result_identity_pointer.clone(),
-                    item_id_pointer: proof.item_id_pointer.clone(),
-                    identity_scope_key: proof.identity_scope_key.clone(),
-                    echoes: proof.echoes.clone(),
-                })
-            }
-            None => None,
-        };
+        step.coverage_proof = None;
         step.source.historical_interval = historical_interval(&blueprint.contract)?;
         if matches!(step.availability, SourceAvailability::Configured)
             && let Some(interval) = &step.source.historical_interval
@@ -495,6 +420,7 @@ fn expected_graph(
             .iter_mut()
             .chain(&mut evaluation.applicability)
             .chain(&mut evaluation.challenges)
+            .chain(&mut evaluation.coverage)
         {
             rewrite(reference);
         }

@@ -1,8 +1,8 @@
 //! Authored, typed correspondence between a warrant and a bounded EAL method.
 //!
-//! These declarations are plans, not observations. Only a matching acquired
-//! typed-input envelope can run a method, and its result must satisfy the
-//! declared predicate. Correspondence with prose remains explicitly authored.
+//! Queries are authored programme data, not observations. EAL owns method
+//! schemas; empirical premise values arrive through explicit acquisitions.
+//! Correspondence with prose remains explicitly authored.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::InferenceKind;
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReasoningMethodBinding {
     Bound(Box<BoundReasoningMethod>),
@@ -24,6 +24,42 @@ pub enum ReasoningMethodBinding {
     },
 }
 
+impl<'de> Deserialize<'de> for ReasoningMethodBinding {
+    fn deserialize<D: serde::Deserializer<'de>>(decoder: D) -> Result<Self, D::Error> {
+        let mut value = eal_collector_contracts::deserialize_value_exact(decoder)?;
+        let object = value.as_object_mut().ok_or_else(|| {
+            serde::de::Error::custom("reasoning method binding must be an object")
+        })?;
+        let status = object
+            .remove("status")
+            .ok_or_else(|| serde::de::Error::custom("reasoning method status is required"))?;
+        match status.as_str() {
+            Some("bound") => serde_json::from_value(value)
+                .map(|bound| Self::Bound(Box::new(bound)))
+                .map_err(serde::de::Error::custom),
+            Some("unresolved") => {
+                #[derive(Deserialize)]
+                #[serde(deny_unknown_fields)]
+                struct Unresolved {
+                    method: ReasoningMethodKind,
+                    reasons: Vec<String>,
+                    evidence_need_ids: Vec<String>,
+                }
+                let binding: Unresolved =
+                    serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(Self::Unresolved {
+                    method: binding.method,
+                    reasons: binding.reasons,
+                    evidence_need_ids: binding.evidence_need_ids,
+                })
+            }
+            _ => Err(serde::de::Error::custom(
+                "unknown reasoning method binding status",
+            )),
+        }
+    }
+}
+
 impl ReasoningMethodBinding {
     pub fn bound(&self) -> Option<&BoundReasoningMethod> {
         match self {
@@ -32,10 +68,10 @@ impl ReasoningMethodBinding {
         }
     }
 
-    pub fn kind(&self) -> ReasoningMethodKind {
+    pub fn kind(&self) -> Option<ReasoningMethodKind> {
         match self {
             Self::Bound(bound) => bound.method.kind(),
-            Self::Unresolved { method, .. } => *method,
+            Self::Unresolved { method, .. } => Some(*method),
         }
     }
 }
@@ -44,12 +80,10 @@ impl ReasoningMethodBinding {
 #[serde(deny_unknown_fields)]
 pub struct BoundReasoningMethod {
     pub method: MethodSpecification,
-    /// One retained acquisition must return an exact EAL/typed-input/1 envelope.
-    pub input_evidence_need_id: String,
     /// Every relied-upon warrant premise has an explicit input correspondence.
     #[schemars(length(min = 1, max = 128))]
     pub formal_premises: Vec<FormalPremiseBinding>,
-    #[schemars(length(min = 2, max = 128))]
+    #[schemars(length(min = 1, max = 128))]
     pub evidence_requirements: Vec<MethodEvidenceRequirement>,
     /// Named applicability assumptions are dependencies, not verified metadata.
     #[schemars(length(max = 128))]
@@ -65,6 +99,7 @@ pub enum ReasoningMethodKind {
     Abductive,
     Causal,
     Counterfactual,
+    Analogical,
 }
 
 impl ReasoningMethodKind {
@@ -75,6 +110,7 @@ impl ReasoningMethodKind {
             Self::Abductive => "abductive/1",
             Self::Causal => "causal/1",
             Self::Counterfactual => "counterfactual/1",
+            Self::Analogical => "analogical/1",
         }
     }
 
@@ -85,16 +121,7 @@ impl ReasoningMethodKind {
             Self::Abductive => InferenceKind::Abductive,
             Self::Causal => InferenceKind::Causal,
             Self::Counterfactual => InferenceKind::Counterfactual,
-        }
-    }
-
-    pub const fn evidence_kind(self) -> &'static str {
-        match self {
-            Self::Deductive => "logical_case",
-            Self::Inductive => "sample",
-            Self::Abductive => "hypotheses",
-            Self::Causal => "experiment",
-            Self::Counterfactual => "causal_model",
+            Self::Analogical => InferenceKind::Analogical,
         }
     }
 
@@ -105,154 +132,129 @@ impl ReasoningMethodKind {
             Self::Abductive => MethodEvidenceRole::HypothesisModel,
             Self::Causal => MethodEvidenceRole::InterventionDesign,
             Self::Counterfactual => MethodEvidenceRole::StructuralModel,
+            Self::Analogical => MethodEvidenceRole::Applicability,
         }
     }
 }
 
-/// The formal query is mode-specific. Measurements arrive through acquisition.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum MethodSpecification {
-    Deductive {
-        #[schemars(length(max = 128))]
-        premises: Vec<LogicalFormula>,
-        conclusion: LogicalFormula,
-    },
-    Inductive {
-        confidence: f64,
-    },
-    Abductive {
-        observed: String,
-        #[schemars(length(min = 2, max = 128))]
-        candidates: Vec<HypothesisCandidate>,
-    },
-    Causal {
-        assignment: ExperimentalAssignment,
-    },
-    Counterfactual {
-        #[schemars(length(min = 1, max = 32))]
-        variables: Vec<StructuralVariable>,
-        intervention: StructuralIntervention,
-        outcome: String,
-    },
+/// EAL owns the exact query shape and method version. This record adds no
+/// parallel formula AST or numerical contract in EngArg.
+#[derive(Debug, Clone, Serialize)]
+pub struct MethodSpecification {
+    pub identifier: String,
+    pub query: Value,
 }
 
 impl MethodSpecification {
-    pub const fn kind(&self) -> ReasoningMethodKind {
-        match self {
-            Self::Deductive { .. } => ReasoningMethodKind::Deductive,
-            Self::Inductive { .. } => ReasoningMethodKind::Inductive,
-            Self::Abductive { .. } => ReasoningMethodKind::Abductive,
-            Self::Causal { .. } => ReasoningMethodKind::Causal,
-            Self::Counterfactual { .. } => ReasoningMethodKind::Counterfactual,
+    pub fn kind(&self) -> Option<ReasoningMethodKind> {
+        match self.identifier.as_str() {
+            "deductive/1" => Some(ReasoningMethodKind::Deductive),
+            "inductive/1" => Some(ReasoningMethodKind::Inductive),
+            "abductive/1" => Some(ReasoningMethodKind::Abductive),
+            "causal/1" => Some(ReasoningMethodKind::Causal),
+            "counterfactual/1" => Some(ReasoningMethodKind::Counterfactual),
+            "analogical/1" => Some(ReasoningMethodKind::Analogical),
+            _ => None,
         }
     }
 
-    pub const fn identifier(&self) -> &'static str {
-        self.kind().identifier()
+    pub fn identifier(&self) -> &str {
+        &self.identifier
     }
 
-    pub const fn evidence_kind(&self) -> &'static str {
-        self.kind().evidence_kind()
+    pub fn evidence_kind(&self) -> Option<&str> {
+        self.contract()
+            .and_then(|contract| contract.evidence_kind.as_deref())
     }
 
-    /// Exactly the query fields declared by the pinned EAL method contract.
     pub fn query(&self) -> Value {
-        if let Self::Counterfactual {
-            variables,
-            intervention,
-            outcome,
-        } = self
-        {
-            let variables: serde_json::Map<_, _> = variables
-                .iter()
-                .map(|variable| {
-                    let coefficients: serde_json::Map<_, _> = variable
-                        .coefficients
-                        .iter()
-                        .map(|coefficient| {
-                            (coefficient.variable.clone(), json!(coefficient.coefficient))
-                        })
-                        .collect();
-                    (
-                        variable.name.clone(),
-                        json!({"intercept":variable.intercept,
-                    "coefficients":coefficients,"noise":variable.noise}),
-                    )
-                })
-                .collect();
-            return json!({"variables":variables,"intervention":intervention,"outcome":outcome});
-        }
-        let mut value = serde_json::to_value(self).expect("finite typed method query");
-        value.as_object_mut().expect("tagged method").remove("kind");
-        value
+        self.query.clone()
+    }
+
+    pub fn contract(&self) -> Option<&'static eal_core::methods::MethodContract> {
+        eal_core::methods::default_registry().get(&self.identifier)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(untagged, deny_unknown_fields)]
-pub enum LogicalFormula {
-    Atom(#[schemars(length(min = 1, max = 64))] String),
-    Not {
-        not: Box<LogicalFormula>,
-    },
-    And {
-        #[schemars(length(min = 2, max = 128))]
-        and: Vec<LogicalFormula>,
-    },
-    Or {
-        #[schemars(length(min = 2, max = 128))]
-        or: Vec<LogicalFormula>,
-    },
-    Implies {
-        #[schemars(length(min = 2, max = 2))]
-        implies: Vec<LogicalFormula>,
-    },
+/// Text-model output carries exact JSON text because a provider's strict
+/// object schema cannot express every EAL method's open mathematical values.
+/// This transport form is decoded once; persisted canonical cases retain Value.
+impl JsonSchema for MethodSpecification {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "MethodSpecification".into()
+    }
+    fn json_schema(_generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::Schema::try_from(method_specification_schema()).expect("method authoring schema")
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct HypothesisCandidate {
-    pub name: String,
-    pub prior: f64,
-    pub likelihood: f64,
+impl<'de> Deserialize<'de> for MethodSpecification {
+    fn deserialize<D: serde::Deserializer<'de>>(decoder: D) -> Result<Self, D::Error> {
+        let value = eal_collector_contracts::deserialize_value_exact(decoder)?;
+        let object = value
+            .as_object()
+            .ok_or_else(|| serde::de::Error::custom("method must be an object"))?;
+        let identifier = object
+            .get("identifier")
+            .and_then(Value::as_str)
+            .ok_or_else(|| serde::de::Error::custom("method identifier must be a string"))?
+            .to_owned();
+        if object.len() != 2 {
+            return Err(serde::de::Error::custom(
+                "method requires identifier and exactly one of query or query_json",
+            ));
+        }
+        let query = if let Some(query) = object.get("query") {
+            query.clone()
+        } else if let Some(text) = object.get("query_json").and_then(Value::as_str) {
+            eal_collector_contracts::strict_json_exact(
+                text.as_bytes(),
+                eal_collector_contracts::JsonLimits {
+                    max_bytes: 1_048_576,
+                    ..Default::default()
+                },
+            )
+            .map_err(serde::de::Error::custom)?
+        } else {
+            return Err(serde::de::Error::custom(
+                "method requires query or query_json",
+            ));
+        };
+        Ok(Self { identifier, query })
+    }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
-pub enum ExperimentalAssignment {
-    #[serde(rename = "randomised")]
-    Randomised,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct StructuralVariable {
-    pub name: String,
-    pub intercept: f64,
-    #[schemars(length(max = 32))]
-    pub coefficients: Vec<StructuralCoefficient>,
-    pub noise: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct StructuralCoefficient {
-    pub variable: String,
-    pub coefficient: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct StructuralIntervention {
-    pub variable: String,
-    pub value: f64,
+/// Authoring chooses among descriptors exposed by the pinned EAL implementation.
+/// Query and output contracts travel in the prompt, not a second formula schema.
+pub(crate) fn method_specification_schema() -> Value {
+    let descriptors = eal_core::methods::default_registry().describe();
+    let identifiers: Vec<_> = descriptors
+        .as_object()
+        .expect("method descriptors")
+        .keys()
+        .filter(|identifier| {
+            MethodSpecification {
+                identifier: (*identifier).clone(),
+                query: Value::Null,
+            }
+            .kind()
+            .is_some()
+        })
+        .collect();
+    json!({
+        "type":"object", "additionalProperties":false,
+        "properties":{
+            "identifier":{"type":"string","enum":identifiers},
+            "query_json":{"type":"string","minLength":2,"maxLength":1048576}
+        }, "required":["identifier","query_json"]
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FormalPremiseBinding {
     pub premise_id: String,
-    /// JSON pointer within the acquired envelope's payload, not within prose.
+    /// JSON pointer within the method payload, not within prose.
     pub input_pointer: String,
     pub evidence_need_id: String,
     pub interpretation: String,
@@ -282,7 +284,6 @@ pub struct MethodEvidenceRequirement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum MethodEvidenceRole {
-    FormalInput,
     PremiseObservation,
     SamplingDesign,
     HypothesisModel,
@@ -463,13 +464,78 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ambiguous_or_extended_formula_objects_are_rejected() {
+    fn query_validation_uses_the_eal_descriptor_without_a_parallel_formula_ast() {
+        let method = MethodSpecification {
+            identifier: "deductive/1".into(),
+            query: json!({"premises":["p"],"conclusion":{"xor":["p","q"]}}),
+        };
+        assert!(
+            !eal_core::methods::validate_query(
+                method.identifier(),
+                &method.query,
+                eal_core::methods::default_registry()
+            )
+            .is_empty()
+        );
+        assert!(
+            MethodSpecification {
+                identifier: "invented/1".into(),
+                query: json!({})
+            }
+            .contract()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn analogical_authoring_uses_the_installed_eal_contract() {
+        let method = MethodSpecification {
+            identifier: "analogical/1".into(),
+            query: json!({"relevant_features":["interface"],"source":{"interface":"v1"},"target":{"interface":"v1"}}),
+        };
+        assert_eq!(method.kind(), Some(ReasoningMethodKind::Analogical));
+        assert_eq!(method.evidence_kind(), Some("analogy"));
+        assert!(
+            eal_core::methods::validate_query(
+                method.identifier(),
+                &method.query,
+                eal_core::methods::default_registry()
+            )
+            .is_empty()
+        );
+        assert!(
+            method_specification_schema()["properties"]["identifier"]["enum"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("analogical/1"))
+        );
+    }
+
+    #[test]
+    fn authoring_query_text_is_decoded_once_without_numeric_loss() {
+        let authored = json!({"identifier":"deductive/1",
+            "query_json":r#"{"premises":[],"conclusion":9007199254740993123456789}"#});
+        let method: MethodSpecification = serde_json::from_value(authored).unwrap();
+        assert_eq!(
+            method.query["conclusion"].to_string(),
+            "9007199254740993123456789"
+        );
+        let canonical = serde_json::to_value(method).unwrap();
+        assert!(canonical.get("query_json").is_none());
+        assert!(canonical["query"].is_object());
+        assert_eq!(
+            serde_json::from_value::<MethodSpecification>(canonical)
+                .unwrap()
+                .query["conclusion"]
+                .to_string(),
+            "9007199254740993123456789"
+        );
         for malformed in [
-            json!({"not":"p", "and":["q","r"]}),
-            json!({"not":"p", "invented":true}),
-            json!({"xor":["p","q"]}),
+            json!({"identifier":"deductive/1","query_json":r#"{"premises":[],"premises":["p"],"conclusion":"p"}"#}),
+            json!({"identifier":"deductive/1","query_json":"{} {}"}),
+            json!({"identifier":"deductive/1","query":{},"query_json":"{}"}),
         ] {
-            assert!(serde_json::from_value::<LogicalFormula>(malformed).is_err());
+            assert!(serde_json::from_value::<MethodSpecification>(malformed).is_err());
         }
     }
 

@@ -271,18 +271,19 @@ pub fn case_schema() -> serde_json::Value {
     if let Some(object) = schema.as_object_mut() {
         object.remove("$schema");
     }
+    schema["$defs"]["MethodSpecification"] = super::reasoning::method_specification_schema();
     supported_schema(&mut schema);
     // New generation must make the computational/unresolved choice explicit.
     // Deserialising historical reports continues to admit the absent field.
     let warrant = schema["$defs"]["Warrant"].take();
     let mut computational = warrant.clone();
     computational["properties"]["inference"] = serde_json::json!({"type":"string",
-        "enum":["deductive","inductive","abductive","causal","counterfactual"]});
+        "enum":["deductive","inductive","abductive","causal","counterfactual","analogical"]});
     computational["properties"]["reasoning_method"] =
         serde_json::json!({"$ref":"#/$defs/ReasoningMethodBinding"});
     let mut authored = warrant;
     authored["properties"]["inference"] = serde_json::json!({"type":"string",
-        "enum":["analogical","practical"]});
+        "enum":["practical"]});
     authored["properties"]["reasoning_method"] = serde_json::json!({"type":"null"});
     schema["$defs"]["Warrant"] = serde_json::json!({"anyOf":[computational,authored]});
     schema

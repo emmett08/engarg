@@ -14,6 +14,9 @@ use engarg::{
 };
 use serde_json::{Value, json};
 
+#[path = "common/scoped_review_gates.rs"]
+mod scoped_review_gates;
+
 fn fixtures() -> (Request, ArgumentCase) {
     (
         serde_json::from_str(include_str!("../examples/request.json")).unwrap(),
@@ -210,10 +213,7 @@ fn acquisitions_follow_targets_and_preserve_the_independent_review_gates() {
             "review removed from {line}"
         );
     }
-    assert_eq!(
-        bundle.source.matches("require accepted == true").count(),
-        bundle.obligations.len()
-    );
+    scoped_review_gates::assert_scoped_review_gates(&bundle);
     assert!(bundle.source.contains("\"required_acquisitions\":[{"));
 }
 

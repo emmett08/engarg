@@ -1,4 +1,4 @@
-//! Bounded, durable authoring checkpoints and admission of legacy run audits.
+//! Bounded, durable authoring checkpoints for the current protocol.
 use crate::{
     Error,
     domain::Request,
@@ -34,9 +34,9 @@ pub fn protocol_identity() -> String {
         include_str!("../support_requirements/mod.rs"),
         include_str!("../engine/support/authoring.rs"),
         include_str!("../domain/reasoning.rs"),
+        include_str!("../direct_planning.rs"),
         include_str!("../support_requirements/validation.rs"),
         include_str!("mod.rs"),
-        include_str!("legacy.rs"),
         include_str!("storage.rs"),
         include_str!("../authoring_commands.rs")
     ))
@@ -229,11 +229,9 @@ impl Checkpoint {
     }
 }
 
-mod legacy;
 mod storage;
 #[cfg(test)]
 mod tests;
-pub use legacy::import_legacy;
 pub use storage::{Store, output_identity, private_new};
 
 /// Check resumed call accounting and immutable source history at report admission.
@@ -365,7 +363,9 @@ pub fn validate_recovery_report(raw: &Value) -> Result<(), Error> {
     crate::output_validation::restore_host_fields(&mut final_candidate.argument, &argument)?;
     if serde_json::to_value(final_candidate.argument)? != raw["argument"]
         || serde_json::to_value(final_candidate.support_elaboration)?
-            != raw["evidence_planning"]["elaboration"]
+            != *raw
+                .get("support_elaboration")
+                .unwrap_or(&raw["evidence_planning"]["elaboration"])
     {
         return Err(invalid());
     }

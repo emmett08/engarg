@@ -22,7 +22,7 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
-    let (_, case, mut elaboration, _, routes, _) = support_fixture::fixture();
+    let (_, case, mut elaboration, _, routes) = support_fixture::fixture();
     let blueprint = elaboration.acquisitions[0].clone();
     let evaluation = elaboration
         .evaluations

@@ -15,17 +15,25 @@ pub(crate) fn case() -> ArgumentCase {
 
 /// Unknown acquisition details remain explicit gaps rather than invented facts.
 pub(crate) fn pending(case: &ArgumentCase) -> SupportElaboration {
-    let mut requirements = material_targets(case)
-        .into_iter()
-        .enumerate()
-        .map(|(index, target_id)| {
-            let mut needs = case
-                .evidence_plan
-                .iter()
-                .filter(|need| need.target_id == target_id)
-                .collect::<Vec<_>>();
-            needs.sort_by_key(|need| &need.id);
-            SupportRequirement {
+    let mut requirements =
+        material_targets(case)
+            .into_iter()
+            .enumerate()
+            .map(|(index, target_id)| {
+                let mut needs = case
+                    .evidence_plan
+                    .iter()
+                    .filter(|need| need.target_id == target_id)
+                    .collect::<Vec<_>>();
+                needs.sort_by_key(|need| &need.id);
+                SupportRequirement {
+                // A defeater's unavailable investigation remains a resolution
+                // obligation, including challenges added by later critics.
+                role: if case.defeaters.iter().any(|defeater| defeater.id == target_id) {
+                    SupportRequirementRole::ChallengeResolution
+                } else {
+                    SupportRequirementRole::Support
+                },
                 id: format!("requirement-{index}"),
                 target_id,
                 evidence_need_ids: needs.iter().map(|need| need.id.clone()).collect(),
@@ -48,8 +56,8 @@ pub(crate) fn pending(case: &ArgumentCase) -> SupportElaboration {
                     description: "Declare the measurement method and source identity.".into(),
                 }],
             }
-        })
-        .collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
     let alternative_support = alternative_obligations(case)
         .into_iter()
         .map(|alternative| {
@@ -76,6 +84,7 @@ pub(crate) fn pending(case: &ArgumentCase) -> SupportElaboration {
             max_age_seconds: None,
             required_coverage: RequiredCoverage::Unspecified,
             applicability: vec![],
+            coverage: vec![],
             challenges: vec![],
         })
         .collect();

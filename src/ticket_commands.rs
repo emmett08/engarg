@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 #[derive(Args)]
 pub struct TicketArgs {
-    /// Operator-owned engarg.ticket/1 configuration.
+    /// Operator-owned engarg.ticket/2 configuration.
     #[arg(long)]
     pub spec: PathBuf,
     /// New private workspace retaining every stage and artifact.

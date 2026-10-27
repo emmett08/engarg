@@ -13,7 +13,6 @@ use engarg::{
     engine::{CallRecord, RouteResolver},
     provider::Role,
     report::{self, EvidencePlanningReport},
-    support_export::{self, SupportExport, SupportExportLocations},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -39,12 +38,16 @@ pub enum EalCommand {
     FreshnessCheck(FreshnessCheckArgs),
     /// Repair support design from retained calls while preserving the argument.
     Repair(repair::RepairArgs),
+    /// Explicitly revise an argument, preserving its parent and invalidating derived work.
+    Revise(super::package_commands::ReviseArgs),
     /// Implement missing collectors from a saved analysis using frozen fixtures.
     Implement(super::tooling_commands::ImplementArgs),
     /// Check the isolated compiler and runtime before any model calls.
     ToolchainCheck(super::tooling_commands::preflight::ToolchainCheckArgs),
     /// Reverify a retained candidate against its frozen fixtures without model calls.
     ToolReplay(super::tooling_commands::replay::ToolReplayArgs),
+    /// Export a verified collector as a portable EAL tool package and TOML binding.
+    ToolExport(super::tooling_commands::ToolExportArgs),
     /// Internal launcher for a verified generated collector package.
     #[command(hide = true)]
     ToolRun(super::tooling_commands::ToolRunArgs),
@@ -117,6 +120,10 @@ pub struct PrepareArgs {
 
 #[derive(Args)]
 pub struct ExportArgs {
+    /// Direct tool bindings for an executable package; no capability registry is required.
+    #[arg(long)]
+    tools: Option<PathBuf>,
+
     /// Saved EngArg report containing request and argument.
     #[arg(long)]
     input: PathBuf,
@@ -140,9 +147,6 @@ pub struct ExportArgs {
     /// JSON export freshness policy, resolved and retained in the v3 bundle.
     #[arg(long)]
     export_policy: Option<PathBuf>,
-    /// Operator-owned JSON command binding for independent graph review obligations.
-    #[arg(long, value_name = "JSON")]
-    review_binding: Option<PathBuf>,
     /// Companion tools registry. Defaults beside output, or beside input for stdout.
     #[arg(long)]
     tools_output: Option<PathBuf>,
@@ -361,15 +365,13 @@ struct CanonicalReport {
 struct SourceDocument {
     source: String,
     bundle: Option<EalExport>,
-    support: Option<SupportExport>,
 }
 
 impl SourceDocument {
     fn context(&self) -> Value {
-        self.support
+        self.bundle
             .as_ref()
             .map(|bundle| bundle.context.clone())
-            .or_else(|| self.bundle.as_ref().map(|bundle| bundle.context.clone()))
             .unwrap_or_else(|| json!({}))
     }
 }
@@ -387,7 +389,6 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
         return Ok(SourceDocument {
             source: text,
             bundle: None,
-            support: None,
         });
     }
     let value = eal_collector_contracts::strict_json_exact(
@@ -402,13 +403,7 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
         .as_str()
         .is_some_and(|schema| schema.starts_with("engarg.support-export/"))
     {
-        let bundle: SupportExport = serde_json::from_value(value)?;
-        let rebuilt = support_export::reconstruct_bundle(&bundle)?;
-        return Ok(SourceDocument {
-            source: rebuilt.source.clone(),
-            bundle: None,
-            support: Some(rebuilt),
-        });
+        return Err(Error::InvalidInput("Support-graph bundles are retired. Rebuild the canonical report with engarg build and execute its self-contained case.eal".into()));
     }
     let bundle: EalExport = serde_json::from_value(value).map_err(|_| {
         Error::InvalidInput(
@@ -425,7 +420,6 @@ fn source_document(args: &SourceInput) -> Result<SourceDocument, Error> {
     Ok(SourceDocument {
         source: bundle.source.clone(),
         bundle: Some(bundle),
-        support: None,
     })
 }
 
@@ -438,24 +432,6 @@ fn require_text(label: &str, text: &str) -> Result<(), Error> {
 
 fn mapped_claim(document: &SourceDocument, requested: &str) -> Result<String, Error> {
     require_text("claim", requested)?;
-    if let Some(bundle) = &document.support {
-        return bundle
-            .claim_names
-            .get(requested)
-            .cloned()
-            .or_else(|| {
-                bundle
-                    .claim_names
-                    .values()
-                    .any(|name| name == requested)
-                    .then(|| requested.into())
-            })
-            .ok_or_else(|| {
-                Error::InvalidInput(
-                    "claim is absent from the support bundle's canonical mapping".into(),
-                )
-            });
-    }
     match &document.bundle {
         None => Ok(requested.into()),
         Some(bundle) => {
@@ -753,6 +729,16 @@ fn export_destinations(args: &ExportArgs) -> Result<Vec<(PathBuf, ExportArtifact
 }
 
 fn execute_export(args: ExportArgs) -> Result<(), Error> {
+    // Direct package compilation reads the canonical argument and requirements,
+    // without re-admitting historical capability registrations.
+    let canonical: CanonicalReport = super::read_json(&args.input, MAX_INPUT_BYTES)?;
+    if canonical.evidence_planning.is_some() {
+        return execute_support_export(args, &canonical);
+    }
+    if args.tools.is_some() {
+        return Err(Error::InvalidInput("Direct tools require authored support requirements; use engarg build for support_elaboration inputs".into()));
+    }
+
     if args.operator.operator_inputs.is_some() != args.preparation_output_dir.is_some() {
         return Err(Error::InvalidInput(
             "export requires both --operator-inputs and --preparation-output-dir for current-case preparation".into(),
@@ -761,14 +747,6 @@ fn execute_export(args: ExportArgs) -> Result<(), Error> {
     let destinations = export_destinations(&args)?;
     let (report, mut plan, catalogue) =
         export_inputs(&args.input, args.collector_catalogue.as_deref())?;
-    if report.evidence_planning.is_some() {
-        return execute_support_export(args, destinations, &report);
-    }
-    if args.review_binding.is_some() {
-        return Err(Error::InvalidInput(
-            "review-binding requires a saved graph analysis".into(),
-        ));
-    }
     if let Some(path) = args.acquisition_plan {
         let overrides: Vec<AcquisitionPlan> = super::read_json(&path, MAX_INPUT_BYTES)?;
         plan = acquisition::override_plans_with_catalogue(
@@ -873,43 +851,6 @@ fn execute_export(args: ExportArgs) -> Result<(), Error> {
     Ok(())
 }
 
-fn support_artifacts(
-    report: &CanonicalReport,
-    execution_path: &Path,
-    review_binding: Option<eal_collector_contracts::CommandBinding>,
-    policy: &engarg::export_policy::ExportPolicy,
-) -> Result<engarg::support_export::SupportExportArtifacts, Error> {
-    let planning = report
-        .evidence_planning
-        .as_ref()
-        .expect("support path selected");
-    if planning.schema != "engarg.support-planning/1"
-        || planning.routes.schema != engarg::route_planning::ROUTE_PLAN_SCHEMA
-    {
-        return Err(Error::InvalidInput(
-            "unsupported saved support planning schema".into(),
-        ));
-    }
-    let configuration = &planning.routes.configuration;
-    configuration.validate()?;
-    support_export::export(
-        &report.request,
-        &report.argument,
-        &planning.elaboration,
-        &planning.routes.execution,
-        &planning.routes.projections,
-        &SupportExportLocations {
-            collector: configuration.collector.clone(),
-            execution_plan: execution_path.into(),
-            connections: configuration.connections.clone(),
-            store: configuration.store.clone(),
-            environment: configuration.environment.clone(),
-            review_binding,
-        },
-        policy,
-    )
-}
-
 async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
     let raw: Value = super::read_json(&args.input, MAX_INPUT_BYTES)?;
     let EvidencePlanningReport::Graph(previous) = report::classify_evidence_planning(&raw)? else {
@@ -985,192 +926,47 @@ async fn execute_replan(args: ReplanArgs) -> Result<(), Error> {
     Ok(())
 }
 
-fn support_evidence_plan(
-    report: &CanonicalReport,
-    artifacts: &engarg::support_export::SupportExportArtifacts,
-) -> Value {
-    json!({"schema":"engarg.support-evidence-plan/1","case_digest":artifacts.bundle.authored.revision,
-        "execution_plan_sha256":artifacts.bundle.execution_plan_sha256,"evidence_needs":report.argument.evidence_plan,
-        "support_elaboration":artifacts.bundle.support_elaboration,"routes":report.evidence_planning.as_ref().expect("support path selected").routes,
-        "pending":artifacts.bundle.pending,"independent_review_obligations":artifacts.bundle.authored.obligations,
-        "alternative_projection":artifacts.bundle.alternative_projection,
-        "collection_budget":engarg::support_export::collection_budget(&artifacts.bundle)})
-}
-
-pub(crate) fn selected_review_binding(
-    path: Option<&Path>,
-) -> Result<Option<eal_collector_contracts::CommandBinding>, Error> {
-    let Some(path) = path else {
-        return Ok(None);
-    };
-    let binding: eal_collector_contracts::CommandBinding = super::read_json(path, 1_048_576)?;
-    if binding.version != "1" || binding.kind != eal_collector_contracts::ToolKind::Command {
-        return Err(Error::InvalidInput(
-            "independent review requires a version-1 command binding".into(),
-        ));
-    }
-    let registry = eal_collector_contracts::CommandRegistry {
-        tools: std::collections::BTreeMap::from([(
-            "engarg_review_contract".into(),
-            binding.clone(),
-        )]),
-    };
-    let toml = registry.to_toml().map_err(Error::InvalidInput)?;
-    // Use the same complete executable-registry admission as the EAL consumer.
-    eal_collector_contracts::RegistryDocument::from_toml(&toml).map_err(Error::InvalidInput)?;
-    Ok(Some(binding))
-}
-
-fn execute_support_export(
-    args: ExportArgs,
-    destinations: Vec<(PathBuf, ExportArtifact)>,
-    report: &CanonicalReport,
-) -> Result<(), Error> {
-    if args.acquisition_plan.is_some()
+fn execute_support_export(args: ExportArgs, report: &CanonicalReport) -> Result<(), Error> {
+    let tools=args.tools.as_deref().ok_or_else(||Error::InvalidInput("Executable export requires --tools tools.toml and --output NEW_PACKAGE_DIRECTORY; alternatively use engarg build".into()))?;
+    let output = args.output.as_deref().ok_or_else(|| {
+        Error::InvalidInput("Executable export requires --output NEW_PACKAGE_DIRECTORY".into())
+    })?;
+    if args.manifest.is_some()
+        || args.tools_output.is_some()
+        || args.source_output.is_some()
+        || args.acquisition_plan.is_some()
         || args.collector_catalogue.is_some()
         || args.operator.operator_inputs.is_some()
         || args.preparation_output_dir.is_some()
     {
-        return Err(Error::InvalidInput("support graphs retain qualified routes and operator configuration; flat acquisition plans, catalogues and operator-inputs cannot override them".into()));
+        return Err(Error::InvalidInput("Executable export writes one portable package; supply concrete operation and reviewer bindings in --tools instead of registry, sidecar or per-file options".into()));
     }
-    let stem = args.output.as_ref().unwrap_or(&args.input);
-    let execution_path = new_path(&stem.with_extension("execution-plan.json"))?;
-    let evidence_path = new_path(&stem.with_extension("evidence-plan.json"))?;
-    let acquisition_requests_path = new_path(&stem.with_extension("acquisition-requests.json"))?;
-    let review_requests_path = new_path(&stem.with_extension("review-requests.json"))?;
     let policy = match args.export_policy.as_deref() {
         Some(path) => super::read_json(path, 1_048_576)?,
         None => Default::default(),
     };
-    let review_binding = selected_review_binding(args.review_binding.as_deref())?;
-    let artifacts = support_artifacts(report, &execution_path, review_binding, &policy)?;
-    let manifest = json_bytes(&artifacts.bundle)?;
-    let primary = match args.format {
-        ExportFormat::Eal => artifacts.bundle.source.as_bytes(),
-        ExportFormat::Json => &manifest,
-    };
-    let mut outputs = destinations
-        .into_iter()
-        .map(|(path, kind)| {
-            let bytes = match kind {
-                ExportArtifact::Primary => primary,
-                ExportArtifact::Manifest => manifest.as_slice(),
-                ExportArtifact::Tools => artifacts.tools_toml.as_bytes(),
-                ExportArtifact::Source => artifacts.bundle.source.as_bytes(),
-            };
-            (path, bytes.to_vec())
-        })
-        .collect::<Vec<_>>();
-    outputs.extend([
-        (execution_path, json_bytes(&artifacts.execution_plan)?),
-        (
-            evidence_path,
-            json_bytes(&support_evidence_plan(report, &artifacts))?,
-        ),
-        (
-            acquisition_requests_path,
-            json_bytes(&artifacts.acquisition_requests)?,
-        ),
-        (
-            review_requests_path,
-            json_bytes(&artifacts.review_requests)?,
-        ),
-    ]);
-    let mut unique = std::collections::BTreeSet::new();
-    if outputs.iter().any(|(path, _)| !unique.insert(path.clone())) {
-        return Err(Error::InvalidInput(
-            "all support export outputs require different paths".into(),
-        ));
-    }
-    let mut files = outputs
-        .into_iter()
-        .map(|(path, bytes)| PendingFile::create(path).map(|file| (file, bytes)))
-        .collect::<Result<Vec<_>, _>>()?;
-    for (file, bytes) in &mut files {
-        file.write(bytes)?;
-    }
-    if args.output.is_none() {
-        stdout(primary)?;
-    }
-    for (file, _) in &mut files {
-        file.keep = true;
-    }
-    Ok(())
+    let elaboration = &report
+        .evidence_planning
+        .as_ref()
+        .expect("selected support input")
+        .elaboration;
+    let receipt = engarg::package::build(
+        &report.request,
+        &report.argument,
+        elaboration,
+        tools,
+        output,
+        &policy,
+    )?;
+    stdout(&json_bytes(&receipt)?)
 }
 
 fn prepare_support_files(
-    report: &CanonicalReport,
-    directory: &Path,
-    policy: &engarg::export_policy::ExportPolicy,
+    _report: &CanonicalReport,
+    _directory: &Path,
+    _policy: &engarg::export_policy::ExportPolicy,
 ) -> Result<std::collections::BTreeMap<String, Vec<u8>>, Error> {
-    let executable = std::env::current_exe()?.canonicalize()?;
-    let review_inputs = directory.join("review-inputs.json");
-    let text = |path: &Path| {
-        path.to_str()
-            .map(str::to_owned)
-            .ok_or_else(|| Error::InvalidInput("support preparation paths require UTF-8".into()))
-    };
-    let review_binding = eal_collector_contracts::CommandBinding {
-        kind: eal_collector_contracts::ToolKind::Command,
-        version: "1".into(),
-        argv: vec![
-            text(&executable)?,
-            "eal".into(),
-            "observe".into(),
-            "--tool".into(),
-            "review_json".into(),
-            "--inputs".into(),
-            text(&review_inputs)?,
-        ],
-        timeout_seconds: 60,
-        max_output_bytes: 1_048_576,
-        inherit_env: Vec::new(),
-        parallel_safe: false,
-    };
-    let artifacts = support_artifacts(
-        report,
-        &directory.join("argument.execution-plan.json"),
-        Some(review_binding),
-        policy,
-    )?;
-    Ok(std::collections::BTreeMap::from([
-        (
-            "argument.eal".into(),
-            artifacts.bundle.source.as_bytes().to_vec(),
-        ),
-        (
-            "argument.bundle.json".into(),
-            json_bytes(&artifacts.bundle)?,
-        ),
-        (
-            "argument.tools.toml".into(),
-            artifacts.tools_toml.as_bytes().to_vec(),
-        ),
-        (
-            "argument.execution-plan.json".into(),
-            json_bytes(&artifacts.execution_plan)?,
-        ),
-        (
-            "evidence-plan.json".into(),
-            json_bytes(&support_evidence_plan(report, &artifacts))?,
-        ),
-        (
-            "acquisition-requests.json".into(),
-            json_bytes(&artifacts.acquisition_requests)?,
-        ),
-        (
-            "review-requests.json".into(),
-            json_bytes(&artifacts.review_requests)?,
-        ),
-        (
-            "review-inputs.json".into(),
-            json_bytes(&json!({"schema":"engarg.review-inputs/1","reviews":[]}))?,
-        ),
-        (
-            "context.json".into(),
-            json_bytes(&artifacts.bundle.context)?,
-        ),
-    ]))
+    Err(Error::InvalidInput("Graph-sidecar preparation has been removed. Run engarg build --input REPORT --tools tools.toml --output-dir NEW_PACKAGE_DIRECTORY; missing reviewer records remain explicit observations to acquire".into()))
 }
 
 fn semantic_failure(envelope: &Value) -> bool {
@@ -1257,10 +1053,12 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
             Ok(())
         }
         EalCommand::Repair(args) => repair::execute(args).await,
+        EalCommand::Revise(args) => super::package_commands::revise(args),
         EalCommand::Implement(args) => super::tooling_commands::implement(args).await,
         EalCommand::ToolchainCheck(args) => super::tooling_commands::preflight::check(args),
         EalCommand::ToolReplay(args) => super::tooling_commands::replay::replay(args).await,
         EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
+        EalCommand::ToolExport(args) => super::tooling_commands::tool_export(args),
         EalCommand::Prepare(args) => {
             let (report, mut plan, catalogue) =
                 export_inputs(&args.input, args.collector_catalogue.as_deref())?;

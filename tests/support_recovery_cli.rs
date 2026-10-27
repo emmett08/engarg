@@ -56,7 +56,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
-        let (request, case, mut repaired, _, route_proofs, _) = support_fixture::fixture();
+        let (request, case, mut repaired, _, route_proofs) = support_fixture::fixture();
         let case = live_output::case(&serde_json::to_string(&case).unwrap());
         repaired.schema = engarg::support_requirements::SUPPORT_ELABORATION_SCHEMA.into();
         let mut pending = repaired.clone();

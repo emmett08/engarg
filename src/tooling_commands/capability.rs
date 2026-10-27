@@ -385,7 +385,7 @@ mod tests {
         json!({
             "argument":{"sentinel":"Original acceptance wording stays exact"},
             "evidence_planning":{
-                "schema":"engarg.support-planning/1","elaboration":{"schema":"engarg.support-elaboration/1","requirements":[],"acquisitions":[],"derivations":[],"evaluations":[],"revisions":[]},
+                "schema":"engarg.support-planning/1","elaboration":{"schema":engarg::support_requirements::SUPPORT_ELABORATION_SCHEMA,"requirements":[],"acquisitions":[],"derivations":[],"evaluations":[],"revisions":[]},
                 "routes":{
                     "schema":ROUTE_PLAN_SCHEMA,
                     "execution":{"schema":"eal.evidence-execution-plan/1","acquisitions":[],"derivations":[],"evaluations":[],"scheduling":{"maximum_concurrent_sources":4,"per_provider":{}}},
@@ -513,7 +513,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn standalone_graph_implement_skips_legacy_docker_admission_for_configuration_gaps() {
+    async fn standalone_discovery_implementation_skips_docker_for_configuration_gaps() {
         let directory = tempfile::tempdir().unwrap();
         let original = original(false);
         let options = options(directory.path());

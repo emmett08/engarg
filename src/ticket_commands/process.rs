@@ -58,7 +58,12 @@ async fn invoke_environment(
     receipt: &Path,
     environment: BTreeMap<String, String>,
 ) -> Result<Output, Error> {
-    let supervisor = crate::tooling_commands::supervisor()?;
+    let current = std::env::current_exe()?.canonicalize()?;
+    let supervisor = current.with_file_name(if cfg!(windows) {
+        "engarg-process-supervisor.exe"
+    } else {
+        "engarg-process-supervisor"
+    });
     let request = eal_process::CommandRequest {
         argv: std::iter::once(path(executable)?)
             .chain(args.iter().cloned())

@@ -77,12 +77,6 @@ pub fn export_with_policy(
 
 /// Verify persisted source under its declared projection semantics and original producer metadata.
 pub fn reconstruct_bundle(bundle: &EalExport) -> Result<EalExport, Error> {
-    if bundle.schema_version != "engarg.eal-export/3" {
-        let old = serde_json::from_value(serde_json::to_value(bundle)?)?;
-        return Ok(serde_json::from_value(serde_json::to_value(
-            crate::legacy_acquisition::reconstruct_bundle(&old)?,
-        )?)?);
-    }
     eal_export::ExportIdentity::for_bundle(bundle)?;
     let catalogue = bundle
         .collector_catalogue
@@ -106,13 +100,9 @@ pub fn reconstruct_bundle(bundle: &EalExport) -> Result<EalExport, Error> {
 
 /// Recover the exact exporter-owned plan without enlarging EAL observation context.
 ///
-/// Historical bundles have no marker. Duplicate or malformed markers are errors
-/// so a verifier cannot silently select one of several conflicting plans.
+/// Only the current structural export format is accepted. Original historical
+/// observations remain immutable and are never reinterpreted as current runs.
 pub fn plan_from_bundle(bundle: &EalExport) -> Result<Option<Vec<AcquisitionPlan>>, Error> {
-    if bundle.schema_version != "engarg.eal-export/3" {
-        let old = serde_json::from_value(serde_json::to_value(bundle)?)?;
-        return crate::legacy_acquisition::plan_from_bundle(&old);
-    }
     eal_export::ExportIdentity::for_bundle(bundle)?;
     let plan = bundle
         .acquisition_plan

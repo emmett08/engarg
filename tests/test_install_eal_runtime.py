@@ -16,7 +16,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts/install-eal-runtime.sh"
 REVISION = "a" * 40
 URL = "https://github.com/example/fixture-eal"
 BINARIES = {"eal-host", "eal-mcp", "eal-method-worker",
-            "eal-command-supervisor", "eal-process-supervisor", "eal-collector", "eal-coordinate", "eal-mas-server", "mas-protocol-codec",
+            "eal-process-supervisor", "eal-tool-run", "eal-collector", "eal-coordinate", "eal-mas-server", "mas-protocol-codec",
             "eal", "eal-core", "eal-syntax", "eal-runtime", "eal-aspic-solve"}
 
 
@@ -64,10 +64,10 @@ if os.environ.get('STUB_FAIL_PACKAGE') in packages:
     raise SystemExit(42)
 directory = pathlib.Path(os.environ['CARGO_TARGET_DIR']) / 'release'
 directory.mkdir(parents=True, exist_ok=True)
-expected = {'eal-process', 'eal-runtime', 'eal-mcp', 'eal-collectors', 'eal-coordination', 'eal-cli'}
+expected = {'eal-process', 'eal-runtime', 'eal-mcp', 'eal-collectors', 'eal-coordination', 'eal-cli', 'eal-tool-runtime'}
 if set(packages) != expected or len(packages) != len(expected):
     raise SystemExit(92)
-names = ['eal-process-supervisor', 'eal-method-worker', 'eal-command-supervisor',
+names = ['eal-process-supervisor', 'eal-tool-run', 'eal-method-worker',
          'eal-host', 'eal-mcp', 'eal-collector', 'eal-coordinate', 'eal-mas-server', 'mas-protocol-codec', 'eal', 'eal-core', 'eal-syntax', 'eal-runtime', 'eal-aspic-solve']
 for name in names:
     if os.environ.get('STUB_MISSING_BINARY') == name:
@@ -165,7 +165,8 @@ print('Synthetic toolchain progress on stdout')
             '--locked', '--release', '--bins', '--message-format=json-render-diagnostics',
             '--package', 'eal-process', '--package', 'eal-runtime',
             '--package', 'eal-mcp', '--package', 'eal-collectors',
-            '--package', 'eal-coordination', '--package', 'eal-cli'])
+            '--package', 'eal-coordination', '--package', 'eal-cli',
+            '--package', 'eal-tool-runtime'])
         git = [record['args'][2:] for record in self.calls('git')]
         self.assertEqual(git, [['init', '--quiet'], ['remote', 'add', 'origin', URL],
                               ['fetch', '--quiet', '--depth', '1', '--no-tags', 'origin', REVISION],
@@ -204,7 +205,7 @@ print('Synthetic toolchain progress on stdout')
         prefix = self.root / "custom EAL prefix"
         self.assert_success(self.run_script("--root", prefix), prefix)
         (prefix / "bin/eal-host").write_text("unverified replacement\n")
-        (prefix / "bin/eal-command-supervisor").unlink()
+        (prefix / "bin/eal-process-supervisor").unlink()
         self.assert_success(self.run_script("--root", prefix), prefix)
         self.assertEqual(len(self.installs()), 2)
 

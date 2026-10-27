@@ -67,6 +67,26 @@ fn rejects_ambiguous_input_and_has_no_implicit_model_selection() {
 }
 
 #[test]
+fn analysis_exposes_direct_and_discovery_planning_without_flat_frontend() {
+    let help = cli().args(["analyse", "--help"]).output().unwrap();
+    assert!(help.status.success());
+    let text = String::from_utf8(help.stdout).unwrap();
+    assert!(text.contains("[possible values: direct, graph]"));
+    assert!(!text.contains("--collector-catalogue"));
+    for options in [
+        vec!["--evidence-planning", "flat"],
+        vec!["--collector-catalogue", "catalogue.json"],
+    ] {
+        let output = cli()
+            .args(["analyse", "--claim", "C", "--model", "fixture"])
+            .args(options)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+    }
+}
+
+#[test]
 fn conflicting_output_and_audit_paths_fail_before_transport_setup() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("same.json");

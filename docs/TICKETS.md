@@ -1,123 +1,105 @@
-# Execute an engineering investigation ticket
+# Durable argument tickets
 
-`engarg ticket` connects topology-driven argument authoring to executable evidence acquisition and assessment. The native `eal-coordinate` process owns the durable stage order and retains its reservations and exact worker receipts. EngArg supplies the domain worker. EAL-MCP performs the final collection and registered assessment.
+`engarg ticket` retains an authoring run, validates its direct tool bindings,
+compiles a standalone package, and executes its EAL through the official MCP
+host. The coordinator records each stage and its artifacts. The package contains
+`case.eal`, `tools.toml`, tool implementations and an inspection-only `build.json`.
+The EAL source and TOML are the executable inputs.
 
-| Stage | Work | Required retained outputs |
-| --- | --- | --- |
-| `author` | Run the selected topology and produce a typed argument and evidence design | Analysis report and debate journal |
-| `integrate` | Activate approved MCP connections, replan, implement missing operations, qualify verified packages and register them, then replan | Ready analysis, planning configuration, connection configuration and registration receipt |
-| `export` | Publish the executable argument and its qualified evidence routes | EAL source, tools TOML and JSON bundle |
-| `execute` | Register the source, plan the selected claim, collect evidence and invoke registered assessment through EAL-MCP | Source registration, collection, registered assessment and full assessment |
+```sh
+engarg ticket --spec ticket.json --run runs/example \
+  --eal-coordinate /opt/eal/bin/eal-coordinate
+```
 
-Every completed stage binds its output files by SHA-256 and byte count. The controller checks prior artifacts before starting the next stage. Terminal execution checks connect the exported source, registered entry, initial collection, final assessment collection and selected claim. Compatible evidence reuse can give the registered assessment a different collection identity, and both identities remain explicit.
-
-## Submit a ticket
-
-Install the revision-pinned native companions with `scripts/install-eal-runtime.sh`. Its `bin` directory includes `eal`, `eal-host`, `eal-coordinate` and their supervised runtime companions. Build or install EngArg together with `engarg-process-supervisor`.
-
-Create an operator-owned JSON specification:
+A ticket configuration uses `engarg.ticket/2`:
 
 ```json
 {
-  "schema_version": "engarg.ticket/1",
-  "ticket_id": "catalogue-audit",
+  "schema_version": "engarg.ticket/2",
+  "ticket_id": "finite_inventory",
   "request": {
-    "claim": "The current catalogue snapshot contains three distinct items.",
-    "context": "Use the approved catalogue source and the declared snapshot scope.",
+    "claim": "The bounded inventory satisfies the declared acceptance criteria.",
+    "context": "The specified snapshot and interpretation only.",
     "evidence": []
   },
   "debate": {
-    "participants": 6,
+    "participants": 3,
     "rounds": 1,
-    "topology": { "kind": "ring" },
-    "adaptation": { "kind": "static" }
+    "topology": { "kind": "ring" }
   },
-  "evidence_config": "/operator/planning.json",
-  "mcp_registrations": "/operator/approved-mcp-connections.json",
-  "qualification_argv": ["/operator/qualify-generated-operation"],
-  "review_binding": "/operator/independent-review.binding.json",
-  "authoring_args": [
-    "--model", "YOUR_MODEL",
-    "--api-key-env", "OPENAI_API_KEY",
-    "--request-timeout-secs", "180"
-  ],
-  "implementation_args": [
-    "--model", "YOUR_MODEL",
-    "--api-key-env", "OPENAI_API_KEY",
-    "--tool-language", "rust",
-    "--toolchain", "/operator/rust-toolchain.json",
-    "--tool-store", "/operator/verified-tools",
-    "--tool-max-calls", "4"
-  ],
-  "eal_host": "/runtime/bin/eal-host",
-  "eal_application": "/runtime/bin/eal",
+  "tools": "tools.toml",
+  "authoring_args": ["--model", "configured-model"],
+  "eal_host": "/opt/eal/bin/eal-host",
   "environment": ["PATH", "HOME", "OPENAI_API_KEY"],
-  "collector_environment": [],
-  "timeout_seconds": 7200,
-  "stage_timeout_seconds": 3600,
+  "collector_environment": ["PATH"],
+  "timeout_seconds": 3600,
+  "stage_timeout_seconds": 900,
   "input_files": []
 }
 ```
 
-The `/operator` paths name your existing approved configurations, policies and toolchain. Relative paths are resolved against the ticket specification. The language toolchain profile identifies an installed immutable Docker image. The Rust image can be built with `docker build -t engarg-rust-tools:1.99.1 examples/toolchains/rust`.
+Paths are relative to the configuration file. The run directory must be new.
+The EAL host requires its installed MCP server, method worker and process
+supervisor companions. EngArg requires its `engarg-process-supervisor` companion.
+The coordinator defaults to the host's sibling `eal-coordinate` unless supplied
+explicitly. `export_policy` can name an explicit review freshness policy.
 
-```sh
-engarg ticket --spec ticket.json --run investigation-001 \
-  --eal-coordinate /runtime/bin/eal-coordinate
+`tools.toml` declares the operator's concrete operations. Tool keys match authored
+acquisition IDs; the compiler assigns their EAL names. A command example is:
 
-/runtime/bin/eal-coordinate ticket-status --run investigation-001/journal
-/runtime/bin/eal-coordinate ticket-export --run investigation-001/journal \
-  --output investigation-001/ticket-export.json
+```toml
+[tools.inventory]
+kind = "command"
+version = "1"
+argv = ["python3", "tools/inventory.py"]
+inherit_env = ["PATH"]
 ```
 
-The workspace must be new. The ticket identifier is bounded to 80 ASCII letters, digits, underscores or hyphens. Total deadlines range from 1 through 86,400 seconds. Each stage has a deadline of at most 3,600 seconds within that total. An omitted authoring call allowance is calculated from the topology and repair allowance. Implementation has its own configured allowance.
+Every inherited tool environment name and direct transport credential reference
+must appear in `collector_environment`, and every collector name must also appear
+in `environment`. Values are inherited at execution and are not stored in ticket
+configuration. Authoring arguments accept only provider and bounded budget options.
+The model receives operation names and versions, not executable or credential
+selection authority.
 
-Only environment names declared in `environment` reach the ticket workers. Every declared name must exist. Names in `collector_environment` must also be declared in `environment` and in the resulting executable registry. Values remain outside the ticket specification and journal. The default worker environment contains `PATH` and `HOME`. Provider credential names must be granted explicitly.
+The ticket pins its configuration, tool manifest, implementation resources,
+explicit additional input files, host and coordinator. Each stage rechecks those
+identities. Package resources must remain within the manifest directory. Retained input files
+have a 16 MiB individual bound and a 48 MiB aggregate bound, with at most 127
+files; the configuration receipt reserves the remaining coordinator capacity.
+Executable inputs are hashed with a separate 256 MiB bound.
 
-## Configure the evidence authorities
+The four stages are:
 
-`mcp_registrations` is an `eal.evidence-config/1` document containing approved connection and catalogue additions. Integration validates identity conflicts, activates the connections and performs actual discovery before deciding whether code is required. Transport endpoints, executable locations, credential references and measurement qualifications come from this operator configuration.
+1. **Author:** `analyse --evidence-planning direct --tools ...` runs the selected
+   debate topology and retains the argument and its support elaboration.
+2. **Integrate:** validate the elaboration and match every acquisition to the
+   manifest. An unbound operation blocks the ticket with a retained explanation.
+3. **Export:** `engarg build --input ... --tools ... --output-dir ...` writes the
+   executable package. Review obligations without a supplied evidential basis
+   remain explicit pending obligations.
+4. **Execute:** the official host calls `eal_execute` with the package source,
+   manifest context and selected claim. EAL resolves dependencies, acquires
+   observations, evaluates derived evidence and runs the authored reasoning
+   methods. Collection, assessment and the execution envelope are retained.
 
-The optional qualification command receives one JSON request on stdin with schema `engarg.ticket-qualification/1`, the retained analysis path, generated provider templates and operation contracts. It returns a qualified `eal.evidence-config/1` native-provider document. Existing package, schema, transport and source identities are checked before registration. A generated implementation's synthetic fixture results establish its tested function behaviour. An operator policy supplies its measurement qualification.
+A complete, measured negative result can finish a ticket with an unsupported
+claim. Missing, stale or failed required evidence blocks completion. An accepted
+ticket is therefore not a declaration that its claim is true. Inspection-only
+receipts do not provide observations or replace runtime assessment.
 
-`review_binding` selects an independent reviewer through a version-1 `CommandBinding`. It is validated by the same executable-registry contract used by EAL. The exported `review-requests.json` supplies the exact request envelope. Required review obligations remain pending until a selected reviewer returns their observations. Reviewer credential names require explicit collector forwarding. Include policy scripts and other dependencies in `input_files` so their identities are checked at stage admission.
+The previous ticket configuration schema is intentionally rejected. Migrate the
+operator bindings into `tools.toml`; there is no registration, qualification or
+mandatory application-register stage in the current workflow.
 
-## Interpret the result
-
-The final `ticket-result.json` separates investigation execution from claim support. A fully executed valid assessment has ticket status `completed`, while its claim may be `supported`, `contested` or `unsupported`. A measured predicate failure remains a completed investigation. Missing or expired observations, failed acquisition, unavailable MCP connections and unresolved qualifications produce a blocked or failed stage with retained evidence of what happened.
-
-Artifacts and input snapshots remain under the workspace. The controller uses bounded summaries and files of at most 16 MiB per artifact, with 64 MiB across the retained artifact set. Scientific values remain in their exact artifact files. Ticket context and outcome summaries have separate 64 KiB bounds.
-
-Completed stages can be inspected again without repeating their effects. A reserved stage with an uncertain outcome is never automatically rerun. Inspect its exact receipts and artifacts before submitting a separately identified investigation. `ticket-cancel` stops admission of new work and propagates cancellation through the supervised process tree.
-
-## Native acceptance
-
-`tests/ticket_native.rs` exercises every topology through a newly registered local MCP, a compiled Rust collector and actual EAL-MCP collection and registered assessment. Its Docker variant generates and compiles the missing Rust implementation inside the ticket. Negative tests cover unavailable MCP acquisition, rejected compilation and measured counter-evidence. The finite fixture's reviewer checks its declared finite interpretation and source facts independently. These tests exercise the workflow mechanics rather than establishing the adequacy of an arbitrary engineering claim.
-
-Full topology sweeps are opt-in. Automatic Rust checks retain fast unit coverage, a real CLI ring smoke check and the unavailable-MCP and measured-negative ticket checks. The separate **Ticket acceptance** workflow runs one generated Rust ring ticket for a pull request. Manual runs select one topology or `all` and choose whether to include generated tools. Acceptance tests run one at a time and report progress and failures immediately.
-
-Once `ticket-acceptance.yml` exists on the repository's default branch, start a selected branch through GitHub Actions or the CLI:
+Native integration tests use a real EAL installation and a local bounded fixture:
 
 ```sh
-gh workflow run ticket-acceptance.yml --ref feat/debate-topologies \
-  -f topology=ring -F generated_tools=true
-```
-
-Before that workflow is available, run a single generated-tool ticket locally with the pinned companions and Docker installed:
-
-```sh
-engarg_runtime_host=$(bash scripts/install-eal-runtime.sh)
-engarg_runtime_bin=$(dirname "$engarg_runtime_host")
-cargo build --locked --bins --example catalogue_mcp
-docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
-
-ENGARG_EAL_HOST="$engarg_runtime_host" \
-EAL_COLLECTOR="$engarg_runtime_bin/eal-collector" \
-ENGARG_EAL_COORDINATE="$engarg_runtime_bin/eal-coordinate" \
-ENGARG_CATALOGUE_MCP="$PWD/target/debug/examples/catalogue_mcp" \
+ENGARG_EAL_HOST=/opt/eal/bin/eal-host \
+ENGARG_EAL_COORDINATE=/opt/eal/bin/eal-coordinate \
 ENGARG_TICKET_TOPOLOGIES=ring \
-cargo test --locked --test ticket_native every_topology_generates \
-  -- --ignored --nocapture --test-threads=1
+cargo test --test ticket_native -- --ignored
 ```
 
-Set `ENGARG_TICKET_TOPOLOGIES=all` for the exhaustive sweep. Unknown or empty selections fail before test setup. These tests use a deterministic local provider and do not call a paid model.
+Omit `ENGARG_TICKET_TOPOLOGIES` to exercise all nine topology presets. The tests
+also check measured negatives, unavailable sources and missing operation bindings.

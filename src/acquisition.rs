@@ -154,19 +154,10 @@ pub fn valid_artifact_reference(reference: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
 }
 
-/// Decode new provider envelopes and historical direct cases without changing either format.
+/// Decode the current acquisition response. A missing plan is not inferred.
 pub fn parse_completion(content: &str) -> Result<PlannedArgument, Error> {
-    match serde_json::from_str::<PlannedArgument>(content) {
-        Ok(planned) => Ok(planned),
-        Err(envelope_error) => serde_json::from_str::<ArgumentCase>(content)
-            .map(|argument| PlannedArgument {
-                argument,
-                acquisition_plan: Vec::new(),
-            })
-            .map_err(|_| {
-                Error::InvalidOutput(format!("invalid acquisition response: {envelope_error}"))
-            }),
-    }
+    serde_json::from_str(content)
+        .map_err(|error| Error::InvalidOutput(format!("invalid acquisition response: {error}")))
 }
 
 /// Validate selection and exact need binding, without asserting that proposed inputs are true.
@@ -487,11 +478,10 @@ mod tests {
     }
 
     #[test]
-    fn historical_cases_and_provider_envelopes_preserve_the_canonical_case() {
+    fn provider_envelope_requires_an_explicit_acquisition_plan() {
         let case = case();
-        let legacy = serde_json::to_string(&case).unwrap();
-        let parsed = parse_completion(&legacy).unwrap();
-        assert!(parsed.acquisition_plan.is_empty());
+        let canonical = serde_json::to_string(&case).unwrap();
+        assert!(parse_completion(&canonical).is_err());
         let planned = PlannedArgument {
             acquisition_plan: custom_plans(&case),
             argument: case,
@@ -499,7 +489,7 @@ mod tests {
         let parsed = parse_completion(&serde_json::to_string(&planned).unwrap()).unwrap();
         assert_eq!(
             serde_json::to_value(parsed.argument).unwrap(),
-            serde_json::from_str::<Value>(&legacy).unwrap()
+            serde_json::from_str::<Value>(&canonical).unwrap()
         );
         assert_eq!(
             planned_case_schema()["properties"]["argument"]["$ref"],

@@ -5,6 +5,8 @@
 mod argument_assertions;
 #[path = "common/live_output.rs"]
 mod live_output;
+#[path = "common/pending_support.rs"]
+mod pending_support;
 
 use serde_json::{Value, json};
 use std::{
@@ -262,20 +264,16 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
                     }
                 }
                 if planned {
-                    let plans = case["evidence_plan"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|need| {
-                            json!({
-                                "need_id":need["id"],
-                                "tool_id":"custom",
-                                "arguments":[],
-                                "unresolved_arguments":["adapter"],
-                            })
-                        })
-                        .collect::<Vec<_>>();
-                    json!({"argument":case,"acquisition_plan":plans}).to_string()
+                    let typed = serde_json::from_value(case.clone()).unwrap();
+                    let mut elaboration = pending_support::pending(&typed);
+                    if repair_missing_plan && index == base_calls {
+                        elaboration.revisions.push(engarg::support_requirements::RequirementRevision {
+                            requirement_id: "requirement_auditor-5".into(),
+                            previous_requirement_sha256: envelope["original_requirement_sha256"]["requirement_auditor-5"].as_str().unwrap().into(),
+                            reason: "Attach the explicitly missing evidence-plan clause to the retained unresolved challenge without weakening its unavailable criterion.".into(),
+                        });
+                    }
+                    json!({"argument":case,"support_elaboration_json":serde_json::to_string(&elaboration).unwrap()}).to_string()
                 } else {
                     case.to_string()
                 }
@@ -394,18 +392,29 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
             .as_str()
             .unwrap();
         if tool_planning {
-            let planned = engarg::acquisition::parse_completion(final_content).unwrap();
+            let planned = engarg::support_requirements::parse_supported_argument(
+                final_content,
+                16 * 1_048_576,
+            )
+            .unwrap();
             argument_assertions::assert_authored_argument(
                 &report,
                 &serde_json::to_value(&planned.argument).unwrap(),
             );
-            assert_eq!(
-                planned.acquisition_plan.len(),
-                planned.argument.evidence_plan.len()
-            );
             assert!(
-                engarg::acquisition::validate(&planned.argument, &planned.acquisition_plan)
-                    .is_empty()
+                engarg::support_requirements::validate_elaboration(
+                    &planned.argument,
+                    &planned.support_elaboration
+                )
+                .is_empty()
+            );
+            assert_eq!(
+                report["support_elaboration"],
+                serde_json::to_value(&planned.support_elaboration).unwrap()
+            );
+            assert_eq!(
+                report["direct_bindings"]["schema"],
+                "engarg.direct-bindings/1"
             );
             assert!(report.get("acquisition_plan").is_none());
         } else {
@@ -429,7 +438,11 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
             report["provider_config"]["requested_reasoning_effort"],
             "high"
         );
-        let mut legacy = report.clone();
+        let mut core_report = report.clone();
+        for extension in ["support_elaboration", "direct_bindings", "design_review"] {
+            core_report.as_object_mut().unwrap().remove(extension);
+        }
+        let mut legacy = core_report.clone();
         legacy.as_object_mut().unwrap().remove("run_config");
         legacy["provider_config"]
             .as_object_mut()
@@ -453,8 +466,7 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
                 .iter()
                 .all(|call| call.response.reasoning_effort.is_none())
         );
-        let typed_report: engarg::engine::RunReport =
-            serde_json::from_value(report.clone()).unwrap();
+        let typed_report: engarg::engine::RunReport = serde_json::from_value(core_report).unwrap();
         assert_eq!(
             typed_report
                 .provider_config
@@ -525,16 +537,13 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
                     .is_empty()
             );
             if matches!(input, Input::Claim) {
-                check_claim_only_presentations_and_export(&output, directory.path());
+                check_claim_only_presentations_and_build(&output, directory.path());
             }
         }
     }
 }
 
-fn check_claim_only_presentations_and_export(
-    report: &std::path::Path,
-    directory: &std::path::Path,
-) {
+fn check_claim_only_presentations_and_build(report: &std::path::Path, directory: &std::path::Path) {
     for (format, marker) in [
         ("markdown", "14. Decision basis"),
         ("outline", "current"),
@@ -554,28 +563,34 @@ fn check_claim_only_presentations_and_export(
         );
         assert!(String::from_utf8_lossy(&rendered.stdout).contains(marker));
     }
-    let bundle_path = directory.join("case.eal.json");
-    let exported = Command::new(env!("CARGO_BIN_EXE_engarg"))
-        .args(["eal", "export", "--input"])
+    let package = directory.join("case-package");
+    let tools = directory.join("tools.toml");
+    std::fs::write(&tools, "[tools]\n").unwrap();
+    let built = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["build", "--input"])
         .arg(report)
-        .args(["--format", "json", "--output"])
-        .arg(&bundle_path)
+        .arg("--tools")
+        .arg(&tools)
+        .arg("--output-dir")
+        .arg(&package)
         .output()
         .unwrap();
     assert!(
-        exported.status.success(),
+        built.status.success(),
         "{}",
-        String::from_utf8_lossy(&exported.stderr)
+        String::from_utf8_lossy(&built.stderr)
     );
-    let bundle: Value = serde_json::from_slice(&std::fs::read(bundle_path).unwrap()).unwrap();
-    assert_eq!(bundle["original_request"]["evidence"], json!([]));
-    assert!(!bundle["obligations"].as_array().unwrap().is_empty());
+    let receipt: Value =
+        serde_json::from_slice(&std::fs::read(package.join("build.json")).unwrap()).unwrap();
+    assert_eq!(receipt["schema"], "engarg.executable-package/1");
+    assert_eq!(receipt["model_calls"], 0);
+    assert!(receipt["claims"]["current_claim"].is_string());
     assert!(
-        bundle["source"]
-            .as_str()
+        std::fs::read_to_string(package.join("case.eal"))
             .unwrap()
             .starts_with("language \"EAL/3\"")
     );
+    assert!(package.join("tools.toml").is_file());
 }
 
 #[test]

@@ -21,15 +21,12 @@ use crate::{
     eal_acquisition::AcquisitionProjection,
 };
 
-#[cfg(test)]
-const LEGACY_SCHEMA_VERSION: &str = "engarg.eal-export/1";
 const SCHEMA_VERSION: &str = "engarg.eal-export/3";
 const SEMANTICS_VERSION: &str = "engarg.eal-projection/3";
 const TYPED_SEMANTICS_VERSION: &str = "engarg.eal-projection/4";
 use crate::export_policy::ExportPolicy;
 const ENVIRONMENT: &str = "engarg_case";
 const REVIEW_TOOL: &str = "engarg_review_contract";
-pub(crate) const REASONING_TOOL: &str = "engarg_reasoning_input";
 
 fn semantics_version(case: &ArgumentCase) -> &'static str {
     if case
@@ -41,15 +38,6 @@ fn semantics_version(case: &ArgumentCase) -> &'static str {
     } else {
         SEMANTICS_VERSION
     }
-}
-
-pub(crate) fn reasoning_input_selector(
-    revision: &str,
-    warrant_id: &str,
-    evidence_need_id: &str,
-) -> Value {
-    json!({"schema":"engarg.reasoning-input-pending/1", "case_digest":revision,
-        "warrant_id":warrant_id, "evidence_need_id":evidence_need_id})
 }
 
 /// A complete, loss-preserving bundle around the executable EAL/3 projection.
@@ -122,13 +110,7 @@ pub struct ReviewObligation {
 /// Producer versions remain provenance under the current semantics.
 #[derive(Clone, Copy)]
 pub(crate) enum ExportIdentity<'a> {
-    Current {
-        exporter_version: &'a str,
-    },
-    #[cfg(test)]
-    Legacy {
-        exporter_version: &'a str,
-    },
+    Current { exporter_version: &'a str },
 }
 
 impl<'a> ExportIdentity<'a> {
@@ -180,8 +162,6 @@ impl<'a> ExportIdentity<'a> {
     fn exporter_version(self) -> &'a str {
         match self {
             Self::Current { exporter_version } => exporter_version,
-            #[cfg(test)]
-            Self::Legacy { exporter_version } => exporter_version,
         }
     }
 
@@ -221,15 +201,6 @@ pub(crate) fn reconstruct_projection(
     bundle: &EalExport,
     acquisition: Option<&AcquisitionProjection>,
 ) -> Result<ExportProjection, Error> {
-    if bundle.schema_version != SCHEMA_VERSION {
-        let legacy: crate::legacy_export::EalExport =
-            serde_json::from_value(serde_json::to_value(bundle)?)?;
-        let rebuilt = crate::legacy_acquisition::reconstruct_bundle(&legacy)?;
-        return Ok(ExportProjection {
-            bundle: serde_json::from_value(serde_json::to_value(rebuilt)?)?,
-            review_requests: Vec::new(),
-        });
-    }
     let identity = ExportIdentity::for_bundle(bundle)?;
     let policy = bundle.export_policy.as_ref().expect("checked");
     if policy.resolve(&bundle.original_case)? != *policy {
@@ -250,21 +221,6 @@ pub(crate) fn export_projection_for_identity(
     acquisition: Option<&AcquisitionProjection>,
     identity: ExportIdentity<'_>,
 ) -> Result<ExportProjection, Error> {
-    #[cfg(test)]
-    if let ExportIdentity::Legacy { exporter_version } = identity {
-        let projected = crate::legacy_export::export_projection_for_identity(
-            request,
-            case,
-            None,
-            crate::legacy_export::ExportIdentity::Legacy { exporter_version },
-        )?;
-        return Ok(ExportProjection {
-            bundle: serde_json::from_value(serde_json::to_value(projected.bundle)?)?,
-            review_requests: serde_json::from_value(serde_json::to_value(
-                projected.review_requests,
-            )?)?,
-        });
-    }
     export_projection_with_policy_identity(
         request,
         case,
@@ -281,6 +237,33 @@ pub(crate) fn export_projection_with_policy_identity(
     identity: ExportIdentity<'_>,
     policy: &ExportPolicy,
 ) -> Result<ExportProjection, Error> {
+    export_with_evidence(request, case, acquisition, identity, policy, None)
+}
+
+pub(crate) fn export_executable(
+    request: &Request,
+    case: &ArgumentCase,
+    policy: &ExportPolicy,
+    evidence: &crate::support_export::compiler::CompiledEvidence,
+) -> Result<ExportProjection, Error> {
+    export_with_evidence(
+        request,
+        case,
+        None,
+        ExportIdentity::current(),
+        policy,
+        Some(evidence),
+    )
+}
+
+fn export_with_evidence(
+    request: &Request,
+    case: &ArgumentCase,
+    acquisition: Option<&AcquisitionProjection>,
+    identity: ExportIdentity<'_>,
+    policy: &ExportPolicy,
+    evidence: Option<&crate::support_export::compiler::CompiledEvidence>,
+) -> Result<ExportProjection, Error> {
     validate_request(request).map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
     let admitted = validate_argument(request, case).map_err(|errors| {
         Error::InvalidOutput(
@@ -291,6 +274,17 @@ pub(crate) fn export_projection_with_policy_identity(
                 .join("; "),
         )
     })?;
+    if evidence.is_none()
+        && case.warrants.iter().any(|warrant| {
+            warrant
+                .reasoning_method
+                .as_ref()
+                .and_then(ReasoningMethodBinding::bound)
+                .is_some()
+        })
+    {
+        return Err(Error::InvalidInput("BOUND_METHOD_REQUIRES_EXECUTABLE_COMPILATION: bound native reasoning requires canonical support elaboration and explicit tool bindings; use engarg build --input report.json --tools tools.toml --output-dir package, or support_export::compile_direct".into()));
+    }
     let mut identity_bytes = serde_json::to_vec(&(
         identity.schema_version(),
         if semantics_version(case) == TYPED_SEMANTICS_VERSION {
@@ -314,11 +308,15 @@ pub(crate) fn export_projection_with_policy_identity(
         &catalogue,
         eal_collector_contracts::RUNTIME_EXPORTABLE_PROFILE,
     ))?);
+    if let Some(evidence) = evidence {
+        identity_bytes.extend(evidence.declarations.as_bytes());
+    }
     let revision: String = Sha256::digest(identity_bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();
     let mut builder = Exporter::new(&revision, identity.schema_version(), acquisition, policy);
+    builder.compiled = evidence;
     builder.write(request, admitted.index())?;
     let mut bundle = EalExport {
         schema_version: identity.schema_version().into(),
@@ -366,6 +364,20 @@ pub(crate) fn export_projection_with_policy_identity(
             "Acquisition availability follows the selected adapter contract. EngArg adapters use collected while native fleet collectors use cluster_count and native GitHub uses found. The existing independent review obligations still determine interpretation and sufficiency. Custom collectors remain command implementation stubs and unresolved inputs retain explicit command configuration templates. Acquisition observations use the persisted resolved per-need export-policy ages.".into(),
         );
     }
+    if let Some(evidence) = evidence {
+        bundle.limitations = vec![
+            "The execution/1 EAL source contains all acquisition, derivation, acceptance and reasoning semantics. TOML selects actual tools; no execution-plan sidecar is needed.".into(),
+            "Authored method queries are programme data. Empirical premise values and independent judgements are acquired observations; interpretation and scope remain explicit.".into(),
+            "Shared source observations retain common provenance. An unsupported claim does not establish falsity.".into(),
+        ];
+        bundle.limitations.extend(evidence.pending.clone());
+        builder
+            .review_requests
+            .extend(evidence.review_requests.iter().cloned().map(|mut request| {
+                request.context = bundle.context.clone();
+                request
+            }));
+    }
     Ok(ExportProjection {
         bundle,
         review_requests: builder.review_requests,
@@ -383,10 +395,6 @@ pub(crate) fn name(prefix: &str, id: &str) -> String {
 
 pub(crate) fn quoted(text: &str) -> String {
     serde_json::to_string(text).expect("strings are serialisable")
-}
-
-fn evidence_names(ids: &[String]) -> Vec<String> {
-    ids.iter().map(|id| name("source_review", id)).collect()
 }
 
 #[derive(Default)]
@@ -425,6 +433,7 @@ struct Exporter<'a> {
     review_requests: Vec<ReviewRequest>,
     acquisition: Option<&'a AcquisitionProjection>,
     policy: &'a ExportPolicy,
+    compiled: Option<&'a crate::support_export::compiler::CompiledEvidence>,
 }
 
 impl<'a> Exporter<'a> {
@@ -444,7 +453,32 @@ impl<'a> Exporter<'a> {
             review_requests: Vec::new(),
             acquisition,
             policy,
+            compiled: None,
         }
+    }
+
+    fn compiled_gates(&self, prefix: &str, id: &str) -> Option<&Vec<String>> {
+        let compiled = self.compiled?;
+        match prefix {
+            "challenge_review" => compiled.challenge_activation.get(id),
+            "resolution_review" => compiled.challenge_resolution.get(id),
+            _ => compiled.targets.get(id),
+        }
+    }
+    fn gates(&self, prefix: &str, id: &str) -> Vec<String> {
+        if let Some(evidence) = self.compiled_gates(prefix, id) {
+            return evidence.clone();
+        }
+        if self.compiled.is_some() && prefix == "source_review" {
+            return Vec::new();
+        }
+        vec![name(prefix, id)]
+    }
+
+    fn source_evidence(&self, ids: &[String]) -> Vec<String> {
+        ids.iter()
+            .flat_map(|id| self.gates("source_review", id))
+            .collect()
     }
 
     fn record(&mut self, id: &str, kind: &str, declaration: &str, role: &str) {
@@ -487,34 +521,12 @@ impl<'a> Exporter<'a> {
         Ok(())
     }
 
-    fn method_input(
-        &mut self,
-        warrant_id: &str,
-        bound: &BoundReasoningMethod,
-    ) -> Result<String, Error> {
-        let declaration = name("reasoning_input", warrant_id);
-        let input =
-            reasoning_input_selector(self.revision, warrant_id, &bound.input_evidence_need_id);
-        self.source.push_str(&format!(
-            "evidence {declaration} {{\n  tool {REASONING_TOOL}\n  kind {}\n  environment {ENVIRONMENT}\n  max_age {}\n  input {}\n  require schema == \"EAL/typed-input/1\"\n}}\n\n",
-            bound.method.evidence_kind(), self.policy.acquisition_age(&bound.input_evidence_need_id),
-            serde_json::to_string(&input)?,
-        ));
-        self.review_requests.push(ReviewRequest {
-            evidence_id: declaration.clone(),
-            environment: ENVIRONMENT.into(),
-            tool: REASONING_TOOL.into(),
-            tool_version: "1".into(),
-            input,
-            context: json!({"engarg_export_digest":self.revision}),
-        });
-        self.record(
-            warrant_id,
-            "evidence",
-            &declaration,
-            "reasoning_method_input",
-        );
-        Ok(declaration)
+    fn method_input(&self, warrant_id: &str) -> Option<String> {
+        self.compiled
+            .expect("bound native methods require executable compilation")
+            .method_inputs
+            .get(warrant_id)
+            .cloned()
     }
 
     fn method_reasoning(
@@ -529,7 +541,7 @@ impl<'a> Exporter<'a> {
             quoted(bound.method.identifier()),
             quoted(rationale),
         ));
-        if bound.method.kind() == ReasoningMethodKind::Deductive {
+        if bound.method.kind() == Some(ReasoningMethodKind::Deductive) {
             self.source
                 .push_str("  require consistent_premises == true\n");
         }
@@ -546,7 +558,7 @@ impl<'a> Exporter<'a> {
         let input = json!({"schema":"engarg.reasoning-unresolved/1","case_digest":self.revision,
             "warrant_id":warrant_id,"binding":binding});
         self.source.push_str(&format!(
-            "// Missing formal model or evidence keeps this route unavailable.\nevidence {declaration} {{\n  tool {REASONING_TOOL}\n  kind unavailable_method\n  environment {ENVIRONMENT}\n  max_age 0\n  input {}\n  require method_available == true\n}}\n\n",
+            "// Missing formal model or evidence keeps this route unavailable.\nevidence {declaration} {{\n  kind unavailable_method\n  environment {ENVIRONMENT}\n  max_age 0\n  input {}\n  derive object(\"method_available\", pending.method_available)\n  require method_available == true\n}}\n\n",
             serde_json::to_string(&input)?,
         ));
         self.record(
@@ -603,6 +615,15 @@ impl<'a> Exporter<'a> {
         source_evidence_ids: &[String],
         detail: Value,
     ) -> Result<String, Error> {
+        if self.compiled.is_some() && prefix == "source_review" {
+            return Ok(String::new());
+        }
+        if let Some(evidence) = self.compiled_gates(prefix, id) {
+            return evidence
+                .first()
+                .cloned()
+                .ok_or_else(|| Error::InvalidInput("Empty compiled target evidence".into()));
+        }
         let declaration = name(prefix, id);
         let obligation = ReviewObligation {
             id: format!("{kind}:{id}"),
@@ -616,6 +637,8 @@ impl<'a> Exporter<'a> {
             "schema": self.schema_version,
             "case_digest": self.revision,
             "obligation": obligation,
+            "criterion":obligation.requirement,"target":id,
+            "scope":{"case_digest":self.revision,"target_id":id},
             "authored_detail": detail,
             "acquisition": "Explicit independent review required; no observation is supplied by this export."
         });
@@ -623,8 +646,8 @@ impl<'a> Exporter<'a> {
             input["required_acquisitions"] = json!(acquisition.review_inputs(id));
         }
         self.source.push_str(&format!(
-            "evidence {declaration} {{\n  tool {REVIEW_TOOL}\n  kind review\n  environment {ENVIRONMENT}\n  max_age {review_age}\n  input {}\n  require accepted == true\n}}\n\n",
-            serde_json::to_string(&input)?,review_age=self.policy.review_max_age_seconds
+            "evidence {declaration} {{\n  tool {REVIEW_TOOL}\n  kind scoped_review\n  environment {ENVIRONMENT}\n  max_age {review_age}\n  input {}\n  require verdict == \"supported\"\n  require criterion == {}\n  require equal(scope, {})\n  require target == {}\n  require reviewer != \"\"\n  require reviewed_at != \"\"\n  require count(reasons) > 0\n}}\n\n",
+            serde_json::to_string(&input)?,quoted(&obligation.requirement),serde_json::to_string(&input["scope"] )?,quoted(id),review_age=self.policy.review_max_age_seconds
         ));
         self.review_requests.push(ReviewRequest {
             evidence_id: declaration.clone(),
@@ -652,17 +675,34 @@ impl<'a> Exporter<'a> {
             })
             .collect();
         self.source.push_str(&format!(
-            "language \"EAL/3\"\n\n// Authored EngArg projection. Review contracts are not observations.\n// Keep the JSON export bundle for the complete canonical source and source map.\n\nenvironment {ENVIRONMENT} {{\n  require engarg_export_digest == {}\n}}\n\ntool {REVIEW_TOOL} {{\n  version \"1\"\n}}\n\n",
+            "language \"EAL/3\" profile \"execution/1\"\n\n// Authored EngArg projection. Review contracts are not observations.\n// Keep the JSON export bundle for the complete canonical source and source map.\n\nenvironment {ENVIRONMENT} {{\n  require engarg_export_digest == {}\n}}\n\ntool {REVIEW_TOOL} {{\n  version \"1\"\n}}\n\n",
             quoted(self.revision)
         ));
-        if case
-            .warrants
-            .iter()
-            .any(|warrant| warrant.reasoning_method.is_some())
-        {
-            self.source.push_str(&format!(
-                "tool {REASONING_TOOL} {{\n  version \"1\"\n}}\n\n"
-            ));
+        if let Some(compiled) = self.compiled {
+            self.source.push_str(&compiled.declarations);
+            for (target, declarations) in compiled
+                .targets
+                .iter()
+                .chain(&compiled.challenge_activation)
+                .chain(&compiled.challenge_resolution)
+            {
+                for declaration in declarations {
+                    self.record(
+                        target,
+                        "evidence",
+                        declaration,
+                        "canonical_obligation_support",
+                    );
+                }
+            }
+            for (requirement, declaration) in &compiled.requirements {
+                self.record(
+                    &format!("requirement:{requirement}"),
+                    "evidence",
+                    declaration,
+                    "canonical_obligation",
+                );
+            }
         }
         if let Some(acquisition) = self.acquisition {
             self.source.push_str(&acquisition.declarations(
@@ -729,6 +769,11 @@ impl<'a> Exporter<'a> {
             }
         }
         for composition in &case.compositions {
+            if self.compiled.is_some()
+                && composition.relationship != SupportRelationship::Cumulative
+            {
+                continue;
+            }
             self.obligation(
                 "composition_review", &composition.conclusion_id, "composition_adequacy",
                 format!("Review the sufficiency of this declared {:?} composition under its explicit selected reliance; selection and agent agreement do not establish sufficiency. {}", composition.relationship, composition.rationale),
@@ -779,9 +824,17 @@ impl<'a> Exporter<'a> {
             let mut support = Support::default();
             support
                 .evidence
-                .extend(evidence_names(&ground.evidence_ids));
-            support.evidence.insert(name("ground_review", &ground.id));
-            attach_conditions(index, &[&ground.id], &mut support, self.acquisition);
+                .extend(self.source_evidence(&ground.evidence_ids));
+            support
+                .evidence
+                .extend(self.gates("ground_review", &ground.id));
+            attach_conditions(
+                index,
+                &[&ground.id],
+                &mut support,
+                self.acquisition,
+                self.compiled,
+            );
             self.argument(
                 &ground.id,
                 &name("ground_argument", &ground.id),
@@ -801,8 +854,8 @@ impl<'a> Exporter<'a> {
                 warrant.rule, warrant.inference, warrant.applicability
             );
             let reasoning = name("warrant", &warrant.id);
-            let mut backing = evidence_names(&warrant.backing_evidence_ids);
-            backing.push(name("warrant_review", &warrant.id));
+            let mut backing = self.source_evidence(&warrant.backing_evidence_ids);
+            backing.extend(self.gates("warrant_review", &warrant.id));
             let bound = warrant
                 .reasoning_method
                 .as_ref()
@@ -810,7 +863,7 @@ impl<'a> Exporter<'a> {
             let method_input = if let Some(bound) = bound {
                 self.typed_claim(&warrant.id, &route, &statement, bound)?;
                 self.method_reasoning(&warrant.id, &reasoning, &format!("{}\nThe declared bounded method tests only the typed formal result. Prose correspondence and scientific applicability remain authored obligations.\nApplicability: {}", warrant.rule, warrant.applicability), bound);
-                Some(self.method_input(&warrant.id, bound)?)
+                self.method_input(&warrant.id)
             } else {
                 self.claim(&warrant.id, &route, &statement, "candidate_route");
                 self.reasoning(&warrant.id, &reasoning, &format!("{}\nOriginal inference: {:?}; retained as authored structured/1, not a computational certificate.\nApplicability: {}", warrant.rule, warrant.inference, warrant.applicability), &backing, "authored_warrant");
@@ -827,7 +880,9 @@ impl<'a> Exporter<'a> {
             }
             // An adequacy gate is also explicit source evidence: even a future
             // warrant without premises cannot become an empty EAL argument.
-            support.evidence.insert(name("warrant_review", &warrant.id));
+            support
+                .evidence
+                .extend(self.gates("warrant_review", &warrant.id));
             if let Some(bound) = bound {
                 support.evidence.extend(backing);
                 support.evidence.extend(method_input.iter().cloned());
@@ -841,7 +896,13 @@ impl<'a> Exporter<'a> {
                     .evidence
                     .insert(self.unresolved_method(&warrant.id, binding)?);
             }
-            attach_conditions(index, &[&warrant.id], &mut support, self.acquisition);
+            attach_conditions(
+                index,
+                &[&warrant.id],
+                &mut support,
+                self.acquisition,
+                self.compiled,
+            );
             if let Some(input) = method_input {
                 let declaration = name("route_argument", &warrant.id);
                 self.source.push_str(&format!(
@@ -880,14 +941,29 @@ impl<'a> Exporter<'a> {
                     .iter()
                     .map(|id| name("route", id)),
             );
-            support
-                .evidence
-                .insert(name("composition_review", &composition.conclusion_id));
+            if self.compiled.is_none()
+                || composition.relationship == SupportRelationship::Cumulative
+            {
+                support
+                    .evidence
+                    .extend(self.gates("composition_review", &composition.conclusion_id));
+            }
+            if let Some(compiled) = self.compiled {
+                support.evidence.extend(
+                    compiled
+                        .targets
+                        .get(&composition.conclusion_id)
+                        .into_iter()
+                        .flatten()
+                        .cloned(),
+                );
+            }
             attach_conditions(
                 index,
                 &[&composition.conclusion_id],
                 &mut support,
                 self.acquisition,
+                self.compiled,
             );
             let conclusion = self.claim_names[&composition.conclusion_id].clone();
             self.argument(
@@ -927,7 +1003,7 @@ impl<'a> Exporter<'a> {
             let mut support = Support::default();
             support
                 .evidence
-                .insert(name("assumption_review", &assumption.id));
+                .extend(self.gates("assumption_review", &assumption.id));
             support
                 .assumptions
                 .insert(name("assumption", &assumption.id));
@@ -951,14 +1027,20 @@ impl<'a> Exporter<'a> {
             let mut support = Support::default();
             support
                 .evidence
-                .extend(evidence_names(&defeater.evidence_ids));
+                .extend(self.source_evidence(&defeater.evidence_ids));
             support
                 .evidence
-                .insert(name("challenge_review", &defeater.id));
+                .extend(self.gates("challenge_review", &defeater.id));
             // Preserve every attached condition. Native assumptions become
             // premise claims whose derivations retain the assumption attack
             // edges; evidence gates stay evidence gates on the objection.
-            attach_conditions(index, &[&defeater.id], &mut support, self.acquisition);
+            attach_conditions(
+                index,
+                &[&defeater.id],
+                &mut support,
+                self.acquisition,
+                self.compiled,
+            );
             support.premises.extend(
                 support
                     .assumptions
@@ -998,6 +1080,7 @@ fn attach_conditions(
     ids: &[&str],
     support: &mut Support,
     acquisition: Option<&AcquisitionProjection>,
+    compiled: Option<&crate::support_export::compiler::CompiledEvidence>,
 ) {
     let closure = index.attachment_dependency(ids);
     for id in &closure {
@@ -1010,9 +1093,12 @@ fn attach_conditions(
         }
         for defeater in index.defeaters_for(id) {
             if unresolved_material(defeater) {
-                support
-                    .evidence
-                    .insert(name("resolution_review", &defeater.id));
+                support.evidence.extend(
+                    compiled
+                        .and_then(|evidence| evidence.challenge_resolution.get(&defeater.id))
+                        .cloned()
+                        .unwrap_or_else(|| vec![name("resolution_review", &defeater.id)]),
+                );
             }
         }
     }
@@ -1095,46 +1181,12 @@ mod identity_tests {
     }
 
     #[test]
-    fn legacy_reconstruction_preserves_original_package_bound_identity_and_bytes() {
-        let (request, case) = fixtures();
-        let projection = export_projection_for_identity(
-            &request,
-            &case,
-            None,
-            ExportIdentity::Legacy {
-                exporter_version: "0.7.1",
-            },
-        )
-        .unwrap();
-        // The legacy digest independently follows the original public encoding.
-        let identity =
-            serde_json::to_vec(&("engarg.eal-export/1", "0.7.1", &request, &case)).unwrap();
-        let expected_digest: String = Sha256::digest(identity)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        assert_eq!(projection.bundle.revision, expected_digest);
-        assert!(projection.bundle.semantics_version.is_none());
-        assert!(projection.bundle.collector_catalogue.is_none());
-        let value = serde_json::to_value(&projection.bundle).unwrap();
-        assert!(value.get("semantics_version").is_none());
-        assert!(value.get("collector_catalogue").is_none());
-        let reconstructed = reconstruct_projection(&projection.bundle, None).unwrap();
-        assert_eq!(value, serde_json::to_value(&reconstructed.bundle).unwrap());
-        assert_eq!(projection.bundle.source, reconstructed.bundle.source);
-        assert!(projection.review_requests.iter().all(|request| {
-            request.input["schema"] == LEGACY_SCHEMA_VERSION
-                && request.input["case_digest"] == expected_digest
-        }));
-    }
-
-    #[test]
     fn unknown_or_mixed_identity_contracts_are_rejected() {
         let (request, case) = fixtures();
         let mut bundle = export(&request, &case).unwrap();
         bundle.semantics_version = Some("engarg.eal-projection/999".into());
         assert!(reconstruct_projection(&bundle, None).is_err());
-        bundle.schema_version = LEGACY_SCHEMA_VERSION.into();
+        bundle.schema_version = "engarg.eal-export/1".into();
         assert!(reconstruct_projection(&bundle, None).is_err());
         bundle.semantics_version = None;
         bundle.collector_catalogue = Some(json!({"schema_version":"unknown"}));

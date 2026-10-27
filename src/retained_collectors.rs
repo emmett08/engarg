@@ -1,7 +1,6 @@
 //! EngArg-specific case and review binding over optional EAL retained adapters.
-//! Remove facade commands in EngArg 0.11 after operators migrate catalogues.
 use crate::Error;
-use eal_adapters::retained::{Artifact, Review};
+use eal_adapters::retained::{Artifact, REVIEW_INPUT_SCHEMA, ReviewInputs};
 use eal_collector_contracts::AcquisitionRequest;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -21,12 +20,7 @@ struct ArtifactInputs {
 struct ArtifactNeed {
     artifacts: Vec<Artifact>,
 }
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ReviewInputs {
-    schema: String,
-    reviews: Vec<Review>,
-}
+
 fn invalid(message: &str) -> Error {
     Error::InvalidInput(message.into())
 }
@@ -97,10 +91,10 @@ pub fn observe(tool: &str, value: Value, inputs_path: &Path) -> Result<Value, Er
         }
         "review_json" => {
             let inputs: ReviewInputs = serde_json::from_value(parse_json(&bytes)?)?;
-            if inputs.schema != "engarg.review-inputs/1" {
+            if inputs.schema != REVIEW_INPUT_SCHEMA {
                 return Err(invalid("invalid retained review schema"));
             }
-            if request.tool != "engarg_review_contract" || request.input.get("obligation").is_none()
+            if request.tool != "engarg_review_contract" || request.input.get("criterion").is_none()
             {
                 return Err(invalid(
                     "retained review requires an exact independent review request",
