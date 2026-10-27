@@ -227,6 +227,9 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
                               'gaps': [{'kind': 'configuration', 'description': 'Operator credential reference remains missing.'}],
                               'discovery': {'incomplete': False}, 'configuration': json.loads(pathlib.Path(option('--evidence-config')).read_text())}
                     report['evidence_planning'] = {'schema': 'engarg.support-planning/1', 'elaboration': elaboration, 'routes': routes}
+                    if os.environ.get('GRAPH_COMPOSED_PROOF'):
+                        routes['execution'] = {'acquisitions': [
+                            {'id': 'query', 'coverage_proof': {'kind': 'identifier_audit_v1'}}]}
                     if os.environ.get('GRAPH_IMPLEMENTATION_GAP'):
                         routes['gaps'] = [{'kind': os.environ.get('GRAPH_GAP_KIND', 'operation_implementation'),
                             'acquisition_id': 'query', 'requirement_id': None,
@@ -1580,6 +1583,48 @@ class CatalogSyncAuthoringTests(unittest.TestCase):
         self.assertEqual(context['required_custom_operation']['schema'], 'engarg.operation-specification/1')
         self.assertEqual(context['formal_input']['method'], 'deductive/1')
         self.assertFalse((self.commands/'cargo').exists())
+
+    def test_simple_catalogue_rejects_older_collector_before_model_calls(self):
+        shutil.copyfile(SOURCE_SCRIPT.parent/'catalogue_evidence_example.py', self.script.parent/'catalogue_evidence_example.py')
+        self.install_pipeline_stubs()
+        self.install_docker_stub()
+        result = self.run_script('--simple-example', graph=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('catalogue collector compatibility preflight', result.stderr)
+        self.assertIn('does not support the identifier-audit composition', result.stderr)
+        self.assertFalse(any(call[0] == 'analyse' or call[:2] == ['eal', 'implement']
+                             for call in self.invocations()))
+
+    def test_simple_catalogue_accepts_compatible_collector_before_analysis(self):
+        shutil.copyfile(SOURCE_SCRIPT.parent/'catalogue_evidence_example.py', self.script.parent/'catalogue_evidence_example.py')
+        self.install_pipeline_stubs()
+        self.install_docker_stub()
+        marker = {'schema': 'eal.collector-capabilities/1',
+                  'coverage_proofs': ['identifier_audit_v1'],
+                  'qualified_population_quantity': True}
+        collector = self.commands / 'eal-collector'
+        collector.write_text('#!/usr/bin/env python3\nimport json, sys\n'
+                             'assert sys.argv[1:] == ["capabilities"]\n'
+                             'print(json.dumps(' + repr(marker) + '))\n')
+        collector.chmod(0o700)
+        result = self.run_script('--simple-example', graph=True)
+        self.assertIn('catalogue collector compatibility preflight', result.stderr)
+        self.assertNotIn('does not support the identifier-audit composition', result.stderr)
+        self.assertTrue(any(call[0] == 'analyse' for call in self.invocations()), result.stderr)
+
+    def test_generic_composed_graph_rejects_old_collector_before_implementation(self):
+        config, profile = self.write_evidence_config(), self.write_toolchain()
+        self.install_pipeline_stubs()
+        result = self.run_script('--evidence-config', config, '--implement-tools',
+                                 '--toolchain', profile, self.inputs, graph=True,
+                                 env=dict(self.env, GRAPH_COMPOSED_PROOF='1'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('composed collector compatibility preflight', result.stderr)
+        self.assertIn('does not support the identifier-audit composition', result.stderr)
+        calls = self.invocations()
+        self.assertTrue(any(call[0] == 'analyse' for call in calls))
+        self.assertFalse(any(call[:2] == ['eal', 'implement'] for call in calls))
+        self.assertFalse(any(call[:2] == ['eal', 'export'] for call in calls))
 
     def test_failed_authoring_prints_inspection_and_bounded_resume_commands(self):
         config = self.write_evidence_config()

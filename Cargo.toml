@@ -13,11 +13,11 @@ name = "engarg-process-supervisor"
 path = "src/bin/process_supervisor.rs"
 
 [dependencies]
-eal-coordination-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "9da53e5caf1936a29663192779dc4991a0dd550f" }
-eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "9da53e5caf1936a29663192779dc4991a0dd550f" }
-eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "9da53e5caf1936a29663192779dc4991a0dd550f" }
-eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "9da53e5caf1936a29663192779dc4991a0dd550f" }
-eal-core = { git = "https://github.com/emmett08/eal-mcp", rev = "9da53e5caf1936a29663192779dc4991a0dd550f" }
+eal-coordination-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "234c897ee50f31ea7f1903cd9a84840a33c09cd6" }
+eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "234c897ee50f31ea7f1903cd9a84840a33c09cd6" }
+eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "234c897ee50f31ea7f1903cd9a84840a33c09cd6" }
+eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "234c897ee50f31ea7f1903cd9a84840a33c09cd6" }
+eal-core = { git = "https://github.com/emmett08/eal-mcp", rev = "234c897ee50f31ea7f1903cd9a84840a33c09cd6" }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 chrono = { version = "0.4.42", default-features = false, features = ["std"] }
 httpdate = "1.0.3"
@@ -36,7 +36,7 @@ toml = "0.9.8"
 [dev-dependencies]
 tempfile = "3.27.0"
 tiktoken-rs = "0.12.1"
-rmcp = { git = "https://github.com/emmett08/eal-mcp", rev = "9da53e5caf1936a29663192779dc4991a0dd550f", default-features = false, features = ["server", "transport-io"] }
+rmcp = { git = "https://github.com/emmett08/eal-mcp", rev = "234c897ee50f31ea7f1903cd9a84840a33c09cd6", default-features = false, features = ["server", "transport-io"] }
 tokio = { version = "1.54.1", features = ["io-std"] }
 
 [lints.rust]

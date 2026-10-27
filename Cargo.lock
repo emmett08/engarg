@@ -521,7 +521,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 [[package]]
 name = "eal-adapters"
 version = "0.1.0"
-source = "git+https://github.com/emmett08/eal-mcp?rev=9da53e5caf1936a29663192779dc4991a0dd550f#9da53e5caf1936a29663192779dc4991a0dd550f"
+source = "git+https://github.com/emmett08/eal-mcp?rev=234c897ee50f31ea7f1903cd9a84840a33c09cd6#234c897ee50f31ea7f1903cd9a84840a33c09cd6"
 dependencies = [
  "eal-collector-contracts",
  "eal-process",
@@ -536,7 +536,7 @@ dependencies = [
 [[package]]
 name = "eal-collector-contracts"
 version = "0.1.0"
-source = "git+https://github.com/emmett08/eal-mcp?rev=9da53e5caf1936a29663192779dc4991a0dd550f#9da53e5caf1936a29663192779dc4991a0dd550f"
+source = "git+https://github.com/emmett08/eal-mcp?rev=234c897ee50f31ea7f1903cd9a84840a33c09cd6#234c897ee50f31ea7f1903cd9a84840a33c09cd6"
 dependencies = [
  "chrono",
  "jsonschema",
@@ -550,7 +550,7 @@ dependencies = [
 [[package]]
 name = "eal-coordination-contracts"
 version = "0.1.0"
-source = "git+https://github.com/emmett08/eal-mcp?rev=9da53e5caf1936a29663192779dc4991a0dd550f#9da53e5caf1936a29663192779dc4991a0dd550f"
+source = "git+https://github.com/emmett08/eal-mcp?rev=234c897ee50f31ea7f1903cd9a84840a33c09cd6#234c897ee50f31ea7f1903cd9a84840a33c09cd6"
 dependencies = [
  "eal-collector-contracts",
  "serde",
@@ -560,7 +560,7 @@ dependencies = [
 [[package]]
 name = "eal-core"
 version = "0.1.0"
-source = "git+https://github.com/emmett08/eal-mcp?rev=9da53e5caf1936a29663192779dc4991a0dd550f#9da53e5caf1936a29663192779dc4991a0dd550f"
+source = "git+https://github.com/emmett08/eal-mcp?rev=234c897ee50f31ea7f1903cd9a84840a33c09cd6#234c897ee50f31ea7f1903cd9a84840a33c09cd6"
 dependencies = [
  "chrono",
  "eal-parser",
@@ -579,7 +579,7 @@ dependencies = [
 [[package]]
 name = "eal-parser"
 version = "0.1.0"
-source = "git+https://github.com/emmett08/eal-mcp?rev=9da53e5caf1936a29663192779dc4991a0dd550f#9da53e5caf1936a29663192779dc4991a0dd550f"
+source = "git+https://github.com/emmett08/eal-mcp?rev=234c897ee50f31ea7f1903cd9a84840a33c09cd6#234c897ee50f31ea7f1903cd9a84840a33c09cd6"
 dependencies = [
  "antlr4rust",
  "serde",
@@ -588,7 +588,7 @@ dependencies = [
 [[package]]
 name = "eal-process"
 version = "0.1.0"
-source = "git+https://github.com/emmett08/eal-mcp?rev=9da53e5caf1936a29663192779dc4991a0dd550f#9da53e5caf1936a29663192779dc4991a0dd550f"
+source = "git+https://github.com/emmett08/eal-mcp?rev=234c897ee50f31ea7f1903cd9a84840a33c09cd6#234c897ee50f31ea7f1903cd9a84840a33c09cd6"
 dependencies = [
  "rustix",
  "serde",
@@ -1780,7 +1780,7 @@ dependencies = [
 [[package]]
 name = "rmcp"
 version = "3.6.0"
-source = "git+https://github.com/emmett08/eal-mcp?rev=9da53e5caf1936a29663192779dc4991a0dd550f#9da53e5caf1936a29663192779dc4991a0dd550f"
+source = "git+https://github.com/emmett08/eal-mcp?rev=234c897ee50f31ea7f1903cd9a84840a33c09cd6#234c897ee50f31ea7f1903cd9a84840a33c09cd6"
 dependencies = [
  "chrono",
  "flate2",

@@ -252,6 +252,7 @@ if [[ $check_only -eq 1 ]]; then
   printf 'Input preflight passed. No build, inference or evidence acquisition performed. Artifacts: %s\n' "$run_dir"
   exit 0
 fi
+simple_example=$(catalog_sync simple-example "$run_dir/input-identity.json")
 # A full run identifies its build by commit. Input-only checks remain available
 # while tracked edits are staged or unstaged.
 set_stage 'full-run prerequisites'
@@ -357,6 +358,10 @@ if [[ $evidence_planning == graph ]]; then
   [[ -f $eal_runtime_dir/eal-collector && -x $eal_runtime_dir/eal-collector ]] ||
     fail "Missing executable EAL companion: $eal_runtime_dir/eal-collector. Install the coherent pinned runtime including eal-collector."
   catalog_sync admit-collector "$run_dir/evidence-config.json" "$eal_runtime_dir/eal-collector"
+  if [[ $simple_example -eq 1 ]]; then
+    set_stage 'catalogue collector compatibility preflight'
+    catalog_sync validate-collector-capabilities "$eal_runtime_dir/eal-collector" "$run_dir/collector-capabilities.json"
+  fi
 fi
 
 set_stage 'release build'
@@ -451,11 +456,14 @@ run_analysis --progress --input "$run_dir/request.json" \
 authoring_pending=0
 
 if [[ $evidence_planning == graph ]]; then
+  if [[ $simple_example -eq 0 ]]; then
+    set_stage 'composed collector compatibility preflight'
+    catalog_sync validate-composed-collector "$analysis_output" "$eal_runtime_dir/eal-collector" "$run_dir/collector-capabilities.json"
+  fi
   set_stage 'graph freshness preflight'
   "$engarg_bin" eal freshness-check --input "$analysis_output"
 fi
 
-simple_example=$(catalog_sync simple-example "$run_dir/input-identity.json")
 if [[ $implement_tools -eq 1 && $evidence_planning == graph ]]; then
   if [[ $simple_example -eq 1 ]]; then
     set_stage 'bounded catalogue operation admission'
@@ -499,6 +507,11 @@ set_stage 'argument rendering'
 "$engarg_bin" render --input "$run_dir/analysis.json" --format html --display-depth 2 --output "$run_dir/argument.html"
 set_stage 'EAL export'
 if [[ $evidence_planning == graph ]]; then
+  if [[ $simple_example -eq 0 ]]; then
+    set_stage 'composed collector compatibility preflight'
+    catalog_sync validate-composed-collector "$run_dir/analysis.json" "$eal_runtime_dir/eal-collector" "$run_dir/collector-capabilities.json"
+    set_stage 'EAL export'
+  fi
   "$engarg_bin" eal export --input "$run_dir/analysis.json" --export-policy "$run_dir/export-policy.json" \
     --output "$run_dir/argument.eal" --tools-output "$run_dir/argument.tools.toml" --manifest "$run_dir/argument.bundle.json"
 else

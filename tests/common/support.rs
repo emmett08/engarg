@@ -196,6 +196,7 @@ pub fn fixture() -> (
     plan.acquisitions[0].source.qualified_contract_sha256 =
         capability.measurement_identity().unwrap();
     let routes = vec![AcquisitionRouteProof {
+        composition: None,
         batch: None,
         blueprint_id: "shared_source".into(),
         capability,

@@ -6,20 +6,32 @@ use crate::{Error, support_requirements::AcquisitionBlueprint};
 use eal_collector_contracts::{capability::*, execution};
 use serde_json::Value;
 
+#[cfg(test)]
 pub fn materialise(
     blueprint: &AcquisitionBlueprint,
     capability: &CapabilityDescriptor,
     binding: Option<&CapabilityInputBinding>,
 ) -> Result<(Value, Vec<String>), Error> {
+    materialise_with_composition(blueprint, capability, binding, None)
+}
+
+pub(super) fn materialise_with_composition(
+    blueprint: &AcquisitionBlueprint,
+    capability: &CapabilityDescriptor,
+    binding: Option<&CapabilityInputBinding>,
+    composition: Option<&crate::support_graph::composition::IdentifierAuditProof>,
+) -> Result<(Value, Vec<String>), Error> {
     let empty = std::collections::BTreeMap::new();
-    let (arguments, mut gaps) = crate::support_graph::materialise_source_arguments(
-        blueprint,
-        capability,
-        binding.map(|binding| &binding.arguments),
-        binding
-            .map(|binding| &binding.input_bindings)
-            .unwrap_or(&empty),
-    )?;
+    let (arguments, mut gaps) =
+        crate::support_graph::materialise_source_arguments_with_composition(
+            blueprint,
+            capability,
+            binding.map(|binding| &binding.arguments),
+            binding
+                .map(|binding| &binding.input_bindings)
+                .unwrap_or(&empty),
+            composition,
+        )?;
     for prerequisite in &capability.configuration_requirements {
         if prerequisite.required
             && !binding

@@ -10,6 +10,7 @@ pub(super) struct PreparedRoute {
     pub ranked: Vec<RankedCapability>,
     pub assessments: Vec<CandidateAssessment>,
     pub selected: Option<String>,
+    pub composition: Option<crate::support_graph::composition::IdentifierAuditProof>,
 }
 fn per_capability(dimension: CostDimension) -> bool {
     matches!(
@@ -39,6 +40,7 @@ pub(super) fn prepare(
         .collect::<BTreeMap<_, _>>();
     let mut source_indices = BTreeMap::new();
     let mut rows = Vec::new();
+    let mut compositions = Vec::new();
     let mut search = Search::new(
         config
             .ranking
@@ -83,7 +85,7 @@ pub(super) fn prepare(
                         .is_some_and(|actual_array| actual_array != expected_array)
                 })
         };
-        let ranked = rank_adequate(
+        let mut ranked = rank_adequate(
             &blueprint.contract,
             &catalogue.capabilities,
             &config.ranking,
@@ -92,6 +94,83 @@ pub(super) fn prepare(
         .into_iter()
         .filter(|rank| allowed(&rank.capability_id))
         .collect::<Vec<_>>();
+        // Composite qualification is admitted only when exactly one producer
+        // capability could be selected. The final selected pair is rechecked.
+        let source = blueprint.bindings.first().and_then(|first| {
+            elaboration
+                .acquisitions
+                .iter()
+                .find(|source| source.id == first.output.step_id)
+        });
+        let producers = source
+            .map(|source| {
+                catalogue
+                    .capabilities
+                    .iter()
+                    .filter(|candidate| compatible(&source.contract, candidate).adequate)
+                    .filter(|candidate| {
+                        allowed_capabilities
+                            .get(&source.id)
+                            .is_none_or(|ids| ids.contains(&candidate.id))
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mut composed = BTreeMap::new();
+        if let (Some(source), [producer]) = (source, producers.as_slice()) {
+            for capability in catalogue
+                .capabilities
+                .iter()
+                .filter(|capability| allowed(&capability.id))
+            {
+                if compatible(&blueprint.contract, capability).adequate {
+                    continue;
+                }
+                let binding = config
+                    .bindings
+                    .iter()
+                    .find(|binding| binding.capability_id == capability.id);
+                let mappings = binding
+                    .map(|binding| &binding.input_bindings)
+                    .cloned()
+                    .unwrap_or_default();
+                if let Ok((proof, local)) =
+                    crate::support_graph::composition::identifier_audit_proof(
+                        elaboration,
+                        blueprint,
+                        source,
+                        capability,
+                        producer,
+                        &mappings,
+                    )
+                {
+                    let candidate =
+                        rank_adequate(&local, std::slice::from_ref(capability), &config.ranking)
+                            .map_err(Error::InvalidInput)?;
+                    if !candidate.is_empty() {
+                        ranked.extend(candidate);
+                        composed.insert(capability.id.clone(), (proof, local));
+                    }
+                }
+            }
+        }
+        if !composed.is_empty() {
+            // Merge the independently ranked composite candidates using the
+            // same order as the pinned capability ranker. Legacy routes retain
+            // their original ranking without any additional sorting.
+            ranked.sort_by(|left, right| {
+                left.estimates
+                    .iter()
+                    .map(|estimate| (estimate.value.is_none(), estimate.value.unwrap_or(0)))
+                    .cmp(
+                        right.estimates.iter().map(|estimate| {
+                            (estimate.value.is_none(), estimate.value.unwrap_or(0))
+                        }),
+                    )
+                    .then_with(|| left.capability_id.cmp(&right.capability_id))
+                    .then_with(|| left.capability_version.cmp(&right.capability_version))
+            });
+        }
         let mut assessments = Vec::new();
         let mut physical = BTreeMap::new();
         for capability in catalogue
@@ -99,14 +178,28 @@ pub(super) fn prepare(
             .iter()
             .filter(|capability| allowed(&capability.id))
         {
-            let compatibility = compatible(&blueprint.contract, capability);
+            let mut compatibility = composed.get(&capability.id).map_or_else(
+                || compatible(&blueprint.contract, capability),
+                |(_, local)| compatible(local, capability),
+            );
+            if let Some((proof, _)) = composed.get(&capability.id) {
+                compatibility.limitations.push(format!(
+                    "Adequacy composes this calculator with selected qualified source {}; it does not assign that source's authority to the calculator.",
+                    proof.source_step_id
+                ));
+            }
             let binding = config
                 .bindings
                 .iter()
                 .find(|binding| binding.capability_id == capability.id);
             let mut gaps = Vec::new();
             if compatibility.adequate {
-                let (arguments, missing) = arguments::materialise(blueprint, capability, binding)?;
+                let (arguments, missing) = arguments::materialise_with_composition(
+                    blueprint,
+                    capability,
+                    binding,
+                    composed.get(&capability.id).map(|(proof, _)| proof),
+                )?;
                 gaps = missing;
                 let dependencies = arguments::physical_dependencies(blueprint, binding);
                 // Unresolved references remain symbolic. Different logical
@@ -172,11 +265,34 @@ pub(super) fn prepare(
             ranked,
             assessments,
             selected: None,
+            composition: None,
         });
+        compositions.push(composed);
     }
     let best = search.finish();
     for (row, selected) in rows.iter_mut().zip(best.choices) {
         row.selected = selected.map(|index| capability_ids[index].clone());
+    }
+    for index in 0..rows.len() {
+        let proof = rows[index]
+            .selected
+            .as_ref()
+            .and_then(|id| compositions[index].get(id))
+            .map(|(proof, _)| proof.clone());
+        if let Some(proof) = proof {
+            let source = elaboration
+                .acquisitions
+                .iter()
+                .position(|source| source.id == proof.source_step_id);
+            if source.is_some_and(|source| {
+                rows[source].selected.as_deref() == Some(proof.source_capability_id.as_str())
+            }) {
+                rows[index].composition = Some(proof);
+            } else {
+                // Do not publish the chosen path's costs for a different route.
+                return Err(Error::InvalidInput("composed audit requires the exact selected qualified source; route selection cannot use its costs for a different producer".into()));
+            }
+        }
     }
     Ok((
         rows,

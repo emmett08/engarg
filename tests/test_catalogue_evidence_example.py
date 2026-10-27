@@ -139,6 +139,35 @@ class CatalogueExampleTests(unittest.TestCase):
             self.assertEqual(planning['operation_specifications'],
                              {EXAMPLE.METHOD: EXAMPLE.operation_specification()})
 
+    def test_only_source_qualification_identifies_the_whole_population_quantity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            EXAMPLE.configuration(directory, directory/'read-only-mcp')
+            source = EXAMPLE.read(directory/'connections.json')['local_catalogues'][0]['capabilities'][0]
+            semantics = source['semantics']
+            coverage, = semantics['coverage']
+            self.assertEqual(coverage['strength'], 'complete_enumeration')
+            self.assertEqual(coverage['population'], 'demonstration-v1 snapshot items')
+            self.assertEqual(coverage['population_quantity'], 'items')
+            self.assertEqual(coverage['completeness_pointer'], '/complete')
+            items = next(q for q in semantics['quantities'] if q['name'] == coverage['population_quantity'])
+            self.assertEqual(items['output_pointer'], '/items')
+            self.assertEqual(semantics['provenance']['authorities'], ['catalogue-fixture'])
+            self.assertNotIn('identifier_audit', semantics)
+            calculation = EXAMPLE.measurement_semantics()
+            self.assertNotIn('population_quantity', calculation['coverage'][0])
+            self.assertEqual(calculation['provenance']['authorities'], ['catalogue-audit'])
+            self.assertEqual(calculation['identifier_audit'], {
+                'argument_items_pointer': '/items', 'argument_complete_pointer': '/complete',
+                'argument_identity_pointer': '/snapshot', 'item_id_pointer': '/id',
+                'result_count_pointer': '/count', 'result_distinct_pointer': '/distinct',
+                'result_complete_pointer': '/complete', 'result_identity_pointer': '/snapshot',
+                'echoes': {'/formal_input': '/typed_input'}, 'maximum_items': 32,
+                'minimum_id_chars': 1, 'maximum_id_chars': 64,
+            })
+            with self.assertRaises(ValueError):
+                EXAMPLE.measurement_semantics('unqualified.method/1')
+
     def test_operator_contract_qualifies_despite_model_paraphrase_and_unit_annotations(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -155,6 +184,7 @@ class CatalogueExampleTests(unittest.TestCase):
             self.assertEqual(quantities['count'], 'entries')
             self.assertEqual(quantities['snapshot'], '1')
             self.assertEqual(qualified['provenance']['authorities'], ['catalogue-audit'])
+            self.assertEqual(qualified['identifier_audit'], EXAMPLE.measurement_semantics()['identifier_audit'])
 
     def test_pre_generation_admission_preserves_the_complete_retained_report(self):
         with tempfile.TemporaryDirectory() as temporary:

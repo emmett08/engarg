@@ -103,6 +103,7 @@ fn search_detail_fixture() -> (
     };
     plan.acquisitions[0].source = source(&search);
     plan.acquisitions.push(AcquisitionStep {
+        coverage_proof: None,
         id: "trace_details".into(),
         max_age_seconds: Some(300),
         source: source(&detail),
@@ -115,6 +116,7 @@ fn search_detail_fixture() -> (
     routes[0].capability = search;
     routes[0].projection_id = Some("search_quantities".into());
     routes.push(AcquisitionRouteProof {
+        composition: None,
         batch: None,
         blueprint_id: "trace_details".into(),
         capability: detail,
@@ -1753,6 +1755,7 @@ fn actual_eal_collection_reuses_one_source_and_can_support_the_reviewed_canonica
         judgement_descriptor.measurement_identity().unwrap();
     execution.acquisitions.push(judgement_source);
     routes.push(AcquisitionRouteProof {
+        composition: None,
         batch: None,
         blueprint_id: "judgement_source".into(),
         capability: judgement_descriptor,

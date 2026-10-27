@@ -295,6 +295,7 @@ async fn run_batch_case(automatic: bool, invalid_comparison: bool, short_batch: 
         };
         let blueprint = &elaboration.acquisitions[index];
         execution.acquisitions.push(AcquisitionStep {
+            coverage_proof: None,
             id: blueprint.id.clone(),
             max_age_seconds: blueprint.contract.time.max_age_seconds,
             source,
@@ -305,6 +306,7 @@ async fn run_batch_case(automatic: bool, invalid_comparison: bool, short_batch: 
             reuse: Default::default(),
         });
         routes.push(AcquisitionRouteProof {
+            composition: None,
             batch: None,
             blueprint_id: blueprint.id.clone(),
             capability: capability.clone(),

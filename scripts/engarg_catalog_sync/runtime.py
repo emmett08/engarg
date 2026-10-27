@@ -2,10 +2,14 @@
 
 import hashlib
 import json
+import os
 import pathlib
+import selectors
+import signal
 import subprocess
+import time
 
-from .json_io import ExactNumber, exact_json
+from .json_io import ExactNumber, exact_json, read, unique
 
 
 SETTING_NAMES = (
@@ -30,6 +34,87 @@ def admit_collector(config_path, selected_collector):
             raise SystemExit('Configured collector differs from the selected EAL runtime. Select its sibling eal-collector or use collector: "managed" in the planning configuration.')
     config['collector'] = str(selected.resolve())
     path.write_text(exact_json(config) + '\n')
+
+
+def validate_collector_capabilities(collector, receipt_path, timeout_seconds=10):
+    """Require the bounded, read-only composition capability before model calls."""
+    message = ('The selected eal-collector does not support the identifier-audit composition '
+               'required by this evidence plan. Install the matching pinned EAL runtime.')
+    try:
+        process = subprocess.Popen([collector, 'capabilities'], stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                   start_new_session=True)
+    except OSError as error:
+        raise SystemExit(message) from error
+    output = bytearray()
+    deadline = time.monotonic() + timeout_seconds
+    selector = selectors.DefaultSelector()
+    reaped = False
+    try:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError('Collector capability check timed out')
+            ready = selector.select(remaining)
+            if not ready:
+                raise ValueError('Collector capability check timed out')
+            chunk = os.read(process.stdout.fileno(), 4096)
+            if not chunk:
+                break
+            output.extend(chunk)
+            if len(output) > 65536:
+                raise ValueError('Collector capability output exceeds 64 KiB')
+        status = process.wait(timeout=max(0, deadline - time.monotonic()))
+        reaped = True
+        if status != 0:
+            raise ValueError('Collector capability check failed')
+        document = json.loads(output, object_pairs_hook=unique)
+        if (not isinstance(document, dict)
+                or document.get('schema') != 'eal.collector-capabilities/1'
+                or document.get('qualified_population_quantity') is not True
+                or not isinstance(document.get('coverage_proofs'), list)
+                or not all(isinstance(value, str) for value in document['coverage_proofs'])
+                or 'identifier_audit_v1' not in document['coverage_proofs']):
+            raise ValueError('Collector capability marker is missing')
+        pathlib.Path(receipt_path).write_text(json.dumps(document, indent=2) + '\n')
+    except (ValueError, UnicodeDecodeError, subprocess.TimeoutExpired) as error:
+        raise SystemExit(message) from error
+    finally:
+        selector.close()
+        if not reaped:
+            # Kill before reaping the leader. Its PID cannot be reused while it
+            # is unreaped, even if an exited leader's descendant holds stdout.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+        process.stdout.close()
+
+
+def validate_composed_collector(analysis_path, collector, receipt_path):
+    """Check collector compatibility only when a compiled graph uses a witness."""
+    _, analysis = read(pathlib.Path(analysis_path), limit=16_777_216)
+    planning = analysis.get('evidence_planning')
+    if not isinstance(planning, dict):
+        raise SystemExit('Graph analysis is missing evidence planning')
+    routes = planning.get('routes')
+    if not isinstance(routes, dict):
+        raise SystemExit('Graph analysis is missing evidence routes')
+    execution = routes.get('execution')
+    if execution is None:
+        # Legacy or synthetic reports may have no compiled execution plan.
+        # Native graph export remains responsible for structural admission.
+        return
+    acquisitions = execution.get('acquisitions') if isinstance(execution, dict) else None
+    if not isinstance(acquisitions, list) or not all(isinstance(item, dict) for item in acquisitions):
+        raise SystemExit('Graph execution acquisitions are invalid')
+    proofs = [step['coverage_proof'] for step in acquisitions if step.get('coverage_proof') is not None]
+    if any(not isinstance(proof, dict) or proof.get('kind') != 'identifier_audit_v1' for proof in proofs):
+        raise SystemExit('Graph execution contains an unsupported coverage proof')
+    if proofs:
+        validate_collector_capabilities(collector, receipt_path)
 
 
 def record_settings(run_directory, executable_path, host_path, host_selection, *settings):
