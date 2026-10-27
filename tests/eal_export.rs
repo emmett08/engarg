@@ -6,8 +6,11 @@ use std::{
 
 use engarg::{
     domain::{ArgumentCase, Request, SupportRelationship},
-    eal_export::{EalExport, export, export_projection},
+    eal_export::EalExport,
 };
+
+#[path = "common/scoped_review_gates.rs"]
+mod scoped_review_gates;
 
 fn fixtures() -> (Request, ArgumentCase) {
     (
@@ -37,8 +40,12 @@ fn argument_line<'a>(bundle: &'a EalExport, id: &str, role: &str) -> &'a str {
 #[test]
 fn export_is_deterministic_and_preserves_complete_canonical_source() {
     let (request, case) = fixtures();
-    let first = export(&request, &case).unwrap();
-    let second = export(&request, &case).unwrap();
+    let first = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
+    let second = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     assert_eq!(
         serde_json::to_value(&first).unwrap(),
         serde_json::to_value(second).unwrap()
@@ -55,8 +62,8 @@ fn export_is_deterministic_and_preserves_complete_canonical_source() {
     assert_eq!(first.claim_names.len(), 3);
     assert!(first.claim_names.contains_key("current_claim"));
     assert!(first.claim_names.contains_key("stronger_target"));
-    assert!(first.source.starts_with("language \"EAL/3\"\n"));
-    assert_eq!(first.target_language, "EAL/3");
+    assert!(first.source.starts_with("language \"EAL/4\"\n"));
+    assert_eq!(first.target_language, "EAL/4");
     assert!(first.source.contains("method \"structured/1\""));
     assert!(!first.source.contains("method \"deductive/1\""));
 }
@@ -66,62 +73,56 @@ fn structured_review_requests_retain_exact_inputs_without_reparsing_source() {
     let (request, mut case) = fixtures();
     let authored_text = "Retain this text\nevidence unrelated {\n  input {\"obligation\":{}}";
     case.grounds[0].statement = authored_text.into();
-    let projection = export_projection(&request, &case).unwrap();
+    let projection = scoped_review_gates::compile(&request, &case).unwrap();
     let bundle = &projection.bundle;
-    assert_eq!(projection.review_requests.len(), bundle.obligations.len());
-    for (review, obligation) in projection.review_requests.iter().zip(&bundle.obligations) {
-        assert_eq!(review.evidence_id, obligation.eal_evidence_name);
+    let elaboration = scoped_review_gates::elaboration(&case);
+    assert_eq!(
+        projection.review_requests.len(),
+        elaboration.requirements.len()
+    );
+    for review in &projection.review_requests {
+        let requirement = elaboration
+            .requirements
+            .iter()
+            .find(|r| review.input["requirement"] == r.id)
+            .unwrap();
         assert_eq!(review.environment, "engarg_case");
         assert_eq!(review.tool, "engarg_review_contract");
         assert_eq!(review.tool_version, "1");
         assert_eq!(review.context, bundle.context);
-        assert_eq!(review.input["case_digest"], bundle.revision);
+        assert_eq!(review.input["target"], requirement.target_id);
         assert_eq!(
-            review.input["obligation"],
-            serde_json::to_value(obligation).unwrap()
+            review.input["role"],
+            serde_json::to_value(requirement.role).unwrap()
+        );
+        assert_eq!(
+            review.input["acceptance"],
+            serde_json::to_value(&requirement.acceptance).unwrap()
         );
         assert!(serde_json::to_value(review).unwrap().get("value").is_none());
         let encoded_input = format!("  input {}", serde_json::to_string(&review.input).unwrap());
         assert!(bundle.source.lines().any(|line| line == encoded_input));
     }
-    let ground_review = projection
-        .review_requests
-        .iter()
-        .find(|review| {
-            review.input["obligation"]["kind"] == "ground_interpretation"
-                && review.input["obligation"]["target_id"] == case.grounds[0].id
-        })
-        .unwrap();
-    assert_eq!(
-        ground_review.input["authored_detail"]["statement"],
-        authored_text
-    );
+    assert_eq!(bundle.original_case.grounds[0].statement, authored_text);
+    scoped_review_gates::assert_scoped_review_gates(&projection);
 }
 
 #[test]
 fn checked_flag_and_model_status_never_become_accepted_observations() {
     let (mut request, case) = fixtures();
     request.evidence[0].checked_by_user = true;
-    let bundle = export(&request, &case).unwrap();
-    assert!(bundle.source.contains("\"checked_by_user\":true"));
-    assert!(!bundle.source.contains("\"accepted\":true"));
-    assert_eq!(
-        bundle.source.matches("require accepted == true").count(),
-        bundle.obligations.len()
-    );
-    assert!(bundle.obligations.iter().any(
-        |obligation| obligation.kind == "ground_interpretation" && obligation.target_id == "G2"
-    ));
-    assert!(bundle.obligations.iter().any(|obligation| obligation.kind == "warrant_adequacy" && obligation.target_id == "W1"));
-    assert!(bundle.obligations.iter().any(
-        |obligation| obligation.kind == "assumption_validation" && obligation.target_id == "A1"
-    ));
-    assert!(
-        bundle
-            .limitations
-            .iter()
-            .any(|limitation| limitation.contains("not an installed collector"))
-    );
+    let projection = scoped_review_gates::compile(&request, &case).unwrap();
+    assert!(projection.bundle.original_request.evidence[0].checked_by_user);
+    assert!(!projection.bundle.source.contains("\"accepted\":true"));
+    scoped_review_gates::assert_scoped_review_gates(&projection);
+    for target in ["G2", "W1", "A1"] {
+        assert!(
+            projection
+                .review_requests
+                .iter()
+                .any(|r| r.input["target"] == target && r.input["role"] == "support")
+        );
+    }
 }
 
 fn replace_id(value: &mut serde_json::Value, from: &str, to: &str) {
@@ -147,7 +148,9 @@ fn identifiers_are_injective_and_untrusted_unicode_text_stays_quoted() {
     let injection = "工程 🧪 \"}\nclaim injected { // \\ end\r\n";
     case.grounds[0].statement = injection.into();
     request.evidence[0].excerpt = injection.into();
-    let bundle = export(&request, &case).unwrap();
+    let bundle = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     assert_ne!(
         declaration(&bundle, "a-b", "bounded_ground"),
         declaration(&bundle, "a_b", "bounded_ground")
@@ -173,12 +176,30 @@ fn identifiers_are_injective_and_untrusted_unicode_text_stays_quoted() {
                     .bytes()
                     .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
             );
-            assert!(
-                names.insert(&entry.name),
-                "duplicate declaration {}",
-                entry.name
-            );
+            names.insert(&entry.name);
         }
+    }
+    // Usage edges may repeat one declaration in several source-map entries.
+    // Each named evaluator is still emitted exactly once in the source.
+    for name in names {
+        assert_eq!(
+            bundle
+                .source
+                .lines()
+                .filter(|line| [
+                    "evidence",
+                    "claim",
+                    "argument",
+                    "assumption",
+                    "reasoning",
+                    "objection"
+                ]
+                .iter()
+                .any(|kind| line.starts_with(&format!("{kind} {name} "))))
+                .count(),
+            1,
+            "{name}"
+        );
     }
 }
 
@@ -212,7 +233,9 @@ fn joint_and_cumulative_routes_are_and_composed() {
     ] {
         let (request, mut case) = fixtures();
         add_second_route(&mut case, relationship);
-        let bundle = export(&request, &case).unwrap();
+        let bundle = scoped_review_gates::compile(&request, &case)
+            .unwrap()
+            .bundle;
         let line = argument_line(&bundle, "current_claim", "selected_composition");
         assert!(line.contains(declaration(&bundle, "W2", "candidate_route")));
         assert!(line.contains(declaration(&bundle, "W-alt", "candidate_route")));
@@ -233,7 +256,9 @@ fn joint_and_cumulative_routes_are_and_composed() {
 fn alternatives_only_connect_selected_reliance_but_retain_candidates() {
     let (request, mut case) = fixtures();
     add_second_route(&mut case, SupportRelationship::AlternativeRoutes);
-    let bundle = export(&request, &case).unwrap();
+    let bundle = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     let line = argument_line(&bundle, "current_claim", "selected_composition");
     assert!(line.contains(declaration(&bundle, "W2", "candidate_route")));
     assert!(!line.contains(declaration(&bundle, "W-alt", "candidate_route")));
@@ -244,7 +269,9 @@ fn alternatives_only_connect_selected_reliance_but_retain_candidates() {
         .unwrap()
         .selected_warrant_ids
         .clear();
-    let none = export(&request, &case).unwrap();
+    let none = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     assert!(
         !none.source.lines().any(|line| line.starts_with("argument ")
             && line.ends_with(&format!("=> {}", none.claim_names["current_claim"])))
@@ -254,9 +281,11 @@ fn alternatives_only_connect_selected_reliance_but_retain_candidates() {
 #[test]
 fn unresolved_material_challenges_gate_the_exact_support_and_preserve_attack_targets() {
     let (request, case) = fixtures();
-    let bundle = export(&request, &case).unwrap();
-    let d1 = declaration(&bundle, "D1", "material_challenge_resolution");
-    let d2 = declaration(&bundle, "D2", "material_challenge_resolution");
+    let bundle = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
+    let d1 = &scoped_review_gates::gate(&bundle, "D1", "challenge_resolution");
+    let d2 = &scoped_review_gates::gate(&bundle, "D2", "challenge_resolution");
     assert!(argument_line(&bundle, "W3", "candidate_route_support").contains(d1));
     assert!(!argument_line(&bundle, "W2", "candidate_route_support").contains(d1));
     assert!(argument_line(&bundle, "G2", "ground_support").contains(d2));
@@ -282,10 +311,12 @@ fn unresolved_material_challenges_gate_the_exact_support_and_preserve_attack_tar
         .find(|need| need.target_id == "D1")
         .unwrap()
         .enables_claim = "current_claim".into();
-    let claim_attack = export(&request, &case).unwrap();
+    let claim_attack = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     assert!(
         argument_line(&claim_attack, "current_claim", "selected_composition").contains(
-            declaration(&claim_attack, "D1", "material_challenge_resolution")
+            &scoped_review_gates::gate(&claim_attack, "D1", "challenge_resolution")
         )
     );
 }
@@ -293,7 +324,9 @@ fn unresolved_material_challenges_gate_the_exact_support_and_preserve_attack_tar
 #[test]
 fn stronger_target_has_its_own_bounded_claim_and_dependency_path() {
     let (request, case) = fixtures();
-    let bundle = export(&request, &case).unwrap();
+    let bundle = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     assert_ne!(
         bundle.claim_names["current_claim"],
         bundle.claim_names["stronger_target"]
@@ -307,19 +340,14 @@ fn stronger_target_has_its_own_bounded_claim_and_dependency_path() {
     );
     assert!(bundle.source.contains(&case.stronger_target.qualifier));
     assert!(bundle.source.contains(&case.scope.time_horizon));
-    assert!(
-        bundle
-            .obligations
-            .iter()
-            .any(|obligation| obligation.target_id == "G2")
-    );
+    assert!(!scoped_review_gates::gate(&bundle, "G2", "support").is_empty());
 }
 
 #[test]
 fn invalid_source_is_rejected_instead_of_silently_repaired() {
     let (request, mut case) = fixtures();
     case.warrants[0].premise_ids = vec!["fabricated-ground".into()];
-    assert!(export(&request, &case).is_err());
+    assert!(scoped_review_gates::compile(&request, &case).is_err());
 }
 
 /// Set EAL_CORE to the upstream binary to exercise its real compiler and checker.
@@ -346,7 +374,9 @@ fn upstream_core_validates_export_when_available() {
     objection_target.defeaters[1].target_id = "D1".into();
     cases.push(objection_target);
     for case in cases {
-        let bundle = export(&request, &case).unwrap();
+        let bundle = scoped_review_gates::compile(&request, &case)
+            .unwrap()
+            .bundle;
         let mut child = Command::new(&binary)
             .arg("validate")
             .arg("-")
@@ -393,12 +423,14 @@ fn assumption_dependent_challenge() -> (Request, ArgumentCase) {
 #[test]
 fn objection_conditions_retain_native_assumptions_through_premise_claims() {
     let (request, case) = assumption_dependent_challenge();
-    let bundle = export(&request, &case).unwrap();
+    let bundle = scoped_review_gates::compile(&request, &case)
+        .unwrap()
+        .bundle;
     let assumption = declaration(&bundle, "A1", "authored_assumption");
     let condition = declaration(&bundle, "A1", "assumption_condition_claim");
     let bridge = argument_line(&bundle, "A1", "assumption_condition_support");
     assert!(bridge.contains(&format!("assumptions {assumption}")));
-    assert!(bridge.contains(declaration(&bundle, "A1", "assumption_validation")));
+    assert!(bridge.contains(&scoped_review_gates::gate(&bundle, "A1", "support")));
     assert!(
         !bridge.contains("premises "),
         "the bridge cannot introduce premise cycles"
@@ -410,126 +442,91 @@ fn objection_conditions_retain_native_assumptions_through_premise_claims() {
         .find(|line| line.starts_with(&format!("objection {objection} = ")))
         .unwrap();
     assert!(line.contains(&format!("premises {condition}")));
-    assert!(line.contains(declaration(&bundle, "D1", "challenge_activation")));
+    assert!(line.contains(&scoped_review_gates::gate(
+        &bundle,
+        "D1",
+        "challenge_activation"
+    )));
 }
 
-fn core_output(
-    binary: &std::ffi::OsStr,
-    workspace: &std::path::Path,
-    args: &[&str],
-) -> serde_json::Value {
-    let output = Command::new(binary)
-        .arg("--workspace")
-        .arg(workspace)
-        .args(args)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "upstream core failed: stdout={} stderr={}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).unwrap()
-}
-
-/// This fixture contains only strings, booleans, objects, arrays and integers,
-/// for which compact sorted serde JSON equals upstream canonical JSON. These
-/// records are synthetic test data and never enter a production store/export.
-fn synthetic_digest(value: &serde_json::Value) -> String {
-    use sha2::{Digest, Sha256};
-    Sha256::digest(serde_json::to_vec(value).unwrap())
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
-fn synthetic_accepted_records(
-    program: &serde_json::Value,
-    context: &serde_json::Value,
-) -> serde_json::Value {
-    use serde_json::json;
-    let mut records = serde_json::Map::new();
-    for (id, evidence) in program["evidence"].as_object().unwrap() {
-        let tool = &program["tools"][evidence["tool"].as_str().unwrap()];
-        let input = &evidence["input"];
-        let acquisition = json!({"tool":tool["name"],"tool_version":tool["version"],"input":input,"context":context});
-        let request = json!({"evidence_id":id,"environment":evidence["environment"],"tool":tool["name"],"tool_version":tool["version"],"input":input,"context":context});
-        let value =
-            json!({"accepted":true,"fixture":"synthetic assumption propagation regression only"});
-        records.insert(id.clone(), json!({
-            "evidence_id":id,
-            "source_digest":program["source_digest"],
-            "tool":tool["name"],
-            "tool_version":tool["version"],
-            "tool_binding_digest":"0".repeat(64),
-            "evidence_kind":evidence["kind"],
-            "environment":evidence["environment"],
-            "environment_fingerprint":synthetic_digest(&json!({"environment":evidence["environment"],"context":context})),
-            "input_digest":synthetic_digest(input),
-            "collected_at":"2026-10-23T12:00:00Z",
-            "input":input,
-            "context":context,
-            "acquisition_request_digest":synthetic_digest(&acquisition),
-            "acquisition_request":acquisition,
-            "request_digest":synthetic_digest(&request),
-            "run_id":"synthetic-assumption-propagation-regression",
-            "status":"ok",
-            "data_digest":synthetic_digest(&value),
-            "value":value
-        }));
-    }
-    serde_json::Value::Object(records)
-}
-
-/// Exercise the real EAL evaluator, including its grounded support/attack solver.
-/// Set EAL_CORE to enable this regression in an environment with upstream built.
-#[test]
+/// The fixture acquires review records through the production runtime so derived
+/// review checks retain their real dependency identities and measurement ages.
+#[tokio::test]
 #[ignore = "requires the pinned EAL producer; mandatory compatibility CI supplies it"]
-fn upstream_assumption_attack_invalidates_dependent_objection_when_available() {
-    let binary = std::env::var_os("EAL_CORE").expect("compatibility test requires EAL_CORE");
+async fn upstream_assumption_attack_invalidates_dependent_objection_when_available() {
+    use engarg::eal_host::{HostConfig, invoke};
+    use serde_json::json;
+    let core = std::path::PathBuf::from(
+        std::env::var_os("EAL_CORE").expect("compatibility test requires EAL_CORE"),
+    );
+    let host = core.with_file_name(format!("eal-host{}", std::env::consts::EXE_SUFFIX));
     let (request, case) = assumption_dependent_challenge();
-    let bundle = export(&request, &case).unwrap();
-    let workspace = tempfile::tempdir().unwrap();
-    std::fs::write(workspace.path().join("source.eal"), &bundle.source).unwrap();
-    std::fs::write(
-        workspace.path().join("context.json"),
-        serde_json::to_vec(&bundle.context).unwrap(),
-    )
-    .unwrap();
-    let program = core_output(&binary, workspace.path(), &["compile", "source.eal"]);
-    let valid = core_output(&binary, workspace.path(), &["validate", "source.eal"]);
-    assert_eq!(valid["valid"], true, "{valid}");
-    let all_records = synthetic_accepted_records(&program, &bundle.context);
-    let attack_gate = declaration(&bundle, "D2", "challenge_activation");
-    let mut inactive_records = all_records.clone();
-    inactive_records
-        .as_object_mut()
+    let bundle = scoped_review_gates::compile(&request, &case)
         .unwrap()
-        .remove(attack_gate);
-    let evaluate = |records: &serde_json::Value| {
-        std::fs::write(
-            workspace.path().join("records.json"),
-            serde_json::to_vec(records).unwrap(),
+        .bundle;
+    let workspace = tempfile::tempdir().unwrap();
+    let script = r#"import json,sys
+acquisition=json.load(sys.stdin)
+request=acquisition['input']
+verdict='supported'
+if sys.argv[1]=='inactive' and request['target']=='D2' and request['role']=='challenge_activation': verdict='inconclusive'
+value=dict(criterion=request['criterion'],target=request['target'],scope=request['scope'],reviewer='synthetic-assumption-reviewer',verdict=verdict,reasons=['Synthetic assumption propagation regression only.'],reviewed_at='2026-10-23T12:00:00Z')
+print(json.dumps({'value':value,'observed_at':value['reviewed_at'],'context':acquisition['context'],'request':{key:acquisition[key] for key in ['tool','tool_version','input','context']}}))
+"#;
+    let mut assessments = Vec::new();
+    for mode in ["inactive", "active"] {
+        let directory = workspace.path().join(mode);
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(directory.join("review.py"), script).unwrap();
+        let manifest = directory.join("tools.toml");
+        std::fs::write(&manifest,format!("[tools.engarg_review_contract]\nkind='command'\nversion='1'\nargv=['python3','review.py','{mode}']\ninherit_env=['PATH']\n")).unwrap();
+        let config = HostConfig {
+            executable: host.clone(),
+            workspace: directory,
+            database: None,
+            registry: Some(manifest),
+            collector_env: vec!["PATH".into()],
+            public_collector_env: vec!["PATH".into()],
+            url: None,
+            token_env: None,
+            timeout: std::time::Duration::from_secs(30),
+        };
+        let response=invoke(&config,&json!({"operation":"execute","source":bundle.source,"context":bundle.context,"now":"2026-10-23T12:00:00Z"})).await.unwrap();
+        assert_eq!(response["is_error"], false, "{response}");
+        let records = response["result"]["collection"]["records"]
+            .as_object()
+            .unwrap();
+        let program = eal_core::composition::compile(
+            &bundle.source,
+            None,
+            "",
+            eal_core::ExecutionLimits::default(),
         )
         .unwrap();
-        core_output(
-            &binary,
-            workspace.path(),
-            &[
-                "evaluate",
-                "source.eal",
-                "--now",
-                "2026-10-23T12:00:00Z",
-                "--context",
-                "@context.json",
-                "--records",
-                "records.json",
-            ],
-        )
-    };
-    let before = evaluate(&inactive_records);
-    let after = evaluate(&all_records);
+        for (id, evidence) in &program.evidence {
+            let record = &records[id];
+            assert_eq!(record["status"], "ok", "{id}: {record}");
+            assert_eq!(
+                record["collected_at"], "2026-10-23T12:00:00Z",
+                "{id}: {record}"
+            );
+            for binding in &evidence.bindings {
+                let parent = &records[&binding.evidence];
+                let retained = record["dependencies"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|d| d["evidence_id"] == binding.evidence)
+                    .unwrap();
+                assert_eq!(retained["run_id"], parent["run_id"]);
+                assert_eq!(retained["data_digest"], parent["data_digest"]);
+                assert_eq!(retained["collected_at"], parent["collected_at"]);
+            }
+        }
+        assessments.push(response["result"]["assessment"].clone());
+    }
+    let before = &assessments[0];
+    let after = &assessments[1];
     let assumption = declaration(&bundle, "A1", "authored_assumption");
     let condition = declaration(&bundle, "A1", "assumption_condition_claim");
     let dependent = declaration(&bundle, "D1", "evidence_gated_challenge");
@@ -541,11 +538,7 @@ fn upstream_assumption_attack_invalidates_dependent_objection_when_available() {
     assert_eq!(before["claims"][condition]["grounded_label"], "accepted");
     assert_eq!(before["objections"][dependent]["status"], "active");
     assert_eq!(before["objections"][attacker]["status"], "inactive");
-    assert_eq!(
-        after["evidence"][attack_gate]["status"], "available",
-        "{after}"
-    );
-    assert_eq!(after["objections"][attacker]["status"], "active");
+    assert_eq!(after["objections"][attacker]["status"], "active", "{after}");
     assert_eq!(after["assumptions"][assumption]["status"], "contested");
     assert_eq!(after["claims"][condition]["grounded_label"], "rejected");
     assert_eq!(after["objections"][dependent]["status"], "defeated");

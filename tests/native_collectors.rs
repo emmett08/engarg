@@ -3,7 +3,6 @@ use engarg::{
     acquisition::{AcquisitionPlan, ToolArgument, override_plans_with_catalogue},
     collector_catalogue::CollectorCatalogue,
     domain::{ArgumentCase, Request},
-    eal_acquisition::export_with_catalogue,
 };
 use serde_json::{Value, json};
 use std::{
@@ -41,18 +40,12 @@ fn selected(
         unresolved_arguments: unknown.iter().map(|s| (*s).into()).collect(),
     }
 }
-fn input(source: &str) -> Value {
-    serde_json::from_str(
-        source
-            .lines()
-            .find_map(|line| line.strip_prefix("  input "))
-            .unwrap(),
-    )
-    .unwrap()
-}
+#[path = "common/collector_source.rs"]
+mod collector_source;
+
 #[test]
 fn native_templates_preserve_typed_inputs_and_unresolved_scope() {
-    let (request, case) = fixture();
+    let (_, case) = fixture();
     for (id, args, unknown, expected, predicate) in [
         (
             "kubernetes",
@@ -91,41 +84,21 @@ fn native_templates_preserve_typed_inputs_and_unresolved_scope() {
             Some(&catalogue()),
         )
         .unwrap();
-        let result = export_with_catalogue(&request, &case, &plans, Some(&catalogue())).unwrap();
-        assert_eq!(input(&result.bundle.source), expected);
+        let selected = catalogue();
+        let descriptor = selected.get(id).unwrap();
+        assert_eq!(descriptor.input(&plans[0]).unwrap(), expected);
+        assert_eq!(descriptor.acquisition_predicate, predicate);
+        let binding = descriptor.binding(&plans[0]).unwrap();
         assert!(
-            result
-                .bundle
-                .source
-                .contains(&format!("require {predicate}"))
-        );
-        assert!(result.registry.tools.values().any(|binding| {
             binding
                 .argv
                 .starts_with(&["eal-collector".to_owned(), id.to_owned()])
-        }));
-        assert!(!result.tools_toml.contains("kind = \"json_file\""));
-        assert!(
-            result
-                .bundle
-                .source
-                .contains(&case.evidence_plan[0].acceptance_criterion)
-        );
-        assert!(result.tools_toml.contains("/REPLACE_WITH_CUSTOM_COLLECTOR"));
-        assert!(
-            result
-                .tools_toml
-                .contains("/REPLACE_WITH_INDEPENDENT_REVIEW_COLLECTOR")
-        );
-        assert_eq!(
-            serde_json::to_value(&result.bundle.original_case).unwrap(),
-            serde_json::to_value(&case).unwrap()
         );
     }
 }
 #[test]
-fn native_ids_require_explicit_catalogue_selection_in_current_exports() {
-    let (request, case) = fixture();
+fn native_ids_require_explicit_catalogue_selection_during_discovery() {
+    let (_, case) = fixture();
     for descriptor in catalogue().0.collectors {
         let plan = AcquisitionPlan {
             input_preparation: None,
@@ -137,8 +110,7 @@ fn native_ids_require_explicit_catalogue_selection_in_current_exports() {
         assert!(override_plans_with_catalogue(&case, &[], vec![plan.clone()], None).is_err());
         let plans =
             override_plans_with_catalogue(&case, &[], vec![plan], Some(&catalogue())).unwrap();
-        assert!(engarg::eal_acquisition::export_with_plan(&request, &case, &plans).is_err());
-        assert!(export_with_catalogue(&request, &case, &plans, Some(&catalogue())).is_ok());
+        assert!(!plans.is_empty());
     }
 }
 
@@ -171,21 +143,13 @@ fn overrides_reject_duplicate_unknown_and_invalid_native_inputs() {
             "end_unix",
         ],
     );
-    let request = fixture().0;
     assert!(
         override_plans_with_catalogue(&case, &[], vec![plan.clone()], Some(&catalogue())).is_err()
     );
     plan.arguments[0].value = "1".into();
-    assert!(
-        export_with_catalogue(
-            &request,
-            &case,
-            &override_plans_with_catalogue(&case, &[], vec![plan], Some(&catalogue())).unwrap(),
-            Some(&catalogue())
-        )
-        .is_ok()
-    );
+    assert!(override_plans_with_catalogue(&case, &[], vec![plan], Some(&catalogue())).is_ok());
 }
+
 fn host(binary: &std::path::Path, dir: &std::path::Path, request: Value) -> Value {
     let mut child = Command::new(binary)
         .arg("--workspace")
@@ -223,7 +187,7 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
     let binary = std::path::PathBuf::from(binary);
     let bin_dir = binary.parent().unwrap();
     let collector = bin_dir.join("eal-collector");
-    let supervisor = bin_dir.join("eal-command-supervisor");
+    let supervisor = bin_dir.join("eal-process-supervisor");
     assert!(
         collector.is_file() && supervisor.is_file(),
         "Build the current native collector and runtime binaries"
@@ -266,7 +230,7 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
                 .unwrap();
             })
         });
-        let (request, case) = fixture();
+        let (_, case) = fixture();
         let args = match provider {
             "kubernetes" => vec![
                 ("inventory", inventory.to_str().unwrap()),
@@ -296,22 +260,15 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
             Some(&catalogue()),
         )
         .unwrap();
-        let exported = export_with_catalogue(&request, &case, &plan, Some(&catalogue())).unwrap();
-        // Resolve exactly the one selected native acquisition. Review and other
-        // unperformed needs remain prepared stubs and receive no execution grant.
-        let tool = exported.bundle.source_map[&case.evidence_plan[0].id]
-            .declarations
-            .iter()
-            .find(|declaration| declaration.kind == "tool")
-            .expect("native acquisition tool")
-            .name
-            .clone();
-        let mut binding = exported
-            .registry
-            .tools
-            .get(&tool)
-            .expect("native binding")
-            .clone();
+        let selected = catalogue();
+        let descriptor = selected.get(provider).unwrap();
+        let source = collector_source::source(
+            &descriptor.version,
+            &descriptor.input(&plan[0]).unwrap(),
+            &descriptor.acquisition_predicate,
+        );
+        let tool = "source".to_owned();
+        let mut binding = descriptor.binding(&plan[0]).unwrap();
         for argument in &mut binding.argv {
             *argument = match argument.as_str() {
                 "eal-collector" => collector.to_str().unwrap().to_owned(),
@@ -325,25 +282,17 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
             tools: std::collections::BTreeMap::from([(tool, binding)]),
         };
         std::fs::write(dir.path().join("tools.toml"), registry.to_toml().unwrap()).unwrap();
-        let bundle = exported.bundle;
-        assert_eq!(
-            host(
-                &binary,
-                dir.path(),
-                json!({"operation":"validate","source":bundle.source})
-            )["valid"],
-            true
+        let validation = host(
+            &binary,
+            dir.path(),
+            json!({"operation":"validate","source":source}),
         );
-        let evidence = &bundle.source_map[&case.evidence_plan[0].id]
-            .declarations
-            .iter()
-            .find(|d| d.kind == "evidence")
-            .unwrap()
-            .name;
+        assert_eq!(validation["valid"], true, "{validation}");
+        let evidence = "observation";
         let collected = host(
             &binary,
             dir.path(),
-            json!({"operation":"collect","source":bundle.source,"context":bundle.context,"evidence_ids":[evidence]}),
+            json!({"operation":"collect","source":source,"context":{},"evidence_ids":[evidence]}),
         );
         assert_eq!(
             collected["records"][evidence]["status"], "ok",
@@ -367,15 +316,11 @@ fn latest_native_collectors_execute_with_mock_services_and_preserve_negatives() 
         let assessment = host(
             &binary,
             dir.path(),
-            json!({"operation":"reason","source":bundle.source,"context":bundle.context,"collection_id":collected["collection_id"]}),
+            json!({"operation":"reason","source":source,"context":{},"collection_id":collected["collection_id"]}),
         );
         assert_eq!(
             assessment["evidence"][evidence]["status"], "available",
             "{assessment}"
-        );
-        assert_eq!(
-            assessment["claims"][&bundle.claim_names["current_claim"]]["status"],
-            "unsupported"
         );
         if let Some(server) = server {
             server.join().unwrap();

@@ -1,0 +1,535 @@
+{
+  "eal_baseline": "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9",
+  "engarg_baseline": "d181276f39f2189cbadf2654c1d0af2233e5e71e",
+  "fixture_sha256_without_header": "93768e8167162c5bf92972c49feb110b6c4ab4bf865d613f660ffa180d5aa800",
+  "limits": [
+    "Latency includes startup, collection, persistence and assessment; repetitions on one host do not establish performance superiority.",
+    "Source inventory and source-change fan-out are static counts, not measured operational complexity or authoring cost.",
+    "Duplicate evaluator count concerns identical complete authored obligation-to-evaluator mappings. Assessment integrity recomputation is a distinct lifecycle step, not a second semantic model.",
+    "Original-plan revisions have source inventory only; no execution timing or historical authoring-call count is inferred.",
+    "Store bytes sum logical file lengths after process exit, including SQLite metadata and lock/key files, not allocated disk blocks."
+  ],
+  "obligation_inventory": {
+    "acceptance_predicates": 9,
+    "evidence_obligations": 4,
+    "mappings": {
+      "audit": {
+        "evaluator_sha256": "0519ebc33be80fd1db510c3cb14bf1b408cae1f890fbd0caa7ab9b39f10e9ffb",
+        "kind": "acquisition",
+        "predicate_count": 2
+      },
+      "count_check": {
+        "evaluator_sha256": "cc700030a00b3b08f8d990badaee9005262297f431dd699f9935d33f59f16c71",
+        "kind": "pure_derivation",
+        "predicate_count": 2
+      },
+      "distinct_check": {
+        "evaluator_sha256": "5eda8c1f9fdc1d705a25315a2d30b1828ce7a8cdf8a9ed1770f109e1703c8e59",
+        "kind": "pure_derivation",
+        "predicate_count": 2
+      },
+      "snapshot": {
+        "evaluator_sha256": "bd37e98f26f71db9986e8dae6dfa77795ca638ed290c73c57429cc2d857617af",
+        "kind": "acquisition",
+        "predicate_count": 3
+      }
+    },
+    "static_duplicate_obligation_evaluator_mappings": 0
+  },
+  "question": "Does the retrieved fixture-v1 snapshot contain exactly three pairwise distinct case-sensitive string entries?",
+  "schema": "engarg.eal4-completion-measurement/1",
+  "scope": "One synthetic finite claim, two local command transports, fixed observed and assessment times, fresh stores. No external catalogue/population or model authoring measurement.",
+  "structural_source_inventory": {
+    "eal": {
+      "completion_baseline": {
+        "content_tree_sha256": "bdf77da49848c04a4440cc6ffdce2dd3953b14a02874167ded35524bae16011d",
+        "production_source_bytes": 2255334,
+        "production_source_files": 337,
+        "production_source_lines": 60582,
+        "revision": "cf9d43d42e6983c69f7c09fc72cf2881fe7deef9",
+        "source_change_fan_out_to_current": {
+          "added": 6,
+          "modified": 61,
+          "removed": 1
+        }
+      },
+      "current_working_tree": {
+        "content_tree_sha256": "7f0946df5cb52e6af8da5dc539d71908636b698d77f24bfc9313f1f98f267771",
+        "head_revision": "add531f3c14b01ea1db07d84be76800ea5db66a4",
+        "production_source_bytes": 2293033,
+        "production_source_files": 342,
+        "production_source_lines": 61562
+      },
+      "original_plan_base": {
+        "content_tree_sha256": "69b9e17caea17c851fc2d351efbdfa3d7ba40d080b07d389d3ea39d80a1bcf6e",
+        "production_source_bytes": 2262317,
+        "production_source_files": 315,
+        "production_source_lines": 60419,
+        "revision": "520abf0e2ad0936c451d131fd339bb4e10d08f27",
+        "source_change_fan_out_to_current": {
+          "added": 45,
+          "modified": 84,
+          "removed": 18
+        }
+      }
+    },
+    "engarg": {
+      "completion_baseline": {
+        "content_tree_sha256": "562d82088e198cc7d2914cc5ba935f0ff463fc6ea59c47f1f5df67d65c6fbf82",
+        "production_source_bytes": 1869679,
+        "production_source_files": 161,
+        "production_source_lines": 47729,
+        "revision": "d181276f39f2189cbadf2654c1d0af2233e5e71e",
+        "source_change_fan_out_to_current": {
+          "added": 5,
+          "modified": 37,
+          "removed": 12
+        }
+      },
+      "current_working_tree": {
+        "content_tree_sha256": "514d407972467cbe646a21d9d46b44e9ae7b054113d4a7818217dd62cd391e12",
+        "head_revision": "d181276f39f2189cbadf2654c1d0af2233e5e71e",
+        "production_source_bytes": 1750140,
+        "production_source_files": 154,
+        "production_source_lines": 44689
+      },
+      "original_plan_base": {
+        "content_tree_sha256": "50f9c3dd0410522046cf22263ac3ac241d63013bfa029c9cffb6c5fa53acc217",
+        "production_source_bytes": 2017756,
+        "production_source_files": 165,
+        "production_source_lines": 51604,
+        "revision": "79e2903f67820a10c08bc4606075efda346bedc5",
+        "source_change_fan_out_to_current": {
+          "added": 16,
+          "modified": 56,
+          "removed": 27
+        }
+      }
+    }
+  },
+  "tool_implementation_sha256": "8c684df97fc9c78f7ca12000096fab8b1ebd9ace697e9c1c3ce4d9d817c12feb",
+  "variants": {
+    "completion_baseline": {
+      "binary_sha256": "f4ea37179adac2a8f25e99742c5a946093d22f1da046f447f1055e2e3b30c46d",
+      "latency_ns": {
+        "maximum": 251772305,
+        "median": 120015350,
+        "minimum": 100304960
+      },
+      "runs": [
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal9-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3845,
+          "generated_package_files": 3,
+          "latency_ns": 251772305,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2742,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "103d3815c7f86fc233893e5e67950a085b9166099c977ed9155b0a7c875b1042",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        },
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal9-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3845,
+          "generated_package_files": 3,
+          "latency_ns": 100304960,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2742,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "641ec28779a8633aa7cdfff317a8dacd4da802478efc7640293cd9ecd52f6702",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        },
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal9-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3845,
+          "generated_package_files": 3,
+          "latency_ns": 111440721,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2742,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "a72994c13f2fefb49db38cba79fd1487118177abe4517abf9f649fc8bda3b3b7",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        },
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal9-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3845,
+          "generated_package_files": 3,
+          "latency_ns": 121805754,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2742,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "fdae9a2f08d4793b08b6270d5512645fc7db22ca20f8c20b1f02511e6e897166",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        },
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal9-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3845,
+          "generated_package_files": 3,
+          "latency_ns": 120015350,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2742,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "2973ad1620d478b5db1f97c2a2f420f95bb1fba3ff2f7b8494ca87d03d7d9881",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        }
+      ],
+      "source_sha256": "129d5cd5608f138e8fe259b4102aab2894f9bbd1dfcff59e60d3bb456c1eb84d"
+    },
+    "eal4_current": {
+      "binary_sha256": "24df5a526a80fd19e14aa0cfef864236199a2dbbf4713aa11379e29a32b79c01",
+      "latency_ns": {
+        "maximum": 150948051,
+        "median": 119964554,
+        "minimum": 102594112
+      },
+      "runs": [
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal4-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3823,
+          "generated_package_files": 3,
+          "latency_ns": 136149658,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2720,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "e8f2d09aa8519eaef18467bb572e65402f0fadcd5d2b6d4b3b327df7151287ca",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        },
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal4-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3823,
+          "generated_package_files": 3,
+          "latency_ns": 102594112,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2720,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "5296fcae6f64425d7bdf0e006b7a13dfc3527993723bcdae101f916f927ba4cb",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        },
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal4-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3823,
+          "generated_package_files": 3,
+          "latency_ns": 119964554,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2720,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "be154cfba3700460c68b28b4e8d52538a1be6644cdcba48d6337d83e432a233d",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        },
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal4-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3823,
+          "generated_package_files": 3,
+          "latency_ns": 150948051,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2720,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "ab1834500e194ef443d6e45af2a5b92bfb3d57934427c567f6a6dd30560a5904",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        },
+        {
+          "assessment": {
+            "claim_status": "supported",
+            "complete": true,
+            "valid": true
+          },
+          "command": [
+            "/tmp/eal4-check/release/eal-host",
+            "run",
+            "case.eal",
+            "--tools",
+            "tools.toml",
+            "--workspace",
+            "store",
+            "--claim",
+            "inventory_verified",
+            "--now",
+            "2026-10-25T12:00:00Z"
+          ],
+          "duplicate_acquisition_requests": 0,
+          "execution_phase_model_calls": 0,
+          "exit_status": 0,
+          "generated_package_bytes": 3823,
+          "generated_package_files": 3,
+          "latency_ns": 115908017,
+          "logical_acquired_snapshot_bytes": 93,
+          "logical_eal_source_bytes": 2720,
+          "model_call_basis": "No model client or provider is configured; all executable bindings are the two retained local command fixtures.",
+          "normalized_observation_value_bytes": 232,
+          "observation_values_sha256": "da206aac9762976586d710dc2ec126ac554b4dab3b3756531e69176402bd974b",
+          "requests_per_operation": {
+            "audit": 1,
+            "snapshot": 1
+          },
+          "retained_observation_records": 4,
+          "retained_output_sha256": "34b6dc9b3431c7e1e53637c3fc23c51a45b153e32455c5006c4a830d6fd083ef",
+          "retained_pure_derivation_records": 2,
+          "source_requests": 2,
+          "store_bytes": 73760
+        }
+      ],
+      "source_sha256": "b5f7e0c1e4afd53a6a103ba87ac3364bc1727a7a8084155f98845e294ac1338a"
+    }
+  }
+}

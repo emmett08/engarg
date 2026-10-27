@@ -111,28 +111,6 @@ fn numeric_threshold(value: &serde_json::Value, unit: &str) -> bool {
 fn criterion_errors(requirement: &SupportRequirement) -> Vec<String> {
     let mut errors = Vec::new();
     match &requirement.acceptance {
-        EvaluationCriterion::MethodInput { method } => {
-            use eal_collector_contracts::capability::SupportType;
-            if !matches!(
-                method.as_str(),
-                "deductive/1" | "inductive/1" | "abductive/1" | "causal/1" | "counterfactual/1"
-            ) {
-                errors.push(format!("support requirement {} method_input needs an installed bounded reasoning method", requirement.id));
-            }
-            let admissible = requirement.contract.as_ref().is_some_and(|contract| {
-                matches!(
-                    (contract.support_type, contract.logical_strength),
-                    (SupportType::SourceRetrieval, LogicalStrength::Clarification)
-                        | (SupportType::Calculation, LogicalStrength::ExactCalculation)
-                ) && contract.population.is_none()
-                    && contract.quantities.iter().any(|quantity| {
-                        matches!(quantity.unit.as_str(), "json" | "EAL/typed-input/1")
-                    })
-            });
-            if !admissible {
-                errors.push(format!("support requirement {} method_input admits a formal envelope only: use source_retrieval/clarification or calculation/exact_calculation, a JSON quantity and no population; it cannot establish empirical, statistical or proof coverage", requirement.id));
-            }
-        }
         EvaluationCriterion::Numeric {
             value_unit,
             threshold_unit,
@@ -195,26 +173,6 @@ pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboratio
     if !super::supported_schema(&elaboration.schema) {
         errors.push("unsupported support elaboration schema".into());
     }
-    for requirement in &elaboration.requirements {
-        if let EvaluationCriterion::MethodInput { method } = &requirement.acceptance {
-            let matching = case.warrants.iter().find(|warrant| {
-                warrant.id == requirement.target_id
-                    && warrant
-                        .reasoning_method
-                        .as_ref()
-                        .and_then(|binding| binding.bound())
-                        .is_some_and(|bound| {
-                            bound.method.identifier() == method
-                                && requirement.evidence_need_ids.len() == 1
-                                && requirement.evidence_need_ids.first()
-                                    == Some(&bound.input_evidence_need_id)
-                        })
-            });
-            if matching.is_none() {
-                errors.push(format!("support requirement {} method_input must cover only the exact formal-input evidence need of its bound warrant and method", requirement.id));
-            }
-        }
-    }
     if elaboration.requirements.is_empty()
         || elaboration.requirements.len() > MAX_RECORDS
         || elaboration.acquisitions.len() + elaboration.derivations.len() > MAX_RECORDS
@@ -261,6 +219,25 @@ pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboratio
     let mut covered_targets = BTreeSet::new();
     let mut covered_needs = BTreeSet::new();
     for requirement in &elaboration.requirements {
+        if requirement.role == super::SupportRequirementRole::Support
+            && case
+                .defeaters
+                .iter()
+                .any(|defeater| defeater.id == requirement.target_id)
+        {
+            errors.push(format!("support requirement {} needs an explicit challenge_activation or challenge_resolution role for its defeater target",requirement.id));
+        }
+        if requirement.role != super::SupportRequirementRole::Support
+            && !case
+                .defeaters
+                .iter()
+                .any(|defeater| defeater.id == requirement.target_id)
+        {
+            errors.push(format!(
+                "support requirement {} challenge role requires a defeater target",
+                requirement.id
+            ));
+        }
         if canonical_identity(requirement).is_err() {
             errors.push(format!(
                 "support requirement {} exceeds canonical JSON limits",
@@ -654,6 +631,7 @@ fn graph_errors(
             .iter()
             .chain(&evaluation.applicability)
             .chain(&evaluation.challenges)
+            .chain(&evaluation.coverage)
             .any(|reference| !valid_ref(&reference))
         {
             errors.push(format!(
@@ -680,6 +658,7 @@ fn graph_errors(
                 .iter()
                 .chain(&evaluation.applicability)
                 .chain(&evaluation.challenges)
+                .chain(&evaluation.coverage)
         })
         .map(|reference| reference.step_id.as_str())
         .collect::<Vec<_>>();
@@ -708,6 +687,27 @@ pub fn validate_revision(
     previous: &SupportElaboration,
     current_case: &ArgumentCase,
     current: &SupportElaboration,
+) -> Vec<String> {
+    validate_revision_mode(previous_case, previous, current_case, current, true)
+}
+
+/// Explicit argument revisions may change an evidence criterion. Its affected
+/// requirement still needs the exact previous digest and an authored reason.
+pub fn validate_argument_revision(
+    previous_case: &ArgumentCase,
+    previous: &SupportElaboration,
+    current_case: &ArgumentCase,
+    current: &SupportElaboration,
+) -> Vec<String> {
+    validate_revision_mode(previous_case, previous, current_case, current, false)
+}
+
+fn validate_revision_mode(
+    previous_case: &ArgumentCase,
+    previous: &SupportElaboration,
+    current_case: &ArgumentCase,
+    current: &SupportElaboration,
+    preserve_evidence_needs: bool,
 ) -> Vec<String> {
     let mut errors = validate_elaboration(current_case, current);
     let previous_requirements: BTreeMap<_, _> = previous
@@ -738,7 +738,8 @@ pub fn validate_revision(
         current,
     );
     for need in &previous_case.evidence_plan {
-        if current_index.node(&need.target_id).is_some()
+        if preserve_evidence_needs
+            && current_index.node(&need.target_id).is_some()
             && current_needs.get(need.id.as_str()).is_none_or(|current| {
                 current.target_id != need.target_id
                     || current.acceptance_criterion != need.acceptance_criterion

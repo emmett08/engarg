@@ -369,6 +369,45 @@ fn a_credential_matching_the_redaction_marker_cannot_reappear_in_output() {
 }
 
 #[test]
+fn direct_http_and_mcp_credentials_require_manifest_authority() {
+    let directory = TempDir::new().unwrap();
+    let mut envelope = response(json!({"ready":true}));
+    envelope["operation"] = json!("describe");
+    let config = mock(
+        &directory,
+        &format!(
+            "[ -n \"$LAB_API_TOKEN\" ] || exit 42\n{}",
+            emit(&envelope, 0)
+        ),
+    );
+    let registry = directory.path().join("tools.toml");
+    for mapping in [
+        "kind='mcp_http'\nversion='1'\n[tools.lab.direct]\ntool='measure'\nurl='https://example.invalid/mcp'\ntoken_env='LAB_API_TOKEN'\n",
+        "kind='http_get'\nversion='1'\n[tools.lab.direct]\nurl='https://example.invalid/result'\n[tools.lab.direct.headers_env]\nX-Api-Key='LAB_API_TOKEN'\n",
+    ] {
+        fs::write(&registry, format!("[tools.lab]\n{mapping}")).unwrap();
+        let output = collector_cli(&directory, &config.executable, &registry)
+            .env("LAB_API_TOKEN", "synthetic-direct-source-credential")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !String::from_utf8_lossy(&output.stdout).contains("synthetic-direct-source-credential")
+        );
+    }
+    fs::write(&registry, "[tools.lab]\nkind='http_get'\nversion='1'\n[tools.lab.direct]\nurl='https://example.invalid/result'\n").unwrap();
+    let output = collector_cli(&directory, &config.executable, &registry)
+        .env("LAB_API_TOKEN", "synthetic-direct-source-credential")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+}
+
+#[test]
 fn undeclared_or_missing_collector_credentials_fail_before_host_execution() {
     let directory = TempDir::new().unwrap();
     let marker = directory.path().join("started");

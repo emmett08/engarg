@@ -34,7 +34,7 @@ pub fn cases() -> Vec<ModeCase> {
         ModeCase {
             kind: "deductive",
             evidence_kind: "logical_case",
-            method: json!({"kind":"deductive","premises":["p",{"implies":["p","q"]}],"conclusion":"q"}),
+            method: json!({"identifier":"deductive/1","query":{"premises":["p",{"implies":["p","q"]}],"conclusion":"q"}}),
             payload: json!({"premises":["p",{"implies":["p","q"]}],"conclusion":"q"}),
             result: json!({"path":"entailed","operator":"==","expected":true}),
             quantity: "proposition",
@@ -44,7 +44,7 @@ pub fn cases() -> Vec<ModeCase> {
         ModeCase {
             kind: "inductive",
             evidence_kind: "sample",
-            method: json!({"kind":"inductive","confidence":0.95}),
+            method: json!({"identifier":"inductive/1","query":{"confidence":0.95}}),
             payload: json!({"successes":90,"trials":100,"confidence":0.95}),
             result: json!({"path":"lower","operator":">=","expected":0.8}),
             quantity: "probability",
@@ -54,7 +54,7 @@ pub fn cases() -> Vec<ModeCase> {
         ModeCase {
             kind: "abductive",
             evidence_kind: "hypotheses",
-            method: json!({"kind":"abductive","observed":"The test bench emitted the alarm.","candidates":[{"name":"A","prior":0.5,"likelihood":0.9},{"name":"B","prior":0.5,"likelihood":0.1}]}),
+            method: json!({"identifier":"abductive/1","query":{"observed":"The test bench emitted the alarm.","candidates":[{"name":"A","prior":0.5,"likelihood":0.9},{"name":"B","prior":0.5,"likelihood":0.1}]}}),
             payload: json!({"observed":"The test bench emitted the alarm.","candidates":[{"name":"A","prior":0.5,"likelihood":0.9},{"name":"B","prior":0.5,"likelihood":0.1}]}),
             result: json!({"path":"posterior.A","operator":">=","expected":0.8}),
             quantity: "probability",
@@ -64,7 +64,7 @@ pub fn cases() -> Vec<ModeCase> {
         ModeCase {
             kind: "causal",
             evidence_kind: "experiment",
-            method: json!({"kind":"causal","assignment":"randomised"}),
+            method: json!({"identifier":"causal/1","query":{"assignment":"randomised"}}),
             payload: json!({"assignment":"randomised","treatment":[7,9],"control":[1,3]}),
             result: json!({"path":"estimate","operator":">=","expected":5}),
             quantity: "time",
@@ -74,7 +74,7 @@ pub fn cases() -> Vec<ModeCase> {
         ModeCase {
             kind: "counterfactual",
             evidence_kind: "causal_model",
-            method: json!({"kind":"counterfactual","variables":[{"name":"X","intercept":1.0,"coefficients":[],"noise":0.0},{"name":"Y","intercept":0.0,"coefficients":[{"variable":"X","coefficient":2.0}],"noise":1.0}],"intervention":{"variable":"X","value":4.0},"outcome":"Y"}),
+            method: json!({"identifier":"counterfactual/1","query":{"variables":{"X":{"intercept":1.0,"coefficients":{},"noise":0.0},"Y":{"intercept":0.0,"coefficients":{"X":2.0},"noise":1.0}},"intervention":{"variable":"X","value":4.0},"outcome":"Y"}}),
             payload: json!({"variables":{"X":{"intercept":1.0,"coefficients":{},"noise":0.0},"Y":{"intercept":0.0,"coefficients":{"X":2.0},"noise":1.0}},"intervention":{"variable":"X","value":4.0},"outcome":"Y"}),
             result: json!({"path":"difference","operator":"==","expected":6}),
             quantity: "time",
@@ -118,10 +118,8 @@ fn binding(mode: &ModeCase) -> Value {
     json!({
         "status":"bound",
         "method":mode.method,
-        "input_evidence_need_id":"N5",
         "formal_premises":premises,
         "evidence_requirements":[
-            {"evidence_need_id":"N5","role":"formal_input","requirement":"Acquire the exact typed method input from the frozen test bench."},
             {"evidence_need_id":"N7","role":"premise_observation","requirement":"Acquire the independently identified source observation represented by G1, without treating computation input as proof of empirical truth."},
             {"evidence_need_id":"N6","role":mode.design_role,"requirement":"Acquire the identified design or model and check its applicability to the same test bench."}
         ],
@@ -154,7 +152,7 @@ pub fn fixture(mode: &ModeCase) -> (Request, ArgumentCase) {
     };
     let request: Request = serde_json::from_value(json!({"claim":claim})).unwrap();
     let needs: Vec<_> = [
-        ("N5", "W1", "Acquire the method-specific formal input for W1."),
+        ("N5", "W1", "Review whether the declared method answers the bounded claim."),
         ("N6", "A1", "Check the declared sampling, intervention or formal-model applicability contract."),
         ("N7", "G1", "Acquire the source observation represented by the formal premise, independently of the computation input."),
     ].into_iter().map(|(id,target,question)| json!({

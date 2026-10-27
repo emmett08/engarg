@@ -61,11 +61,11 @@ class WorkflowContractTests(unittest.TestCase):
             if re.search(r"#\s*\[\s*ignore\b", path.read_text())
         }
         self.assertEqual(targets, ignored)
-        self.assertTrue(any(
-            "--bin" in command and "engarg" in command
-            and "tooling_commands::native_provider" in command
-            for command in native
-        ))
+        # These targets exercise actual direct package and public authoring
+        # paths; a deleted Rust module filter would silently run zero tests.
+        for target in ["executable_package", "executable_modes", "support_cli"]:
+            self.assertTrue(any(target in command for command in native))
+        self.assertNotIn("tooling_commands::native_provider", workflow)
         # Retain both the installed-release and producer-debug preflight paths.
         self.assertTrue(any(
             "tooling_docker" in command

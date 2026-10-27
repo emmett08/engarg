@@ -50,13 +50,20 @@ fn review_request() -> Value {
     request["tool"] = json!("engarg_review_contract");
     request["input"] = json!({"schema":"engarg.eal-export/1","case_digest":DIGEST,
         "obligation":{"id":"evidence_need:E1","requirement":"review actual source"},
-        "authored_detail":{"text":"bounded sample"},"required_acquisitions":[{"need_id":"E1"}]});
+        "authored_detail":{"text":"bounded sample"},"required_acquisitions":[{"need_id":"E1"}],
+        "criterion":"review actual source","target":"evidence_need:E1","scope":{"case_digest":DIGEST,"target_id":"evidence_need:E1"}});
     request
 }
 
 fn reviews(request: &Value, value: Value) -> Value {
-    json!({"schema":"engarg.review-inputs/1","reviews":[{
-        "request":correspondence(request),"observed_at":EARLIER,"value":value}]})
+    json!({"schema":"eal.review-inputs/2","reviews":[{
+        "request":correspondence(request),"value":value}]})
+}
+
+fn review_value(verdict: &str) -> Value {
+    json!({"criterion":"review actual source","target":"evidence_need:E1",
+        "scope":{"case_digest":DIGEST,"target_id":"evidence_need:E1"},"reviewer":"identified-test-reviewer",
+        "verdict":verdict,"reasons":["The retained decision is not inferred by this importer."],"reviewed_at":EARLIER})
 }
 
 #[test]
@@ -182,13 +189,12 @@ fn parent_traversal_and_symlink_escape_fail_but_absolute_grants_work() {
 }
 
 #[test]
-fn retained_reviews_preserve_authored_positive_and_negative_decisions() {
+fn retained_reviews_preserve_scoped_verdicts_and_original_clock() {
     let directory = TempDir::new().unwrap();
     let path = directory.path().join("reviews.json");
     let request = review_request();
-    for accepted in [false, true] {
-        let value = json!({"accepted":accepted,"reviewer":"independent-test-reviewer",
-            "reason":"the retained decision is not inferred by this importer"});
+    for verdict in ["supported", "rejected", "inconclusive"] {
+        let value = review_value(verdict);
         save_json(&path, &reviews(&request, value.clone()));
         let result = observe("review_json", request.clone(), &path).unwrap();
         assert_eq!(result["value"], value);
@@ -203,7 +209,7 @@ fn reviews_do_not_accept_changed_requests_contexts_or_unbound_values() {
     let directory = TempDir::new().unwrap();
     let path = directory.path().join("reviews.json");
     let request = review_request();
-    save_json(&path, &reviews(&request, json!({"accepted":true})));
+    save_json(&path, &reviews(&request, review_value("supported")));
     for (pointer, replacement) in [
         ("/input/authored_detail/text", json!("different")),
         ("/input/required_acquisitions", json!([])),
@@ -225,7 +231,23 @@ fn reviews_do_not_accept_changed_requests_contexts_or_unbound_values() {
         save_json(&path, &reviews(&request, value));
         assert!(observe("review_json", request.clone(), &path).is_err());
     }
-    let mut duplicate = reviews(&request, json!({"accepted":true}));
+    for (field, replacement) in [
+        ("reviewer", json!("")),
+        ("criterion", json!("different")),
+        ("target", json!("different")),
+        ("scope", json!({"case_digest":DIGEST})),
+        ("reasons", json!([])),
+        ("reviewed_at", json!("2025-02-29T12:00:00Z")),
+    ] {
+        let mut value = review_value("supported");
+        value[field] = replacement;
+        save_json(&path, &reviews(&request, value));
+        assert!(
+            observe("review_json", request.clone(), &path).is_err(),
+            "{field}"
+        );
+    }
+    let mut duplicate = reviews(&request, review_value("supported"));
     let repeated = duplicate["reviews"][0].clone();
     duplicate["reviews"].as_array_mut().unwrap().push(repeated);
     save_json(&path, &duplicate);

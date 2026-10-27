@@ -17,6 +17,17 @@ pub fn generation_value(case: &impl Serialize) -> Value {
         .expect("case fixture object")
         .entry("dissent_revisions")
         .or_insert(Value::Null);
+    if let Some(warrants) = value["warrants"].as_array_mut() {
+        for warrant in warrants {
+            if let Some(method) = warrant
+                .pointer_mut("/reasoning_method/method")
+                .and_then(Value::as_object_mut)
+                && let Some(query) = method.remove("query")
+            {
+                method.insert("query_json".into(), Value::String(query.to_string()));
+            }
+        }
+    }
     value
 }
 
@@ -26,7 +37,7 @@ pub fn value(source: &str) -> Value {
         let method = warrant["inference"].as_str().expect("fixture inference");
         if matches!(
             method,
-            "deductive" | "inductive" | "abductive" | "causal" | "counterfactual"
+            "deductive" | "inductive" | "abductive" | "causal" | "counterfactual" | "analogical"
         ) && warrant.get("reasoning_method").is_none_or(Value::is_null)
         {
             warrant["reasoning_method"] = json!({

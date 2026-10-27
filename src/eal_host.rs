@@ -190,7 +190,7 @@ fn collector_environment(
     for name in names {
         if !environment_name(name) || !selected.insert(name) || !allowed.contains(name) {
             return Err(invalid(
-                "collector-env requires distinct names declared in the registry's inherit_env",
+                "collector-env requires distinct names explicitly declared by the tool bindings",
             ));
         }
         let value = std::env::var_os(name)
@@ -209,7 +209,7 @@ fn collector_environment(
     Ok(values)
 }
 
-/// Only operator command bindings can grant forwarding through this process.
+/// Only explicit operator tool bindings can grant forwarding through this process.
 /// The official host remains responsible for complete registry validation.
 fn registry_environment(path: &Path) -> Result<BTreeSet<String>, Error> {
     let bytes = crate::bounded_file::read(path, MAX_REGISTRY, "eal-host registry")?;
@@ -221,6 +221,10 @@ fn registry_environment(path: &Path) -> Result<BTreeSet<String>, Error> {
     for binding in registry.tools.values() {
         if let Some(inherited) = &binding.inherit_env {
             allowed.extend(inherited.iter().cloned());
+        }
+        if let Some(direct) = &binding.direct {
+            allowed.extend(direct.token_env.iter().cloned());
+            allowed.extend(direct.headers_env.values().cloned());
         }
     }
     Ok(allowed)

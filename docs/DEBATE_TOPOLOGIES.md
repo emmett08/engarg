@@ -158,11 +158,11 @@ The graph contract constrains context visibility and resource use. It supplies n
 
 ## Architecture
 
-`eal-coordination-contracts` contains the directed graph contract, a cohesive builder module for each structure and the pure round state machine. EngArg re-exports the topology types through `engine::topology`. A tagged Rust enum dispatches to stateless builders. EAL coordination owns routing, round barriers and durable dispatch receipts. EngArg owns domain prompts, provider calls, assessment validation and objection retention. Normal construction, flat tool planning and support-graph planning use the same adapter.
+`eal-coordination-contracts` contains the directed graph contract, a cohesive builder module for each structure and the pure round state machine. EngArg re-exports the topology types through `engine::topology`. A tagged Rust enum dispatches to stateless builders. EAL coordination owns routing, round barriers and durable dispatch receipts. EngArg owns domain prompts, provider calls, assessment validation and objection retention. Argument-only construction, direct operation planning and optional capability discovery use the same adapter.
 
 This uses static strategy selection through ordinary functions. A trait hierarchy would add indirection to these closed, data-selected variants without changing the executor's graph contract. A new structure requires a builder, its enum variant and graph tests. Execution and final validation remain independent of the graph shape.
 
-Saved reports keep the existing `engarg.run.v2` schema. Earlier configurations without `debate` still load and use the legacy workflow. Rust callers constructing `RunConfig` with an exhaustive struct literal must add `debate: None` and `coordinator: None`, or use `..RunConfig::default()`. Public engine type paths remain unchanged after configuration extraction.
+Saved reports use the current `engarg.run.v3` schema. Omitting `debate` selects the ordinary role sequence; supplying it selects the declared debate topology. Rust callers can construct `RunConfig` with `..RunConfig::default()` for optional configuration fields.
 
 ## Relation to the protocol case study
 

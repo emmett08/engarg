@@ -1,4 +1,4 @@
-//! Admit the evidence ages required by both support planning and EAL/3 export.
+//! Admit the evidence ages required by both support planning and EAL/4 export.
 use super::{SupportElaboration, SupportRequirement};
 use eal_collector_contracts::execution::EvaluationCriterion;
 use std::collections::BTreeMap;
@@ -21,7 +21,7 @@ pub fn requirement_age_seconds(
             Ok(0)
         }
         _ => Err(format!(
-            "SUPPORT_FRESHNESS_CLARIFICATION: requirement {} needs an explicit positive bounded freshness contract before EAL/3 can collect it; set the same max_age_seconds in its requirement contract and evaluation, or repair retained support with eal repair",
+            "SUPPORT_FRESHNESS_CLARIFICATION: requirement {} needs an explicit positive bounded freshness contract before EAL/4 can collect it; set the same max_age_seconds in its requirement contract and evaluation, or repair retained support with eal repair",
             requirement.id
         )),
     }

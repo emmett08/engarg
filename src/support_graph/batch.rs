@@ -263,6 +263,7 @@ pub(super) fn evaluation_depends_on(
         .iter()
         .chain(&evaluation.applicability)
         .chain(&evaluation.challenges)
+        .chain(&evaluation.coverage)
         .any(|reference| descendants.contains(reference.step_id.as_str()))
 }
 

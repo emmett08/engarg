@@ -17,7 +17,6 @@ use eal_core::{ExecutionLimits, composition, planning::EvidencePlanner, validati
 use engarg::{
     Error,
     domain::ArgumentCase,
-    eal_export,
     engine::{
         CoordinatorConfig, RunConfig, RunReport, run,
         topology::{DebateConfig, Topology},
@@ -31,6 +30,9 @@ mod live_output;
 #[path = "common/reasoning.rs"]
 #[allow(dead_code)]
 mod reasoning;
+#[path = "common/reasoning_graph.rs"]
+#[allow(dead_code)]
+mod reasoning_graph;
 
 const TOPOLOGIES: [&str; 9] = [
     "fully_connected",
@@ -113,14 +115,33 @@ async fn native_provider_responses_satisfy_generation_schema_without_a_coordinat
         let output: Value = serde_json::from_str(&response.content).unwrap();
         assert_schema(&schema, &output);
         assert_eq!(output.get("dissent_revisions"), Some(&Value::Null));
-        assert_eq!(output["warrants"], original["warrants"]);
+        assert!(output["warrants"][0]["reasoning_method"]["method"]["query_json"].is_string());
+        assert!(
+            output["warrants"][0]["reasoning_method"]["method"]
+                .get("query")
+                .is_none()
+        );
+        let canonical: ArgumentCase = serde_json::from_value(output).unwrap();
+        assert_eq!(
+            serde_json::to_value(canonical).unwrap()["warrants"],
+            original["warrants"]
+        );
     }
     let mut revised = original;
     revised["dissent_revisions"] = json!({
         "schema": "engarg.dissent-revisions/1",
         "applications": [{"objection_id": "retained-objection"}],
     });
-    assert_eq!(live_output::generation_value(&revised), revised);
+    let mut wire = live_output::generation_value(&revised);
+    assert_eq!(wire["dissent_revisions"], revised["dissent_revisions"]);
+    // This deliberately partial revision tests preservation of authored values;
+    // the remainder is decoded through the same method transport as production.
+    wire["dissent_revisions"] = Value::Null;
+    let canonical: ArgumentCase = serde_json::from_value(wire).unwrap();
+    assert_eq!(
+        serde_json::to_value(canonical).unwrap()["warrants"],
+        revised["warrants"]
+    );
 }
 
 fn native_coordinator() -> PathBuf {
@@ -239,7 +260,21 @@ fn assert_routing(calls: &[CompletionRequest], debate: &DebateConfig) {
 }
 
 fn assert_native_export(report: &RunReport) {
-    let bundle = eal_export::export(&report.request, &report.argument).unwrap();
+    let (_, _, elaboration, _, _) = reasoning_graph::graph_fixture(&reasoning::cases().remove(0));
+    let versions = elaboration
+        .acquisitions
+        .iter()
+        .map(|source| (source.id.clone(), "1".into()))
+        .collect();
+    let bundle = engarg::support_export::compile_direct(
+        &report.request,
+        &report.argument,
+        &elaboration,
+        &versions,
+        &engarg::export_policy::ExportPolicy::default(),
+    )
+    .unwrap()
+    .bundle;
     let program =
         composition::compile(&bundle.source, None, "", ExecutionLimits::default()).unwrap();
     let diagnostics = validation::validate_default(&program);
@@ -251,7 +286,13 @@ fn assert_native_export(report: &RunReport) {
     assert!(
         plan.calls
             .iter()
-            .any(|call| call.tool == "engarg_reasoning_input")
+            .all(|call| call.tool.as_deref() != Some("engarg_reasoning_input"))
+    );
+    assert!(
+        program
+            .reasoning
+            .values()
+            .any(|reasoning| reasoning.method != "structured/1")
     );
 }
 

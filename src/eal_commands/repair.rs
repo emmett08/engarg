@@ -80,13 +80,13 @@ async fn execute_inner(
             "support recovery retains at most three prior reports".into(),
         ));
     }
-    engarg::tooling::capability::revalidate_report(&raw, &executable)?;
+    engarg::tooling::direct::revalidate_report(&raw, &executable)?;
     let EvidencePlanningReport::Graph(previous) = report::classify_evidence_planning(&raw)? else {
         return Err(Error::InvalidInput(
             "support repair requires a saved graph analysis".into(),
         ));
     };
-    let canonical: CanonicalReport = serde_json::from_value(raw.clone())?;
+    let canonical = report::read_direct(&raw)?;
     if canonical.transcript.is_empty() {
         return Err(Error::InvalidInput(
             "support recovery requires retained authoring calls".into(),
@@ -157,6 +157,15 @@ async fn execute_inner(
         }
         let mut updated = raw.clone();
         updated["evidence_planning"] = json!({"schema":"engarg.support-planning/1","elaboration":candidate.support_elaboration,"routes":routes,"design_review":design});
+        if raw.get("support_elaboration").is_some() {
+            updated["support_elaboration"] = serde_json::to_value(&candidate.support_elaboration)?;
+            updated["direct_bindings"] = serde_json::to_value(
+                engarg::direct_planning::DirectPlan::unbound(&candidate.support_elaboration),
+            )?;
+        }
+        if raw.get("design_review").is_some() {
+            updated["design_review"] = serde_json::to_value(&design)?;
+        }
         updated["transcript"] = serde_json::to_value(&transcript)?;
         let object = updated.as_object_mut().expect("validated object");
         object.remove("tooling");

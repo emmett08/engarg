@@ -133,75 +133,6 @@ fn rejects_mutated_response_request_and_duplicate_json_keys() {
     assert!(exact_json(br#"{"outer":{"x":1,"x":2}}"#).is_err());
 }
 
-fn legacy_directory() -> tempfile::TempDir {
-    let directory = tempfile::tempdir().unwrap();
-    let mut saved = checkpoint();
-    saved.config.max_repairs = 1;
-    saved.config.max_calls = 7;
-    let settings = json!({"model":"fixture","max_output_tokens":"10000","request_timeout_seconds":"120",
-        "max_calls":"7","max_repairs":"1","max_input_bytes":saved.config.max_input_bytes.to_string(),
-        "max_response_bytes":saved.config.max_response_bytes.to_string(),"argument_depth":null,
-        "evidence_config_sha256":digest(b"{}"),"git_commit":"historical-local-revision","engarg_binary_sha256":"historical-binary"});
-    let start = json!({"event":"start","version":env!("CARGO_PKG_VERSION"),"request":saved.request,"config":saved.config,
-        "default_model":"fixture","max_output_tokens":10000,"request_timeout_secs":120});
-    std::fs::write(
-        directory.path().join("run-settings.json"),
-        settings.to_string(),
-    )
-    .unwrap();
-    std::fs::write(
-        directory.path().join("request.json"),
-        serde_json::to_vec(&saved.request).unwrap(),
-    )
-    .unwrap();
-    std::fs::write(directory.path().join("evidence-config.json"), b"{}").unwrap();
-    let call = call(&saved, Role::Constructor);
-    std::fs::write(
-        directory.path().join("analysis.audit.jsonl"),
-        format!("{start}\n{}\n", json!({"event":"completion","record":call})),
-    )
-    .unwrap();
-    directory
-}
-#[test]
-fn imports_legacy_with_explicit_unknown_protocol_and_rejects_changed_settings() {
-    let directory = legacy_directory();
-    let imported = import_legacy(directory.path()).unwrap();
-    assert_eq!(imported.protocol_identity, "legacy-unrecorded");
-    assert_eq!(imported.transcript.len(), 1);
-    let path = directory.path().join("run-settings.json");
-    let mut settings: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    settings["max_calls"] = json!("8");
-    std::fs::write(path, settings.to_string()).unwrap();
-    assert!(
-        import_legacy(directory.path())
-            .unwrap_err()
-            .to_string()
-            .contains("max_calls")
-    );
-}
-#[test]
-fn rejects_incomplete_legacy_jsonl_and_altered_configuration() {
-    let directory = legacy_directory();
-    let path = directory.path().join("analysis.audit.jsonl");
-    let mut bytes = std::fs::read(&path).unwrap();
-    bytes.extend_from_slice(b"{\"event\":");
-    std::fs::write(path, bytes).unwrap();
-    assert!(import_legacy(directory.path()).is_err());
-    let directory = legacy_directory();
-    std::fs::write(
-        directory.path().join("evidence-config.json"),
-        b"{\"changed\":true}",
-    )
-    .unwrap();
-    assert!(
-        import_legacy(directory.path())
-            .unwrap_err()
-            .to_string()
-            .contains("configuration digest")
-    );
-}
-
 #[test]
 fn rejects_skipped_final_stage_and_duplicate_prompt_metadata() {
     let mut saved = checkpoint();
@@ -254,4 +185,93 @@ fn accepted_report_bytes_preserve_the_existing_consumer_limit() {
             .contains("16 MiB consumer limit")
     );
     assert_eq!(admitted_report_bytes(&json!({})).unwrap(), b"{}\n");
+}
+
+fn routed_checkpoint() -> Checkpoint {
+    use crate::engine::topology::{DebateConfig, Topology};
+    let mut saved = checkpoint();
+    saved.config.debate = Some(DebateConfig {
+        participants: 4,
+        rounds: 1,
+        topology: Topology::preset("ring", 4).unwrap(),
+        adaptation: Default::default(),
+    });
+    saved.config.max_calls = 11;
+    let roles = [Role::Constructor, Role::Sceptic, Role::EvidenceAuditor];
+    for (round, participants) in [[3, 2, 0, 1], [1, 3, 2, 0]].into_iter().enumerate() {
+        for participant in participants {
+            let mut record = call(&saved, roles[participant % roles.len()]);
+            record.prompt.user =
+                json!({"request":saved.request,"debate":{"participant":participant,"round":round}})
+                    .to_string();
+            saved.transcript.push(record);
+        }
+    }
+    for role in [Role::Synthesiser, Role::FinalCritic, Role::Adjudicator] {
+        saved.transcript.push(call(&saved, role));
+    }
+    saved
+}
+
+#[test]
+fn routed_rounds_preserve_each_participant_identity_and_parallel_arrival_order() {
+    let saved = routed_checkpoint();
+    saved.validate().unwrap();
+    let ordered = saved.ordered_transcript().unwrap();
+    for (index, record) in ordered[..8].iter().enumerate() {
+        let prompt = exact_json(record.prompt.user.as_bytes()).unwrap();
+        assert_eq!(prompt["debate"]["participant"], index % 4);
+        assert_eq!(prompt["debate"]["round"], index / 4);
+    }
+    assert_eq!(ordered[8].role, Role::Synthesiser);
+    let (mut metadata, order) = saved.compact_parent().unwrap();
+    assert_eq!(order, vec![3, 2, 0, 1, 5, 7, 6, 4, 8, 9, 10]);
+    metadata.transcript = order.iter().map(|index| ordered[*index].clone()).collect();
+    assert_eq!(
+        digest(serde_json::to_vec(&metadata).unwrap()),
+        digest(serde_json::to_vec(&saved).unwrap())
+    );
+    assert_eq!(saved.inspection()["resumable"], true);
+    for incomplete in [6, 8, 9, 10] {
+        let mut partial = saved.clone();
+        partial.transcript.truncate(incomplete);
+        partial.validate().unwrap();
+        assert_eq!(partial.inspection()["resumable"], false);
+    }
+}
+
+#[test]
+fn routed_checkpoint_rejects_duplicate_cross_round_and_wrong_role_calls() {
+    let saved = routed_checkpoint();
+    let mut duplicate = saved.clone();
+    duplicate.transcript[1] = duplicate.transcript[0].clone();
+    assert!(
+        duplicate
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("duplicate")
+    );
+    let mut crossed = saved.clone();
+    crossed.transcript.swap(0, 4);
+    assert!(
+        crossed
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("round")
+    );
+    let mut wrong_role = saved.clone();
+    wrong_role.transcript[0].role = Role::Sceptic;
+    wrong_role.transcript[0].prompt.role = Role::Sceptic;
+    assert!(
+        wrong_role
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("role")
+    );
+    let mut skipped = saved;
+    skipped.transcript.remove(0);
+    assert!(skipped.validate().is_err());
 }

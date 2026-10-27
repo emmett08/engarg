@@ -3,7 +3,6 @@ use engarg::{
     acquisition::{AcquisitionPlan, InputPreparation, ScopedOperation, ToolArgument},
     collector_preparation::prepare_plans,
     domain::{ArgumentCase, Request},
-    eal_acquisition::export_with_plan,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -155,8 +154,8 @@ fn current_typed_bindings_ignore_old_digests_maps_and_unrelated_private_settings
 }
 
 #[tokio::test]
-async fn final_export_digest_and_current_need_mapping_execute_the_literal_search() {
-    let (authored_request, case) = fixture();
+async fn current_case_identity_and_need_mapping_execute_the_literal_search() {
+    let (_, case) = fixture();
     let directory = tempfile::tempdir().unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mut configuration = inputs();
@@ -199,15 +198,14 @@ async fn final_export_digest_and_current_need_mapping_execute_the_literal_search
         directory.path(),
     )
     .unwrap();
-    let export = export_with_plan(&authored_request, &case, &prepared.plans).unwrap();
-    let files = prepared.finish(&export.bundle.revision).unwrap();
+    let files = prepared.finish(FINAL_DIGEST).unwrap();
     assert_eq!(
         value(&files, "scoped-inputs.json")["kubernetes"],
         Value::Null
     );
     write_files(directory.path(), &files);
     let observed = engarg::scoped_collectors::observe(
-        request("N1", &export.bundle.revision),
+        request("N1", FINAL_DIGEST),
         &directory.path().join("scoped-inputs.json"),
     )
     .await
@@ -217,13 +215,10 @@ async fn final_export_digest_and_current_need_mapping_execute_the_literal_search
         observed["value"]["observation"]["data"]["traces"],
         json!([])
     );
-    assert_eq!(
-        observed["context"]["engarg_export_digest"],
-        export.bundle.revision
-    );
+    assert_eq!(observed["context"]["engarg_export_digest"], FINAL_DIGEST);
     assert!(
         engarg::scoped_collectors::observe(
-            request("previous_need", &export.bundle.revision),
+            request("previous_need", FINAL_DIGEST),
             &directory.path().join("scoped-inputs.json")
         )
         .await

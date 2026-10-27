@@ -6,15 +6,16 @@ The complete study has two distinct acceptance questions. Command assertions est
 
 ## Freeze the investigation
 
-Copy `workflow.example.json` and replace its operator paths, producer revision, configuration and qualification procedure. Add each required executable, profile, catalogue and other immutable input to `assets`. Assets are identified by their bytes. The freezer also includes the selected EngArg binary and the planning configuration's collector and connection files. Secret values belong in environment variables. Retained commands contain variable names rather than credential values.
+Copy `workflow.example.json` and replace its operator paths, producer revision, configuration and qualification procedure. Add each required executable, profile, catalogue and other immutable input to `assets`. Assets are identified by their bytes. The freezer also includes the selected EngArg binary, EAL host, tools manifest and the planning configuration’s collector and connection files. Add every referenced implementation, schema and immutable resource to `assets`. Secret values belong in environment variables. Retained commands contain variable names rather than credential values.
 
-The example selects one algorithm case to probe the generated-tool lifecycle. It is an exploratory failure-mode probe, with one repetition and a maximum of eleven EngArg authoring and implementation model calls. External qualification calls are outside that bound and require separate accounting. This sample cannot estimate a population success rate or a tail latency. The six other domain cases retain distinct reference obligations for identity, performance, statistical reliability, API conformance, exact arithmetic and independent design judgement. Select more cases and repetitions only after specifying the precision and resource question they answer.
+The example selects one algorithm case to probe the generated-tool lifecycle. It is an exploratory failure-mode probe, with one repetition and a maximum of twenty-two EngArg authoring and implementation model calls. External qualification calls are outside that bound and require separate accounting. This sample cannot estimate a population success rate or a tail latency. The six other domain cases retain distinct reference obligations for identity, performance, statistical reliability, API conformance, exact arithmetic and independent design judgement. Select more cases and repetitions only after specifying the precision and resource question they answer.
 
 Each selected case has a `development` or `holdout` partition fixed before inference. Cases are the independent units. Repeated runs remain nested within cases. A confirmatory configuration must supply a decision rule and its justification. The harness retains that rule but does not automatically establish its statistical assumptions or declare a confirmatory decision.
 
 ```sh
 python3 scripts/check-support-domains.py \
   --binary target/release/engarg --evidence-config /operator/planning.json \
+  --tools /operator/tools.toml --eal-host /operator/bin/eal-host \
   --model YOUR_MODEL --case specified_algorithm --repetitions 1 \
   --workflow /operator/study.json --freeze-only --output-dir frozen-study
 
@@ -27,17 +28,17 @@ The second command rechecks frozen input and harness hashes before every phase. 
 
 ## Configure the complete workflow
 
-A generated-tool recipe contains `implement`, `qualify`, `register`, `replan`, `export`, `collect` and `assess`, in that order. The driver prepends `analyse`. An existing-tool recipe starts with `replan`. The qualification phase invokes an executable selected by its hashed asset name, with a hashed measurement reference. That procedure must review the generated package and bind its actual identity to the retained semantics. The harness supplies no automatic truth judgement.
+A generated-tool recipe contains `implement`, `qualify`, `build`, `collect` and `assess`, in that order. The driver prepends `analyse`. An existing-tool recipe starts with `build`. Both direct and optional discovery authoring feed the same canonical report and package compiler. The qualification phase invokes an executable selected by its hashed asset name, with a hashed measurement reference. That procedure must review the generated package and bind its actual identity to the retained semantics. The harness supplies no automatic truth judgement.
 
 The collection and assessment recipes explicitly select `PATH` and `HOME` with `--collector-env` and classify those nonsecret settings with `--public-collector-env`. The tools registry must admit each selected name in `inherit_env`. Forwarding a name treats its value as secret unless the operator explicitly classifies it as public; credential names cannot be downgraded. Add every further name required by the qualified runtime, including variables outside the host's standard process environment such as `DOCKER_HOST`, `DOCKER_CONFIG` or `XDG_RUNTIME_DIR`. Classify only reviewed nonsecret settings as public and keep source credentials sensitive. Use the same environment selections for collection and assessment. Retain variable names in the frozen recipe and supply their values through the operator environment.
 
-Each phase supplies an argv array, a finite timeout and outcome assertions. `register` invokes `eal register-tools`. The other ordinary phases invoke the corresponding EngArg subcommand. Implementation has a separate call bound and zero automatic HTTP retries. A phase stops its arm when the process fails, times out, exceeds the 16 MiB log bound or fails an assertion. The other arm and its consumed resources remain recorded.
+Each phase supplies an argv array, a finite timeout and outcome assertions. `build` invokes `engarg build` with the implemented report and merged `tools.toml`. Collection and assessment consume the package’s `case.eal` and `tools.toml`. There is no registration or executable graph sidecar. The study requires the selected EAL host and explicit tool bindings before authoring. Implementation has a separate call bound and zero automatic HTTP retries. A phase stops its arm when the process fails, times out, exceeds the 16 MiB log bound or fails an assertion. The other arm and its consumed resources remain recorded.
 
 Recipe paths may use `{binary}`, `{config}`, `{model}`, `{api_key_env}`, `{analysis}`, `{work}`, `{now}` and named assets. `{work}` is a new private directory per case, repetition and arm. `{now}` is the actual UTC time immediately before a phase. A capture extracts one scalar from an earlier result and makes it available to later argv entries. Capture names must be new identifiers. They cannot replace reserved settings, pinned asset bindings or earlier captures. The example passes the actual collection identifier into assessment and asserts that it was retained. Substitution is literal and commands run without a shell.
 
 Assertions select an exact JSON pointer. `equals` requires every selected value to match, `any_equals` requires at least one match, `nonempty` requires nonempty values and `exists` requires a selection. An explicit `*` pointer component selects every child of an object or array. The example's final claim identifier must be captured from the exported bundle so assessment checks the intended claim.
 
-A topology that cannot represent a required operation uses `unrepresentable: true` with a frozen reason. This records a capability difference and contributes no successful-pair ratio. It must not be converted to a low-cost successful run. The example marks the flat arm unrepresentable specifically because qualified graph registration/replanning is a graph-report operation. Adapt a separate flat workflow only where its public interface can preserve the same obligations.
+A topology that cannot represent a required operation uses `unrepresentable: true` with a frozen reason. This records a capability difference and contributes no successful-pair ratio. It must not be converted to a low-cost successful run. The example supplies both direct and discovery authoring arms. They retain the same obligations and use the same direct package execution workflow.
 
 ## Account for every attempted phase
 
@@ -65,6 +66,6 @@ Scoring recomputes the retained protocol digest and rejects changed reference ob
 
 ## Verification and evidence status
 
-Run `python3 -m unittest discover -s tests -p test_support_domains.py -v`. The 18 focused regressions cover the entire phase chain, collection binding, assertion failure, call accounting, frozen-input rejection, capture isolation, qualifier identity, process limits and independent-review disagreement. Fixture outputs are labelled as fixture evidence and establish harness behaviour only.
+Run `python3 -m unittest discover -s tests -p test_support_domains.py -v`. The focused regressions cover the entire phase chain, collection binding, assertion failure, call accounting, frozen-input rejection, capture isolation, qualifier identity, process limits and independent-review disagreement. Fixture outputs are labelled as fixture evidence and establish harness behaviour only.
 
 No live domain study has been retained for this implementation. A live API credential, configured source instruments, independent qualification procedure and reviewed study design are required to produce measured semantic-quality and complete-workflow cost evidence. The existence of this harness leaves those empirical acceptance conditions outstanding.

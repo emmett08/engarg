@@ -8,264 +8,52 @@ fn cli() -> Command {
     Command::new(env!("CARGO_BIN_EXE_engarg"))
 }
 
+#[path = "common/executable_case.rs"]
+mod executable_case;
+#[allow(dead_code)]
+#[path = "common/reasoning.rs"]
+mod reasoning;
+#[allow(dead_code)]
+#[path = "common/reasoning_graph.rs"]
+mod reasoning_graph;
+
 fn report(path: &Path) {
+    let (request, argument, support) = executable_case::fixture();
     let value = json!({
-        "request":serde_json::from_str::<Value>(include_str!("../examples/request.json")).unwrap(),
-        "argument":serde_json::from_str::<Value>(include_str!("../examples/case.json")).unwrap()
+        "schema_version":engarg::report::RUN_REPORT_SCHEMA,
+        "execution_mode":"offline_synthetic_fixture",
+        "input_sha256":eal_collector_contracts::execution::canonical_digest(&request).unwrap(),
+        "mode":"single", "request":request, "argument":argument,
+        "transcript":[], "support_elaboration":support, "limitations":[],
     });
+    engarg::report::read_direct(&value).unwrap();
     std::fs::write(path, serde_json::to_vec(&value).unwrap()).unwrap();
 }
 
-fn planned_report(path: &Path, mismatch: bool) {
-    report(path);
-    let mut report: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
-    let mut argument = report["argument"].clone();
-    let plans: Vec<_> = argument["evidence_plan"].as_array().unwrap().iter().enumerate().map(|(index, need)| {
-        if index == 0 {
-            json!({"need_id":need["id"],"tool_id":"http_json_get","arguments":[{"name":"url","value":"https://example.test/observations"}],"unresolved_arguments":[]})
-        } else {
-            json!({"need_id":need["id"],"tool_id":"custom","arguments":[],"unresolved_arguments":["adapter"]})
-        }
-    }).collect();
-    if mismatch {
-        argument["adjudication"] = json!("A different retained argument.");
-    }
-    let content = json!({"argument":argument,"acquisition_plan":plans}).to_string();
-    report["transcript"] = json!([{
-        "role":"adjudicator", "prompt":{"role":"adjudicator","system":"fixture","user":"{}","schema":{}},
-        "response":{"content":content,"model":"fixture","input_tokens":null,"output_tokens":null,"request_id":null,"service_tier":null,"reasoning_effort":null},
-        "response_content_bytes":content.len(),"response_content_sha256":"fixture","response_content_omitted":false,"elapsed_ms":0
-    }]);
-    std::fs::write(path, serde_json::to_vec(&report).unwrap()).unwrap();
+fn bindings(root: &Path) -> std::path::PathBuf {
+    std::fs::write(root.join("measurement.json"), b"{}").unwrap();
+    let tools = root.join("tools.toml");
+    std::fs::write(&tools, "[tools.premise_source]\nkind='json_file'\nversion='1'\npath='measurement.json'\n[tools.applicability_source]\nkind='json_file'\nversion='1'\npath='measurement.json'\n").unwrap();
+    tools
 }
 
 #[test]
-fn export_uses_the_final_retained_plan_and_rejects_a_different_argument() {
-    let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("planned.json");
-    let output = directory.path().join("planned.eal");
-    planned_report(&input, true);
-    let result = cli()
-        .args(["eal", "export", "--input"])
-        .arg(&input)
-        .arg("--output")
-        .arg(&output)
-        .output()
-        .unwrap();
-    assert!(!result.status.success());
-    assert!(!output.exists());
-    assert!(!directory.path().join("planned.tools.toml").exists());
-    assert!(String::from_utf8_lossy(&result.stderr).contains("different canonical argument"));
-    planned_report(&input, false);
-    let result = cli()
-        .args(["eal", "export", "--input"])
-        .arg(&input)
-        .arg("--output")
-        .arg(&output)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    let source = std::fs::read_to_string(&output).unwrap();
-    let tools = std::fs::read_to_string(directory.path().join("planned.tools.toml")).unwrap();
-    assert!(source.contains("https://example.test/observations"));
-    assert!(tools.contains("http_json_get"));
-    assert!(tools.contains("kind = \"command\""));
-}
-
-#[test]
-fn null_optional_graph_metadata_preserves_flat_collectors_in_export_and_prepare() {
-    let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("planned.json");
-    planned_report(&input, false);
-    let mut report: Value = serde_json::from_slice(&std::fs::read(&input).unwrap()).unwrap();
-    report["evidence_planning"] = Value::Null;
-    std::fs::write(&input, serde_json::to_vec(&report).unwrap()).unwrap();
-    let bundle = directory.path().join("argument.json");
-    let result = cli()
-        .args(["eal", "export", "--format", "json", "--input"])
-        .arg(&input)
-        .arg("--output")
-        .arg(&bundle)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    let exported: Value = serde_json::from_slice(&std::fs::read(bundle).unwrap()).unwrap();
-    assert_eq!(
-        exported["acquisition_plan"]["entries"][0]["tool_id"],
-        "http_json_get"
-    );
-    let prepared = directory.path().join("prepared");
-    let result = cli()
-        .args(["eal", "prepare", "--input"])
-        .arg(&input)
-        .arg("--output-dir")
-        .arg(&prepared)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    let prepared: Value =
-        serde_json::from_slice(&std::fs::read(prepared.join("argument.bundle.json")).unwrap())
-            .unwrap();
-    assert_eq!(
-        prepared["acquisition_plan"]["entries"][0]["tool_id"],
-        "http_json_get"
-    );
-}
-
-#[test]
-fn export_keeps_exact_source_and_loss_preserving_manifest() {
-    let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("report.json");
-    let source = directory.path().join("case.eal");
-    let bundle = directory.path().join("case.eal.json");
+fn export_builds_one_executable_package_without_provider_calls() {
+    let root = tempfile::tempdir().unwrap();
+    let input = root.path().join("report.json");
     report(&input);
-    let result = cli()
-        .args(["eal", "export", "--input"])
-        .arg(&input)
-        .arg("--output")
-        .arg(&source)
-        .arg("--manifest")
-        .arg(&bundle)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    assert!(result.stdout.is_empty());
-    let tools = directory.path().join("case.tools.toml");
-    let registry = std::fs::read_to_string(&tools).unwrap();
-    assert!(registry.contains("engarg_review_contract"));
-    let exported: Value = serde_json::from_slice(&std::fs::read(&bundle).unwrap()).unwrap();
-    assert_eq!(
-        std::fs::read_to_string(&source).unwrap(),
-        exported["source"]
-    );
-    assert_eq!(exported["target_language"], "EAL/3");
-    assert_eq!(
-        exported["original_request"]["claim"],
-        serde_json::from_str::<Value>(include_str!("../examples/request.json")).unwrap()["claim"]
-    );
-    assert!(exported["claim_names"]["current_claim"].is_string());
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        assert_eq!(
-            std::fs::metadata(&source).unwrap().permissions().mode() & 0o777,
-            0o600
-        );
-        assert_eq!(
-            std::fs::metadata(&bundle).unwrap().permissions().mode() & 0o777,
-            0o600
-        );
-        assert_eq!(
-            std::fs::metadata(&tools).unwrap().permissions().mode() & 0o777,
-            0o600
-        );
-    }
-}
-
-#[test]
-fn json_export_is_available_on_stdout_without_model_configuration() {
-    let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("report.json");
-    report(&input);
+    let before = std::fs::read(&input).unwrap();
+    let tools = bindings(root.path());
+    let package = root.path().join("package");
     let result = cli()
         .env_remove("ENGARG_API_KEY")
         .env_remove("ENGARG_MODEL")
-        .args(["eal", "export", "--format", "json", "--input"])
-        .arg(&input)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    let exported: Value = serde_json::from_slice(&result.stdout).unwrap();
-    assert!(
-        exported["obligations"]
-            .as_array()
-            .is_some_and(|a| !a.is_empty())
-    );
-    assert!(exported["context"].is_object());
-    assert_eq!(
-        std::fs::read_to_string(directory.path().join("report.eal")).unwrap(),
-        exported["source"]
-    );
-    assert!(directory.path().join("report.tools.toml").is_file());
-}
-
-#[test]
-fn eal_stdout_still_creates_the_tools_companion_beside_input() {
-    let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("report.json");
-    report(&input);
-    let result = cli()
         .args(["eal", "export", "--input"])
         .arg(&input)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    assert!(result.stdout.starts_with(b"language \"EAL/3\""));
-    assert_eq!(
-        std::fs::read(directory.path().join("report.eal")).unwrap(),
-        result.stdout
-    );
-    assert!(directory.path().join("report.tools.toml").is_file());
-}
-
-#[test]
-fn companions_are_preflighted_together_and_allow_explicit_destinations() {
-    let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("report.json");
-    let output = directory.path().join("bundle.json");
-    let source = directory.path().join("custom.eal");
-    let tools = directory.path().join("custom.toml");
-    report(&input);
-    std::fs::write(&tools, "keep").unwrap();
-    let result = cli()
-        .args(["eal", "export", "--input"])
-        .arg(&input)
-        .args(["--format", "json", "--output"])
-        .arg(&output)
-        .arg("--source-output")
-        .arg(&source)
-        .arg("--tools-output")
+        .arg("--tools")
         .arg(&tools)
-        .output()
-        .unwrap();
-    assert!(!result.status.success());
-    assert!(!output.exists());
-    assert!(!source.exists());
-    assert_eq!(std::fs::read_to_string(&tools).unwrap(), "keep");
-    std::fs::remove_file(&tools).unwrap();
-    let result = cli()
-        .args(["eal", "export", "--input"])
-        .arg(&input)
-        .args(["--format", "json", "--output"])
-        .arg(&output)
-        .arg("--source-output")
-        .arg(&source)
-        .arg("--tools-output")
-        .arg(&tools)
+        .arg("--output")
+        .arg(&package)
         .output()
         .unwrap();
     assert!(
@@ -273,44 +61,74 @@ fn companions_are_preflighted_together_and_allow_explicit_destinations() {
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
-    assert!(output.is_file());
-    assert!(source.is_file());
-    assert!(tools.is_file());
+    let receipt: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(receipt["language"], "EAL/4");
+    assert!(receipt.get("profile").is_none());
+    assert_eq!(receipt["model_calls"], 0);
+    assert_eq!(std::fs::read(&input).unwrap(), before);
+    let source = std::fs::read_to_string(package.join("case.eal")).unwrap();
+    assert!(source.starts_with("language \"EAL/4\""));
+    assert!(!source.contains("engarg_support_graph"));
+    assert!(package.join("tools.toml").is_file());
+    assert!(package.join("measurement.json").is_file());
+    assert_eq!(
+        serde_json::from_slice::<Value>(&std::fs::read(package.join("build.json")).unwrap())
+            .unwrap(),
+        receipt
+    );
 }
 
 #[test]
-fn export_preflights_existing_and_aliased_destinations() {
-    let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("report.json");
-    let output = directory.path().join("case.eal");
-    let manifest = directory.path().join("case.eal.json");
+fn existing_output_and_unbound_operations_fail_without_partial_publication() {
+    let root = tempfile::tempdir().unwrap();
+    let input = root.path().join("report.json");
     report(&input);
-    std::fs::write(&manifest, b"keep").unwrap();
+    let tools = bindings(root.path());
+    let package = root.path().join("package");
+    std::fs::create_dir(&package).unwrap();
+    std::fs::write(package.join("keep"), b"original").unwrap();
+    let run = || {
+        cli()
+            .args(["eal", "export", "--input"])
+            .arg(&input)
+            .arg("--tools")
+            .arg(&tools)
+            .arg("--output")
+            .arg(&package)
+            .output()
+            .unwrap()
+    };
+    assert!(!run().status.success());
+    assert_eq!(std::fs::read(package.join("keep")).unwrap(), b"original");
+    std::fs::remove_file(package.join("keep")).unwrap();
+    std::fs::remove_dir(&package).unwrap();
+    std::fs::write(&tools, "[tools]\n").unwrap();
+    let result = run();
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("Missing direct tool binding"));
+    assert!(!package.exists());
+}
+
+#[test]
+fn source_export_requires_current_authored_support() {
+    let root = tempfile::tempdir().unwrap();
+    let input = root.path().join("report.json");
+    report(&input);
+    let mut value: Value = serde_json::from_slice(&std::fs::read(&input).unwrap()).unwrap();
+    value.as_object_mut().unwrap().remove("support_elaboration");
+    std::fs::write(&input, serde_json::to_vec(&value).unwrap()).unwrap();
     let result = cli()
         .args(["eal", "export", "--input"])
         .arg(&input)
+        .arg("--tools")
+        .arg(bindings(root.path()))
         .arg("--output")
-        .arg(&output)
-        .arg("--manifest")
-        .arg(&manifest)
+        .arg(root.path().join("package"))
         .output()
         .unwrap();
     assert!(!result.status.success());
-    assert!(!output.exists());
-    assert_eq!(std::fs::read(&manifest).unwrap(), b"keep");
-    std::fs::remove_file(&manifest).unwrap();
-    let result = cli()
-        .args(["eal", "export", "--input"])
-        .arg(&input)
-        .arg("--output")
-        .arg(&output)
-        .arg("--manifest")
-        .arg(directory.path().join(".").join("case.eal"))
-        .output()
-        .unwrap();
-    assert!(!result.status.success());
-    assert!(!output.exists());
-    assert!(String::from_utf8_lossy(&result.stderr).contains("different paths"));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("support_elaboration"));
+    assert!(!root.path().join("package").exists());
 }
 
 #[test]
@@ -361,24 +179,15 @@ mod unix_host {
         json!({"operation":operation,"protocol_version":"2025-11-25","is_error":false,"result":{"valid":true},"content":[]})
     }
 
-    fn bundle(directory: &Path) -> (std::path::PathBuf, Value) {
-        let input = directory.join("canonical.json");
-        let output = directory.join("bundle.json");
-        report(&input);
-        let result = cli()
-            .args(["eal", "export", "--input"])
-            .arg(&input)
-            .args(["--format", "json", "--output"])
-            .arg(&output)
-            .output()
-            .unwrap();
-        assert!(
-            result.status.success(),
-            "{}",
-            String::from_utf8_lossy(&result.stderr)
-        );
-        let value = serde_json::from_slice(&std::fs::read(&output).unwrap()).unwrap();
-        (output, value)
+    fn source(directory: &Path) -> (std::path::PathBuf, Value) {
+        let source = "language \"EAL/4\"\nclaim current_claim {\n  statement \"Synthetic transport fixture\"\n}\n";
+        let input = directory.join("case.eal");
+        std::fs::write(&input, source).unwrap();
+        std::fs::write(directory.join("tools.toml"), "[tools]\n").unwrap();
+        (
+            input,
+            json!({"source":source,"claim_names":{"current_claim":"current_claim"},"context":{}}),
+        )
     }
 
     #[test]
@@ -413,9 +222,9 @@ mod unix_host {
     }
 
     #[test]
-    fn bundle_plan_maps_canonical_claim_and_assess_uses_bound_context() {
+    fn source_plan_preserves_claim_and_assessment_uses_explicit_collection() {
         let directory = tempfile::tempdir().unwrap();
-        let (input, bundle) = bundle(directory.path());
+        let (input, bundle) = source(directory.path());
         let (executable, capture) = host(directory.path(), "plan", success("plan"), 0);
         let result = cli()
             .args(["eal", "plan", "--input"])
@@ -465,7 +274,7 @@ mod unix_host {
     #[test]
     fn collection_requires_a_registry_and_preserves_the_exact_context() {
         let directory = tempfile::tempdir().unwrap();
-        let (input, bundle) = bundle(directory.path());
+        let (input, bundle) = source(directory.path());
         let (executable, capture) = host(directory.path(), "collect", success("collect_claim"), 0);
         let result = cli()
             .args(["eal", "collect", "--input"])
@@ -482,7 +291,7 @@ mod unix_host {
             .args(["eal", "collect", "--input"])
             .arg(&input)
             .arg("--tools")
-            .arg(directory.path().join("bundle.tools.toml"))
+            .arg(directory.path().join("tools.toml"))
             .arg("--eal-host")
             .arg(&executable)
             .arg("--workspace")
@@ -502,9 +311,53 @@ mod unix_host {
     }
 
     #[test]
-    fn edited_bundle_is_rejected_before_host_but_raw_text_can_be_selected() {
+    fn package_manifest_context_is_used_by_collection_and_assessment() {
         let directory = tempfile::tempdir().unwrap();
-        let (input, mut bundle) = bundle(directory.path());
+        let (input, _) = source(directory.path());
+        let tools = directory.path().join("tools.toml");
+        std::fs::write(
+            &tools,
+            "[context]\ncase_digest='retained-case'\nrevision=7\n[tools]\n",
+        )
+        .unwrap();
+        for (verb, operation) in [("collect", "collect_claim"), ("assess", "reason")] {
+            let (executable, capture) = host(directory.path(), verb, success(operation), 0);
+            let mut command = cli();
+            command
+                .args(["eal", verb, "--input"])
+                .arg(&input)
+                .arg("--tools")
+                .arg(&tools)
+                .arg("--eal-host")
+                .arg(executable)
+                .arg("--workspace")
+                .arg(directory.path());
+            if verb == "assess" {
+                command.args([
+                    "--now",
+                    "2026-10-23T18:00:00Z",
+                    "--collection-id",
+                    "retained-collection",
+                ]);
+            }
+            let result = command.output().unwrap();
+            assert!(
+                result.status.success(),
+                "{}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+            let request: Value = serde_json::from_slice(&std::fs::read(capture).unwrap()).unwrap();
+            assert_eq!(
+                request["context"],
+                json!({"case_digest":"retained-case","revision":7})
+            );
+        }
+    }
+
+    #[test]
+    fn retired_json_bundle_is_rejected_before_host_execution() {
+        let directory = tempfile::tempdir().unwrap();
+        let (input, mut bundle) = source(directory.path());
         bundle["source"] = json!("altered projection");
         std::fs::write(&input, serde_json::to_vec(&bundle).unwrap()).unwrap();
         let (executable, capture) = host(directory.path(), "tamper", success("validate"), 0);
@@ -520,8 +373,7 @@ mod unix_host {
         assert!(!result.status.success());
         assert!(!capture.exists());
         assert!(
-            String::from_utf8_lossy(&result.stderr)
-                .contains("differs from the current deterministic export")
+            String::from_utf8_lossy(&result.stderr).contains("JSON export bundles are retired")
         );
     }
 
@@ -763,58 +615,4 @@ mod unix_host {
             json!({"operation":"explain","assessment_id":"assessment-1"})
         );
     }
-}
-
-#[test]
-fn operator_native_override_reuses_saved_argument_without_a_model_call() {
-    let directory = tempfile::tempdir().unwrap();
-    let report_path = directory.path().join("report.json");
-    planned_report(&report_path, false);
-    let before = std::fs::read(&report_path).unwrap();
-    let report: Value = serde_json::from_slice(&before).unwrap();
-    let need = report["argument"]["evidence_plan"][0]["id"].clone();
-    let plan = directory.path().join("bindings.json");
-    std::fs::write(&plan, json!([{"need_id":need,"tool_id":"kubernetes","arguments":[{"name":"kind","value":"Application"},{"name":"name","value":"pilot-sync"}],"unresolved_arguments":["inventory","resource","namespace"]}]).to_string()).unwrap();
-    let catalogue = directory.path().join("native.json");
-    std::fs::write(
-        &catalogue,
-        include_bytes!("../contracts/collectors/native.json"),
-    )
-    .unwrap();
-    let source = directory.path().join("case.eal");
-    let manifest = directory.path().join("case.json");
-    let result = cli()
-        .args(["eal", "export", "--input"])
-        .arg(&report_path)
-        .arg("--collector-catalogue")
-        .arg(&catalogue)
-        .arg("--acquisition-plan")
-        .arg(&plan)
-        .arg("--output")
-        .arg(&source)
-        .arg("--manifest")
-        .arg(&manifest)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    let bundle: Value = serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
-    assert_eq!(bundle["original_case"], report["argument"]);
-    assert_eq!(std::fs::read(report_path).unwrap(), before);
-    let tools = std::fs::read_to_string(directory.path().join("case.tools.toml")).unwrap();
-    let parsed: engarg::collector_catalogue::ToolsRegistry = toml::from_str(&tools).unwrap();
-    assert!(parsed.tools.values().any(|binding| {
-        binding
-            .argv
-            .starts_with(&["eal-collector".to_owned(), "kubernetes".to_owned()])
-    }));
-    assert!(!tools.contains("kind = \"json_file\""));
-    assert!(
-        std::fs::read_to_string(source)
-            .unwrap()
-            .contains("\"namespace\":null")
-    );
 }

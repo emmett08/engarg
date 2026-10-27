@@ -15,12 +15,12 @@ import subprocess
 import time
 
 REFERENCE = Path(__file__).resolve().parents[1] / "experiments/support-domains/reference.json"
-PHASES = ["implement", "qualify", "register", "replan", "export", "collect", "assess"]
+PHASES = ["implement", "qualify", "build", "collect", "assess"]
 COUNTERS = ("source_requests", "discovery_requests", "request_bytes", "response_bytes",
             "generated_code_count", "reused_sources")
 ERRORS = ("critical_omission", "false_readiness", "unit", "method", "scope", "time",
           "lost_challenge", "unjustified_generation")
-RESERVED_BINDINGS = {"binary", "config", "model", "api_key_env", "analysis", "work", "now"}
+RESERVED_BINDINGS = {"binary", "config", "model", "api_key_env", "analysis", "work", "now", "tools", "eal_host"}
 
 
 def digest(value):
@@ -110,7 +110,7 @@ def git_identity(directory):
 
 def validate_recipe(recipe, generated):
     phases = recipe.get("phases", [])
-    required = PHASES if generated else PHASES[3:]
+    required = PHASES if generated else PHASES[2:]
     if [phase.get("name") for phase in phases] != required:
         raise ValueError(f"workflow phases must be {required}")
     for phase in phases:
@@ -124,7 +124,7 @@ def validate_recipe(recipe, generated):
         if phase["name"] == "implement":
             if argv[:3] != ["{binary}", "eal", "implement"]:
                 raise ValueError("implementation must invoke the selected EngArg binary")
-            for flag in ("--tool-max-calls", "--http-retries"):
+            for flag in ("--tool-max-calls", "--http-retries", "--tools", "--eal-host"):
                 if argv.count(flag) != 1:
                     raise ValueError(f"implementation requires exactly one {flag}")
             try:
@@ -134,9 +134,11 @@ def validate_recipe(recipe, generated):
                 raise ValueError("invalid implementation call budget") from error
             if not 1 <= calls <= 16 or retries != 0:
                 raise ValueError("study implementation permits 1..16 calls and zero HTTP retries")
+        elif phase["name"] == "build":
+            if argv[:2] != ["{binary}", "build"] or argv.count("--tools") != 1 or argv.count("--output-dir") != 1:
+                raise ValueError("build must invoke the selected EngArg package compiler with --tools and --output-dir")
         elif phase["name"] != "qualify":
-            verb = "register-tools" if phase["name"] == "register" else phase["name"]
-            if argv[:3] != ["{binary}", "eal", verb]:
+            if argv[:3] != ["{binary}", "eal", phase["name"]]:
                 raise ValueError(f"{phase['name']} must invoke the selected EngArg command")
         if phase["name"] == "qualify" and not phase.get("qualification_reference"):
             raise ValueError("qualification requires a frozen independent measurement reference")
@@ -154,7 +156,7 @@ def validate_captures(phase, existing):
 
 def freeze_study(args, cases):
     config = json.loads(args.workflow.read_text())
-    if config.get("schema") != "engarg.support-workflow-study/1":
+    if config.get("schema") != "engarg.support-workflow-study/2":
         raise ValueError("unsupported workflow study schema")
     reference = json.loads(REFERENCE.read_text())
     selected = args.case or list(cases)
@@ -176,7 +178,7 @@ def freeze_study(args, cases):
             raise ValueError("study asset name collides with a reserved binding")
         path = (args.workflow.parent / filename).resolve(strict=True)
         assets[name] = {"path": str(path), "sha256": file_digest(path)}
-    for name, path in (("binary", args.binary), ("config", args.evidence_config)):
+    for name, path in (("binary", args.binary), ("config", args.evidence_config), ("tools", args.tools), ("eal_host", args.eal_host)):
         assets[name] = {"path": str(path.resolve(strict=True)), "sha256": file_digest(path)}
     # Freeze direct planning dependencies as well as the root configuration.
     planning = json.loads(args.evidence_config.read_text())
@@ -193,7 +195,7 @@ def freeze_study(args, cases):
         if entry.get("partition") not in ("development", "holdout"):
             raise ValueError(f"declare development/holdout partition for {name}")
         generated = bool(entry.get("genuine_code_gap"))
-        for mode in ("flat", "graph"):
+        for mode in ("direct", "graph"):
             recipe = entry.get(mode)
             if not recipe:
                 raise ValueError(f"missing {mode} recipe for {name}")
@@ -225,7 +227,7 @@ def freeze_study(args, cases):
         raise ValueError("complete-workflow studies require a genuine algorithm-gap case")
     if bound > maximum:
         raise ValueError(f"declared call bound {bound} exceeds study budget {maximum}")
-    protocol = {"schema": "engarg.frozen-support-study/1", "design": config,
+    protocol = {"schema": "engarg.frozen-support-study/2", "design": config,
                 "repetitions": args.repetitions, "model_requested": args.model,
                 "declared_model_call_bound": bound, "assets": assets, "cases": rows,
                 "declared_model_call_bound_scope": "EngArg analyse and implement only; external qualification calls require separate accounting",
@@ -240,6 +242,8 @@ def freeze_study(args, cases):
 
 def verify_protocol_content(protocol):
     """Validate the retained definition without requiring original executables."""
+    if protocol.get("schema") != "engarg.frozen-support-study/2":
+        raise ValueError("unsupported frozen study schema; freeze a new direct-package workflow")
     raw = dict(protocol)
     expected = raw.pop("sha256", None)
     if expected != digest(raw):
@@ -431,8 +435,7 @@ def execute_phase(phase, bindings, environment, work):
         try:
             # Known zeros describe command boundaries; provider I/O without a
             # supplied counter stays unknown. Qualification helpers are external.
-            zero = name in ("register", "export", "assess") or (
-                name == "replan" and counter in ("source_requests", "generated_code_count", "reused_sources"))
+            zero = name in ("build", "assess")
             if spec:
                 values = read_selection(spec)
                 result["resources"][counter] = sum(value == spec["count_equals"] for value in values) if "count_equals" in spec else total_or_unknown(values)
@@ -485,9 +488,9 @@ def workflow_comparisons(rows):
     for metric in ("elapsed_seconds", "calls", "input_tokens", "output_tokens", *COUNTERS):
         per_case = {}
         for (case, _), pair in pairs.items():
-            if set(pair) != {"flat", "graph"} or not all(row["workflow_accepted"] for row in pair.values()):
+            if set(pair) != {"direct", "graph"} or not all(row["workflow_accepted"] for row in pair.values()):
                 continue
-            left, right = pair["flat"].get(metric), pair["graph"].get(metric)
+            left, right = pair["direct"].get(metric), pair["graph"].get(metric)
             if left is not None and right is not None and left > 0:
                 per_case.setdefault(case, []).append(right / left)
         means = [statistics.mean(values) for values in per_case.values()]
@@ -519,7 +522,7 @@ def run_workflow(protocol, output, key_env):
     initial.update(model=protocol["model_requested"], api_key_env=key_env)
     for case in protocol["cases"]:
         for repetition in range(1, protocol["repetitions"] + 1):
-            for mode in (["flat", "graph"] if repetition % 2 else ["graph", "flat"]):
+            for mode in (["direct", "graph"] if repetition % 2 else ["graph", "direct"]):
                 recipe = case[mode]
                 row = {"case": case["name"], "mode": mode, "repetition": repetition,
                        "partition": case["partition"], "phases": [], "workflow_accepted": False}
@@ -535,9 +538,11 @@ def run_workflow(protocol, output, key_env):
                                "--api-key-env", key_env, "--api", "responses", "--mode", "hybrid",
                                "--evidence-planning", mode, "--max-calls", "7", "--max-repairs", "1",
                                "--http-retries", "0", "--timeout-secs", "10800", "--request-timeout-secs", "1800",
-                               "--output", "{analysis}", "--audit", "{work}/analysis.audit.jsonl"]
+                               "--format", "json", "--eal-host", "{eal_host}", "--output", "{analysis}", "--audit", "{work}/analysis.audit.jsonl"]
                     if mode == "graph":
                         command.extend(["--evidence-config", "{config}"])
+                    else:
+                        command.extend(["--tools", "{tools}"])
                     analysis = {"name": "analyse", "argv": command, "timeout_seconds": 10830,
                                 "report": "{analysis}", "audit": "{work}/analysis.audit.jsonl",
                                 "assertions": [{"file": "{analysis}", "pointer": "/argument", "nonempty": True}]}

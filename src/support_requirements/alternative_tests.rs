@@ -54,23 +54,14 @@ fn case_alternatives_cannot_be_hidden_on_an_unused_claim() {
 }
 
 #[test]
-fn legacy_alternative_prose_stays_readable_but_becomes_explicit_pending_work() {
+fn historical_support_formats_are_not_executed_as_current_requirements() {
     let case = case();
     let mut elaboration = pending(&case);
-    elaboration.schema = LEGACY_SUPPORT_ELABORATION_SCHEMA.into();
-    elaboration.alternative_support.clear();
-    assert!(validate_elaboration(&case, &elaboration).is_empty());
-    let gaps = legacy_alternative_gaps(&case, &elaboration);
-    assert_eq!(gaps.len(), case.alternatives.len());
+    elaboration.schema = "engarg.support-elaboration/1".into();
     assert!(
-        gaps.iter()
-            .all(|gap| gap.claim_ids == ["current_claim", "stronger_target"])
-    );
-    assert!(
-        serde_json::to_value(&elaboration)
-            .unwrap()
-            .get("alternative_support")
-            .is_none()
+        validate_elaboration(&case, &elaboration)
+            .iter()
+            .any(|error| error.contains("unsupported support elaboration schema"))
     );
 }
 

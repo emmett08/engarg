@@ -134,6 +134,7 @@ pub(crate) fn errors(
                     | InferenceKind::Abductive
                     | InferenceKind::Causal
                     | InferenceKind::Counterfactual
+                    | InferenceKind::Analogical
             )
         {
             errors.push(format!(

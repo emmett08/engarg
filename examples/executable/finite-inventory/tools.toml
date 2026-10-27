@@ -1,0 +1,21 @@
+[tools.snapshot_source]
+kind = "mcp_stdio"
+version = "1"
+argv = ["python3", "tools/snapshot.py"]
+inherit_env = ["PATH"]
+timeout_seconds = 10
+max_output_bytes = 65536
+
+[tools.snapshot_source.direct]
+tool = "snapshot"
+response_format = "structured"
+value_pointer = "/value"
+observed_at_pointer = "/observed_at"
+
+[tools.identifier_audit]
+kind = "command"
+version = "1"
+argv = ["python3", "tools/audit.py"]
+inherit_env = ["PATH"]
+timeout_seconds = 10
+max_output_bytes = 65536

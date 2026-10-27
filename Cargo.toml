@@ -13,11 +13,12 @@ name = "engarg-process-supervisor"
 path = "src/bin/process_supervisor.rs"
 
 [dependencies]
-eal-coordination-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "b9e48835b6a40a91c9088c9c5f3fd9389d19750d" }
-eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "b9e48835b6a40a91c9088c9c5f3fd9389d19750d" }
-eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "b9e48835b6a40a91c9088c9c5f3fd9389d19750d" }
-eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "b9e48835b6a40a91c9088c9c5f3fd9389d19750d" }
-eal-core = { git = "https://github.com/emmett08/eal-mcp", rev = "b9e48835b6a40a91c9088c9c5f3fd9389d19750d" }
+eal-tool-runtime = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-coordination-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
+eal-core = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4" }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 chrono = { version = "0.4.42", default-features = false, features = ["std"] }
 httpdate = "1.0.3"
@@ -28,15 +29,14 @@ schemars = "1.2.3"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["arbitrary_precision"] }
 sha2 = "0.11.1"
-tar = { version = "=0.4.46", default-features = false }
 thiserror = "2.0.21"
+tempfile = "3.27.0"
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "time", "signal", "sync", "process", "io-util"] }
 toml = "0.9.8"
 
 [dev-dependencies]
-tempfile = "3.27.0"
 tiktoken-rs = "0.12.1"
-rmcp = { git = "https://github.com/emmett08/eal-mcp", rev = "b9e48835b6a40a91c9088c9c5f3fd9389d19750d", default-features = false, features = ["server", "transport-io"] }
+rmcp = { git = "https://github.com/emmett08/eal-mcp", rev = "add531f3c14b01ea1db07d84be76800ea5db66a4", default-features = false, features = ["server", "transport-io"] }
 tokio = { version = "1.54.1", features = ["io-std"] }
 
 [lints.rust]

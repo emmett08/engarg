@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retain paired live flat/graph runs for domain review and measured model usage.
+"""Retain paired live direct/graph runs for domain review and measured model usage.
 
 This is an opt-in acceptance experiment. It never substitutes a replay for live
 inference or treats structural validity as scientific qualification.
@@ -81,12 +81,12 @@ def comparisons(rows):
     for metric in ("elapsed_seconds", "calls", "input_tokens", "output_tokens"):
         ratios = []
         for pair in pairs.values():
-            if set(pair) != {"flat", "graph"} or not all(row["structurally_accepted"] for row in pair.values()):
+            if set(pair) != {"direct", "graph"} or not all(row["structurally_accepted"] for row in pair.values()):
                 continue
-            baseline, candidate = pair["flat"].get(metric), pair["graph"].get(metric)
+            baseline, candidate = pair["direct"].get(metric), pair["graph"].get(metric)
             if baseline is not None and candidate is not None and baseline > 0:
                 ratios.append(candidate / baseline)
-        result[metric] = {"paired_samples": len(ratios), "median_graph_to_flat_ratio": statistics.median(ratios) if ratios else None}
+        result[metric] = {"paired_samples": len(ratios), "median_graph_to_direct_ratio": statistics.median(ratios) if ratios else None}
     result["qualification"] = "descriptive only; compare domain adequacy independently before choosing a topology"
     return result
 
@@ -96,6 +96,8 @@ def main():
     parser.add_argument("--binary", type=Path)
     parser.add_argument("--evidence-config", type=Path)
     parser.add_argument("--model")
+    parser.add_argument("--tools", type=Path)
+    parser.add_argument("--eal-host", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY")
@@ -131,8 +133,8 @@ def main():
         result = run_workflow(protocol, args.output_dir, args.api_key_env)
         write_json(args.output_dir / "review-template.json", review_template(result))
         return int(any(not row["workflow_accepted"] for row in result["rows"]))
-    if not all((args.binary, args.evidence_config, args.model)):
-        parser.error("execution and freezing require --binary, --evidence-config and --model")
+    if not all((args.binary, args.evidence_config, args.model, args.tools, args.eal_host)):
+        parser.error("execution and freezing require --binary, --evidence-config, --model, --tools and --eal-host")
     if not args.freeze_only and not os.environ.get(args.api_key_env):
         parser.error(f"{args.api_key_env} must be configured for live inference")
     binary = args.binary.resolve(strict=True)
@@ -156,6 +158,8 @@ def main():
         "schema": "engarg.support-domain-experiment/1",
         "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
         "config_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
+        "tools_sha256": hashlib.sha256(args.tools.read_bytes()).hexdigest(),
+        "eal_host_sha256": hashlib.sha256(args.eal_host.read_bytes()).hexdigest(),
         "model_requested": args.model,
         "measurement": "whole CLI elapsed time and provider-reported input/output tokens, including repairs",
         "cache_treatment": "provider caching uncontrolled and billing classes unavailable",
@@ -165,15 +169,17 @@ def main():
         claim, expected = CASES[name]
         for repeat in range(args.repetitions):
             # Alternate order to reduce systematic temporal drift between arms.
-            for mode in (["flat", "graph"] if repeat % 2 == 0 else ["graph", "flat"]):
+            for mode in (["direct", "graph"] if repeat % 2 == 0 else ["graph", "direct"]):
                 stem = args.output_dir / f"{name}-{repeat + 1}-{mode}"
                 command = [str(binary), "analyse", "--claim", claim, "--model", args.model,
                            "--api-key-env", args.api_key_env, "--api", "responses", "--mode", "hybrid",
                            "--evidence-planning", mode, "--max-calls", "7", "--max-repairs", "1",
                            "--timeout-secs", "10800", "--request-timeout-secs", "1800",
-                           "--output", str(stem.with_suffix(".json")), "--audit", str(stem.with_suffix(".audit.jsonl"))]
+                           "--format", "json", "--eal-host", str(args.eal_host.resolve(strict=True)), "--output", str(stem.with_suffix(".json")), "--audit", str(stem.with_suffix(".audit.jsonl"))]
                 if mode == "graph":
                     command.extend(["--evidence-config", str(config)])
+                else:
+                    command.extend(["--tools", str(args.tools.resolve(strict=True))])
                 started = time.monotonic()
                 try:
                     with stem.with_suffix(".log").open("xb") as log:

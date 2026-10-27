@@ -424,7 +424,7 @@
     "cached_startup_new_compilations_each_arm": 0,
     "empty_disjoint_prefixes_and_compiler_targets": true,
     "owned_target_cleanup_each_arm": true,
-    "real_eal_describe_each_arm": "is_error=false; source_syntax=EAL/3; structured/1 advertised",
+    "real_eal_describe_each_arm": "is_error=false; source_syntax=EAL/4; structured/1 advertised",
     "same_admitted_pin": true,
     "six_binary_hash_receipts_each_arm": true
   },

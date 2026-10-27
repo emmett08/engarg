@@ -1,5 +1,5 @@
 //! Distinguishing tests remain explicit obligations without changing case formats.
-use super::{LEGACY_SUPPORT_ELABORATION_SCHEMA, SupportElaboration};
+use super::SupportElaboration;
 use crate::domain::{ArgumentCase, ArgumentIndex};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -40,26 +40,6 @@ pub fn alternative_requirement_gates(
         }
     }
     gates
-}
-
-/// Legacy records remain readable, but missing discriminating work is never
-/// promoted into an executable or satisfied support obligation.
-pub fn legacy_alternative_gaps(
-    case: &ArgumentCase,
-    elaboration: &SupportElaboration,
-) -> Vec<AlternativeObligation> {
-    if elaboration.schema != LEGACY_SUPPORT_ELABORATION_SCHEMA {
-        return vec![];
-    }
-    let covered = elaboration
-        .alternative_support
-        .iter()
-        .map(|support| support.alternative_id.as_str())
-        .collect::<BTreeSet<_>>();
-    alternative_obligations(case)
-        .into_iter()
-        .filter(|alternative| !covered.contains(alternative.alternative_id.as_str()))
-        .collect()
 }
 
 pub(super) fn validate(case: &ArgumentCase, elaboration: &SupportElaboration) -> Vec<String> {
@@ -137,7 +117,7 @@ pub(super) fn validate(case: &ArgumentCase, elaboration: &SupportElaboration) ->
             }
         }
     }
-    if elaboration.schema != LEGACY_SUPPORT_ELABORATION_SCHEMA {
+    {
         for alternative in obligations
             .keys()
             .filter(|id| !covered.contains(id.as_str()))

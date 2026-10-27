@@ -1,5 +1,5 @@
 //! Admission and immutable input identities for operator-submitted tickets.
-use super::{TicketArgs, process};
+use super::TicketArgs;
 use clap::Parser;
 use engarg::{Error, domain::Request, engine::topology::DebateConfig};
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,24 @@ fn environment() -> Vec<String> {
     vec!["PATH".into(), "HOME".into()]
 }
 
+fn implementation_calls() -> u32 {
+    16
+}
+
+/// Explicit authority for synthesising unbound, parameterised acquisition operations.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImplementationConfiguration {
+    pub language: String,
+    pub toolchain: PathBuf,
+    pub store: PathBuf,
+    pub provider_args: Vec<String>,
+    #[serde(default = "implementation_calls")]
+    pub max_calls: u32,
+    #[serde(default = "timeout")]
+    pub timeout_seconds: u64,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Configuration {
@@ -25,17 +43,11 @@ pub struct Configuration {
     pub ticket_id: String,
     pub request: Request,
     pub debate: DebateConfig,
-    pub evidence_config: PathBuf,
+    pub tools: PathBuf,
     pub authoring_args: Vec<String>,
     #[serde(default)]
-    pub implementation_args: Vec<String>,
-    #[serde(default)]
-    pub mcp_registrations: Option<PathBuf>,
-    #[serde(default)]
-    pub qualification_argv: Option<Vec<String>>,
+    pub implementation: Option<ImplementationConfiguration>,
     pub eal_host: PathBuf,
-    #[serde(default)]
-    pub eal_application: Option<PathBuf>,
     #[serde(default = "environment")]
     pub environment: Vec<String>,
     #[serde(default)]
@@ -46,9 +58,7 @@ pub struct Configuration {
     pub stage_timeout_seconds: u64,
     #[serde(default)]
     pub export_policy: Option<PathBuf>,
-    #[serde(default)]
-    pub review_binding: Option<PathBuf>,
-    /// Additional operator files, including qualification policy dependencies.
+    /// Additional operator-owned files retained with the submitted ticket.
     #[serde(default)]
     pub input_files: Vec<PathBuf>,
 }
@@ -67,6 +77,7 @@ pub struct Pin {
 pub struct Snapshot {
     pub configuration: Configuration,
     pub pins: Vec<Pin>,
+    pub tool_files: Vec<PathBuf>,
     pub coordinator: PathBuf,
 }
 
@@ -123,34 +134,6 @@ fn executable_file(path: &Path) -> bool {
     }
 }
 
-fn resolve_review_binding(
-    mut binding: eal_collector_contracts::CommandBinding,
-    base: &Path,
-    search_path: Option<&std::ffi::OsStr>,
-) -> Result<eal_collector_contracts::CommandBinding, Error> {
-    let program = Path::new(&binding.argv[0]);
-    let program = if program.is_absolute() || program.components().count() > 1 {
-        let path = base.join(program);
-        executable_file(&path).then_some(path)
-    } else {
-        search_path.and_then(|paths| {
-            std::env::split_paths(paths)
-                .map(|directory| directory.join(program))
-                .find(|path| executable_file(path))
-        })
-    }
-    .ok_or_else(|| Error::InvalidInput("review executable unavailable".into()))?;
-    binding.argv[0] = process::path(&program.canonicalize()?)?;
-    // A pinned script must be invoked through the same resolved path, too.
-    for argument in binding.argv.iter_mut().skip(1) {
-        let path = Path::new(argument);
-        if path.is_absolute() && path.is_file() {
-            *argument = process::path(&path.canonicalize()?)?;
-        }
-    }
-    Ok(binding)
-}
-
 pub fn validate_authoring(args: &[String]) -> Result<(), Error> {
     let allowed = [
         "--model",
@@ -187,13 +170,93 @@ pub fn validate_authoring(args: &[String]) -> Result<(), Error> {
     }
     Ok(())
 }
+fn admit_implementation(config: &mut Configuration, base: &Path) -> Result<(), Error> {
+    let Some(implementation) = &mut config.implementation else {
+        return Ok(());
+    };
+    let allowed = [
+        "--model",
+        "--service-tier",
+        "--reasoning-effort",
+        "--api",
+        "--endpoint",
+        "--api-key-env",
+        "--max-input-bytes",
+        "--max-response-bytes",
+        "--max-output-tokens",
+        "--http-retries",
+        "--retry-max-delay-secs",
+        "--request-timeout-secs",
+    ];
+    let arguments = &implementation.provider_args;
+    if !(1..=256).contains(&implementation.max_calls)
+        || !(1..=config.stage_timeout_seconds).contains(&implementation.timeout_seconds)
+        || arguments.len() > 64
+        || !arguments.len().is_multiple_of(2)
+        || arguments.as_chunks::<2>().0.iter().any(|pair| {
+            !allowed.contains(&pair[0].as_str())
+                || pair[1].is_empty()
+                || pair[1].starts_with("--")
+                || pair[1].len() > 8192
+        })
+    {
+        return Err(Error::InvalidInput("implementation requires bounded provider options and a deadline within its ticket stage".into()));
+    }
+    implementation.toolchain = resolve(base, &implementation.toolchain)?;
+    implementation.store =
+        crate::path_admission::identity(&if implementation.store.is_absolute() {
+            implementation.store.clone()
+        } else {
+            base.join(&implementation.store)
+        })?;
+    let toolchain = engarg::tooling::ToolchainProfile::load(&implementation.toolchain)?;
+    engarg::tooling::contracts::validate_language(&implementation.language)?;
+    if toolchain.language != implementation.language {
+        return Err(Error::InvalidInput(
+            "implementation language differs from its operator toolchain".into(),
+        ));
+    }
+    if toolchain
+        .inherit_env
+        .iter()
+        .any(|name| !config.collector_environment.contains(name))
+        || engarg::tooling::runner::DOCKER_ENVIRONMENT
+            .iter()
+            .filter(|name| config.environment.iter().any(|value| value == **name))
+            .any(|name| {
+                !config
+                    .collector_environment
+                    .iter()
+                    .any(|value| value == name)
+            })
+    {
+        return Err(Error::InvalidInput(
+            "implementation runtime environment must be granted through collector_environment"
+                .into(),
+        ));
+    }
+    let mut admission = vec![
+        "engarg".to_owned(),
+        "eal".into(),
+        "implement".into(),
+        "--input".into(),
+        "analysis.json".into(),
+        "--tools".into(),
+        "tools.toml".into(),
+    ];
+    admission.extend(arguments.clone());
+    crate::Cli::try_parse_from(admission)
+        .map_err(|_| Error::InvalidInput("invalid implementation provider options".into()))?;
+    Ok(())
+}
+
 pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
     let source = args.spec.canonicalize()?;
     let base = source
         .parent()
         .ok_or_else(|| Error::InvalidInput("ticket spec has no directory".into()))?;
     let mut config: Configuration = read(&source)?;
-    if config.schema_version != "engarg.ticket/1"
+    if config.schema_version != "engarg.ticket/2"
         || config.ticket_id.is_empty()
         || config.ticket_id.len() > 80
         || !config
@@ -252,76 +315,73 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
             )));
         }
     }
-    config.evidence_config = resolve(base, &config.evidence_config)?;
+    admit_implementation(&mut config, base)?;
+    config.tools = resolve(base, &config.tools)?;
     config.eal_host = resolve(base, &config.eal_host)?;
-    config.eal_application = Some(resolve(
-        base,
-        config
-            .eal_application
-            .as_deref()
-            .unwrap_or(&config.eal_host.with_file_name("eal")),
-    )?);
-    for value in [
-        &mut config.mcp_registrations,
-        &mut config.export_policy,
-        &mut config.review_binding,
-    ]
-    .into_iter()
-    .flatten()
-    {
-        *value = resolve(base, value)?;
-    }
-    let review_binding_source = config.review_binding.clone();
-    let review_binding =
-        crate::eal_commands::selected_review_binding(config.review_binding.as_deref())?
-            .map(|binding| {
-                resolve_review_binding(binding, base, std::env::var_os("PATH").as_deref())
-            })
-            .transpose()?;
-    if review_binding.as_ref().is_some_and(|binding| {
-        binding
-            .inherit_env
-            .iter()
-            .any(|name| !config.collector_environment.contains(name))
-    }) {
-        return Err(Error::InvalidInput(
-            "review credential references must be explicitly granted through collector_environment"
-                .into(),
-        ));
+    if let Some(path) = &mut config.export_policy {
+        *path = resolve(base, path)?;
     }
     for path in &mut config.input_files {
         *path = resolve(base, path)?;
     }
-    if let Some(argv) = &mut config.qualification_argv {
-        if argv.is_empty() || argv.len() > 64 {
+    let manifest_bytes = engarg::bounded_file::read(&config.tools, 1_048_576, "ticket tools")?;
+    let manifest = eal_collector_contracts::RegistryDocument::from_toml(
+        std::str::from_utf8(&manifest_bytes)
+            .map_err(|_| Error::InvalidInput("ticket tools require UTF-8".into()))?,
+    )
+    .map_err(Error::InvalidInput)?;
+    for binding in manifest.tools.values() {
+        let mut names = binding.inherit_env.iter().flatten().chain(
+            binding
+                .direct
+                .iter()
+                .flat_map(|direct| direct.token_env.iter().chain(direct.headers_env.values())),
+        );
+        if names.any(|name| !config.collector_environment.contains(name)) {
             return Err(Error::InvalidInput(
-                "qualification_argv must be a bounded executable argument vector".into(),
-            ));
-        }
-        for argument in argv.iter_mut() {
-            let candidate = base.join(&*argument);
-            if candidate.is_file() {
-                *argument = process::path(&candidate.canonicalize()?)?;
-            }
-        }
-        let executable = Path::new(&argv[0]);
-        if !executable.is_absolute() || !executable.is_file() {
-            return Err(Error::InvalidInput(
-                "qualification executable must be an existing absolute path".into(),
+                "tool environment references must be explicitly granted through collector_environment".into(),
             ));
         }
     }
-    for pair in config.implementation_args.as_chunks_mut::<2>().0 {
-        if pair[0] == "--toolchain" {
-            pair[1] = process::path(&resolve(base, Path::new(&pair[1]))?)?;
-        }
-    }
+    let tool_files = engarg::package::input_files(&config.tools)?;
     let coordinator = resolve(
         base,
         args.eal_coordinate
             .as_deref()
             .unwrap_or(&config.eal_host.with_file_name("eal-coordinate")),
     )?;
+    if !executable_file(&config.eal_host) || !executable_file(&coordinator) {
+        return Err(Error::InvalidInput(
+            "ticket host and coordinator must be executable files".into(),
+        ));
+    }
+    let mut paths = BTreeSet::from([source, config.eal_host.clone(), coordinator.clone()]);
+    paths.extend(tool_files.iter().cloned());
+    paths.extend(config.export_policy.iter().cloned());
+    paths.extend(
+        config
+            .implementation
+            .iter()
+            .map(|implementation| implementation.toolchain.clone()),
+    );
+    paths.extend(config.input_files.iter().cloned());
+    let executables = paths
+        .iter()
+        .filter(|path| executable_file(path))
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut retained_bytes = 0u64;
+    let mut retained_files = 0usize;
+    for path in paths.iter().filter(|path| !executables.contains(*path)) {
+        let size = path.metadata()?.len();
+        retained_bytes = retained_bytes.saturating_add(size);
+        retained_files += 1;
+        if size > 16 * 1_048_576 || retained_bytes > 48 * 1_048_576 || retained_files > 127 {
+            return Err(Error::Budget(
+                "ticket retained inputs exceed their file, byte or count bound".into(),
+            ));
+        }
+    }
     let workspace = crate::path_admission::identity(&args.run)?;
     let mut builder = fs::DirBuilder::new();
     #[cfg(unix)]
@@ -330,72 +390,8 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
         builder.mode(0o700);
     }
     builder.create(&workspace)?;
-    if let Some(binding) = &review_binding {
-        let path = workspace.join("admitted-review-binding.json");
-        write_json(&path, binding)?;
-        config.review_binding = Some(path);
-    }
-    let mut paths = BTreeSet::from([
-        source,
-        config.evidence_config.clone(),
-        config.eal_host.clone(),
-        coordinator.clone(),
-        config.eal_application.clone().expect("resolved"),
-    ]);
-    paths.extend(config.mcp_registrations.iter().cloned());
-    paths.extend(config.export_policy.iter().cloned());
-    paths.extend(review_binding_source);
-    paths.extend(config.review_binding.iter().cloned());
-    paths.extend(config.input_files.iter().cloned());
-    if let Some(argv) = &config.qualification_argv {
-        for argument in argv.iter() {
-            let path = PathBuf::from(argument);
-            if path.is_file() {
-                paths.insert(path.canonicalize()?);
-            }
-        }
-    }
-    if let Some(binding) = &review_binding {
-        for argument in &binding.argv {
-            let path = PathBuf::from(argument);
-            if path.is_absolute() && path.is_file() {
-                paths.insert(path.canonicalize()?);
-            }
-        }
-    }
-    for pair in config.implementation_args.as_chunks::<2>().0.iter() {
-        if pair[0] == "--toolchain" {
-            paths.insert(PathBuf::from(&pair[1]));
-        }
-    }
-    let planning: serde_json::Value = read(&config.evidence_config)?;
-    let planning_base = config.evidence_config.parent().expect("resolved");
-    if planning["environment"].as_array().is_some_and(|names| {
-        names.iter().any(|name| {
-            name.as_str()
-                .is_none_or(|name| !config.environment.iter().any(|allowed| allowed == name))
-        })
-    }) {
-        return Err(Error::InvalidInput(
-            "planning environment references must be granted by the ticket environment".into(),
-        ));
-    }
-    if let Some(connection) = planning["connections"].as_str() {
-        paths.insert(resolve(planning_base, Path::new(connection))?);
-    }
     let input_directory = workspace.join("inputs");
     fs::create_dir(&input_directory)?;
-    let mut executables = BTreeSet::from([
-        config.eal_host.clone(),
-        coordinator.clone(),
-        config.eal_application.clone().expect("resolved"),
-    ]);
-    if let Some(argv) = &config.qualification_argv {
-        executables.insert(PathBuf::from(&argv[0]).canonicalize()?);
-    }
-    if let Some(binding) = &review_binding {
-        executables.insert(PathBuf::from(&binding.argv[0]));
-    }
     let mut pins = Vec::new();
     let mut inputs = Vec::new();
     for (index, path) in paths.into_iter().enumerate() {
@@ -430,6 +426,7 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
         &Snapshot {
             configuration: config,
             pins,
+            tool_files,
             coordinator: coordinator.clone(),
         },
     )?;
@@ -462,6 +459,11 @@ pub fn load(path: &Path, sha256: &str) -> Result<Snapshot, Error> {
     )
     .map_err(Error::InvalidInput)?;
     let snapshot: Snapshot = serde_json::from_value(value)?;
+    if engarg::package::input_files(&snapshot.configuration.tools)? != snapshot.tool_files {
+        return Err(Error::InvalidInput(
+            "ticket tool resource inventory changed".into(),
+        ));
+    }
     for pin in &snapshot.pins {
         let identity = engarg::bounded_file::sha256(
             &pin.path,
@@ -496,139 +498,89 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn admitted_review(root: &Path, argv: Vec<String>) -> Prepared {
-        let executable = root.join("eal");
+    fn submission(root: &Path) -> TicketArgs {
+        let executable = root.join("eal-host");
         script(&executable, "fixture");
-        let planning = root.join("planning.json");
-        write_json(&planning, &serde_json::json!({})).unwrap();
-        let binding = root.join("review-binding.json");
-        write_json(
-            &binding,
-            &serde_json::json!({
-                "kind":"command", "version":"1", "argv":argv,
-                "timeout_seconds":30, "max_output_bytes":1048576,
-                "inherit_env":[], "parallel_safe":false,
-            }),
+        fs::create_dir(root.join("tools")).unwrap();
+        fs::write(root.join("tools/source.json"), "{}").unwrap();
+        fs::write(
+            root.join("tools.toml"),
+            "[tools.source]\nkind='json_file'\nversion='1'\npath='tools/source.json'\n",
         )
         .unwrap();
         let source = root.join("ticket.json");
         write_json(
             &source,
             &serde_json::json!({
-                "schema_version":"engarg.ticket/1", "ticket_id":"review_admission",
+                "schema_version":"engarg.ticket/2", "ticket_id":"direct_admission",
                 "request":{"claim":"A bounded fixture claim.","context":"","evidence":[]},
                 "debate":{"participants":3,"rounds":1,"topology":{"kind":"ring"}},
-                "evidence_config":planning, "authoring_args":["--model","fixture"],
-                "eal_host":executable, "eal_application":executable,
-                "review_binding":binding, "environment":["PATH"],
+                "tools":"tools.toml", "authoring_args":["--model","fixture"],
+                "eal_host":executable, "environment":["PATH"],
             }),
         )
         .unwrap();
-        prepare(TicketArgs {
+        TicketArgs {
             spec: source,
             run: root.join("run"),
             eal_coordinate: Some(executable),
-        })
-        .unwrap()
+        }
     }
 
     #[cfg(unix)]
     #[test]
-    fn basename_reviewers_are_retained_with_their_exact_pinned_executable() {
+    fn direct_tool_resources_are_pinned_and_changed_inputs_reject_the_next_stage() {
         let root = tempfile::tempdir().unwrap();
-        let prepared = admitted_review(root.path(), vec!["sh".into()]);
+        let prepared = prepare(submission(root.path())).unwrap();
         let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
-        let admitted = snapshot.configuration.review_binding.unwrap();
-        let original_binding = root
+        let source = root
             .path()
-            .join("review-binding.json")
+            .join("tools/source.json")
             .canonicalize()
             .unwrap();
-        assert_ne!(admitted, original_binding);
-        let binding: eal_collector_contracts::CommandBinding = read(&admitted).unwrap();
-        let program = Path::new(&binding.argv[0]);
-        assert!(program.is_absolute());
-        assert_eq!(program.canonicalize().unwrap(), program);
         assert!(
             snapshot
                 .pins
                 .iter()
-                .any(|pin| { pin.path == program && pin.retained.is_none() && pin.bytes > 0 })
+                .any(|pin| pin.path == source && pin.retained.is_some())
         );
-        assert!(
-            snapshot
-                .pins
-                .iter()
-                .any(|pin| { pin.path == original_binding && pin.retained.is_some() })
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn retargeted_review_program_symlinks_cannot_change_the_admitted_command() {
-        use std::os::unix::fs::symlink;
-        let root = tempfile::tempdir().unwrap();
-        let original = root.path().join("original");
-        let replacement = root.path().join("replacement");
-        script(&original, "original");
-        script(&replacement, "replacement");
-        let alias = root.path().join("reviewer");
-        symlink(&original, &alias).unwrap();
-        let prepared = admitted_review(root.path(), vec![process::path(&alias).unwrap()]);
-        fs::remove_file(&alias).unwrap();
-        symlink(&replacement, &alias).unwrap();
-        let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
-        let binding: eal_collector_contracts::CommandBinding =
-            read(snapshot.configuration.review_binding.as_deref().unwrap()).unwrap();
-        assert_eq!(
-            Path::new(&binding.argv[0]),
-            original.canonicalize().unwrap()
-        );
-        let output = std::process::Command::new(&binding.argv[0])
-            .output()
-            .unwrap();
-        assert!(output.status.success());
-        assert_eq!(output.stdout, b"original");
-        script(&original, "changed");
+        fs::write(source, "{\"changed\":true}").unwrap();
         assert!(load(&prepared.snapshot, &prepared.snapshot_sha256).is_err());
     }
 
     #[cfg(unix)]
     #[test]
-    fn review_script_arguments_use_the_pinned_target_after_symlink_retargeting() {
-        use std::os::unix::fs::symlink;
+    fn new_tool_resource_cannot_enter_an_admitted_ticket() {
         let root = tempfile::tempdir().unwrap();
-        let original = root.path().join("original.sh");
-        let replacement = root.path().join("replacement.sh");
-        script(&original, "original");
-        script(&replacement, "replacement");
-        let alias = root.path().join("review-policy.sh");
-        symlink(&original, &alias).unwrap();
-        let prepared = admitted_review(
-            root.path(),
-            vec!["sh".into(), process::path(&alias).unwrap()],
-        );
-        fs::remove_file(&alias).unwrap();
-        symlink(&replacement, &alias).unwrap();
-        let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
-        let binding: eal_collector_contracts::CommandBinding =
-            read(snapshot.configuration.review_binding.as_deref().unwrap()).unwrap();
-        assert_eq!(
-            Path::new(&binding.argv[1]),
-            original.canonicalize().unwrap()
-        );
-        let output = std::process::Command::new(&binding.argv[0])
-            .args(&binding.argv[1..])
-            .output()
+        let prepared = prepare(submission(root.path())).unwrap();
+        fs::write(root.path().join("tools/new-helper.py"), "print('changed')").unwrap();
+        let error = load(&prepared.snapshot, &prepared.snapshot_sha256)
+            .err()
             .unwrap();
-        assert!(output.status.success());
-        assert_eq!(output.stdout, b"original");
+        assert!(error.to_string().contains("resource inventory changed"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ungranted_tool_environment_and_old_ticket_fields_reject_before_writing() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        fs::write(
+            root.path().join("tools.toml"),
+            "[tools.source]\nkind='command'\nversion='1'\nargv=['python3']\ninherit_env=['PATH']\n",
+        )
+        .unwrap();
+        assert!(prepare(args).is_err());
+        assert!(!root.path().join("run").exists());
+        let mut value: serde_json::Value = read(&root.path().join("ticket.json")).unwrap();
+        value["evidence_config"] = serde_json::json!("planning.json");
+        assert!(serde_json::from_value::<Configuration>(value).is_err());
     }
 
     fn invalid_submission(args: Vec<&str>, collector_environment: Vec<&str>) {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("ticket.json");
-        let value = serde_json::json!({"schema_version":"engarg.ticket/1","ticket_id":"admission","request":{"claim":"A bounded fixture claim.","context":"","evidence":[]},"debate":{"participants":3,"rounds":1,"topology":{"kind":"ring"}},"evidence_config":"/missing/planning.json","authoring_args":args,"eal_host":"/missing/eal-host","environment":["PATH"],"collector_environment":collector_environment});
+        let value = serde_json::json!({"schema_version":"engarg.ticket/2","ticket_id":"admission","request":{"claim":"A bounded fixture claim.","context":"","evidence":[]},"debate":{"participants":3,"rounds":1,"topology":{"kind":"ring"}},"tools":"/missing/tools.toml","authoring_args":args,"eal_host":"/missing/eal-host","environment":["PATH"],"collector_environment":collector_environment});
         std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
         let workspace = root.path().join("run");
         assert!(
@@ -649,5 +601,46 @@ mod tests {
         );
         invalid_submission(vec!["--model", "fixture", "--max-calls", "1"], vec![]);
         invalid_submission(vec!["--model", "fixture"], vec!["UNGRANTED_SECRET"]);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn implementation_authority_is_admitted_and_pinned_without_starting_a_model_or_docker() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        let toolchain = root.path().join("toolchain.json");
+        fs::write(&toolchain, serde_json::to_vec(&serde_json::json!({
+            "schema":"engarg.toolchain/1","language":"python","docker":"must-not-start","image":"operator-image",
+            "build_argv":[],"run_argv":["python3"],"inherit_env":[],"runtime_network":"none",
+            "timeout_seconds":30,"memory_mb":128,"output_bytes":1048576
+        })).unwrap()).unwrap();
+        let mut value: serde_json::Value = read(&args.spec).unwrap();
+        value["collector_environment"] = serde_json::json!(["PATH"]);
+        value["implementation"] = serde_json::json!({"language":"python","toolchain":"toolchain.json","store":"store","provider_args":["--model","fixture"],"max_calls":2,"timeout_seconds":120});
+        fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
+        let prepared = prepare(args).unwrap();
+        let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
+        // Admission records canonical paths; temporary roots can use platform aliases.
+        let admitted_toolchain = toolchain.canonicalize().unwrap();
+        assert!(
+            snapshot
+                .pins
+                .iter()
+                .any(|pin| pin.path == admitted_toolchain)
+        );
+        assert!(!root.path().join("store").exists());
+        fs::write(&toolchain, b"{}").unwrap();
+        assert!(load(&prepared.snapshot, &prepared.snapshot_sha256).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn implementation_cannot_select_output_paths_through_provider_arguments() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        let mut value: serde_json::Value = read(&args.spec).unwrap();
+        value["implementation"] = serde_json::json!({"language":"python","toolchain":"must-not-read","store":"store","provider_args":["--model","fixture","--output","unauthorised"],"max_calls":2,"timeout_seconds":120});
+        fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(prepare(args).is_err());
+        assert!(!root.path().join("run").exists());
     }
 }

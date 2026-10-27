@@ -57,7 +57,7 @@ where
     let ReplayedHistory {
         mut retained,
         draft,
-    } = replay_history(&transcript, saved.config.mode)?;
+    } = replay_history(&transcript, &saved.config)?;
     let config = RunConfig {
         max_calls: u32::from(additional_repairs),
         max_repairs: additional_repairs,
@@ -90,7 +90,7 @@ where
     }
     Ok(SupportRunReport {
         report: RunReport {
-            schema_version: "engarg.run.v2".into(),
+            schema_version: "engarg.run.v3".into(),
             execution_mode: "provider_calls".into(),
             input_sha256: sha256_hex(serde_json::to_vec(&saved.request)?),
             provider_config: None,
@@ -100,6 +100,15 @@ where
             argument: candidate.argument,
             transcript,
             tooling: None,
+            support_elaboration: None,
+            direct_bindings: None,
+            design_review: None,
+            argument_revisions: Vec::new(),
+            target_runtime: None,
+            authoring_recovery: None,
+            evidence_planning: None,
+            replanning: None,
+            support_recovery: None,
             limitations: run_limitations,
         },
         evidence_planning: SupportPlanning {
@@ -119,49 +128,28 @@ pub(crate) struct ReplayedHistory {
 }
 pub(crate) fn replay_history(
     transcript: &[CallRecord],
-    mode: Mode,
+    config: &RunConfig,
 ) -> Result<ReplayedHistory, Error> {
-    if transcript.is_empty() || (mode == Mode::Hybrid && transcript.len() < 6) {
+    let minimum = config.required_calls()? - u32::from(config.max_repairs);
+    if transcript.len() < minimum as usize {
         return Err(Error::InvalidInput(
             "retained history lacks complete authoring stages".into(),
         ));
     }
-    let mut retained = vec![];
-    let draft = if mode == Mode::Hybrid {
-        for (record, prefix) in transcript[..3]
-            .iter()
-            .zip(["constructor", "sceptic", "auditor"])
-        {
-            context::assessment(
-                record.role,
-                prefix,
-                parse_assessment(record)?,
-                &mut retained,
-            );
-        }
-        let draft = support_requirements::parse_supported_argument(
-            &transcript[3].response.content,
+    let retained = crate::engine::retained::reconstruct_retained(transcript)?;
+    let draft = if config.mode == Mode::Hybrid {
+        let synthesis = config
+            .debate
+            .as_ref()
+            .map(|debate| debate.specialist_calls())
+            .transpose()?
+            .unwrap_or(3) as usize;
+        Some(support_requirements::parse_supported_argument(
+            &transcript[synthesis].response.content,
             crate::authoring_checkpoint::MAX_BYTES,
-        )?;
-        output_validation::retain_objections(&draft.argument, transcript[3].role, &mut retained);
-        context::assessment(
-            Role::FinalCritic,
-            "critic",
-            parse_assessment(&transcript[4])?,
-            &mut retained,
-        );
-        Some(draft)
+        )?)
     } else {
         None
     };
-    let previous_candidates = if mode == Mode::Hybrid { 5 } else { 0 };
-    for record in transcript[previous_candidates..].iter() {
-        if let Ok(candidate) = support_requirements::parse_supported_argument(
-            &record.response.content,
-            crate::authoring_checkpoint::MAX_BYTES,
-        ) {
-            output_validation::retain_objections(&candidate.argument, record.role, &mut retained);
-        }
-    }
     Ok(ReplayedHistory { retained, draft })
 }

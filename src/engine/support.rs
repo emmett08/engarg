@@ -1,6 +1,7 @@
-//! Catalogue-independent case construction followed by qualified route planning.
+//! Case construction with explicit operation binding or optional discovery.
 pub mod authoring;
 pub mod recovery;
+pub mod revision;
 use super::{
     CallRecord, Mode, RunConfig, RunReport, assessment_schema, assessment_warnings, context,
     debate, execute, limitations, parse_assessment, prompt, sha256_hex,
@@ -16,10 +17,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, future::Future};
 
-/// Injects capability discovery and compilation without another model call.
+/// Injects deterministic direct binding or optional discovery without another model call.
 /// The resolver must preserve obligations and report unavailable routes explicitly.
 pub trait RouteResolver: Send + Sync {
     type Plan: Serialize + Clone + Send;
+    /// Safe operation names and interfaces supplied as authoring data. Secrets,
+    /// executable paths and credential forwarding do not belong in this view.
+    fn authoring_context(&self) -> Option<Value> {
+        None
+    }
     fn resolve<'a>(
         &'a self,
         case: &'a ArgumentCase,
@@ -43,12 +49,32 @@ pub struct SupportPlanning<P> {
     pub design_review: Option<support_requirements::AcquisitionDesignReview>,
 }
 
-/// The legacy report remains unchanged; graph planning is an explicit extension.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Typed internal report for support authoring and deterministic resolver output.
+#[derive(Clone, Debug, Serialize)]
 pub struct SupportRunReport<P> {
     #[serde(flatten)]
     pub report: RunReport,
     pub evidence_planning: SupportPlanning<P>,
+}
+
+impl<'de, P: serde::de::DeserializeOwned> Deserialize<'de> for SupportRunReport<P> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Decode exact JSON before separating the extension. Serde's generic
+        // flatten buffer cannot represent raw arbitrary-precision JSON fields.
+        let mut value = eal_collector_contracts::deserialize_value_exact(deserializer)?;
+        let planning = value
+            .as_object_mut()
+            .and_then(|object| object.remove("evidence_planning"))
+            .ok_or_else(|| {
+                <D::Error as serde::de::Error>::custom("support report requires evidence_planning")
+            })?;
+        Ok(Self {
+            report: serde_json::from_value(value)
+                .map_err(<D::Error as serde::de::Error>::custom)?,
+            evidence_planning: serde_json::from_value(planning)
+                .map_err(<D::Error as serde::de::Error>::custom)?,
+        })
+    }
 }
 
 fn support_prompt(
@@ -94,6 +120,23 @@ fn support_prompt(
     Ok(request)
 }
 
+fn operation_prompt(
+    role: Role,
+    mut data: Value,
+    config: &RunConfig,
+    operations: Option<Value>,
+) -> Result<CompletionRequest, Error> {
+    let has_operations = operations.is_some();
+    if let Some(operations) = operations {
+        data["available_operation_bindings"] = operations;
+    }
+    let mut prompt = support_prompt(role, data, config)?;
+    if has_operations {
+        prompt.system.push_str("\nDIRECT TOOL BINDINGS: available_operation_bindings are operator-supplied names and interfaces, not observations or proof of suitability. When a required acquisition has one of these exact operations, use its operation identifier for the acquisition. Do not invent executable paths, capabilities or registration records. Use pinned input and output schemas, including their descriptions, when supplied. If an interface is absent, retain missing parameter/interface information as a clarification; do not guess it. Requirements remain derived from the claim; missing suitable operations stay explicit gaps. A declared interface or method is not evidence of source completeness or scientific adequacy.");
+    }
+    Ok(prompt)
+}
+
 /// A model can copy an exact host-computed identity for a retained scope. An
 /// altered scope needs a newly computed identity, never a guessed digest.
 fn method_scope_identities(data: &Value) -> BTreeMap<String, Value> {
@@ -133,7 +176,7 @@ fn validation_errors(
         config.max_argument_depth,
     );
     if candidate.support_elaboration.schema != support_requirements::SUPPORT_ELABORATION_SCHEMA {
-        errors.push("new support extraction must use engarg.support-elaboration/2 with explicit alternative support; legacy /1 is import-only".into());
+        errors.push("new support extraction must use engarg.support-elaboration/2 with explicit alternative support".into());
     }
     errors.extend(match previous {
         Some(previous) => support_requirements::validate_revision(
@@ -206,14 +249,19 @@ where
 {
     validate_request(request).map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
     if config.collector_catalogue.is_some() {
-        return Err(Error::InvalidInput("support graph planning uses the qualified route resolver; collector_catalogue belongs to flat planning".into()));
+        return Err(Error::InvalidInput("support requirement planning uses its explicit route resolver; collector_catalogue cannot configure that resolver".into()));
     }
     config.validate()?;
     let (mut transcript, mut retained, draft) = match config.mode {
         Mode::Single => {
             let call = execute(
                 model,
-                support_prompt(Role::Single, json!({"request":request}), config)?,
+                operation_prompt(
+                    Role::Single,
+                    json!({"request":request}),
+                    config,
+                    resolver.authoring_context(),
+                )?,
                 config,
                 observer,
             )
@@ -252,10 +300,10 @@ where
             .flat_map(assessment_warnings)
             .map(|warning| warning.message()),
     );
-    run_limitations.push("Evidence requirements were extracted independently of capability discovery. Qualified route previews describe acquisition possibilities; they are not acquired evidence or verified support.".into());
+    run_limitations.push("Evidence requirements were extracted independently of capability discovery. Binding previews describe acquisition possibilities; they are not acquired evidence or verified support.".into());
     Ok(SupportRunReport {
         report: RunReport {
-            schema_version: "engarg.run.v2".into(),
+            schema_version: "engarg.run.v3".into(),
             execution_mode: "provider_calls".into(),
             input_sha256: sha256_hex(serde_json::to_vec(request)?),
             provider_config: None,
@@ -265,6 +313,15 @@ where
             argument: candidate.argument,
             transcript,
             tooling: None,
+            support_elaboration: None,
+            direct_bindings: None,
+            design_review: None,
+            argument_revisions: Vec::new(),
+            target_runtime: None,
+            authoring_recovery: None,
+            evidence_planning: None,
+            replanning: None,
+            support_recovery: None,
             limitations: run_limitations,
         },
         evidence_planning: SupportPlanning {
@@ -299,12 +356,12 @@ where
         independent: assessments,
         discussion,
     } = debate::assess(model, request, config, observer, |role, data| {
-        support_prompt(role, data, config)
+        operation_prompt(role, data, config, resolver.authoring_context())
     })
     .await?;
-    let synthesis = execute(model, support_prompt(Role::Synthesiser, debate::with_discussion(json!({
+    let synthesis = execute(model, operation_prompt(Role::Synthesiser, debate::with_discussion(json!({
         "request":request,"independent_assessments":assessments,"retained_objections":retained,
-    }), &discussion), config)?, config, observer).await?;
+    }), &discussion), config, resolver.authoring_context())?, config, observer).await?;
     let draft = support_requirements::parse_supported_argument(
         &synthesis.response.content,
         config.max_response_bytes,
@@ -322,12 +379,12 @@ where
     } else {
         json!({"status":"invalid_requirements","validation_errors":draft_errors})
     };
-    let critique = execute(model, support_prompt(Role::FinalCritic, debate::with_discussion(json!({
+    let critique = execute(model, operation_prompt(Role::FinalCritic, debate::with_discussion(json!({
         "request":request,"independent_assessments":assessments,"draft":draft_view,
         "support_elaboration":draft.support_elaboration,"route_preview":route_preview,
-        "route_preview_limitations":"Only qualified matching and configuration checks are represented. The routes have not executed and cannot establish truth. Coverage, availability, historical access and independent review remain explicit obligations.",
+        "route_preview_limitations":"Only explicit binding or discovery/configuration checks are represented. The operations have not executed and cannot establish truth. Coverage, availability, historical access and independent review remain explicit obligations.",
         "retained_objections":retained,"draft_validation_errors":draft_errors,
-    }), &discussion), config)?, config, observer).await?;
+    }), &discussion), config, resolver.authoring_context())?, config, observer).await?;
     let final_critique = context::assessment(
         Role::FinalCritic,
         "critic",
@@ -336,7 +393,7 @@ where
     );
     let adjudication = execute(
         model,
-        support_prompt(
+        operation_prompt(
             Role::Adjudicator,
             debate::with_discussion(
                 json!({
@@ -350,6 +407,7 @@ where
                 &discussion,
             ),
             config,
+            resolver.authoring_context(),
         )?,
         config,
         observer,
@@ -442,7 +500,10 @@ where
             "original_step_sha256":draft.map(|draft|step_identities(&draft.support_elaboration)).transpose()?,
             "repair_scope":scope_feedback,
         });
-        let repair = support_prompt(record.role, data, config)?;
+        let operations = serde_json::from_str::<Value>(&record.prompt.user)?
+            .get("available_operation_bindings")
+            .cloned();
+        let repair = operation_prompt(record.role, data, config, operations)?;
         transcript.push(execute(model, repair, config, observer).await?);
     }
     unreachable!("bounded validation returns or exhausts repairs")
@@ -806,7 +867,7 @@ mod tests {
         assert!(value.get("evidence_planning").is_some());
         assert!(value.get("report").is_none());
         let restored: SupportRunReport<Value> = serde_json::from_value(value).unwrap();
-        assert_eq!(restored.report.schema_version, "engarg.run.v2");
+        assert_eq!(restored.report.schema_version, "engarg.run.v3");
     }
 
     #[tokio::test]

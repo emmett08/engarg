@@ -15,9 +15,11 @@ pub(super) async fn run(request: &StageRequest, snapshot: &Snapshot) -> Result<R
         "--input".into(),
         process::path(&input)?,
         "--evidence-planning".into(),
-        "graph".into(),
-        "--evidence-config".into(),
-        process::path(&config.evidence_config)?,
+        "direct".into(),
+        "--tools".into(),
+        process::path(&config.tools)?,
+        "--eal-host".into(),
+        process::path(&config.eal_host)?,
         "--topology-config".into(),
         process::path(&topology)?,
         "--eal-coordinate".into(),
@@ -50,11 +52,13 @@ pub(super) async fn run(request: &StageRequest, snapshot: &Snapshot) -> Result<R
         &dir.join("command"),
     )
     .await?;
-    let artifacts = if analysis.is_file() {
-        vec![artifact("analysis", &analysis)?]
-    } else {
-        vec![]
-    };
+    let mut artifacts = vec![
+        artifact("author_stdout", &dir.join("command.stdout"))?,
+        artifact("author_stderr", &dir.join("command.stderr"))?,
+    ];
+    if analysis.is_file() {
+        artifacts.push(artifact("analysis", &analysis)?);
+    }
     Ok(ResultData {
         artifacts,
         completed: output.success,

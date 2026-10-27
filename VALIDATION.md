@@ -1,12 +1,19 @@
 # Verification record
 
+This file retains historical checks at their stated revisions. Retired commands,
+modules and prior test counts below describe those revisions only. The current
+EAL/4 workflow and executable checks are documented in
+[executable packages](docs/executable-packages.md),
+[acceptance coverage](docs/EXECUTABLE_ACCEPTANCE.md) and
+[reproducible completion measurements](docs/EAL4_MEASUREMENT.md).
+
 ## Default-branch plan reconciliation, 25 October 2026
 
 The attached implementation plan was checked against EngArg
 `803984920cbfb1ec9a3c5aebb349a8f02016cd38` and EAL `92b9089`, after both original
 planning PRs merged. EngArg commits `60cf1ee`, `14e7d56` and `112843f` already
 repair native qualification defaults and extend generated-source integration.
-Those repairs are preserved. This register is the current disposition of the
+Those repairs are preserved. At those revisions, this register recorded the disposition of the
 plan's original findings. Historical verification records below retain their
 own revision and workload limits.
 
@@ -143,7 +150,7 @@ Version 0.9.0 verified on 24 October 2026 on Linux x86-64 using Rust 1.99.1. Thi
 | Shared nodes, explicit compositions and depth limits | Passed |
 | HTML escaping and visible collapsed qualifications | Passed by structural tests |
 | Browser visual inspection | Not executed: headless-browser download returned an invalid archive |
-| EAL/3 compiler and evaluator compatibility | Passed against actual eal-mcp `32366396b72baa01301eba058f4c65ea735441c1`, including every generated registry variant |
+| EAL/4 compiler and evaluator compatibility | Passed against actual eal-mcp `32366396b72baa01301eba058f4c65ea735441c1`, including every generated registry variant |
 | Real EAL host and MCP server | All installed host, core, native and scientific collector checks passed with the actual host and companion binaries |
 | EAL assumption-to-objection propagation | Passed against the actual evaluator using isolated synthetic observation fixtures |
 | Release CLI with real host/server | Retained 0.5.0 verification: export, source/bundle validation, plan, assess, explain, packet, describe and invalid-source exit checks passed |
@@ -408,7 +415,7 @@ The compiler count fell by 90 (23.56%). An identical forwarding wrapper counted
 both arms, retained unattributed calls explicitly, and separated version/print
 probes. `serde` compiled three times in the original and once in the candidate.
 Both installations retained the same six executable names, passed their own
-revision-bound binary-hash receipts, and advertised EAL/3 and `structured/1`
+revision-bound binary-hash receipts, and advertised EAL/4 and `structured/1`
 through the real installed host. Each task-owned compiler target was removed
 only after retaining binaries, receipts, logs and metrics.
 

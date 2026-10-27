@@ -3,10 +3,10 @@
 use engarg::{
     acquisition::{AcquisitionPlan, ToolArgument},
     collector_catalogue::CollectorCatalogue,
-    domain::{ArgumentCase, Request},
-    eal_acquisition::export_with_catalogue,
 };
 use serde_json::{Value, json};
+#[path = "common/collector_source.rs"]
+mod collector_source;
 use std::{
     io::Write,
     os::unix::fs::PermissionsExt,
@@ -33,53 +33,33 @@ fn scientific_collector_preserves_typed_inputs_and_measured_negative() {
             "acquisition_predicate":"collected == true", "constraints":[]
         }]
     })).unwrap()).unwrap();
-    let request: Request = serde_json::from_str(include_str!("../examples/request.json")).unwrap();
-    let case: ArgumentCase = serde_json::from_str(include_str!("../examples/case.json")).unwrap();
-    let plans = case
-        .evidence_plan
-        .iter()
-        .enumerate()
-        .map(|(index, need)| {
-            if index == 0 {
-                AcquisitionPlan {
-                    input_preparation: None,
-                    need_id: need.id.clone(),
-                    tool_id: "lab.calibration".into(),
-                    arguments: vec![
-                        ToolArgument {
-                            name: "samples".into(),
-                            value: "5".into(),
-                        },
-                        ToolArgument {
-                            name: "channels".into(),
-                            value: "[1,3]".into(),
-                        },
-                    ],
-                    unresolved_arguments: vec![],
-                }
-            } else {
-                AcquisitionPlan {
-                    input_preparation: None,
-                    need_id: need.id.clone(),
-                    tool_id: "custom".into(),
-                    arguments: vec![],
-                    unresolved_arguments: vec!["adapter".into()],
-                }
-            }
-        })
-        .collect::<Vec<_>>();
-    let exported = export_with_catalogue(&request, &case, &plans, Some(&catalogue)).unwrap();
-    let tool = exported.bundle.source_map[&case.evidence_plan[0].id]
-        .declarations
-        .iter()
-        .find(|entry| entry.kind == "tool")
-        .unwrap()
-        .name
-        .clone();
+    let plan = AcquisitionPlan {
+        input_preparation: None,
+        need_id: "N1".into(),
+        tool_id: "lab.calibration".into(),
+        arguments: vec![
+            ToolArgument {
+                name: "samples".into(),
+                value: "5".into(),
+            },
+            ToolArgument {
+                name: "channels".into(),
+                value: "[1,3]".into(),
+            },
+        ],
+        unresolved_arguments: vec![],
+    };
+    let descriptor = catalogue.get("lab.calibration").unwrap();
+    let source = collector_source::source(
+        &descriptor.version,
+        &descriptor.input(&plan).unwrap(),
+        &descriptor.acquisition_predicate,
+    );
+    let tool = "source".to_owned();
     let registry = eal_collector_contracts::CommandRegistry {
         tools: std::collections::BTreeMap::from([(
             tool.clone(),
-            exported.registry.tools[&tool].clone(),
+            descriptor.binding(&plan).unwrap(),
         )]),
     };
     std::fs::write(
@@ -87,16 +67,10 @@ fn scientific_collector_preserves_typed_inputs_and_measured_negative() {
         registry.to_toml().unwrap(),
     )
     .unwrap();
-    let bundle = exported.bundle;
-    let evidence = &bundle.source_map[&case.evidence_plan[0].id]
-        .declarations
-        .iter()
-        .find(|d| d.kind == "evidence")
-        .unwrap()
-        .name;
+    let evidence = "observation";
     for operation in [
-        json!({"operation":"validate","source":bundle.source}),
-        json!({"operation":"collect","source":bundle.source,"context":bundle.context,"evidence_ids":[evidence]}),
+        json!({"operation":"validate","source":source}),
+        json!({"operation":"collect","source":source,"context":{},"evidence_ids":[evidence]}),
     ] {
         let mut child = Command::new(&binary)
             .arg("--workspace")
@@ -120,7 +94,7 @@ fn scientific_collector_preserves_typed_inputs_and_measured_negative() {
         assert!(output.status.success(), "{response}");
         assert_ne!(response["is_error"], true, "{response}");
         if operation["operation"] == "validate" {
-            assert_eq!(response["result"]["valid"], true);
+            assert_eq!(response["result"]["valid"], true, "{response}");
         } else {
             let record = &response["result"]["records"][evidence];
             assert_eq!(record["status"], "ok", "{record}");
@@ -203,40 +177,13 @@ fn openapi_descriptor_exports_and_collects_a_measured_negative_through_eal() {
     );
     let catalogue = CollectorCatalogue::from_json(&described.stdout).unwrap();
     let descriptor = &catalogue.collectors[0];
-    let request: Request = serde_json::from_str(include_str!("../examples/request.json")).unwrap();
-    let case: ArgumentCase = serde_json::from_str(include_str!("../examples/case.json")).unwrap();
-    let plans = case
-        .evidence_plan
-        .iter()
-        .enumerate()
-        .map(|(index, need)| AcquisitionPlan {
-            input_preparation: None,
-            need_id: need.id.clone(),
-            tool_id: if index == 0 {
-                descriptor.id.clone()
-            } else {
-                "custom".into()
-            },
-            arguments: vec![],
-            unresolved_arguments: if index == 0 {
-                vec![]
-            } else {
-                vec!["adapter".into()]
-            },
-        })
-        .collect::<Vec<_>>();
-    let exported = export_with_catalogue(&request, &case, &plans, Some(&catalogue)).unwrap();
-    let entries = &exported.bundle.source_map[&case.evidence_plan[0].id].declarations;
-    let tool = &entries
-        .iter()
-        .find(|entry| entry.kind == "tool")
-        .unwrap()
-        .name;
-    let evidence = &entries
-        .iter()
-        .find(|entry| entry.kind == "evidence")
-        .unwrap()
-        .name;
+    let source = collector_source::source(
+        &descriptor.version,
+        &json!({}),
+        &descriptor.acquisition_predicate,
+    );
+    let tool = "source";
+    let evidence = "observation";
     let binding = descriptor
         .binding(
             &std::collections::BTreeMap::new(),
@@ -247,13 +194,13 @@ fn openapi_descriptor_exports_and_collects_a_measured_negative_through_eal() {
         )
         .unwrap();
     let registry = eal_collector_contracts::CommandRegistry {
-        tools: std::collections::BTreeMap::from([(tool.clone(), binding)]),
+        tools: std::collections::BTreeMap::from([(tool.to_owned(), binding)]),
     };
     let registry_path = directory.path().join("tools.toml");
     std::fs::write(&registry_path, registry.to_toml().unwrap()).unwrap();
     for operation in [
-        json!({"operation":"validate","source":exported.bundle.source}),
-        json!({"operation":"collect","source":exported.bundle.source,"context":exported.bundle.context,"evidence_ids":[evidence]}),
+        json!({"operation":"validate","source":source}),
+        json!({"operation":"collect","source":source,"context":{},"evidence_ids":[evidence]}),
     ] {
         let mut child = Command::new(&host)
             .arg("--workspace")
@@ -277,7 +224,7 @@ fn openapi_descriptor_exports_and_collects_a_measured_negative_through_eal() {
         assert!(output.status.success(), "{response}");
         assert_ne!(response["is_error"], true, "{response}");
         if operation["operation"] == "validate" {
-            assert_eq!(response["result"]["valid"], true);
+            assert_eq!(response["result"]["valid"], true, "{response}");
         } else {
             let record = &response["result"]["records"][evidence];
             assert_eq!(record["status"], "ok", "{record}");

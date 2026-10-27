@@ -26,13 +26,31 @@ pub(crate) fn reconstruct_retained(
         }
         match call.role {
             Role::Constructor | Role::Sceptic | Role::EvidenceAuditor | Role::FinalCritic => {
-                let prefix = match call.role {
+                let fallback = match call.role {
                     Role::Constructor => "constructor",
                     Role::Sceptic => "sceptic",
                     Role::EvidenceAuditor => "auditor",
                     _ => "critic",
                 };
-                context::assessment(call.role, prefix, parse_assessment(call)?, &mut retained);
+                let prompt = crate::authoring_checkpoint::exact_json(call.prompt.user.as_bytes())?;
+                let prefix = if let Some(debate) = prompt.get("debate") {
+                    let invalid = || {
+                        Error::InvalidInput(
+                            "retained debate assessment has invalid participant or round identity"
+                                .into(),
+                        )
+                    };
+                    let participant = debate["participant"].as_u64().ok_or_else(invalid)?;
+                    let round = debate["round"].as_u64().ok_or_else(invalid)?;
+                    let roles = [Role::Constructor, Role::Sceptic, Role::EvidenceAuditor];
+                    if call.role != roles[(participant % roles.len() as u64) as usize] {
+                        return Err(invalid());
+                    }
+                    format!("agent-{participant}-round-{round}")
+                } else {
+                    fallback.to_owned()
+                };
+                context::assessment(call.role, &prefix, parse_assessment(call)?, &mut retained);
             }
             Role::Single | Role::Synthesiser | Role::Adjudicator => {
                 let parsed = eal_collector_contracts::strict_json_exact(
@@ -102,4 +120,57 @@ pub fn reconcile_retained_argument(
         }
     }
     output_validation::restore_host_fields(candidate, canonical)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::provider::{Completion, CompletionRequest};
+    use serde_json::json;
+
+    #[test]
+    fn routed_dissent_replays_exact_participant_and_round_ids() {
+        let roles = [Role::Constructor, Role::Sceptic, Role::EvidenceAuditor];
+        let mut transcript = Vec::new();
+        for round in 0..2 {
+            for participant in 0..4 {
+                let role = roles[participant % roles.len()];
+                let content = json!({"findings":[],"objections":[format!("Concern from participant {participant} in round {round}.")],"evidence_gaps":[]}).to_string();
+                transcript.push(CallRecord {
+                    role,
+                    prompt: CompletionRequest {
+                        role,
+                        system: String::new(),
+                        user: json!({"debate":{"participant":participant,"round":round}})
+                            .to_string(),
+                        schema: json!({}),
+                    },
+                    response: Completion {
+                        content: content.clone(),
+                        model: "fixture".into(),
+                        input_tokens: None,
+                        output_tokens: None,
+                        request_id: None,
+                        service_tier: None,
+                        reasoning_effort: None,
+                    },
+                    response_content_bytes: content.len(),
+                    response_content_sha256: sha256_hex(content.as_bytes()),
+                    response_content_omitted: false,
+                    elapsed_ms: 0,
+                });
+            }
+        }
+        let retained = reconstruct_retained(&transcript).unwrap();
+        assert_eq!(retained.len(), 8);
+        for (index, objection) in retained.iter().enumerate() {
+            assert_eq!(
+                objection.id,
+                format!("agent-{}-round-{}-1", index % 4, index / 4)
+            );
+        }
+        transcript[0].role = Role::Sceptic;
+        transcript[0].prompt.role = Role::Sceptic;
+        assert!(reconstruct_retained(&transcript).is_err());
+    }
 }

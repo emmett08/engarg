@@ -201,6 +201,8 @@ fn independent_tool_implementation_accepts_progress_and_reports_preflight_failur
             "--progress",
             "--input",
             "/missing/progress-fixture.json",
+            "--tools",
+            "/missing/progress-tools.toml",
             "--model",
             "private-model-name",
         ])
@@ -210,6 +212,7 @@ fn independent_tool_implementation_accepts_progress_and_reports_preflight_failur
     assert!(result.stdout.is_empty());
     let stderr = String::from_utf8(result.stderr).unwrap();
     assert!(stderr.contains("tool implementation started"));
+    assert!(stderr.contains("tool implementation configuration checks"));
     assert!(stderr.contains("tool implementation failed"));
     assert!(!stderr.contains("private-model-name"));
 }

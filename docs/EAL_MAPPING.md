@@ -1,76 +1,130 @@
-# EAL/3 translation contract
+# Executable EAL translation
 
-EngArg exports an authored engineering argument into EAL/3. The result is a structural projection with explicit review obligations. It is suitable for inspection and EAL assessment after admissible observations have been collected. Conversion alone supplies neither those observations nor a proof of the natural-language argument.
-
-The integration uses the immutable EAL producer revision pinned in `Cargo.toml` and `.github/workflows/ci.yml`. EngArg invokes that project's official `eal-host`, which negotiates MCP with `eal-mcp`. This reuses its tool-schema validation, authentication and exact-number handling rather than maintaining another MCP implementation.
-
-## Representation
-
-| EngArg concept | EAL/3 projection | Qualification |
-| --- | --- | --- |
-| Current claim, stronger target and subclaims | Named claims with scope and qualifier in the statement | Wording does not become a formal predicate |
-| Ground | Claim supported by source and interpretation review evidence | Reported or user-checked contents remain unverified by conversion |
-| Warrant | `structured/1` reasoning and a candidate-route claim | A deductive label alone cannot justify a computational deduction method |
-| Warrant premises | Joint premises of one route argument | All required premises travel together |
-| Jointly required contributions | One composition argument with all selected route claims as premises | Several independent EAL arguments would mean alternatives and would change the meaning |
-| Cumulative support | The same conjunction plus a composition adequacy obligation | No numerical combination, independence or sufficiency is inferred |
-| Alternative routes | Only the selected route connects to the canonical conclusion | Unselected candidates remain queryable as route claims. Reselection requires a new authored assessment |
-| Critical assumption | Validated EAL assumption attached to affected support | A model's supported label is retained as metadata |
-| Challenge | Evidence-gated objection at the matching claim, reasoning, assumption or objection | Its activation requires admissible support |
-| Open or sustained material challenge | Additional resolution gate on affected support | An unsupported objection must not silently remove an existing EngArg reliance condition |
-| Evidence plan | Native collector or custom command binding with typed input | Collection availability and acceptance review remain separate |
-| Alternatives and reading prose | Preserved in the JSON bundle | No experiment result or decision authority is fabricated |
-
-An objection that relies on a critical assumption receives an auxiliary premise claim. That claim has a native EAL argument requiring the assumption and its validation evidence. An accepted attack on the assumption can therefore defeat the dependent objection, as well as ordinary arguments that require it. The auxiliary bridge has no claim premises of its own and adds no premise cycle.
-
-Source identity, ground interpretation, warrant adequacy, assumption validation, composition adequacy, challenge activation and consequential challenge resolution are separate review contracts. Each requires `accepted == true` from its own observation. `engarg_review_contract` declares an interface. It does not install a collector or create a trusted reviewer.
-
-Review and acquisition ages are separately configured through `--export-policy` and resolved into export v3. The initial default for each is 86,400 seconds. Ages must be positive seconds through 315,360,000. Zero is rejected. `acquisition_per_need` overrides named needs, and persisted policy records the effective age of every need. The digest binds policy, plans, catalogue and authoring profile to the case revision. Changing policy creates a new revision and requires evidence bound to that revision. Source artefacts retain their original observation age.
-
-## Identity and preservation
-
-Identifiers use category prefixes and injective hexadecimal encoding of their original UTF-8 bytes. Text and contract inputs use JSON string encoding. User text cannot introduce EAL declarations. The original claim identifiers map to queryable EAL names in `claim_names`, and `source_map` identifies the generated declarations and their roles.
-
-The JSON bundle contains the exact original request and case, generated source, context, source map, obligations and limitations. It therefore preserves information that the executable projection cannot express. The export revision hashes the canonical input, exporter version and schema version. This is an identity mechanism, not an authentication signature.
-
-Keep the source bytes unchanged between collection and assessment. A source formatting change can change the EAL source identity and invalidate observation reuse. EngArg does not format or repair a source before sending it to the host. When reading its JSON bundle, it checks the canonical projection for consistency. Edited EAL can be supplied explicitly as raw source.
-
-## Assessment and boundaries
-
-`engarg eal assess` invokes EAL's `reason` operation. Without a collection identifier, the server evaluates an empty observation set. Missing observations leave support unavailable. That result does not refute the engineering proposition. A successful CLI exit indicates a completed operation, not acceptance of every claim. Inspect the returned claim statuses and explanations.
-
-EngArg does not automatically collect observations or execute commands described in an argument. Operators can configure trusted collectors and perform explicit collection with the EAL tools, retaining the exact source, context and database, then pass the resulting collection identifier to assessment. The declared review interface must have an appropriate implementation before those contracts can be discharged. Inventing accepted records would destroy the evidential meaning of the case.
-
-The adapter uses bounded input and output, a deadline, process cleanup and no shell or hidden retry. The host deadline is followed by a one-second cleanup allowance before forced termination. Remote HTTP endpoints require TLS and a named bearer-token environment variable. Child stderr and credential values are not incorporated into error reports. Semantic validation diagnostics and tool errors are returned before the CLI reports failure.
-
-## Architecture decisions
-
-The pure exporter owns graph translation and has no process, network or model dependency. The host adapter owns the external process boundary. The CLI module owns argument parsing, bounded file input and operation selection. The model adapter remains separate. This applies single responsibility and dependency inversion without introducing an inheritance hierarchy or a generic agent framework.
-
-The adapter pattern is justified by a separately versioned external host. A fixed workflow remains appropriate for the six bounded model stages. The exporter uses a private builder to retain one source map, obligation register and declaration order during translation. Its orchestration methods remain cohesive because each follows a single translation sequence and delegates declaration encoding to focused helpers. CLI host dispatch and file handling are separated from model analysis, rather than extending the analysis function with unrelated EAL operations.
-
-## Reproduce integration checks
-
-Install the reference EAL binaries as described in the README, then run:
+EngArg compiles the canonical engineering argument and its semantic obligations
+into `language "EAL/4"`. Executable semantics belong to that language version;
+there is no execution selector. EAL owns parsing, validation, acquisition,
+observation retention, method execution and assessment. The executable package is
+`case.eal`, `tools.toml` and any custom implementations. A build receipt and source
+map aid inspection; neither supplies missing execution semantics.
 
 ```sh
-ENGARG_EAL_HOST=/absolute/path/to/eal-host cargo test --locked --test eal_live -- --ignored
+engarg build --input report.json --tools tools.toml --output-dir new-package
 ```
 
-These tests require the real host and sibling server/runtime binaries. The normal test suite uses deterministic local doubles for process and API failure cases. Neither kind of test establishes the truth of a proposed engineering claim or comparative argument quality.
+The strict current `engarg.run.v3` report supplies `request`, `argument` and
+`support_elaboration`. Optional retained discovery planning can supply the same
+typed support contracts through canonical report admission. Direct TOML tools are keyed by the logical
+acquisition ID; the builder converts them to injective EAL operation names.
+Known tools require no discovery, ranking, registration or qualification files.
+A bound native method requires this executable compilation path. Exporting only
+the argument without its support elaboration is rejected with the build command;
+there is no fallback tool that returns formal input or assembles hidden evidence.
+Authoring may still discover interfaces or construct missing operations before
+this binding is supplied. Those activities do not grant execution authority.
 
-## Acquisition plans and paired export
+For a saved report with evidence planning, `engarg eal export --input report.json
+--tools tools.toml --output new-package` uses the same package compiler. The output
+is a new directory. Graph-sidecar preparation, per-file graph exports, the
+`engarg_support_graph` executable wrapper and support-export reconstruction have
+been removed. Historical reports and observations remain data; revise and rebuild
+the canonical argument to use the current compiler.
 
-The CLI pairs every export with a native eal-mcp tools registry. The canonical `ArgumentCase`, `RunReport` and `EalExport` record fields retain their existing schemas. The internal model protocol adds an envelope containing the case and an acquisition plan. Its raw response remains in the report's existing transcript field. The final envelope must name each evidence need exactly once and use a permitted collector identifier. Every required named input is either supplied or explicitly unresolved. Repairs must update the graph and these bindings together within the original call allowance.
+## Compilation and evidence
 
-The separate `acquisition` module owns the catalogue and plan validation. The `eal_acquisition` projection normalises the retained plan, binds it into the export revision and stores it in a deterministic EAL source comment. Observation context retains only the export digest so the plan is not duplicated into every observation and does not exceed EAL collection context limits. Each evidence need has a source-map entry for its acquisition tool and evidence declaration. Existing reports with no retained plan get explicit custom stubs. The exporter verifies retained plans against the exact saved argument and rejects mismatched canonical contents.
+| Authored concept | Emitted EAL |
+| --- | --- |
+| Actual source operation | One evidence declaration and direct tool symbol |
+| Data dependency | Explicit `bind` from a normalized upstream value |
+| Pure extraction, projection or calculation | `derive` with typed input bindings and bounded EAL expressions |
+| Exact semantic requirement | One derived Boolean check, retaining original criterion and target |
+| Several requirements on one target | Conjunction of the already evaluated check results |
+| Ground | Claim supported by its canonical requirements |
+| Warrant | One native or structured reasoning application |
+| Applicability assumption | Native EAL assumption with its explicit validator |
+| Challenge | Evidence-supported objection at the original target category |
+| Alternative discrimination | Its explicit requirements also gate the named claims |
+| Ordinary selected composition | Conjunction of the selected route claims |
+| Cumulative sufficiency | Separate explicit adequacy obligation |
 
-EngArg adapters use `collected == true`. Native fleet collectors use `cluster_count >= 1` as an availability gate and the exact GitHub commit collector uses `found == true`. These gates retain successful negative observations for independent interpretation. The adapter uses this marker only after a successful bounded JSON read. It returns the raw result alongside the exact acquisition identity. Every applicable existing review gate continues to require its own `accepted == true` observation. This preserves the distinction between obtaining a measurement and establishing that it meets the proposed criterion. Collection of counter-evidence likewise remains an observation whose interpretation requires review.
+`support_export::compile_direct` is the sole semantic compiler used by package
+building and EAL export. The public authored-only exporter and the separate
+bundle-obligation model have been removed. Each requirement is lowered once and
+its result is connected to the relevant argument dependency. A generic review
+does not repeat a property already expressed by that requirement. Shared acquisitions retain one source
+identity; several checks do not manufacture independent observations. Negative
+observations remain available data for counter-evidence computations.
 
-Known resolved adapters use command bindings to `engarg eal observe`. The generated registry supplies fixed argv and explicit environment-name allowlists. The model supplies named data arguments rather than an executable. Kubernetes collection uses an explicit context and resource scope with a fixed `get` operation. GitHub collection uses a relative API path and a fixed GET method. HTTP collection follows no redirects. Bearer tokens require an operator-authorised exact HTTPS origin. Command stderr and remote error bodies stay outside error messages. Adapters bound acquisition to 60 seconds and raw JSON to 1 MiB. Registry limits allow 65 seconds and 4 MiB for the full envelope including its bound request.
+Operation arguments remain literal JSON with explicit dependency bindings. Pure
+checks use exact JSON equality and the EAL exact arithmetic helpers. Mean, sum,
+minimum, maximum and unit scaling retain rational results rather than converting
+them silently to binary64. Plan-only per-item fan-out is rejected at build: bind
+a bounded batch operation explicitly. The compiler does not generate an
+unbounded script or hide fan-out semantics in TOML.
 
-Prepared registries can contain explicit replacement paths for unresolved custom collectors and reviews. Executable registry admission rejects these paths, including unused bindings. An operator resolves the required bindings or supplies a registry containing only the independently configured bindings selected for execution. Known collectors keep their executable templates while scope inputs remain unresolved. EAL still supports explicitly configured `json_file` imports. Imported records require `value`, `observed_at`, `context` and the exact acquisition `request`.
+Complete-enumeration and statistical coverage require explicit `evaluation.coverage`
+references to observations or independently derived Boolean checks.
+A successful transport or a provider's `complete:true` does not establish the
+external population. Missing completeness remains an unresolved requirement.
 
-`eal collect` invokes the official host's `collect_claim` operation only on explicit operator request. `--tools` resolves to the host's `--registry` flag for local collection. `--collector-env` passes only supported explicitly named collector variables. Remote collection uses the remote server's own registry and credential configuration. Analysis and conversion perform no acquisition. Both source and TOML companions participate in the existing exclusive-create and rollback transaction.
+## Native queries and empirical inputs
 
-Acquisition request contracts, bounded subprocess execution and reusable adapters have separate EAL-owned packages. EngArg owns evidence-need mapping and the pure EAL projection. The runtime owns correspondence and reuse. The language core depends on none of the infrastructure packages.
+A bound warrant contains an EAL method identifier and query. Query shape and
+result fields are checked against EAL's descriptors. EngArg does not maintain
+another formula AST or independent numerical schema. An invalid path such as
+`/entailed` is a build/admission error; `entailed` is the method result field.
+
+The query is authored program data. Deductive formulae do not have to be returned
+by an acquisition tool. Empirical fields are assembled from declared source
+pointers into a pure derived input; EAL merges only consistent authored and
+measured fields. Conflicting fields cannot be overwritten by the query. Source
+identity dimensions must preserve the target scope. A different population
+requires an explicit scope-transfer argument.
+
+Deductive, inductive, abductive, causal and counterfactual warrants use their
+versioned EAL algorithms when bound. Analogical methods use EAL's supported
+bounded mapping contract or scoped structured review. Practical arguments retain
+explicit options, constraints, consequence evidence and a scoped decision-policy
+review; a mode label does not supply a solver or invent decision weights.
+Unresolved method declarations remain explicit. Computation establishes the
+specified formal relation, not correspondence with arbitrary prose or the
+adequacy of a physical model.
+
+Native assumptions remain actual argument dependencies, including when an
+objection targets an applicability assumption. Challenges to claims, reasoning,
+assumptions and other objections retain their target identities. Open material
+challenges retain a distinct resolution obligation; accepting a challenge's
+activation strengthens that objection, not the main claim. Requirements use the
+typed roles `support`, `challenge_activation` and `challenge_resolution`; target
+identity alone cannot decide which direction a positive observation supports.
+Explicit role checks are reused without an additional generic review.
+
+## Scoped reviews
+
+A remaining review request identifies `criterion`, `target` and exact `scope`.
+A retained response identifies the reviewer, original `reviewed_at`, reasons,
+verdict and matching criterion/target/scope. Verdicts are `supported`, `rejected`
+or `inconclusive`. The EAL check requires an exact correspondence and a supported
+verdict. Review records are acquired observations, not generated approvals.
+Missing reviewers or unscoped requests remain unresolved. Original review time
+controls freshness; rereading a review file does not refresh it. Every canonical
+scoped judgement projects the complete review into a `scoped_review` evidence
+node. EAL checks its shape, identity and original review time even when the record
+was nested inside a newly collected batch. Missing scope or coverage produces an
+unavailable observation, rather than a negative measurement.
+
+The compiler records prose, qualifiers, assumptions and source requirements
+without asserting their empirical truth. Tool acquisition, predicate acceptance,
+method completion and claim status are distinct outputs. `unsupported` does not
+mean false, and a complete assessment does not imply successful acquisition.
+
+## Explicit revision and rebuilding
+
+`engarg eal revise` consumes and emits the same current report. An executable
+argument change requires `--support-elaboration`; changed requirements carry
+their prior digest and reason. `--tools` recomputes operation bindings. Without
+it, operations are marked unbound rather than inheriting a stale binding claim.
+The host preserves the source report and original dissent, rechecks acquisition
+design review, and invalidates derived tooling and assessment metadata. The new
+report can be revised again or passed to `engarg build`. Imported provider-authored
+direct reports must still match their original retained completion at the source
+cut; hand-editing the current argument does not bypass the revision protocol.

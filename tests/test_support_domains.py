@@ -35,15 +35,15 @@ class DomainExperimentTests(unittest.TestCase):
 
     def test_only_complete_successful_pairs_enter_descriptive_ratios(self):
         rows = [
-            {"case": "one", "repetition": 1, "mode": "flat", "structurally_accepted": True, "input_tokens": 100},
+            {"case": "one", "repetition": 1, "mode": "direct", "structurally_accepted": True, "input_tokens": 100},
             {"case": "one", "repetition": 1, "mode": "graph", "structurally_accepted": True, "input_tokens": 80},
-            {"case": "two", "repetition": 1, "mode": "flat", "structurally_accepted": True, "input_tokens": 200},
+            {"case": "two", "repetition": 1, "mode": "direct", "structurally_accepted": True, "input_tokens": 200},
             {"case": "two", "repetition": 1, "mode": "graph", "structurally_accepted": False, "input_tokens": 1},
         ]
         comparison = EXPERIMENT.comparisons(rows)
-        self.assertEqual(comparison["input_tokens"], {"paired_samples": 1, "median_graph_to_flat_ratio": 0.8})
+        self.assertEqual(comparison["input_tokens"], {"paired_samples": 1, "median_graph_to_direct_ratio": 0.8})
         self.assertEqual(comparison["elapsed_seconds"]["paired_samples"], 0)
-        self.assertIsNone(comparison["elapsed_seconds"]["median_graph_to_flat_ratio"])
+        self.assertIsNone(comparison["elapsed_seconds"]["median_graph_to_direct_ratio"])
 
 
 # This fixture exercises orchestration and accounting. It supplies no live model
@@ -81,7 +81,10 @@ else:
         value.update(result={'collection_id':'retained-123'}, metrics={'source_requests':1})
     if phase == 'assess':
         value.update(status='supported', collection_id=arg('--collection-id'))
-    save(arg('--output'),value)
+    if phase == 'build':
+        save(pathlib.Path(arg('--output-dir'))/'build.json', value)
+    else:
+        save(arg('--output'),value)
 '''
 
 
@@ -94,6 +97,8 @@ class FullWorkflowStudyTests(unittest.TestCase):
         self.binary.chmod(0o700)
         self.config = self.root / 'config.json'
         self.config.write_text('{}')
+        self.tools = self.root / 'tools.toml'
+        self.tools.write_text('[tools]')
         self.reference = self.root / 'qualification.json'
         self.reference.write_text('{"measurement_semantics":"fixture only"}')
 
@@ -104,14 +109,19 @@ class FullWorkflowStudyTests(unittest.TestCase):
         phases = []
         for name in STUDY.PHASES:
             path = '{work}/' + name + '.json'
-            verb = 'register-tools' if name == 'register' else name
+            verb = name
             argv = ['{binary}', 'eal', verb, '--output', path]
             phase = {'name': name, 'argv': argv, 'timeout_seconds': 5, 'report': path,
                      'assertions': [{'file': path, 'pointer': '/phase', 'equals': verb}]}
+            if name == 'build':
+                path = '{work}/package/build.json'
+                phase['argv'] = ['{binary}', 'build', '--tools', '{tools}', '--output-dir', '{work}/package']
+                phase['report'] = path
+                phase['assertions'] = [{'file':path,'pointer':'/phase','equals':'build'}]
             if name == 'implement':
                 phase.update(argv=['{binary}', 'eal', 'implement', '--input', '{analysis}',
                                    '--tool-output-dir', '{work}/tools', '--tool-max-calls', '2',
-                                   '--http-retries', '0'],
+                                   '--http-retries', '0', '--tools', '{tools}', '--eal-host', '{eal_host}'],
                              report='{work}/tools/analysis.with-tools.json',
                              audit='{work}/tools/tooling.audit.jsonl',
                              assertions=[{'file':'{work}/tools/analysis.with-tools.json',
@@ -133,18 +143,18 @@ class FullWorkflowStudyTests(unittest.TestCase):
         return {'phases':phases}
 
     def freeze(self, mutate=None):
-        config = {'schema':'engarg.support-workflow-study/1', 'purpose':'exploratory',
+        config = {'schema':'engarg.support-workflow-study/2', 'purpose':'exploratory',
                   'sampling_justification':'One specified algorithm probes the generated route lifecycle.',
                   'cache_treatment':'Fresh isolated workflow stores; provider caches uncontrolled.',
                   'inference_unit':'case','eal_revision':'fixture-only', 'max_model_calls':18,
                   'assets':{'qualifier':str(self.binary),'qualification':str(self.reference)},
                   'cases':{'specified_algorithm':{'partition':'development','genuine_code_gap':True,
-                                                  'flat':self.recipe(),'graph':self.recipe()}}}
+                                                  'direct':self.recipe(),'graph':self.recipe()}}}
         if mutate:
             mutate(config)
         path = self.root / 'workflow.json'
         path.write_text(json.dumps(config))
-        args = SimpleNamespace(workflow=path, binary=self.binary, evidence_config=self.config,
+        args = SimpleNamespace(workflow=path, binary=self.binary, evidence_config=self.config, tools=self.tools, eal_host=self.binary,
                                case=['specified_algorithm'], repetitions=1, model='fixture')
         return STUDY.freeze_study(args, EXPERIMENT.CASES)
 
@@ -172,14 +182,14 @@ class FullWorkflowStudyTests(unittest.TestCase):
 
     def test_failed_assertion_stops_later_phases_and_retains_spend(self):
         def change(config):
-            for mode in ['flat','graph']:
-                config['cases']['specified_algorithm'][mode]['phases'][3]['assertions'][0]['equals'] = 'wrong'
+            for mode in ['direct','graph']:
+                config['cases']['specified_algorithm'][mode]['phases'][2]['assertions'][0]['equals'] = 'wrong'
         protocol = self.freeze(change)
         output = self.root / 'runs'; output.mkdir()
         result = STUDY.run_workflow(protocol, output, 'STUDY_FIXTURE_KEY')
         for row in result['rows']:
             self.assertFalse(row['workflow_accepted'])
-            self.assertEqual(row['failed_phase'], 'replan')
+            self.assertEqual(row['failed_phase'], 'build')
             self.assertEqual(row['input_tokens'], 105)
             self.assertFalse((Path(row['analysis']).parent/'collect.json').exists())
         self.assertEqual(result['comparisons']['input_tokens']['paired_runs'], 0)
@@ -192,7 +202,7 @@ class FullWorkflowStudyTests(unittest.TestCase):
             self.freeze(lambda c: c['assets'].pop('qualification'))
         with self.assertRaisesRegex(ValueError, 'genuine algorithm-gap'):
             self.freeze(lambda c: c['cases']['specified_algorithm'].update(genuine_code_gap=False,
-                flat={'phases': self.recipe()['phases'][3:]}, graph={'phases':self.recipe()['phases'][3:]}))
+                direct={'phases': self.recipe()['phases'][2:]}, graph={'phases':self.recipe()['phases'][2:]}))
 
     def test_frozen_input_change_is_rejected_before_commands(self):
         protocol = self.freeze()
@@ -247,7 +257,7 @@ class FullWorkflowStudyTests(unittest.TestCase):
 
     def test_qualification_usage_is_unknown_without_attestation_or_receipt(self):
         def remove(config):
-            for mode in ['flat','graph']:
+            for mode in ['direct','graph']:
                 config['cases']['specified_algorithm'][mode]['phases'][1].pop('deterministic_attestation')
         protocol = self.freeze(remove)
         self.assertIn('EngArg analyse and implement only', protocol['declared_model_call_bound_scope'])
@@ -301,7 +311,7 @@ class FullWorkflowStudyTests(unittest.TestCase):
         self.assertEqual(STUDY.pointer(value,collect['counters']['response_bytes']['pointer']),[456])
     def test_unrepresentable_arm_is_a_capability_difference(self):
         protocol = self.freeze(lambda c: c['cases']['specified_algorithm'].update(
-            flat={'unrepresentable':True,'reason':'fixture declared capability gap'}))
+            direct={'unrepresentable':True,'reason':'fixture declared capability gap'}))
         output = self.root / 'runs'; output.mkdir()
         result = STUDY.run_workflow(protocol, output, 'STUDY_FIXTURE_KEY')
         self.assertEqual(result['comparisons']['unrepresentable_runs'], 1)

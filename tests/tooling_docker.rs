@@ -1,6 +1,5 @@
 //! Real isolated-runner coverage. CI preloads the official toolchain images.
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::{
     fs,
     io::{self, Read, Write},
@@ -15,10 +14,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[path = "common/argument_assertions.rs"]
-mod argument_assertions;
-#[path = "common/live_output.rs"]
-mod live_output;
 #[allow(dead_code)]
 #[path = "fixtures/tooling_collector.rs"]
 mod rust_collector_fixture;
@@ -363,80 +358,210 @@ fn draft_response() -> Value {
     })
 }
 
-fn digest(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+#[path = "common/executable_case.rs"]
+mod executable_case;
+#[path = "common/live_output.rs"]
+mod live_output;
+#[allow(dead_code)]
+#[path = "common/reasoning.rs"]
+mod reasoning;
+#[allow(dead_code)]
+#[path = "common/reasoning_graph.rs"]
+mod reasoning_graph;
+
+fn direct_case() -> (
+    engarg::domain::Request,
+    engarg::domain::ArgumentCase,
+    engarg::support_requirements::SupportElaboration,
+) {
+    let (request, case, mut support) = executable_case::fixture();
+    let mut case = serde_json::to_value(case).unwrap();
+    case["warrants"][0]["reasoning_method"]["conclusion"]["valid_from"] =
+        json!("2020-01-01T00:00:00Z");
+    case["warrants"][0]["reasoning_method"]["conclusion"]["valid_until"] =
+        json!("2100-01-01T00:00:00Z");
+    // This case concerns the supplied synthetic mode. Its method target and all
+    // source scopes must identify that same mode, not the inventory fixture from
+    // which the general executable-case template was derived.
+    case["warrants"][0]["reasoning_method"]["conclusion"]["subject"] =
+        json!("Synthetic supplied mode");
+    case["warrants"][0]["reasoning_method"]["conclusion"]["scope"] = json!({
+        "kind":"synthetic_flag", "selectors":[{"name":"mode","value":"positive"}], "identity_dimensions":["mode"]
+    });
+    let case = serde_json::from_value(case).unwrap();
+    let operation = support
+        .acquisitions
+        .iter_mut()
+        .find(|operation| operation.id == "premise_source")
+        .unwrap();
+    operation.arguments = json!({"mode":"positive"});
+    operation.contract.scope.kind = "synthetic_flag".into();
+    operation.contract.scope.subject = "Synthetic supplied mode".into();
+    operation.contract.scope.selectors =
+        std::collections::BTreeMap::from([("mode".into(), json!("positive"))]);
+    operation.contract.scope.identity_dimensions = vec!["mode".into()];
+    operation.contract.acceptable_methods = vec!["synthetic_flag/1".into()];
+    operation.contract.quantities =
+        serde_json::from_value(json!([{"name":"present","unit":"boolean"}])).unwrap();
+    operation.contract.time.require_original_observation_time = false;
+    operation.operation_spec = Some(serde_json::from_value(json!({
+        "schema":engarg::support_requirements::OPERATION_SPECIFICATION_SCHEMA,
+        "definition":"Return present=true exactly when caller mode is positive; return false for negative and fail for error.",
+        "input_conditions":["mode is positive, negative or error"],
+        "output_guarantees":["Retain the synthetic instrument mode in the measured result. Do not infer or certify any real deployment state."],
+        "input_schema":{"type":"object","properties":{"mode":{"type":"string","enum":["positive","negative","error"]}},"required":["mode"],"additionalProperties":false},
+        "output_schema":{"type":"object","properties":{"present":{"type":"boolean"},"mode":{"type":"string","enum":["positive","negative","error"]}},"required":["present","mode"],"additionalProperties":false}
+    })).unwrap());
+    let contract = operation.contract.clone();
+    for source in &mut support.acquisitions {
+        source.contract.scope = contract.scope.clone();
+        source.arguments = json!({"mode":"positive"});
+    }
+    for requirement in &mut support.requirements {
+        if let Some(source) = &mut requirement.contract {
+            source.scope = contract.scope.clone();
+        }
+    }
+    let requirement = support
+        .requirements
+        .iter_mut()
+        .find(|requirement| requirement.target_id == "G1")
+        .unwrap();
+    requirement.contract = Some(contract);
+    requirement.acceptance = eal_collector_contracts::execution::EvaluationCriterion::Equals {
+        expected: json!(true),
+    };
+    let evaluation = support
+        .evaluations
+        .iter_mut()
+        .find(|evaluation| evaluation.requirement_id == requirement.id)
+        .unwrap();
+    evaluation.criterion = requirement.acceptance.clone();
+    evaluation.inputs[0].pointer = "/present".into();
+    let errors = engarg::support_requirements::validate_elaboration(&case, &support);
+    assert!(errors.is_empty(), "{errors:?}");
+    (request, case, support)
+}
+
+fn direct_draft() -> Value {
+    let (_, _, support) = direct_case();
+    let request = engarg::tooling::direct::operation_request(
+        support
+            .acquisitions
+            .iter()
+            .find(|operation| operation.id == "premise_source")
+            .unwrap(),
+        &support,
+    )
+    .unwrap();
+    let mut draft = draft_response();
+    draft["purpose"] = json!(request.operation_purpose);
+    draft["input_schema_json"] = json!(request.input_schema.to_string());
+    draft["result_schema_json"] = json!(request.output_schema.to_string());
+    draft["arguments"] = json!([]);
+    draft["unresolved_arguments"] = json!(["mode"]);
+    draft
+}
+
+#[test]
+fn parameterised_direct_fixture_compiles_without_discovery_or_custom_stubs() {
+    let (request, case, support) = direct_case();
+    let draft = direct_draft();
+    let output_schema: Value =
+        serde_json::from_str(draft["result_schema_json"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        output_schema["properties"]["present"]["x-engarg-quantity"]["unit"],
+        "boolean"
+    );
+    let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("observation.json"), "{}").unwrap();
+    let tools = root.path().join("tools.toml");
+    fs::write(&tools,"[tools.premise_source]\nkind='json_file'\nversion='1'\npath='observation.json'\n[tools.applicability_source]\nkind='json_file'\nversion='1'\npath='observation.json'\n").unwrap();
+    engarg::package::build(
+        &request,
+        &case,
+        &support,
+        &tools,
+        &root.path().join("package"),
+        &Default::default(),
+    )
+    .unwrap();
+    let source = fs::read_to_string(root.path().join("package/case.eal")).unwrap();
+    assert!(source.starts_with("language \"EAL/4\""));
+    assert!(!source.contains("engarg_support_graph"));
+}
+
+fn host() -> PathBuf {
+    PathBuf::from(
+        std::env::var_os("ENGARG_EAL_HOST")
+            .expect("matching ENGARG_EAL_HOST installation required"),
+    )
+    .canonicalize()
+    .unwrap()
+}
+
+fn authoring_fixture(root: &Path) -> Value {
+    let (request, case, support) = direct_case();
+    let input = root.join("request.json");
+    fs::write(&input, serde_json::to_vec(&request).unwrap()).unwrap();
+    fs::create_dir(root.join("tools")).unwrap();
+    fs::write(root.join("tools/applicability.py"), "import json,sys,datetime
+request=json.load(sys.stdin)
+print(json.dumps({'value':{'applies':request['input']['mode']=='positive'},'observed_at':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}))
+").unwrap();
+    let tools = root.join("tools.toml");
+    fs::write(&tools, "[tools.applicability_source]\nkind='command'\nversion='1'\nargv=['python3','tools/applicability.py']\ninherit_env=['PATH']\n".replace("\\n", "\n")).unwrap();
+    json!({"argument":live_output::generation_value(&case),"support_elaboration_json":serde_json::to_string(&support).unwrap()})
+}
+
+fn authoring_command(root: &Path, endpoint: &str) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
+    command
+        .args(["analyse", "--input"])
+        .arg(root.join("request.json"))
+        .arg("--tools")
+        .arg(root.join("tools.toml"))
+        .arg("--eal-host")
+        .arg(host())
+        .args([
+            "--model",
+            "fixture",
+            "--endpoint",
+            endpoint,
+            "--api-key-env",
+            "UNSET_TOOL_TEST_KEY",
+            "--mode",
+            "single",
+            "--max-calls",
+            "1",
+            "--max-repairs",
+            "0",
+            "--http-retries",
+            "0",
+            "--format",
+            "json",
+        ])
+        .env_remove("UNSET_TOOL_TEST_KEY");
+    command
 }
 
 fn saved_report(path: &Path) {
-    let request: Value = serde_json::from_str(include_str!("../examples/request.json")).unwrap();
-    let mut argument: Value = serde_json::from_str(include_str!("../examples/case.json")).unwrap();
-    let first = &mut argument["evidence_plan"][0];
-    first["question"] = json!("Does the synthetic local instrument report presence?");
-    first["method"] =
-        json!("Read the configured local instrument mode and retain the measured result.");
-    first["measurement"] = json!("One categorical presence measurement.");
-    first["comparator"] =
-        json!("Positive and negative instrument states with an acquisition error.");
-    first["acceptance_criterion"] =
-        json!("The acquired observation retains its exact request identity.");
-    let plans: Vec<_> = argument["evidence_plan"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .enumerate()
-        .map(|(index, need)| {
-            if index == 0 {
-                json!({
-                    "need_id": need["id"],
-                    "tool_id": "custom",
-                    "arguments": [],
-                    "unresolved_arguments": ["adapter"]
-                })
-            } else {
-                json!({
-                    "need_id": need["id"],
-                    "tool_id": "artifact_json",
-                    "arguments": [],
-                    "unresolved_arguments": ["inputs"]
-                })
-            }
-        })
-        .collect();
-    let content = json!({"argument": argument, "acquisition_plan": plans}).to_string();
-    let typed_request: engarg::domain::Request = serde_json::from_value(request.clone()).unwrap();
-    let run_config = engarg::engine::RunConfig {
-        mode: engarg::engine::Mode::Single,
-        max_calls: 1,
-        ..engarg::engine::RunConfig::default()
-    };
-    let report = json!({
-        "schema_version": "engarg.run.v2",
-        "execution_mode": "offline_synthetic_fixture",
-        "input_sha256": digest(&serde_json::to_vec(&typed_request).unwrap()),
-        "mode": "single",
-        "run_config": run_config,
-        "provider_config": null,
-        "limitations": ["Synthetic argument used to exercise isolated tooling implementation."],
-        "request": request,
-        "argument": argument,
-        "transcript": [{
-            "role": "single",
-            "prompt": {"role": "single", "system": "fixture", "user": "{}", "schema": {}},
-            "response": {
-                "content": content, "model": "fixture", "input_tokens": null,
-                "output_tokens": null, "request_id": null, "service_tier": null,
-                "reasoning_effort": null
-            },
-            "response_content_bytes": content.len(),
-            "response_content_sha256": digest(content.as_bytes()),
-            "response_content_omitted": false,
-            "elapsed_ms": 0
-        }]
-    });
-    fs::write(path, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+    let root = path.parent().unwrap();
+    let server = MockServer::new(vec![authoring_fixture(root)]);
+    successful(
+        &authoring_command(root, &server.endpoint)
+            .arg("--output")
+            .arg(path)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(server.requests().len(), 1);
+    let report: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    engarg::report::read_direct(&report).unwrap();
+    assert_eq!(
+        report["direct_bindings"]["unbound_operations"],
+        json!(["premise_source"])
+    );
 }
 
 fn profile(path: &Path, language: &str, image: &str, entry: &str) {
@@ -492,6 +617,10 @@ fn implement(
     Command::new(env!("CARGO_BIN_EXE_engarg"))
         .args(["eal", "implement", "--input"])
         .arg(input)
+        .arg("--tools")
+        .arg(input.parent().unwrap().join("tools.toml"))
+        .arg("--eal-host")
+        .arg(host())
         .args([
             "--model",
             "fixture",
@@ -723,36 +852,90 @@ fn successful_implementation(output: &Output, store: &Path) {
     );
 }
 
-fn export_manifest(report: &Path, directory: &Path) -> (String, PathBuf) {
-    let source = directory.join("argument.eal");
-    let tools = directory.join("argument.tools.toml");
-    let bundle = directory.join("argument.bundle.json");
+fn export_manifest(report_path: &Path, directory: &Path) -> (String, PathBuf) {
+    let report: Value = serde_json::from_slice(&fs::read(report_path).unwrap()).unwrap();
+    let tools = Path::new(report["tooling"]["tools"].as_str().unwrap());
+    let mut argument = report["argument"].clone();
+    argument["adjudication"] = json!(format!(
+        "{} The explicit revision preserves the synthetic mode scope.",
+        argument["adjudication"].as_str().unwrap()
+    ));
+    let proposed = directory.join("revised-argument.json");
+    fs::write(&proposed, serde_json::to_vec(&argument).unwrap()).unwrap();
+    let support = directory.join("revised-support.json");
+    fs::write(
+        &support,
+        serde_json::to_vec(&report["support_elaboration"]).unwrap(),
+    )
+    .unwrap();
+    let revised = directory.join("revised.json");
+    successful(
+        &Command::new(env!("CARGO_BIN_EXE_engarg"))
+            .args(["eal", "revise", "--input"])
+            .arg(report_path)
+            .arg("--argument")
+            .arg(proposed)
+            .arg("--support-elaboration")
+            .arg(support)
+            .arg("--tools")
+            .arg(tools)
+            .arg("--output")
+            .arg(&revised)
+            .output()
+            .unwrap(),
+    );
+    let package = directory.join("package");
     let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
-        .args(["eal", "export", "--input"])
-        .arg(report)
-        .arg("--output")
-        .arg(&source)
-        .arg("--tools-output")
-        .arg(&tools)
-        .arg("--manifest")
-        .arg(bundle)
+        .args(["build", "--input"])
+        .arg(&revised)
+        .arg("--tools")
+        .arg(tools)
+        .arg("--output-dir")
+        .arg(&package)
         .output()
         .unwrap();
     successful(&output);
-    let registry: toml::Value = toml::from_str(&fs::read_to_string(tools).unwrap()).unwrap();
-    for (name, binding) in registry["tools"].as_table().unwrap() {
-        let Some(argv) = binding.get("argv").and_then(toml::Value::as_array) else {
-            continue;
-        };
-        if argv.iter().any(|value| value.as_str() == Some("tool-run")) {
-            assert_eq!(binding["kind"].as_str(), Some("command"));
-            let path = PathBuf::from(argv.last().unwrap().as_str().unwrap());
-            assert!(path.is_file());
-            assert!(fs::read_to_string(&source).unwrap().contains(name));
-            return (name.clone(), path);
-        }
-    }
-    panic!("verified generated collector was absent from exported registry");
+    let receipt: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let claim = receipt["claims"]["current_claim"].as_str().unwrap();
+    let selected_host = host();
+    let execution_path = std::env::join_paths(
+        std::iter::once(selected_host.parent().unwrap().to_path_buf()).chain(
+            std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+        ),
+    )
+    .unwrap();
+    let output = Command::new(selected_host)
+        .env("PATH", execution_path)
+        .arg("run")
+        .arg(package.join("case.eal"))
+        .arg("--tools")
+        .arg(package.join("tools.toml"))
+        .arg("--workspace")
+        .arg(directory.join("run"))
+        .arg("--claim")
+        .arg(claim)
+        .output()
+        .unwrap();
+    successful(&output);
+    let executed: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(executed["is_error"], false, "{executed}");
+    assert_eq!(
+        executed["result"]["assessment"]["claims"][claim]["status"], "supported",
+        "{executed}"
+    );
+    assert!(
+        !fs::read_to_string(package.join("case.eal"))
+            .unwrap()
+            .contains("engarg_support_graph")
+    );
+    (
+        engarg::support_export::operation_tool_name("premise_source"),
+        PathBuf::from(
+            report["tooling"]["operations"][0]["implementation"]["package_manifest"]
+                .as_str()
+                .unwrap(),
+        ),
+    )
 }
 
 fn invoke(manifest: &Path, request: &Value) -> Output {
@@ -779,25 +962,65 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     let toolchain = directory.path().join("toolchain.json");
     let store = directory.path().join("store");
     let first = directory.path().join("first");
-    saved_report(&input);
     profile(&toolchain, language, image, entry);
-    let server = MockServer::new(vec![
-        draft_response(),
+    let mut responses = vec![
+        direct_draft(),
         json!({"language": language, "files": [{"path": entry, "content": code}]}),
-    ]);
-    let output = implement(
-        &input,
-        &toolchain,
-        &store,
-        &first,
-        &server.endpoint,
-        language,
-    );
+    ];
+    let combined = language == "python";
+    if combined {
+        responses.insert(0, authoring_fixture(directory.path()));
+    } else {
+        saved_report(&input);
+    }
+    let expected_calls = responses.len();
+    let server = MockServer::new(responses);
+    let output = if combined {
+        authoring_command(directory.path(), &server.endpoint)
+            .arg("--implement-tools")
+            .args(["--tool-language", language, "--toolchain"])
+            .arg(&toolchain)
+            .arg("--tool-store")
+            .arg(&store)
+            .arg("--tool-output-dir")
+            .arg(&first)
+            .args(["--tool-max-calls", "2", "--tool-timeout-secs", "120"])
+            .arg("--output")
+            .arg(directory.path().join("combined.json"))
+            .output()
+            .unwrap()
+    } else {
+        implement(
+            &input,
+            &toolchain,
+            &store,
+            &first,
+            &server.endpoint,
+            language,
+        )
+    };
     successful_implementation(&output, &store);
-    assert_eq!(server.requests().len(), 2);
-    let report_path = first.join("analysis.with-tools.json");
+    assert_eq!(server.requests().len(), expected_calls);
+    let report_path = if combined {
+        directory.path().join("combined.json")
+    } else {
+        first.join("analysis.with-tools.json")
+    };
     let report: Value = serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
-    assert_eq!(report["tooling"]["language"], language);
+    if combined {
+        let implementation: Value =
+            serde_json::from_slice(&fs::read(first.join("implementation.json")).unwrap()).unwrap();
+        assert_eq!(implementation, report["tooling"]);
+        engarg::report::read_direct(&report).unwrap();
+        // A later independent implementation consumes the exact pre-tool report
+        // retained by combined authoring, without reconstructing an envelope.
+        fs::copy(
+            report["tooling"]["retained_input"].as_str().unwrap(),
+            &input,
+        )
+        .unwrap();
+    }
+    assert_eq!(report["tooling"]["operations"].as_array().unwrap().len(), 1);
     assert_eq!(report["tooling"]["model_calls"], 2);
     assert_eq!(report["transcript"].as_array().unwrap().len(), 1);
     let (tool_name, manifest) = export_manifest(&report_path, &first);
@@ -841,17 +1064,17 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
             .unwrap();
     assert_eq!(repeated["tooling"]["model_calls"], 0);
     assert!(
-        repeated["tooling"]["packages"]
+        repeated["tooling"]["operations"]
             .as_array()
             .unwrap()
             .iter()
-            .all(|package| package["reused"] == true)
+            .all(|operation| operation["implementation"]["reused"] == true)
     );
     let (reused_tool, reused_manifest) =
         export_manifest(&second.join("analysis.with-tools.json"), &second);
     assert_eq!(reused_tool, tool_name);
     assert_eq!(reused_manifest, manifest);
-    assert_eq!(server.requests().len(), 2);
+    assert_eq!(server.requests().len(), expected_calls);
 
     // Verified cache reuse also works with the default provider and no key.
     let third = directory.path().join("without-credentials");
@@ -868,17 +1091,17 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
         serde_json::from_slice(&fs::read(third.join("analysis.with-tools.json")).unwrap()).unwrap();
     assert_eq!(unkeyed["tooling"]["model_calls"], 0);
     assert!(
-        unkeyed["tooling"]["packages"]
+        unkeyed["tooling"]["operations"]
             .as_array()
             .unwrap()
             .iter()
-            .all(|package| package["reused"] == true)
+            .all(|operation| operation["implementation"]["reused"] == true)
     );
     let (unkeyed_tool, unkeyed_manifest) =
         export_manifest(&third.join("analysis.with-tools.json"), &third);
     assert_eq!(unkeyed_tool, tool_name);
     assert_eq!(unkeyed_manifest, manifest);
-    assert_eq!(server.requests().len(), 2);
+    assert_eq!(server.requests().len(), expected_calls);
 
     let context = engarg::tooling::verification::protocol_precision_context().unwrap();
     let request = json!({
@@ -949,7 +1172,7 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
 
 #[test]
 #[ignore = "requires Docker and the preloaded python:3.13-slim image"]
-fn python_collector_is_tested_registered_and_reused_without_new_coding() {
+fn python_combined_authoring_implements_revises_builds_executes_and_reuses() {
     exercise(
         "python",
         "python:3.13-slim",
@@ -971,7 +1194,7 @@ fn javascript_collector_preserves_exact_protocol_identity_and_reuses_verified_co
 
 #[test]
 #[ignore = "requires Docker and the preloaded engarg-rust-tools:1.99.1 image"]
-fn rust_collector_is_compiled_registered_and_reused_with_exact_protocol_identity() {
+fn rust_direct_operation_is_compiled_executed_and_reused_with_exact_protocol_identity() {
     exercise(
         "rust",
         "engarg-rust-tools:1.99.1",
@@ -981,7 +1204,7 @@ fn rust_collector_is_compiled_registered_and_reused_with_exact_protocol_identity
 }
 
 #[tokio::test]
-#[ignore = "requires Docker and the preloaded engarg-rust-tools:1.99.1 image"]
+#[ignore = "requires Docker, preloaded Rust SDK image and installed ENGARG_EAL_HOST with eal-tool-run"]
 async fn capability_contract_generates_rust_and_reuses_it_for_different_claims() {
     use eal_collector_contracts::capability::{
         LogicalStrength, ProvenanceRequirement, SUPPORT_CONTRACT_SCHEMA, SubjectScope,
@@ -1041,7 +1264,7 @@ async fn capability_contract_generates_rust_and_reuses_it_for_different_claims()
                 historical_interval: None,
                 max_age_seconds: None,
                 max_uncertainty_seconds: None,
-                require_original_observation_time: false,
+                require_original_observation_time: true,
             },
             provenance: ProvenanceRequirement {
                 required_authorities: Vec::new(),
@@ -1064,10 +1287,16 @@ async fn capability_contract_generates_rust_and_reuses_it_for_different_claims()
         supervisor: PathBuf::from(env!("CARGO_BIN_EXE_engarg-process-supervisor")),
         engarg_executable: std::env::current_exe().unwrap(),
     };
+    // An old, fixed source clock exposes accidental refresh during export or import.
+    const ORIGINAL_TIME: &str = "2026-01-01T00:00:00Z";
+    let portable_code = RUST_COLLECTOR.replace(
+        "observation_time(std::time::SystemTime::now())?",
+        &format!("{ORIGINAL_TIME:?}.to_owned()"),
+    );
+    assert_ne!(portable_code, RUST_COLLECTOR);
     let model = Model(Mutex::new(std::collections::VecDeque::from([
         draft.to_string(),
-        json!({"language":"rust","files":[{"path":"main.rs","content":RUST_COLLECTOR}]})
-            .to_string(),
+        json!({"language":"rust","files":[{"path":"main.rs","content":portable_code}]}).to_string(),
     ])));
     let first = implement_capability(
         &request,
@@ -1118,8 +1347,162 @@ async fn capability_contract_generates_rust_and_reuses_it_for_different_claims()
         assert_eq!(observation["request"]["tool"], alias);
         assert_eq!(observation["request"]["input"], runtime["input"]);
         assert_eq!(observation["value"]["present"], mode == "positive");
+        assert_eq!(observation["observed_at"], ORIGINAL_TIME);
     }
     assert!(model.0.lock().unwrap().is_empty());
+    execute_moved_tool_export(&second.package_manifest, directory.path(), ORIGINAL_TIME);
+}
+
+/// Exercise the installed standalone launcher through native EAL collection.
+/// The caller has already paid for source generation and real Docker verification.
+fn execute_moved_tool_export(manifest: &Path, root: &Path, original_time: &str) {
+    let host = PathBuf::from(
+        std::env::var_os("ENGARG_EAL_HOST")
+            .or_else(|| std::env::var_os("EAL_HOST"))
+            .expect("portable Docker regression requires an installed EAL host"),
+    )
+    .canonicalize()
+    .unwrap();
+    let prefix = host.parent().unwrap();
+    for name in ["eal-tool-run", "eal-process-supervisor"] {
+        assert!(prefix.join(name).is_file(), "missing installed {name}");
+    }
+    let exported = root.join("portable-export");
+    let export = Command::new(env!("CARGO_BIN_EXE_engarg"))
+        .args(["eal", "tool-export", "--package"])
+        .arg(manifest)
+        .arg("--output-dir")
+        .arg(&exported)
+        .args(["--tool-id", "portable_fixture"])
+        .output()
+        .unwrap();
+    successful(&export);
+    let exported_report: Value = serde_json::from_slice(&export.stdout).unwrap();
+    assert_eq!(exported_report["tool_id"], "portable_fixture");
+    let tools = fs::read_to_string(exported.join("tools.toml")).unwrap();
+    let binding: toml::Value = toml::from_str(&tools).unwrap();
+    assert_eq!(
+        binding["tools"]["portable_fixture"]["argv"][0].as_str(),
+        Some("eal-tool-run")
+    );
+    assert!(!tools.contains("engarg"));
+    assert!(!tools.contains(manifest.to_str().unwrap()));
+    fs::write(
+        exported.join("tools.toml"),
+        format!("{tools}\n[context]\nsuite = 'portable'\n"),
+    )
+    .unwrap();
+    fs::write(
+        exported.join("case.eal"),
+        r#"language "EAL/4"
+environment fixture {
+require suite == "portable"
+}
+tool portable_fixture {
+version "1"
+}
+evidence sample {
+tool portable_fixture
+kind observation
+environment fixture
+max_age 3600
+input {"mode":"positive"}
+require collected == true
+require present == true
+}
+reasoning observation {
+method "structured/1"
+rationale "The verified fixture returns its supplied positive mode."
+}
+claim checked {
+statement "The supplied synthetic mode was positive."
+environment fixture
+}
+argument support = [evidence sample] via observation => checked
+"#,
+    )
+    .unwrap();
+    let moved = root.join("relocated-portable");
+    fs::rename(&exported, &moved).unwrap();
+    assert!(!exported.exists());
+    // Neither the old package location nor its authoring manifest is available.
+    fs::rename(
+        manifest.parent().unwrap(),
+        root.join("retired-authoring-input"),
+    )
+    .unwrap();
+    assert!(!manifest.exists());
+    let path = std::env::join_paths(std::iter::once(prefix.to_path_buf()).chain(
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()),
+    ))
+    .unwrap();
+    let run = |workspace: &str| {
+        Command::new(&host)
+            .current_dir(&moved)
+            .env("PATH", &path)
+            .env_remove("OPENAI_API_KEY")
+            .args([
+                "run",
+                "case.eal",
+                "--tools",
+                "tools.toml",
+                "--workspace",
+                workspace,
+                "--claim",
+                "checked",
+                "--now",
+                "2026-01-01T00:00:01Z",
+            ])
+            .output()
+            .unwrap()
+    };
+    let acquired = run("successful-run");
+    successful(&acquired);
+    let response: Value = serde_json::from_slice(&acquired.stdout).unwrap();
+    assert_eq!(response["is_error"], false, "{response}");
+    let result = &response["result"];
+    assert_eq!(
+        result["assessment"]["claims"]["checked"]["status"], "supported",
+        "{response}"
+    );
+    let record = &result["collection"]["records"]["sample"];
+    assert_eq!(record["status"], "ok", "{record}");
+    assert_eq!(
+        record["value"],
+        json!({"collected":true,"present":true,"mode":"positive"})
+    );
+    assert_eq!(record["collected_at"], original_time);
+    assert_ne!(record["ingested_at"], record["collected_at"]);
+    assert_eq!(
+        record["acquisition_request"],
+        json!({"tool":"portable_fixture","tool_version":"1","input":{"mode":"positive"},"context":{"suite":"portable"}})
+    );
+    assert_eq!(record["context"], json!({"suite":"portable"}));
+    assert!(record["stdout_bytes"].as_u64().unwrap() > 0);
+
+    // The moved package must enforce its own content pins without the authoring store.
+    fs::write(moved.join("source/main.rs"), "unverified replacement").unwrap();
+    let refused = run("refused-run");
+    let report: Value = serde_json::from_slice(&refused.stdout).unwrap_or(Value::Null);
+    assert!(
+        !refused.status.success()
+            || report["is_error"] == true
+            || report["result"]["collection"]["records"]["sample"]["status"] == "error",
+        "tampered source acquired successfully: {report}"
+    );
+    assert_ne!(
+        report["result"]["assessment"]["claims"]["checked"]["status"],
+        "supported"
+    );
+    let diagnostic = format!(
+        "{} {}",
+        String::from_utf8_lossy(&refused.stderr),
+        String::from_utf8_lossy(&refused.stdout)
+    );
+    assert!(
+        diagnostic.to_ascii_lowercase().contains("pin") || diagnostic.contains("SHA-256"),
+        "{diagnostic}"
+    );
 }
 
 fn generated_operation_fixture(
@@ -1134,7 +1517,7 @@ fn generated_operation_fixture(
         route_planning::{self, DiscoverySnapshot, PlanningConfig},
         support_requirements::validate_elaboration,
     };
-    let (request, case, mut elaboration, _, _, _) = support_fixture::fixture();
+    let (request, case, mut elaboration, _, _) = support_fixture::fixture();
     for alternative in &mut elaboration.alternative_support {
         alternative.claim_ids = vec!["current_claim".into(), "stronger_target".into()];
     }
@@ -1203,11 +1586,16 @@ fn generated_operation_fixture(
     draft["result_schema_json"] = json!(implementation.output_schema.to_string());
     draft["arguments"] = json!([]);
     draft["unresolved_arguments"] = json!(["mode"]);
-    (
-        json!({"request":request,"argument":case,"evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":routes}}),
-        config,
-        draft,
-    )
+    let report = json!({
+        "schema_version":engarg::report::RUN_REPORT_SCHEMA,
+        "execution_mode":"offline_synthetic_fixture",
+        "input_sha256":engarg::authoring_checkpoint::digest(serde_json::to_vec(&request).unwrap()),
+        "mode":"single", "request":request, "argument":case, "transcript":[],
+        "limitations":["Synthetic operation discovery and interface qualification fixture."],
+        "evidence_planning":{"schema":"engarg.support-planning/1","elaboration":elaboration,"routes":routes}
+    });
+    engarg::report::read_direct(&report).unwrap();
+    (report, config, draft)
 }
 
 fn synthetic_qualification() -> Value {
@@ -1318,28 +1706,148 @@ fn generated_interface_native_preflight_requires_original_time_then_executes_and
         assert_eq!(replanned["replanning"]["model_calls"], 0);
         if original_time {
             assert_native_acquisition_and_reuse(&collector, root, &replanned, &planning_path);
-            // Exercise the bounded diagnostic transport too, using the actual
-            // retained physical source ID and the same admitted environment.
-            let plan: eal_collector_contracts::execution::EvidenceExecutionPlan =
-                serde_json::from_value(routes["execution"].clone()).unwrap();
-            let diagnostic = native_failure_diagnostic(
-                &serde_json::to_value(&planning).unwrap(),
-                &plan,
-                &root.join("acquired-observations"),
-            );
-            assert_eq!(diagnostic["outcome"]["returncode"], 0, "{diagnostic}");
-            assert!(eal_collector_contracts::execution::valid_digest(
-                diagnostic["source_id"].as_str().unwrap()
-            ));
-            let envelope: Value =
-                serde_json::from_str(diagnostic["outcome"]["stdout"].as_str().unwrap()).unwrap();
-            assert_eq!(envelope["request"]["input"], diagnostic["request"]["input"]);
-            assert_eq!(
-                envelope["request"]["context"],
-                diagnostic["request"]["context"]
-            );
         }
     }
+}
+
+fn assert_native_acquisition_and_reuse(
+    collector: &Path,
+    root: &Path,
+    selected: &Value,
+    registered: &Path,
+) {
+    use engarg::{
+        domain::{ArgumentCase, Request},
+        export_policy::ExportPolicy,
+        support_export,
+        support_requirements::SupportElaboration,
+    };
+    let execution: eal_collector_contracts::execution::EvidenceExecutionPlan =
+        serde_json::from_value(selected["evidence_planning"]["routes"]["execution"].clone())
+            .unwrap();
+    let request: Request = serde_json::from_value(selected["request"].clone()).unwrap();
+    let case: ArgumentCase = serde_json::from_value(selected["argument"].clone()).unwrap();
+    let elaboration: SupportElaboration =
+        serde_json::from_value(selected["evidence_planning"]["elaboration"].clone()).unwrap();
+    let compiled = support_export::compile(
+        &request,
+        &case,
+        &elaboration,
+        &execution,
+        &ExportPolicy::default(),
+    )
+    .unwrap();
+    assert!(!compiled.bundle.source.contains("engarg_support_graph"));
+    let planning: Value = serde_json::from_slice(&fs::read(registered).unwrap()).unwrap();
+    let configuration: Value =
+        serde_json::from_slice(&fs::read(planning["connections"].as_str().unwrap()).unwrap())
+            .unwrap();
+    let mut manifest = eal_collector_contracts::RegistryDocument::default();
+    for step in &execution.acquisitions {
+        let provider = configuration["native_providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|provider| provider["capability"]["id"] == step.source.capability_id)
+            .unwrap();
+        let transport = &provider["transport"];
+        let mut argv = vec![transport["program"].as_str().unwrap().to_owned()];
+        argv.extend(
+            transport["arguments"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|arg| arg.as_str().unwrap().to_owned()),
+        );
+        manifest.tools.insert(
+            support_export::operation_tool_name(&step.id),
+            eal_collector_contracts::RegistryBinding {
+                kind: eal_collector_contracts::ToolKind::Command,
+                version: step.source.capability_version.clone(),
+                argv,
+                path: None,
+                timeout_seconds: 120.0,
+                max_output_bytes: 131072,
+                env: Default::default(),
+                pinned_files: vec![],
+                parallel_safe: false,
+                inherit_env: Some(
+                    transport["inherit_env"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|name| name.as_str().unwrap().to_owned())
+                        .collect(),
+                ),
+                direct: None,
+            },
+        );
+    }
+    manifest.context = serde_json::from_value(compiled.bundle.context.clone()).unwrap();
+    let source = root.join("direct.eal");
+    let tools = root.join("direct.tools.toml");
+    fs::write(&source, &compiled.bundle.source).unwrap();
+    fs::write(&tools, toml::to_string(&manifest).unwrap()).unwrap();
+    let host = collector.with_file_name(format!("eal-host{}", std::env::consts::EXE_SUFFIX));
+    let workspace = root.join("direct-run");
+    let output = Command::new(&host)
+        .args(["run"])
+        .arg(&source)
+        .arg("--tools")
+        .arg(&tools)
+        .arg("--workspace")
+        .arg(&workspace)
+        .arg("--claim")
+        .arg(&compiled.bundle.claim_names["current_claim"])
+        .output()
+        .unwrap();
+    successful(&output);
+    let executed: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(executed["is_error"], false, "{executed}");
+    let collection = &executed["result"]["collection"];
+    let records = collection["records"].as_object().unwrap();
+    let acquired: Vec<_> = records
+        .values()
+        .filter(|record| record["status"] == "ok" && record["tool"].as_str().is_some())
+        .collect();
+    assert_eq!(acquired.len(), 1, "{collection}");
+    assert_eq!(
+        acquired[0]["acquisition_request"]["input"],
+        execution.acquisitions[0].arguments
+    );
+    assert!(acquired[0]["collected_at"].as_str().is_some());
+    let assessment = &executed["result"]["assessment"];
+    assert_eq!(assessment["valid"], true, "{assessment}");
+    assert_eq!(
+        assessment["claims"][&compiled.bundle.claim_names["current_claim"]]["status"],
+        "unsupported",
+        "source acquisition cannot settle independent judgement obligations"
+    );
+    // Reassessment uses the retained collection, with no second source invocation.
+    let request = json!({"operation":"reason","source":compiled.bundle.source,"context":compiled.bundle.context,"collection_id":collection["collection_id"]});
+    let mut child = Command::new(host)
+        .arg("--workspace")
+        .arg(&workspace)
+        .arg("--registry")
+        .arg(&tools)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(&serde_json::to_vec(&request).unwrap())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    successful(&output);
+    let reassessed: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        reassessed["result"]["collection_id"],
+        collection["collection_id"]
+    );
 }
 
 fn compile_host_rust_collector(root: &Path) -> PathBuf {
@@ -1452,640 +1960,54 @@ fn rust_fixture_original_observation_clock_matches_utc_calendar_boundaries() {
     }
 }
 
-fn assert_native_acquisition_and_reuse(
-    collector: &Path,
-    root: &Path,
-    selected: &Value,
-    registered: &Path,
-) {
-    // Exercise the registered command through the ordinary EAL support graph
-    // path. Replanning itself above performed no evidence calls.
-    let execution_path = root.join("execution.json");
-    let execution: eal_collector_contracts::execution::EvidenceExecutionPlan =
-        serde_json::from_value(selected["evidence_planning"]["routes"]["execution"].clone())
-            .unwrap();
-    fs::write(
-        &execution_path,
-        serde_json::to_vec_pretty(&execution).unwrap(),
-    )
-    .unwrap();
-    let planning: Value = serde_json::from_slice(&fs::read(registered).unwrap()).unwrap();
-    let evidence_store = root.join("acquired-observations");
-    let case_digest =
-        eal_collector_contracts::execution::canonical_digest(&selected["argument"]).unwrap();
-    let plan_digest = eal_collector_contracts::execution::canonical_digest(&execution).unwrap();
-    let context = json!({"engarg_export_digest":case_digest,"engarg_execution_plan_sha256":plan_digest,"opaque":engarg::tooling::verification::protocol_precision_context().unwrap()});
-    let acquisition = json!({"evidence_id":"synthetic_requirement","environment":"synthetic","tool":"support_graph","tool_version":"1","input":{"schema":"engarg.support-acquisition/1","case_digest":case_digest,"execution_plan_sha256":plan_digest,"requirement_id":"shared_requirement_0"},"context":context});
-    let acquire = || {
-        let mut child = Command::new(collector)
-            .args(["support-graph", "--plan"])
-            .arg(&execution_path)
-            .arg("--config")
-            .arg(planning["connections"].as_str().unwrap())
-            .arg("--store")
-            .arg(&evidence_store)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-        child
-            .stdin
-            .take()
-            .unwrap()
-            .write_all(&serde_json::to_vec(&acquisition).unwrap())
-            .unwrap();
-        let output = child.wait_with_output().unwrap();
-        if !output.status.success() {
-            let diagnostic = native_failure_diagnostic(&planning, &execution, &evidence_store);
-            fs::write(
-                root.join("native-acquisition.failure.json"),
-                serde_json::to_vec_pretty(&diagnostic).unwrap(),
-            )
-            .unwrap();
-            panic!(
-                "support-graph failed: {}\nNative command diagnostic (environment values omitted): {}",
-                String::from_utf8_lossy(&output.stderr),
-                serde_json::to_string_pretty(&diagnostic).unwrap()
-            );
-        }
-        successful(&output);
-        eal_collector_contracts::strict_json_exact(&output.stdout, Default::default()).unwrap()
-    };
-    let observed = acquire();
-    assert_eq!(observed["value"]["criterion_satisfied"], true, "{observed}");
-    assert_eq!(
-        observed["details"]["metrics"]["source_requests"], 1,
-        "{observed}"
-    );
-    assert_eq!(observed["context"], context);
-    let original_time =
-        chrono::DateTime::parse_from_rfc3339(observed["observed_at"].as_str().unwrap()).unwrap();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
-    let age = now - original_time.timestamp();
-    assert!((0..300).contains(&age), "{observed}");
-    let snapshot = evidence_store.join(
-        observed["details"]["observations"][0]["snapshot"]
-            .as_str()
-            .unwrap(),
-    );
-    let retained = fs::read(&snapshot).unwrap();
-    let reused_observation = acquire();
-    assert_eq!(
-        reused_observation["value"]["criterion_satisfied"], true,
-        "{reused_observation}"
-    );
-    assert_eq!(
-        reused_observation["details"]["metrics"]["source_requests"], 0,
-        "{reused_observation}"
-    );
-    assert_eq!(
-        reused_observation["details"]["metrics"]["reused_sources"], 1,
-        "{reused_observation}"
-    );
-    assert_eq!(reused_observation["observed_at"], observed["observed_at"]);
-    assert_eq!(
-        reused_observation["value"]["observation_ids"],
-        observed["value"]["observation_ids"]
-    );
-    assert_eq!(fs::read(snapshot).unwrap(), retained);
-    assert_export_collection_and_assessment(collector, root, selected, &execution);
-}
-
-/// Carry the selected provider through the public export, collection and
-/// assessment commands. The synthetic source settles its three predicates;
-/// unrelated review and counter-evidence obligations must remain unresolved.
-fn assert_export_collection_and_assessment(
-    collector: &Path,
-    root: &Path,
-    selected: &Value,
-    execution: &eal_collector_contracts::execution::EvidenceExecutionPlan,
-) {
-    let analysis = root.join("selected-for-export.json");
-    fs::write(&analysis, serde_json::to_vec_pretty(selected).unwrap()).unwrap();
-    let source = root.join("selected.eal");
-    let manifest = root.join("selected.bundle.json");
-    let registry = root.join("selected.tools.toml");
-    successful(
-        &Command::new(env!("CARGO_BIN_EXE_engarg"))
-            .args(["eal", "export", "--input"])
-            .arg(&analysis)
-            .arg("--output")
-            .arg(&source)
-            .arg("--manifest")
-            .arg(&manifest)
-            .arg("--tools-output")
-            .arg(&registry)
-            .output()
-            .unwrap(),
-    );
-    let bundle: engarg::support_export::SupportExport =
-        serde_json::from_slice(&fs::read(&manifest).unwrap()).unwrap();
-    assert_eq!(
-        serde_json::to_value(&bundle.support_elaboration).unwrap(),
-        selected["evidence_planning"]["elaboration"]
-    );
-    assert_eq!(
-        bundle.execution_plan.acquisitions[0].source,
-        execution.acquisitions[0].source
-    );
-    assert!(!bundle.support_elaboration.alternative_support.is_empty());
-    let connections: Value =
-        serde_json::from_slice(&fs::read(&bundle.locations.connections).unwrap()).unwrap();
-    let credential_names = connections["native_providers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .flat_map(|provider| provider["credential_env"].as_array().unwrap())
-        .filter_map(Value::as_str)
-        .collect::<std::collections::BTreeSet<_>>();
-    let public_environment = bundle
-        .locations
-        .environment
-        .iter()
-        .filter(|name| {
-            (engarg::tooling::runner::DOCKER_ENVIRONMENT.contains(&name.as_str())
-                || name.as_str() == "EAL_COLLECTOR")
-                && !credential_names.contains(name.as_str())
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    let exercise_public_sensitivity = bundle
-        .locations
-        .environment
-        .iter()
-        .any(|name| name == "EAL_COLLECTOR");
-    let host = collector.with_file_name(format!("eal-host{}", std::env::consts::EXE_SUFFIX));
-    let database = root.join("selected.sqlite");
-    let run = |operation: &str, classify_public: bool| {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_engarg"));
-        command
-            .args(["eal", operation, "--input"])
-            .arg(&manifest)
-            .arg("--eal-host")
-            .arg(&host)
-            .arg("--workspace")
-            .arg(root)
-            .arg("--database")
-            .arg(&database)
-            .args(["--timeout-secs", "120"])
-            .env_remove("OPENAI_API_KEY")
-            .env_remove("ENGARG_API_KEY");
-        // The registry declares permitted references; the caller must separately
-        // grant forwarding through the host. In particular, Docker-specific
-        // settings are not part of the host's default process environment.
-        for name in &bundle.locations.environment {
-            command.arg("--collector-env").arg(name);
-            // These synthetic fixtures explicitly classify reviewed host
-            // settings and the native binary path as public configuration.
-            // Custom runtime credentials and all unknown names stay sensitive.
-            if classify_public && public_environment.contains(name) {
-                command.arg("--public-collector-env").arg(name);
-            }
-        }
-        if exercise_public_sensitivity {
-            // This harmless public value appears in the returned evidence IDs.
-            // It makes default sensitive-value filtering deterministic without
-            // depending on the CI account name or filesystem layout.
-            command.env("USER", "support_evaluation");
-        }
-        command
-    };
-    if exercise_public_sensitivity {
-        let rejected = run("collect", false)
-            .arg("--tools")
-            .arg(&registry)
-            .output()
-            .unwrap();
-        assert!(!rejected.status.success());
-        assert!(rejected.stdout.is_empty());
-        assert!(
-            String::from_utf8_lossy(&rejected.stderr).contains("EAL_HOST_CREDENTIAL_LEAK"),
-            "{}",
-            String::from_utf8_lossy(&rejected.stderr)
-        );
-    }
-    let collected = run("collect", true)
-        .arg("--tools")
-        .arg(&registry)
-        .output()
-        .unwrap();
-    successful(&collected);
-    let collected: Value = serde_json::from_slice(&collected.stdout).unwrap();
-    assert_eq!(collected["is_error"], false, "{collected}");
-    let collection = &collected["result"];
-    if exercise_public_sensitivity {
-        assert!(
-            collection["records"]
-                .as_object()
-                .unwrap()
-                .values()
-                .any(|record| record["evidence_id"]
-                    .as_str()
-                    .is_some_and(|id| id.contains("support_evaluation"))),
-            "the public fixture value must really occur in the returned observation"
-        );
-    }
-    let shared = bundle
-        .requirements
-        .iter()
-        .filter(|requirement| {
-            requirement
-                .requirement_id
-                .starts_with("shared_requirement_")
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(shared.len(), 3);
-    let mut source_ids = None;
-    for requirement in &shared {
-        let record = &collection["records"][&requirement.eal_evidence_name];
-        if record["status"] != "ok" {
-            // Probe the exact registered source and the export's store, rather
-            // than the separate store used by direct acquisition above. This
-            // is diagnostic only: successful probing cannot replace a failed
-            // public collection or turn this assertion into a pass.
-            let mut diagnostic = native_failure_diagnostic(
-                &json!({"connections": bundle.locations.connections}),
-                execution,
-                &bundle.locations.store,
-            );
-            diagnostic["collection_record"] = record.clone();
-            diagnostic["forwarded_environment_names"] = json!(bundle.locations.environment);
-            fs::write(
-                root.join("selected-collection.failure.json"),
-                serde_json::to_vec_pretty(&diagnostic).unwrap(),
-            )
-            .unwrap();
-            panic!(
-                "public collection failed; native command diagnostic (environment values omitted): {}",
-                serde_json::to_string_pretty(&diagnostic).unwrap()
-            );
-        }
-        assert_eq!(record["value"]["criterion_satisfied"], true, "{record}");
-        assert_eq!(record["value"]["source_ids"].as_array().unwrap().len(), 1);
-        let current = record["value"]["source_ids"].clone();
-        if let Some(expected) = &source_ids {
-            assert_eq!(
-                &current, expected,
-                "all consumers must retain the same source identity"
-            );
-        }
-        source_ids = Some(current);
-    }
-    let now = chrono::DateTime::from(std::time::SystemTime::now())
-        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let assessed = run("assess", true)
-        .arg("--tools")
-        .arg(&registry)
-        .arg("--now")
-        .arg(now)
-        .arg("--collection-id")
-        .arg(collection["collection_id"].as_str().unwrap())
-        .output()
-        .unwrap();
-    successful(&assessed);
-    let assessed: Value = serde_json::from_slice(&assessed.stdout).unwrap();
-    assert_eq!(assessed["is_error"], false, "{assessed}");
-    let assessment = &assessed["result"];
-    assert_eq!(assessment["valid"], true, "{assessment}");
-    assert_eq!(assessment["collection_id"], collection["collection_id"]);
-    for requirement in shared {
-        assert_eq!(
-            assessment["evidence"][&requirement.eal_evidence_name]["status"], "available",
-            "{}",
-            assessment["evidence"][&requirement.eal_evidence_name]
-        );
-    }
-    assert_eq!(
-        assessment["claims"][&bundle.claim_names["current_claim"]]["status"], "unsupported",
-        "unavailable independent obligations must survive successful acquisition: {assessment}"
-    );
-}
-
-/// Synthetic test diagnostics only. The failed-graph caller always fails after
-/// this bounded direct command probe; its output never replaces the failed result.
-fn native_failure_diagnostic(
-    planning: &Value,
-    execution: &eal_collector_contracts::execution::EvidenceExecutionPlan,
-    store: &Path,
-) -> Value {
-    let config: Value =
-        serde_json::from_slice(&fs::read(planning["connections"].as_str().unwrap()).unwrap())
-            .unwrap();
-    let step = &execution.acquisitions[0];
-    let provider = config["native_providers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|provider| provider["capability"]["id"] == step.source.capability_id)
-        .unwrap();
-    let transport = &provider["transport"];
-    let protocol = &transport["protocol"];
-    let files=fs::read_dir(store).into_iter().flatten().filter_map(Result::ok).filter(|entry|entry.path().extension().is_some_and(|extension|extension=="json"||extension=="lock"||extension=="pending"))
-        .map(|entry|json!({"name":entry.file_name().to_string_lossy(),"bytes":entry.metadata().map(|metadata|metadata.len()).ok()})).collect::<Vec<_>>();
-    let source_id = files
-        .iter()
-        .filter_map(|file| file["name"].as_str())
-        .filter_map(|name| {
-            name.strip_suffix(".lock")
-                .or_else(|| name.strip_suffix(".pending"))
-        })
-        .find(|id| eal_collector_contracts::execution::valid_digest(id))
-        .map(str::to_owned)
-        .unwrap_or_else(|| "0".repeat(64));
-    let request = json!({"evidence_id":source_id,"environment":protocol["environment"],"tool":protocol["tool"],"tool_version":protocol["tool_version"],"input":step.arguments,"context":protocol["context"]});
-    let names = transport["inherit_env"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|name| name.as_str().unwrap().to_owned())
-        .collect::<Vec<_>>();
-    let environment = names
-        .iter()
-        .filter_map(|name| std::env::var(name).ok().map(|value| (name.clone(), value)))
-        .collect();
-    let mut argv = vec![transport["program"].as_str().unwrap().to_owned()];
-    argv.extend(
-        transport["arguments"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|arg| arg.as_str().unwrap().to_owned()),
-    );
-    let outcome =
-        eal_process::Supervisor::new(PathBuf::from(transport["supervisor"].as_str().unwrap()))
-            .run_with_stream_limits_and_cancellation(
-                eal_process::CommandRequest {
-                    argv: argv.clone(),
-                    environment,
-                    cwd: PathBuf::from(transport["cwd"].as_str().unwrap()),
-                    input: serde_json::to_vec(&request).unwrap(),
-                    timeout: Duration::from_secs(
-                        provider["capability"]["limits"]["timeout_seconds"]
-                            .as_u64()
-                            .unwrap()
-                            .min(120),
-                    ),
-                    max_output_bytes: 131072,
-                },
-                None,
-                &eal_process::CancellationToken::default(),
-                eal_process::StreamLimits {
-                    max_stdout_bytes: 65536,
-                    max_stderr_bytes: 65536,
-                },
-            );
-    let outcome = match outcome {
-        Ok(outcome) => {
-            json!({"returncode":outcome.returncode,"execution_error":format!("{:?}",outcome.execution_error),"stdout":String::from_utf8_lossy(&outcome.stdout),"stderr":String::from_utf8_lossy(&outcome.stderr)})
-        }
-        Err(error) => json!({"supervisor_error":format!("{error:?}")}),
-    };
-    json!({"source_id":source_id,"request":request,"argv":argv,"inherited_environment_names":names,"store_entries":files,"outcome":outcome,"provider":provider,"execution":execution})
-}
-
-/// This exercises normal commands and the authoritative native config loader;
-/// neither hand-edited package receipts nor a test-only registration path is used.
-#[test]
-#[ignore = "requires preloaded Rust SDK Docker image and installed EAL_COLLECTOR"]
-fn generated_package_can_be_qualified_registered_and_replanned_without_reanalysis() {
-    let collector = PathBuf::from(
-        std::env::var_os("EAL_COLLECTOR")
-            .expect("EAL_COLLECTOR must select the installed matching runtime"),
-    )
-    .canonicalize()
-    .unwrap();
-    let directory = tempfile::tempdir().unwrap();
-    let root = directory.path();
-    let (report, config, draft) = generated_operation_fixture(root, &collector);
-    let server = MockServer::new(vec![
-        draft,
-        json!({"language":"rust","files":[{"path":"main.rs","content":RUST_COLLECTOR}]}),
-    ]);
-    let analysis = root.join("analysis.json");
-    fs::write(&analysis, serde_json::to_vec_pretty(&report).unwrap()).unwrap();
-    let toolchain = root.join("toolchain.json");
-    profile(&toolchain, "rust", "engarg-rust-tools:1.99.1", "main.rs");
-    let store = root.join("tools");
-    let attempt = root.join("attempt");
-    successful(&implement(
-        &analysis,
-        &toolchain,
-        &store,
-        &attempt,
-        &server.endpoint,
-        "rust",
-    ));
-    let with_tools = attempt.join("analysis.with-tools.json");
-    let generated: Value = serde_json::from_slice(&fs::read(&with_tools).unwrap()).unwrap();
-    assert_eq!(generated["tooling"]["model_calls"], 2);
-    let pending_path = attempt.join("generated-native-providers.json");
-    let mut pending: Value = serde_json::from_slice(&fs::read(&pending_path).unwrap()).unwrap();
-    assert!(pending["native_providers"][0]["capability"]["semantics"].is_null());
-    let id = pending["native_providers"][0]["capability"]["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    let mut pending_config = config.clone();
-    pending_config.connections = pending_path;
-    let pending_planning = root.join("pending-planning.json");
-    fs::write(
-        &pending_planning,
-        serde_json::to_vec_pretty(&pending_config).unwrap(),
-    )
-    .unwrap();
-    let pending_report = root.join("pending-report.json");
-    successful(
-        &Command::new(env!("CARGO_BIN_EXE_engarg"))
-            .args(["eal", "replan", "--input"])
-            .arg(&with_tools)
-            .arg("--evidence-config")
-            .arg(&pending_planning)
-            .arg("--output")
-            .arg(&pending_report)
-            .output()
-            .unwrap(),
-    );
-    let unresolved: Value = serde_json::from_slice(&fs::read(&pending_report).unwrap()).unwrap();
-    assert!(
-        unresolved["evidence_planning"]["routes"]["gaps"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|gap| gap["kind"] == "qualification")
-    );
-    assert!(unresolved.get("tooling").is_none());
-    assert_eq!(unresolved["replanning"]["model_calls"], 0);
-    // This is an explicit independent synthetic operator qualification, not a
-    // scientific conclusion inferred from contract tests.
-    let provider = &mut pending["native_providers"][0];
-    provider["capability"]["semantics"] = synthetic_qualification();
-    provider["mapping"]["scope_pointers"] = json!({"mode":"/mode"});
-    let qualified = root.join("qualified.json");
-    fs::write(&qualified, serde_json::to_vec_pretty(&pending).unwrap()).unwrap();
-    let registered = root.join("registered-planning.json");
-    successful(
-        &Command::new(env!("CARGO_BIN_EXE_engarg"))
-            .args(["eal", "register-tools", "--input"])
-            .arg(&pending_report)
-            .arg("--qualifications")
-            .arg(&qualified)
-            .arg("--evidence-config")
-            .arg(&pending_planning)
-            .arg("--output")
-            .arg(&registered)
-            .output()
-            .unwrap(),
-    );
-    let final_report = root.join("replanned.json");
-    successful(
-        &Command::new(env!("CARGO_BIN_EXE_engarg"))
-            .args(["eal", "replan", "--input"])
-            .arg(&pending_report)
-            .arg("--evidence-config")
-            .arg(&registered)
-            .arg("--output")
-            .arg(&final_report)
-            .output()
-            .unwrap(),
-    );
-    let selected: Value = serde_json::from_slice(&fs::read(final_report).unwrap()).unwrap();
-    let route = selected["evidence_planning"]["routes"]["routes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|route| route["acquisition_id"] == "shared_source")
-        .unwrap();
-    assert_eq!(
-        route["selected"],
-        id,
-        "{}",
-        serde_json::to_string_pretty(&selected["evidence_planning"]["routes"]).unwrap()
-    );
-    assert!(
-        route["configuration_gaps"].as_array().unwrap().is_empty(),
-        "{route}"
-    );
-    assert_eq!(
-        selected["evidence_planning"]["elaboration"],
-        generated["evidence_planning"]["elaboration"]
-    );
-    assert_eq!(selected["replanning"]["model_calls"], 0);
-    assert_native_acquisition_and_reuse(&collector, root, &selected, &registered);
-    let second = root.join("second-attempt");
-    successful(&implement(
-        &analysis,
-        &toolchain,
-        &store,
-        &second,
-        &server.endpoint,
-        "rust",
-    ));
-    let reused: Value =
-        serde_json::from_slice(&fs::read(second.join("analysis.with-tools.json")).unwrap())
-            .unwrap();
-    assert_eq!(reused["tooling"]["model_calls"], 0);
-    assert_eq!(server.received.lock().unwrap().len(), 2);
-}
-
 #[test]
 #[ignore = "requires Docker and the preloaded python:3.13-slim image"]
 fn coding_failure_preserves_the_original_analysis_output() {
     let directory = tempfile::tempdir().unwrap();
-    let fixture_path = directory.path().join("fixture.json");
-    saved_report(&fixture_path);
-    let mut fixture: Value = serde_json::from_slice(&fs::read(&fixture_path).unwrap()).unwrap();
-    // This response enters live generation. Keep the shared saved-report
-    // fixture's historical import/export semantics unchanged for other tests.
-    fixture["argument"] = live_output::value(&fixture["argument"].to_string());
-    let mut planned: Value = serde_json::from_str(
-        fixture["transcript"][0]["response"]["content"]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
-    planned["argument"] = fixture["argument"].clone();
-    let request_path = directory.path().join("request.json");
-    fs::write(
-        &request_path,
-        serde_json::to_vec_pretty(&fixture["request"]).unwrap(),
-    )
-    .unwrap();
+    let analysis = directory.path().join("analysis.json");
+    // Tool implementation consumes a separately authored report. Its failure
+    // cannot replace that report or publish an augmented success artifact.
+    saved_report(&analysis);
+    let original_bytes = fs::read(&analysis).unwrap();
+    let original: Value = serde_json::from_slice(&original_bytes).unwrap();
     let toolchain = directory.path().join("toolchain.json");
     profile(&toolchain, "python", "python:3.13-slim", "collector.py");
     let tool_store = directory.path().join("store");
-    let tool_output = directory.path().join("tools");
-    let normal_output = directory.path().join("analysis.json");
+    let tool_output = directory.path().join("implementation");
     let server = MockServer::new(vec![
-        planned,
-        draft_response(),
+        direct_draft(),
         json!({
             "language": "python",
             "files": [{"path": "collector.py", "content": "def invalid_python(:\n"}]
         }),
     ]);
-    let output = Command::new(env!("CARGO_BIN_EXE_engarg"))
-        .args(["analyse", "--input"])
-        .arg(&request_path)
-        .args([
-            "--model",
-            "fixture",
-            "--endpoint",
-            &server.endpoint,
-            "--api-key-env",
-            "UNSET_TOOL_TEST_KEY",
-            "--mode",
-            "single",
-            "--max-calls",
-            "1",
-            "--implement-tools",
-            "--tool-language",
-            "python",
-            "--toolchain",
-        ])
-        .arg(&toolchain)
-        .arg("--tool-store")
-        .arg(&tool_store)
-        .arg("--tool-output-dir")
-        .arg(&tool_output)
-        .args([
-            "--tool-max-calls",
-            "2",
-            "--tool-timeout-secs",
-            "120",
-            "--http-retries",
-            "0",
-            "--format",
-            "json",
-            "--output",
-        ])
-        .arg(&normal_output)
-        .env_remove("UNSET_TOOL_TEST_KEY")
-        .output()
-        .unwrap();
+    let output = implement(
+        &analysis,
+        &toolchain,
+        &tool_store,
+        &tool_output,
+        &server.endpoint,
+        "python",
+    );
     assert!(
         !output.status.success(),
         "invalid Python unexpectedly passed collector admission"
     );
     assert_eq!(
         server.requests().len(),
-        3,
+        2,
         "stdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    let original: Value = serde_json::from_slice(&fs::read(&normal_output).unwrap()).unwrap();
-    assert_eq!(original["request"], fixture["request"]);
-    argument_assertions::assert_authored_argument(&original, &fixture["argument"]);
-    assert_eq!(original["transcript"].as_array().unwrap().len(), 1);
-    assert_eq!(original["transcript"][0]["role"], "single");
+    assert_eq!(fs::read(&analysis).unwrap(), original_bytes);
     assert!(original.get("tooling").is_none());
     let checkpoint: Value =
         serde_json::from_slice(&fs::read(tool_output.join("argument.analysis.json")).unwrap())
             .unwrap();
+    assert_eq!(checkpoint["request"], original["request"]);
     assert_eq!(checkpoint["argument"], original["argument"]);
+    assert_eq!(checkpoint["transcript"], original["transcript"]);
     assert!(checkpoint.get("tooling").is_none());
     assert!(!tool_output.join("analysis.with-tools.json").exists());
 }
@@ -2097,14 +2019,14 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
     let input = directory.path().join("analysis.json");
     let toolchain = directory.path().join("toolchain.json");
     let store = directory.path().join("store");
-    let output_dir = directory.path().join("tools");
+    let output_dir = directory.path().join("implementation");
     saved_report(&input);
     profile(&toolchain, "python", "python:3.13-slim", "collector.py");
     let mut settings: Value = serde_json::from_slice(&fs::read(&toolchain).unwrap()).unwrap();
     settings["timeout_seconds"] = json!(120);
     fs::write(&toolchain, serde_json::to_vec_pretty(&settings).unwrap()).unwrap();
     let server = MockServer::new(vec![
-        draft_response(),
+        direct_draft(),
         json!({
             "language": "python",
             "files": [{"path": "collector.py", "content": "import time\ntime.sleep(120)\n"}]
@@ -2113,6 +2035,10 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_engarg"))
         .args(["eal", "implement", "--input"])
         .arg(&input)
+        .arg("--tools")
+        .arg(input.parent().unwrap().join("tools.toml"))
+        .arg("--eal-host")
+        .arg(host())
         .args([
             "--model",
             "fixture",
@@ -2251,13 +2177,9 @@ fn coding_cancellation_removes_the_running_container_without_registering() {
     let audit = fs::read_to_string(output_dir.join("tooling.audit.jsonl")).unwrap();
     assert!(audit.lines().any(|line| {
         let event: Value = serde_json::from_str(line).unwrap();
-        event["event"] == "cancelled" && event["passed"] == false
+        event["event"] == "implementation_cancelled" && event["passed"] == false
     }));
-    for file in [
-        "analysis.with-tools.json",
-        "collectors.json",
-        "tooling.json",
-    ] {
+    for file in ["analysis.with-tools.json", "implementation.json"] {
         assert!(!output_dir.join(file).exists());
     }
     assert_eq!(fs::read_dir(store.join("index")).unwrap().count(), 0);
