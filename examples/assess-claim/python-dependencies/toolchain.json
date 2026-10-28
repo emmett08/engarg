@@ -1,0 +1,40 @@
+{
+  "schema": "engarg.toolchain/2",
+  "language": "python",
+  "docker": "docker",
+  "image": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+  "build_argv": [
+    "python3",
+    "-I",
+    "-B",
+    "-c",
+    "import ast, pathlib, dowhy, causallearn; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+  ],
+  "run_argv": [
+    "python3",
+    "-I",
+    "-B",
+    "/src/collector.py"
+  ],
+  "inherit_env": [],
+  "runtime_network": "none",
+  "timeout_seconds": 120,
+  "memory_mb": 1024,
+  "output_bytes": 1048576,
+  "generation": {
+    "libraries": {
+      "use_defaults": false,
+      "fallback": "standard_library",
+      "tasks": {
+        "dependency_validation": [
+          {
+            "package": "packaging",
+            "version": "26.3",
+            "reference": "https://github.com/pypa/packaging",
+            "guidance": "Use Requirement, Version, SpecifierSet, canonicalize_name and marker evaluation for actual installed distribution metadata; do not approximate PEP508 or PEP440."
+          }
+        ]
+      }
+    }
+  }
+}

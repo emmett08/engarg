@@ -1,13 +1,16 @@
 //! Self-contained, script-free HTML inspection with native disclosure controls.
 use super::{
-    Attachment, BoundedText, PresentationView, RenderError, RenderLimits, anchor, claim,
-    composition, conditions, label, relationship, selection,
+    Attachment, BoundedText, Condition, PresentationView, RenderError, RenderLimits, anchor, claim,
+    composition, label, relationship, selection,
 };
 use crate::{
     domain::{ArgumentCase, Request},
     glossary,
 };
 use std::{collections::HashSet, fmt::Write};
+
+mod glossary_help;
+use glossary_help::{claim_role, markup as help_markup, text as help_text};
 
 const DOCUMENT_START: &str = r##"<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -28,6 +31,10 @@ p{margin:.75rem 0 1rem}
 a{color:var(--accent);text-decoration-thickness:.08em;text-underline-offset:.15em}
 a:hover{text-decoration-thickness:.15em}
 a:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:5px;border-radius:.2rem}
+.argument-part{cursor:help}
+.glossary-help{display:inline-block;vertical-align:super;font-size:.72rem;font-weight:700;line-height:1.2;margin-inline-start:.3em;padding:.1em .3em;border:1px solid var(--line);border-radius:50%;text-decoration:none;white-space:nowrap}
+.glossary-help:hover{background:#e2ebf7}
+#glossary dt{scroll-margin-top:2rem}
 nav{display:flex;gap:.5rem;flex-wrap:wrap;padding:.75rem 0;margin:1.5rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 nav a{padding:.35rem .65rem;border-radius:.3rem;background:var(--paper);text-decoration:none;font-weight:600}
 nav a:hover{background:#e2ebf7}
@@ -64,7 +71,7 @@ article{border-top:1px solid var(--line);padding:1rem 0}
 li{margin:.5rem 0}
 .claim-summary{border-left:3px solid var(--accent);padding-left:1rem}
 @media(max-width:40rem){main{padding:1.5rem .85rem 3rem}details,.assessment,.requested-claim,.scope-grid{padding:1rem}nav{gap:.4rem}}
-@media print{body{background:white;color:black;font-size:11pt}main{max-width:none;padding:0}nav,.browser-note,.toggle-label{display:none}details{break-inside:avoid;box-shadow:none}a{color:inherit}}
+@media print{body{background:white;color:black;font-size:11pt}main{max-width:none;padding:0}nav,.browser-note,.toggle-label,.glossary-help{display:none}details{break-inside:avoid;box-shadow:none}a{color:inherit}}
 </style></head><body><main><h1>Engineering argument</h1>
 "##;
 
@@ -90,8 +97,8 @@ fn claim_ids(case: &ArgumentCase) -> Vec<&str> {
         .collect()
 }
 
-fn html_reference(id: &str) -> String {
-    format!("<a href=\"#{}\">{}</a>", anchor(id), escape_html(id))
+fn html_reference(view: &PresentationView<'_>, id: &str) -> String {
+    glossary_help::reference(view, id)
 }
 
 fn html_glossary(output: &mut BoundedText) {
@@ -99,9 +106,11 @@ fn html_glossary(output: &mut BoundedText) {
     for entry in glossary::entries() {
         write!(
             output,
-            "<dt><strong>{} — {}</strong></dt><dd><p>{}</p><p><em>{}</em></p></dd>",
+            "<dt id=\"{}\"><strong>{} — {}</strong></dt><dd id=\"{}\"><p>{}</p><p><em>{}</em></p></dd>",
+            glossary_help::entry_anchor(&entry.code),
             escape_html(&entry.code),
             escape_html(&entry.name),
+            glossary_help::definition_anchor(&entry.code),
             escape_html(&entry.definition),
             escape_html(&entry.question)
         )
@@ -123,15 +132,15 @@ fn html_notes(output: &mut BoundedText, view: &PresentationView<'_>, id: &str) {
         match note {
             Attachment::Assumption(a) => write!(output,
                 "<li>{}Assumption {} ({}). {} <a href=\"#{}\">Validation record</a>.</li>",
-                if a.critical { "Critical " } else { "" }, html_reference(&a.id),
-                escape_html(&label(&a.status)), escape_html(&a.statement), anchor(&a.id)),
+                if a.critical { "Critical " } else { "" }, html_reference(view, &a.id),
+                escape_html(&label(&a.status)), help_text(&a.statement, "A"), anchor(&a.id)),
             Attachment::Challenge(d) => write!(output,
                 "<li>{}Challenge {} ({}). {} <a href=\"#{}\">Response and investigation record</a>.</li>",
-                if d.material { "Material " } else { "" }, html_reference(&d.id),
-                escape_html(&label(&d.status)), escape_html(&d.challenge), anchor(&d.id)),
+                if d.material { "Material " } else { "" }, html_reference(view, &d.id),
+                escape_html(&label(&d.status)), help_text(&d.challenge, "D"), anchor(&d.id)),
             Attachment::Investigation(n) => write!(output,
                 "<li>Investigation {}. {} <a href=\"#{}\">Method and acceptance criterion</a>.</li>",
-                html_reference(&n.id), escape_html(&n.question), anchor(&n.id)),
+                html_reference(view, &n.id), help_text(&n.question, "N"), anchor(&n.id)),
         }.unwrap();
     }
     output.push_str("</ul>");
@@ -171,7 +180,7 @@ pub fn html_with_limits(
         )
         .unwrap();
     }
-    write!(output, "<div class=\"assessment\"><strong>Current assessment: {}.</strong><p>{}</p></div><h2>Requested claim</h2><p class=\"requested-claim\">{}</p><dl class=\"scope-grid\"><dt>Scope</dt><dd>{}</dd><dt>Configuration</dt><dd>{}</dd><dt>Operating conditions</dt><dd>{}</dd><dt>Time horizon</dt><dd>{}</dd></dl><nav aria-label=\"Report sections\"><a href=\"#argument-view\">Argument</a><a href=\"#reading-view\">Connected reading</a><a href=\"#sources\">Sources</a><a href=\"#investigations\">Investigation register</a><a href=\"#glossary\">Glossary</a></nav><p class=\"browser-note\">Open this file in a web browser for its styling and disclosure controls. Document previews may simplify the page.</p><section id=\"argument-view\"><h2>Expandable argument view</h2><p class=\"disclosure-help\">Select a heading or focus it and press Enter or Space to show supporting detail and full reliance conditions. Qualifications and a count of reliance conditions stay visible when a claim is closed.</p>", escape_html(&label(&case.status)), escape_html(&case.adjudication), escape_html(&request.claim), escape_html(&case.scope.system_boundary), escape_html(&case.scope.configuration), escape_html(&case.scope.operating_conditions), escape_html(&case.scope.time_horizon)).unwrap();
+    write!(output, "<div class=\"assessment\"><strong>Current assessment: {}.</strong><p>{}</p></div><h2>Requested claim</h2><p class=\"requested-claim\">{}</p><dl class=\"scope-grid\"><dt>Scope</dt><dd>{}</dd><dt>Configuration</dt><dd>{}</dd><dt>Operating conditions</dt><dd>{}</dd><dt>Time horizon</dt><dd>{}</dd><dt>Units</dt><dd>{}</dd><dt>Consequences for the decision</dt><dd>{}</dd></dl><nav aria-label=\"Report sections\"><a href=\"#argument-view\">Argument</a><a href=\"#reading-view\">Connected reading</a><a href=\"#sources\">Sources</a><a href=\"#investigations\">Investigation register</a><a href=\"#glossary\">Glossary</a></nav><p class=\"browser-note\">Open this file in a web browser for its styling and disclosure controls. Document previews may simplify the page.</p><p class=\"disclosure-help\">Hover over an argument part for its glossary definition. Select its ? link with a pointer, touch, or keyboard to read the full glossary entry.</p><section id=\"argument-view\"><h2>Expandable argument view</h2><p class=\"disclosure-help\">Select a heading or focus it and press Enter or Space to show supporting detail and full reliance conditions. Qualifications and a count of reliance conditions stay visible when a claim is closed.</p>", help_text(&label(&case.status), "assessment"), help_text(&case.adjudication, "assessment"), help_text(&request.claim, "C"), help_text(&case.scope.system_boundary, "scope"), help_text(&case.scope.configuration, "scope"), help_text(&case.scope.operating_conditions, "scope"), help_text(&case.scope.time_horizon, "scope"), help_text(&case.scope.units, "scope"), help_text(&case.scope.consequences, "decision_basis")).unwrap();
     if let Some(depth) = display_depth {
         write!(output, "<p>Detailed claim levels: {depth}. Deeper supporting arguments and reading sections are omitted from this view. Claim summaries and complete investigation registers remain available. Reliance conditions remain expandable. The canonical JSON retains the complete graph.</p>").unwrap();
     }
@@ -179,8 +188,8 @@ pub fn html_with_limits(
         let Some((text, qualifier)) = claim(&view, id) else {
             continue;
         };
-        write!(output, "<details id=\"{}\"><summary><span class=\"claim-title\">{} — {}</span><span class=\"qualifier\">Qualification: {}</span>", anchor(id), escape_html(id), escape_html(text), escape_html(qualifier)).unwrap();
-        let claim_conditions = conditions(&view, id);
+        write!(output, "<details id=\"{}\"><summary><span class=\"claim-title\">{} — {}</span><span class=\"qualifier\">Qualification: {}</span>", anchor(id), help_text(id, claim_role(id)), help_text(text, claim_role(id)), help_text(qualifier, "Q")).unwrap();
+        let claim_conditions = view.conditions(id);
         if !claim_conditions.is_empty() {
             write!(
                 output,
@@ -196,7 +205,7 @@ pub fn html_with_limits(
             write!(
                 output,
                 "<p class=\"qualifier\">{}. Selected route(s): {}.</p>",
-                relationship(item.relationship),
+                help_text(relationship(item.relationship), "composition"),
                 if item.selected_warrant_ids.is_empty() {
                     "none".to_owned()
                 } else {
@@ -206,10 +215,30 @@ pub fn html_with_limits(
             .unwrap();
         }
         for condition in claim_conditions {
+            let (text, code) = match condition {
+                Condition::Assumption(a) => (
+                    format!(
+                        "Critical condition {} ({}): {}",
+                        a.id,
+                        label(&a.status),
+                        a.statement
+                    ),
+                    "A",
+                ),
+                Condition::Challenge(d) => (
+                    format!(
+                        "Outstanding challenge {} ({}): {}",
+                        d.id,
+                        label(&d.status),
+                        d.challenge
+                    ),
+                    "D",
+                ),
+            };
             write!(
                 output,
                 "<p class=\"condition\">{}</p>",
-                escape_html(&condition)
+                help_text(&text, code)
             )
             .unwrap();
         }
@@ -221,8 +250,8 @@ pub fn html_with_limits(
             write!(
                 output,
                 "<p class=\"relation\"><strong>{}.</strong> {}</p>",
-                relationship(item.relationship),
-                escape_html(&item.rationale)
+                help_text(relationship(item.relationship), "composition"),
+                help_text(&item.rationale, "composition")
             )
             .unwrap();
         } else {
@@ -230,23 +259,23 @@ pub fn html_with_limits(
         }
         html_notes(&mut output, &view, id);
         for warrant in view.warrants(id).iter().copied() {
-            write!(output, "<article id=\"{}\"><h3>ARG-{} — Warrant {}</h3><p>{}</p><p>Route: {}. Inference: {}.</p><p>Applicability: {}</p><p><strong>Premises jointly required:</strong></p><ul>", anchor(&warrant.id), escape_html(&warrant.id), escape_html(&warrant.id), escape_html(&warrant.rule), selection(&view, warrant), escape_html(&label(&warrant.inference)), escape_html(&warrant.applicability)).unwrap();
+            write!(output, "<article id=\"{}\"><h3>{} — {}</h3><p>{}</p><p>Route: {}. Inference: {}.</p><p>Applicability: {}</p><p><strong>Premises jointly required:</strong></p><ul>", anchor(&warrant.id), help_text(&format!("ARG-{}", warrant.id), "ARG"), help_text(&format!("Warrant {}", warrant.id), "W"), help_text(&warrant.rule, "W"), help_text(selection(&view, warrant), "composition"), help_text(&label(&warrant.inference), "W"), help_text(&warrant.applicability, "R")).unwrap();
             for premise in &warrant.premise_ids {
                 if let Some((text, qualifier)) = claim(&view, premise) {
                     write!(
                         output,
                         "<li>{} — {} Qualification: {}</li>",
-                        html_reference(premise),
-                        escape_html(text),
-                        escape_html(qualifier)
+                        html_reference(&view, premise),
+                        help_text(text, claim_role(premise)),
+                        help_text(qualifier, "Q")
                     )
                     .unwrap();
                 } else if let Some(ground) = view.ground(premise) {
                     write!(
                         output,
                         "<li>{} — {} ({})</li>",
-                        html_reference(premise),
-                        escape_html(&ground.statement),
+                        html_reference(&view, premise),
+                        help_text(&ground.statement, "G"),
                         escape_html(&label(&ground.status))
                     )
                     .unwrap();
@@ -256,13 +285,19 @@ pub fn html_with_limits(
             if !warrant.backing_evidence_ids.is_empty() {
                 write!(
                     output,
-                    "<p>Backing: {}.</p>",
-                    warrant
-                        .backing_evidence_ids
-                        .iter()
-                        .map(|id| html_reference(id))
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    "<p>{}</p>",
+                    help_markup(
+                        &format!(
+                            "Backing: {}.",
+                            warrant
+                                .backing_evidence_ids
+                                .iter()
+                                .map(|id| html_reference(&view, id))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                        "B"
+                    )
                 )
                 .unwrap();
             }
@@ -277,16 +312,16 @@ pub fn html_with_limits(
             output,
             "<article id=\"{}\"><h3>{} — {}</h3><p>{}</p><p>Evidence: {}.</p>",
             anchor(&ground.id),
-            escape_html(&ground.id),
+            help_text(&ground.id, "G"),
             escape_html(&label(&ground.status)),
-            escape_html(&ground.statement),
+            help_text(&ground.statement, "G"),
             if ground.evidence_ids.is_empty() {
                 "none supplied".to_owned()
             } else {
                 ground
                     .evidence_ids
                     .iter()
-                    .map(|id| html_reference(id))
+                    .map(|id| html_reference(&view, id))
                     .collect::<Vec<_>>()
                     .join(", ")
             }
@@ -299,8 +334,8 @@ pub fn html_with_limits(
     write!(
         output,
         "<p>{} Qualification: {}</p>",
-        escape_html(&case.current_claim.text),
-        escape_html(&case.current_claim.qualifier)
+        help_text(&case.current_claim.text, "current_claim"),
+        help_text(&case.current_claim.qualifier, "Q")
     )
     .unwrap();
     let mut sections: Vec<_> = case.reading.iter().collect();
@@ -313,16 +348,21 @@ pub fn html_with_limits(
         if !seen.insert(section.claim_id.as_str()) {
             continue;
         }
-        write!(output, "<article><h3>{}</h3>", escape_html(&section.title)).unwrap();
+        write!(
+            output,
+            "<article><h3>{}</h3>",
+            help_text(&section.title, claim_role(&section.claim_id))
+        )
+        .unwrap();
         if section.claim_id == "stronger_target" {
-            write!(output, "<aside class=\"claim-summary\"><p><strong>Canonical stronger target:</strong> {}</p><p class=\"qualifier\">Qualification: {}</p></aside>", escape_html(&case.stronger_target.text), escape_html(&case.stronger_target.qualifier)).unwrap();
+            write!(output, "<aside class=\"claim-summary\"><p><strong>Canonical stronger target:</strong> {}</p><p class=\"qualifier\">Qualification: {}</p></aside>", help_text(&case.stronger_target.text, "stronger_target"), help_text(&case.stronger_target.qualifier, "Q")).unwrap();
         } else if section.claim_id != "current_claim"
             && let Some((_, qualifier)) = claim(&view, &section.claim_id)
         {
             write!(
                 output,
                 "<p class=\"qualifier\">Qualification: {}</p>",
-                escape_html(qualifier)
+                help_text(qualifier, "Q")
             )
             .unwrap();
         }
@@ -330,11 +370,11 @@ pub fn html_with_limits(
             write!(
                 output,
                 "<p>{}</p><p class=\"references\">References: {}.</p>",
-                escape_html(&paragraph.text),
+                help_text(&paragraph.text, claim_role(&section.claim_id)),
                 paragraph
                     .reference_ids
                     .iter()
-                    .map(|id| html_reference(id))
+                    .map(|id| html_reference(&view, id))
                     .collect::<Vec<_>>()
                     .join(", ")
             )
@@ -343,25 +383,40 @@ pub fn html_with_limits(
         output.push_str("</article>");
     }
     if !seen.contains("stronger_target") {
-        write!(output, "<article><h3>Stronger conditional target</h3><p>{}</p><p class=\"qualifier\">Qualification: {}</p></article>", escape_html(&case.stronger_target.text), escape_html(&case.stronger_target.qualifier)).unwrap();
+        write!(output, "<article><h3>Stronger conditional target</h3><p>{}</p><p class=\"qualifier\">Qualification: {}</p></article>", help_text(&case.stronger_target.text, "stronger_target"), help_text(&case.stronger_target.qualifier, "Q")).unwrap();
     }
     output.push_str("<h3>Limits on reliance</h3>");
-    for limit in case.decision_limits.iter().chain(&case.residual_risks) {
-        write!(output, "<p>{}</p>", escape_html(limit)).unwrap();
+    for limit in &case.decision_limits {
+        write!(output, "<p>{}</p>", help_text(limit, "decision_limit")).unwrap();
+    }
+    for risk in &case.residual_risks {
+        write!(output, "<p>{}</p>", help_text(risk, "residual_risk")).unwrap();
+    }
+    if !case.alternatives.is_empty() {
+        output.push_str("<h3>Competing explanations and options</h3>");
+        for (position, alternative) in case.alternatives.iter().enumerate() {
+            write!(output, "<article><h3>{}</h3><p>{}</p><p>Distinguishing check: {}</p><p>Evidence: {}.</p></article>",
+                help_text(&format!("Alternative {}", position + 1), "alternative"),
+                help_text(&alternative.explanation, "alternative"),
+                help_text(&alternative.distinguishing_test, "alternative"),
+                if alternative.evidence_ids.is_empty() { "none supplied".to_owned() } else {
+                    alternative.evidence_ids.iter().map(|id| html_reference(&view, id)).collect::<Vec<_>>().join(", ")
+                }).unwrap();
+        }
     }
     output.push_str("</section><section id=\"sources\"><h2>Sources</h2>");
     for evidence in &request.evidence {
-        write!(output, "<details class=\"record\" id=\"{}\"><summary><span class=\"record-title\">{} — {}</span><span class=\"toggle-label\" aria-hidden=\"true\">source record</span></summary><p>Source: {}</p><p>Kind: {}. Checked by user: {}.</p><p>{}</p></details>", anchor(&evidence.id), escape_html(&evidence.id), escape_html(&evidence.title), escape_html(&evidence.source), escape_html(&evidence.kind), evidence.checked_by_user, escape_html(&evidence.excerpt)).unwrap();
+        write!(output, "<details class=\"record\" id=\"{}\"><summary><span class=\"record-title\">{} — {}</span><span class=\"toggle-label\" aria-hidden=\"true\">source record</span></summary><p>Source: {}</p><p>Kind: {}. Checked by user: {}.</p><p>{}</p></details>", anchor(&evidence.id), help_text(&evidence.id, "E"), help_text(&evidence.title, "E"), help_text(&evidence.source, "E"), escape_html(&evidence.kind), evidence.checked_by_user, help_text(&evidence.excerpt, "E")).unwrap();
     }
     output.push_str("</section><section id=\"investigations\"><h2>Assumptions and investigations</h2><p class=\"disclosure-help\">Each heading opens its complete retained record. The links beside an argument lead to these records.</p>");
     for assumption in &case.assumptions {
-        write!(output, "<details class=\"record\" id=\"{}\"><summary><span class=\"record-title\">{} — {}</span><span class=\"record-question\">{}</span><span class=\"toggle-label\" aria-hidden=\"true\">assumption record</span></summary><p>Applies to: {}.</p><p>Check: {}</p></details>", anchor(&assumption.id), escape_html(&assumption.id), escape_html(&label(&assumption.status)), escape_html(&assumption.statement), assumption.applies_to.iter().map(|id| html_reference(id)).collect::<Vec<_>>().join(", "), escape_html(&assumption.validation)).unwrap();
+        write!(output, "<details class=\"record\" id=\"{}\"><summary><span class=\"record-title\">{} — {}</span><span class=\"record-question\">{}</span><span class=\"toggle-label\" aria-hidden=\"true\">assumption record</span></summary><p>Applies to: {}.</p><p>Check: {}</p></details>", anchor(&assumption.id), help_text(&assumption.id, "A"), escape_html(&label(&assumption.status)), help_text(&assumption.statement, "A"), assumption.applies_to.iter().map(|id| html_reference(&view, id)).collect::<Vec<_>>().join(", "), help_text(&assumption.validation, "revision_trigger")).unwrap();
     }
     for defeater in &case.defeaters {
-        write!(output, "<details class=\"record\" id=\"{}\"><summary><span class=\"record-title\">{} — {} ({})</span><span class=\"record-question\">{}</span><span class=\"toggle-label\" aria-hidden=\"true\">challenge record</span></summary><p>Target: {}.</p><p>Basis: {}.</p><p>{}</p></details>", anchor(&defeater.id), escape_html(&defeater.id), escape_html(&label(&defeater.kind)), escape_html(&label(&defeater.status)), escape_html(&defeater.challenge), html_reference(&defeater.target_id), escape_html(&label(&defeater.basis)), escape_html(&defeater.response)).unwrap();
+        write!(output, "<details class=\"record\" id=\"{}\"><summary><span class=\"record-title\">{} — {} ({})</span><span class=\"record-question\">{}</span><span class=\"toggle-label\" aria-hidden=\"true\">challenge record</span></summary><p>Target: {}.</p><p>Basis: {}.</p><p>{}</p></details>", anchor(&defeater.id), help_text(&defeater.id, "D"), escape_html(&label(&defeater.kind)), escape_html(&label(&defeater.status)), help_text(&defeater.challenge, "D"), html_reference(&view, &defeater.target_id), escape_html(&label(&defeater.basis)), help_text(&defeater.response, "D")).unwrap();
     }
     for need in &case.evidence_plan {
-        write!(output,"<details class=\"record\" id=\"{}\"><summary><span class=\"record-title\">{} — Priority {}</span><span class=\"record-question\">{}</span><span class=\"toggle-label\" aria-hidden=\"true\">investigation record</span></summary><p>Target: {}. Enables claim: {}.</p><p>Method: {}</p><p>Measurement: {}</p><p>Comparator: {}</p><p>Acceptance criterion: {}</p><p>If it fails: {}</p><p>Effort: {}</p></details>",anchor(&need.id),escape_html(&need.id),need.priority,escape_html(&need.question),html_reference(&need.target_id),html_reference(&need.enables_claim),escape_html(&need.method),escape_html(&need.measurement),escape_html(&need.comparator),escape_html(&need.acceptance_criterion),escape_html(&need.if_failed),escape_html(&need.cost)).unwrap();
+        write!(output,"<details class=\"record\" id=\"{}\"><summary><span class=\"record-title\">{} — Priority {}</span><span class=\"record-question\">{}</span><span class=\"toggle-label\" aria-hidden=\"true\">investigation record</span></summary><p>Target: {}. Enables claim: {}.</p><p>Method: {}</p><p>Measurement: {}</p><p>Comparator: {}</p><p>Acceptance criterion: {}</p><p>If it fails: {}</p><p>Effort: {}</p></details>",anchor(&need.id),help_text(&need.id,"N"),need.priority,help_text(&need.question,"N"),html_reference(&view, &need.target_id),html_reference(&view, &need.enables_claim),help_text(&need.method,"N"),help_text(&need.measurement,"N"),help_text(&need.comparator,"N"),help_text(&need.acceptance_criterion,"criterion"),help_text(&need.if_failed,"revision_trigger"),help_text(&need.cost,"N")).unwrap();
     }
     output.push_str("</section>");
     html_glossary(&mut output);

@@ -1,0 +1,45 @@
+schema = "EAL/tool-package/1"
+tool = "dependency_audit"
+version = "1"
+image_id = "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2"
+require_observed_at = true
+
+[profile]
+schema = "engarg.toolchain/1"
+language = "python"
+docker = "docker"
+image = "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2"
+build_argv = [
+    "python3",
+    "-I",
+    "-B",
+    "-c",
+    "import ast, pathlib, dowhy, causallearn; ast.parse(pathlib.Path('/src/collector.py').read_text())",
+]
+run_argv = [
+    "python3",
+    "-I",
+    "-B",
+    "/src/collector.py",
+]
+inherit_env = []
+runtime_network = "none"
+timeout_seconds = 120
+memory_mb = 1024
+output_bytes = 1048576
+
+[[source]]
+path = "collector.py"
+sha256 = "f7c7b9993e27b9dcb41524e54e1e1ec9ad4aa0310c1fa7c6d397d0f20e95af9c"
+
+[input_schema]
+path = "input.schema.json"
+sha256 = "0b6803c30a8605552c64c80a3fb43343ecdc7e40281981eca9878b3607bd4a7c"
+
+[output_schema]
+path = "output.schema.json"
+sha256 = "47e8f1c47ebf8d219f77cd83816662413280168bd0f83ba6fad74766c4721ae1"
+
+[verification]
+path = "verification.json"
+sha256 = "5ca11af959205e5c6d80873905b3c1747400a95931b6eb53e2e6cb32705fc3f8"

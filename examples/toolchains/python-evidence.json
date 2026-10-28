@@ -72,11 +72,33 @@
             "version": "0.14"
           }
         ],
+        "abductive": [
+          {
+            "package": "scipy",
+            "reference": "https://github.com/scipy/scipy",
+            "guidance": "This image supplies SciPy, not pgmpy. Use distribution probability masses and scipy.special.logsumexp only for explicitly supplied finite hypotheses, priors and likelihoods. Reject zero or nonfinite evidence mass; retain candidate-set and observation-model adequacy obligations. No general Bayesian-network engine.",
+            "version": "1.18.1"
+          }
+        ],
+        "inductive": [
+          {
+            "package": "scipy",
+            "reference": "https://github.com/scipy/scipy",
+            "guidance": "Statistical inference under the authored sampling design; preserve actual trial identities, exclusions, population and uncertainty. Use the authored Wilson method when that interval is required, rather than substituting another interval.",
+            "version": "1.18.1"
+          },
+          {
+            "package": "scikit-learn",
+            "reference": "https://github.com/scikit-learn/scikit-learn",
+            "guidance": "Predictive fitting or validation only when required; preserve split identities, preprocessing isolation, leakage controls and actual held-out observations. Training fit does not establish generalisation or causality.",
+            "version": "1.9.1"
+          }
+        ],
         "counterfactual": [
           {
             "package": "dowhy",
             "reference": "https://github.com/py-why/dowhy",
-            "guidance": "Use graphical causal mechanisms with explicit interventions and factual conditioning; model-dependent results are not new observations.",
+            "guidance": "Use gcm.counterfactual_samples with supplied structural mechanisms, interventions and the same factual exogenous context. Noise reconstruction from observed data requires invertible mechanisms; otherwise supply justified noise data. Interventional samples and feature recourse are not individual counterfactual evidence.",
             "version": "0.14"
           }
         ],

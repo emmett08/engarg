@@ -77,12 +77,14 @@ compatible declarations and module settings.
 |---|---|---|---|---|
 | `causal_discovery` | `causal-learn` plus `dowhy` | `why_rs` | `github.com/causalgo/causalgo` | — |
 | `causal_modelling` | `dowhy` | `why_rs` | — | — |
-| `causal_identification` | `dowhy` | — | — | `libdagitty` source |
+| `causal_identification` | `dowhy` | — | — | `jtextor/libdagitty` pinned source |
 | `causal_estimation` | `dowhy` | — | — | — |
 | `causal_testing` | `dowhy` | — | — | — |
-| `counterfactual` | `dowhy` GCM | `deep_causality` | — | — |
+| `abductive` | `pgmpy` | `statrs` likelihood primitives | Gonum `stat/distuv` primitives | `mathjs` probability arithmetic |
+| `inductive` | `scipy`, `scikit-learn` | `statrs` | Gonum `stat` | `simple-statistics` |
+| `counterfactual` | `dowhy` GCM | `nalgebra` affine-model primitives | Gonum `mat` affine-model primitives | `mathjs` affine-model primitives |
 | `statistical_inference` | `scipy`, `statsmodels` | `statrs` | Gonum `stat` | `simple-statistics` |
-| `formal_verification` | `z3-solver`, `sympy` | `varisat` | `github.com/crillab/gophersat` | `logic-solver` |
+| `formal_verification` | `z3-solver`, `sympy` | `varisat` | `github.com/crillab/gophersat/solver` | `logic-solver` |
 | `probabilistic_inference` | `pgmpy` | `statrs` primitives | Gonum `stat/distuv` primitives | `mathjs` primitives |
 | `similarity` | `scikit-learn` | `linfa-nn` | Gonum `spatial/kdtree` | `ml-distance` |
 | `optimisation` | `scipy.optimize` | `good_lp` | Gonum `optimize` | `javascript-lp-solver` |
@@ -94,6 +96,68 @@ not a general abduction engine. Similarity calculations leave transfer and
 analogy applicability as separate obligations. Optimisation needs an authored
 objective, constraints and policy; infeasibility, numerical limits and exhausted
 computation remain distinct results.
+
+### Abductive, inductive and counterfactual requirements
+
+These three task labels provide defaults for every supported language. They
+describe families of evidence operations; selecting a label does not select or
+replace EAL's native reasoning method. Native Bayesian conditioning, Wilson
+intervals and fixed-exogenous affine reasoning retain their existing contracts.
+A generated tool may supply their observations or model inputs, or perform a
+separately specified calculation. It must not duplicate or change the authored
+native method merely because a library offers another computation.
+
+`abductive` covers evidence for comparing explicitly supplied explanations.
+Python's pgmpy supplies conditional posterior and MAP queries over a declared
+Bayesian network. Rust's Statrs and Go's Gonum distributions supply likelihood
+primitives; Math.js supplies arithmetic over declared prior/likelihood vectors.
+Those primitives do not discover hypotheses or validate their completeness.
+Require a nonzero finite evidence normaliser, retain alternative hypotheses and
+likelihood uncertainty, and distinguish probability mass from a continuous
+density. The highest posterior is conditional on the candidate set and model.
+
+`inductive` covers sampled observations, statistical estimates and, when
+requested, predictive fitting or validation. SciPy supplies statistical routines;
+scikit-learn supplies learning and held-out validation. Statrs, Gonum and Simple
+Statistics supply numerical statistical operations. Preserve the population,
+trial identities, exclusions, sampling design and uncertainty. Fitting training
+data does not establish generalisation; predictive operations need explicit
+split identities, leakage controls and actual held-out observations. Do not
+replace an authored Wilson interval with another interval.
+
+`counterfactual` requires a supplied structural model and the same factual
+exogenous context after the intervention. DoWhy's
+[`gcm.counterfactual_samples`](https://www.pywhy.org/dowhy/main/dowhy.gcm.html#dowhy.gcm.whatif.counterfactual_samples)
+implements abduction, intervention and prediction. Reconstructing noise from
+observed data requires invertible mechanisms; justified noise data can instead
+be supplied. Nalgebra, Gonum `mat` and Math.js are numerical primitives for
+explicit bounded affine models, not general causal engines. Preserve the model,
+replace the intervened equation, and check dimensions, admissibility, unique
+solvability, conditioning and residuals under the authored numerical limits.
+Math.js `lusolve` can return one solution to a consistent singular system; a
+returned vector alone does not establish uniqueness. Reject unsupported or
+ambiguous models. Observational regression, interventional population samples
+and feature changes that alter a predictor's output do not by themselves supply
+an individual structural counterfactual.
+
+Task overrides remain exact: overriding `abductive` does not rewrite
+`probabilistic_inference`, and overriding `inductive` does not rewrite
+`statistical_inference`. Configure each applicable task explicitly when an
+operator wants the same restriction across families; there is no hidden alias
+or precedence router. `use_defaults: false` disables all bundled families, and
+an empty task rule still selects the configured fallback.
+
+The combined resolved policy retains its limits of 32 task rules, 64 package
+choices and 16 KiB. New bundled tasks count toward those limits. A large operator
+policy can disable defaults and supply only its required rules. Catalogue changes
+also change the frozen generation context and cache identity; earlier archived
+packages and their recorded policies are not rewritten.
+
+The [selection review](library-selection-review.md) records current versions,
+public uptake indicators, API sources and alternatives checked on 28 October
+2026. Popularity informs the recommendation; operation fit and evidential limits
+determine which API can be used. Versions in that review are a dated snapshot,
+not permission to install the latest release during generation.
 
 For causal work, preserve more specific distinctions:
 
@@ -108,25 +172,38 @@ For causal work, preserve more specific distinctions:
   [deep_causality](https://github.com/deepcausality-rs/deep_causality) supports
   dynamic causal models and what-if execution. Neither is a complete DoWhy API
   replacement, and model interventions do not identify an external causal effect.
+  The bounded affine counterfactual default now uses the more widely used
+  Nalgebra numerical primitives. An operator can still select DeepCausality when
+  the operation explicitly requires its causal-flow framework.
 - [CausalGo](https://github.com/causalgo/causalgo) supplies time-series
   decomposition and discovery operations with their own assumptions. It does
   not supply a general graph-identification/refutation workflow.
 - [libdagitty](https://github.com/jtextor/libdagitty) supplies JavaScript graph
   adjustment, separation and identification criteria. It does not estimate
-  numerical effects. The npm registry had no `libdagitty` package when checked;
-  prepare a pinned source build and TypeScript adapter rather than assuming
-  `npm install libdagitty` works. Source entry point: `src/index.js`.
+  numerical effects. The npm registry has neither `libdagitty` nor `dagitty`.
+  The default is the source package `jtextor/libdagitty`, pinned to revision
+  `1f3d1463285315deda09b5454dc56338bf379cbc`. Prepare that source and its lockfile
+  in the trusted image, then expose `libdagitty/src/index.js` with a checked
+  TypeScript adapter where needed. The upstream package's root `main` points to
+  an absent `index.js`, so a bare `require("libdagitty")` is not a valid entry.
+  The pinned `src/index.js` API was executed against a confounded DAG: adjusting
+  for the confounder succeeds and omitting it fails.
 - [causalkit](https://github.com/rakutentech/causalkit) is a Rust implementation
   exposed through a PyO3 Python extension. Its documented installation is through
   pip, and its `cdylib` is not a verified ordinary Rust dependency. The published
   Rust crate named `smelt` is a metabuild tool, not a causal-forest implementation.
   Neither name is supplied as a Rust default.
 
+The Go formal-check default uses `github.com/crillab/gophersat/solver`.
+The module root is `package main`, so `github.com/crillab/gophersat` itself is
+not an importable solver library. The published solver subpackage and the Gonum
+subpackages in the matrix were checked directly in their module archives.
+
 These package identities and interfaces were checked against their upstream
-sources and registries on 28 October 2026. Default recommendations omit version
+sources and registries on 28 October 2026. Registry recommendations omit version
 pins because the operator must choose versions compatible with the actual
-prepared environment. The optional scientific image below pins its own complete
-dependency set.
+prepared environment; source-only defaults carry an immutable revision. The
+optional scientific image below pins its own complete dependency set.
 
 ## Prepare the dependencies
 
@@ -171,6 +248,14 @@ The smoke check fits a supplied synthetic causal model, identifies and estimates
 its effect, runs a refutation, and invokes causal-learn's PC operation. It checks
 software availability and API execution only. Its synthetic data and known
 construction do not qualify a method for an external population.
+
+The prepared profile also demonstrates explicit `abductive`, `inductive` and
+`counterfactual` overrides with pinned versions. It uses SciPy for bounded
+finite-hypothesis likelihood/normalisation calculations because pgmpy is not
+installed in that image; it does not claim a general Bayesian-network API.
+Inductive operations can use SciPy or the prepared scikit-learn APIs according
+to their role. Counterfactual operations use DoWhy. The image dependency lock
+and archived real-claim package are unchanged by these authoring preferences.
 
 Use the prepared profile with the ordinary implementation CLI:
 

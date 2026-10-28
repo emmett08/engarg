@@ -19,6 +19,11 @@ or catalogue-authoring wrapper is required. Run them in Bash on Linux or macOS.
 Use new output paths for another attempt. Reports, audits, checkpoints and
 package directories preserve the earlier investigation.
 
+For a single entry point that retains each stage's commands, logs and results,
+use [the claim-assessment script](assess-any-claim.md). It runs these same public
+CLIs, preserves missing evidence and unresolved reviews, and reports the resulting
+claim status separately from successful tool execution.
+
 ## 1. Install the paired applications
 
 From an EngArg checkout, with Git, Python 3, jq, a C compiler and rustup installed:

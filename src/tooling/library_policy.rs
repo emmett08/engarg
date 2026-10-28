@@ -10,7 +10,7 @@ const MAX_CHOICES: usize = 64;
 
 pub const GENERATION_INSTRUCTIONS: &str = concat!(
     "LIBRARY POLICY: identify the evidence operation required by the frozen specification, then consult the language-specific task rules. ",
-    "Task labels distinguish operations such as causal discovery, identification, estimation and assumption testing; do not infer a method from a claim label or a package name. ",
+    "Task labels distinguish causal discovery, identification, estimation and assumption testing, abductive likelihood/posterior inputs, inductive sampling or predictive validation, and fixed-context structural counterfactual calculations; do not infer a method from a claim label or a package name. ",
     "An operator rule replaces the corresponding built-in default, including an empty list that disables that default. Preserve supplied package/version choices and use their guidance only when applicable to this operation. ",
     "A task rule may name complementary packages with different roles, not interchangeable alternatives. For example a discovery algorithm may be paired with DoWhy for explicit modelling and assumption/refutation checks; DoWhy alone is not a generic graph-discovery algorithm. ",
     "For an empty or unmatched rule, fallback model permits choosing a suitable available library or standard library; fallback standard_library permits only the language standard library. ",
@@ -291,6 +291,108 @@ mod tests {
                 .tasks
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn causal_source_defaults_and_go_solver_name_usable_library_entries() {
+        for language in ["javascript", "typescript"] {
+            let resolved = LibraryPolicy::default().resolve(language).unwrap();
+            let choices = &resolved.tasks["causal_identification"].choices;
+            assert_eq!(choices.len(), 1);
+            let source = &choices[0];
+            assert_eq!(source.package, "jtextor/libdagitty");
+            let revision = source.version.as_ref().expect("source default needs a pin");
+            assert_eq!(revision.len(), 40);
+            assert!(revision.bytes().all(|byte| byte.is_ascii_hexdigit()));
+            assert_eq!(
+                source.reference.as_deref(),
+                Some(format!("https://github.com/jtextor/libdagitty/tree/{revision}").as_str())
+            );
+            assert!(source.guidance.contains("libdagitty/src/index.js"));
+        }
+        let go = LibraryPolicy::default().resolve("go").unwrap();
+        assert_eq!(
+            go.tasks["formal_verification"].choices[0].package,
+            "github.com/crillab/gophersat/solver"
+        );
+    }
+
+    #[test]
+    fn evidence_families_have_bounded_defaults_for_every_supported_language() {
+        for (language, abductive, inductive, counterfactual) in [
+            ("python", "pgmpy", vec!["scipy", "scikit-learn"], "dowhy"),
+            ("rust", "statrs", vec!["statrs"], "nalgebra"),
+            (
+                "go",
+                "gonum.org/v1/gonum/stat/distuv",
+                vec!["gonum.org/v1/gonum/stat"],
+                "gonum.org/v1/gonum/mat",
+            ),
+            ("javascript", "mathjs", vec!["simple-statistics"], "mathjs"),
+            ("typescript", "mathjs", vec!["simple-statistics"], "mathjs"),
+        ] {
+            let policy = LibraryPolicy::default().resolve(language).unwrap();
+            for (task, packages) in [
+                ("abductive", vec![abductive]),
+                ("inductive", inductive),
+                ("counterfactual", vec![counterfactual]),
+            ] {
+                let rule = &policy.tasks[task];
+                assert_eq!(rule.source, LibrarySource::Default, "{language}/{task}");
+                assert_eq!(
+                    rule.choices
+                        .iter()
+                        .map(|choice| choice.package.as_str())
+                        .collect::<Vec<_>>(),
+                    packages,
+                    "{language}/{task}"
+                );
+                assert!(
+                    rule.choices.iter().all(|choice| {
+                        !choice.guidance.is_empty() && choice.reference.is_some()
+                    })
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn evidence_family_overrides_are_exact_and_can_disable_the_new_defaults() {
+        for language in ["python", "rust", "go", "javascript", "typescript"] {
+            let defaults = LibraryPolicy::default().resolve(language).unwrap();
+            let mut policy = LibraryPolicy {
+                fallback: LibraryFallback::StandardLibrary,
+                tasks: BTreeMap::from([
+                    ("abductive".into(), vec![choice("operator_likelihoods")]),
+                    ("inductive".into(), vec![]),
+                    ("counterfactual".into(), vec![choice("operator_scm")]),
+                ]),
+                ..LibraryPolicy::default()
+            };
+            let resolved = policy.resolve(language).unwrap();
+            assert_eq!(resolved.fallback, LibraryFallback::StandardLibrary);
+            assert_eq!(resolved.tasks["abductive"].source, LibrarySource::Operator);
+            assert_eq!(
+                resolved.tasks["abductive"].choices,
+                vec![choice("operator_likelihoods")]
+            );
+            assert!(resolved.tasks["inductive"].choices.is_empty());
+            assert_eq!(resolved.tasks["inductive"].source, LibrarySource::Operator);
+            assert_eq!(
+                resolved.tasks["probabilistic_inference"],
+                defaults.tasks["probabilistic_inference"],
+                "family labels must not silently alias existing task rules"
+            );
+            policy.use_defaults = false;
+            let without_defaults = policy.resolve(language).unwrap();
+            assert_eq!(without_defaults.tasks.len(), 3);
+            assert!(
+                without_defaults
+                    .tasks
+                    .values()
+                    .all(|rule| rule.source == LibrarySource::Operator)
+            );
+        }
     }
 
     #[test]
