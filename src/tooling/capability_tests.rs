@@ -58,12 +58,14 @@ fn operation() -> CapabilityImplementationRequest {
             "allowed_modes".into(),
             json!(["positive", "negative", "error"]),
         )]),
+        library_policy: None,
     }
 }
 
 fn config(store: &Path) -> CapabilityImplementationConfig {
     CapabilityImplementationConfig {
         language: "rust".into(),
+        libraries: LibraryPolicy::default(),
         profile: ToolchainProfile {
             schema: super::super::profile::TOOLCHAIN_SCHEMA.into(),
             language: "rust".into(),
@@ -148,6 +150,16 @@ impl LanguageModel for Model {
             reasoning_effort: None,
         })
     }
+}
+
+fn constructor_context(model: &Model) -> String {
+    let requests = model.requests.lock().unwrap();
+    let constructor = requests
+        .iter()
+        .find(|request| request.role == Role::Constructor)
+        .expect("a fresh contract requires constructor authoring");
+    let supplied: Value = serde_json::from_str(&constructor.user).unwrap();
+    supplied["request"]["context"].as_str().unwrap().to_owned()
 }
 
 struct FakeRunner {
@@ -487,7 +499,7 @@ async fn retry_uses_frozen_fixtures_and_only_one_coding_call() {
     let store = PackageStore::new(directory.path()).unwrap();
     let key = PackageStore::key_for(
         &request.need().unwrap(),
-        &request.context().unwrap(),
+        &constructor_context(&failing),
         "rust",
         runner.identity(),
     )
@@ -658,7 +670,7 @@ async fn automatic_coding_repair_stops_at_budget_without_registering_failed_sour
     let store = PackageStore::new(directory.path()).unwrap();
     let key = PackageStore::key_for(
         &request.need().unwrap(),
-        &request.context().unwrap(),
+        &constructor_context(&model),
         "rust",
         runner.identity(),
     )
@@ -1001,7 +1013,7 @@ async fn opaque_context_corruption_cannot_register_a_generated_package() {
         let store = PackageStore::new(directory.path()).unwrap();
         let key = PackageStore::key_for(
             &request.need().unwrap(),
-            &request.context().unwrap(),
+            &constructor_context(&model),
             "rust",
             runner.identity(),
         )
@@ -1014,4 +1026,216 @@ async fn opaque_context_corruption_cannot_register_a_generated_package() {
                 .is_some()
         );
     }
+}
+
+fn operator_library_policy(package: &str) -> LibraryPolicy {
+    serde_json::from_value(json!({
+        "use_defaults":false,
+        "fallback":"standard_library",
+        "tasks":{"formal_verification":[{
+            "package":package,"version":"1.2.3",
+            "reference":"https://example.test/synthetic-solver",
+            "guidance":"Synthetic operator preference for an applicable proof-check operation."
+        }]}
+    }))
+    .unwrap()
+}
+
+#[tokio::test]
+async fn changed_library_preferences_require_a_new_package_without_changing_the_operation() {
+    let directory = tempfile::tempdir().unwrap();
+    let request = operation();
+    let mut selected = config(directory.path());
+    selected.libraries = operator_library_policy("synthetic_solver_a");
+    let runner = Arc::new(FakeRunner::new(&selected));
+    let first_model = Model::new(vec![draft_response(&request), code_response("correct")]);
+    let first = implement_with_runner(
+        &request,
+        ImplementationGapKind::Operation,
+        selected.clone(),
+        &first_model,
+        runner.clone(),
+    )
+    .await
+    .unwrap();
+    let first_package = super::super::package::load_verified(&first.package_manifest).unwrap();
+    let frozen: Value = serde_json::from_str(&first_package.contract().request_context).unwrap();
+    assert_eq!(frozen["library_policy"]["language"], "rust");
+    assert_eq!(frozen["library_policy"]["fallback"], "standard_library");
+    let tasks = frozen["library_policy"]["tasks"].as_object().unwrap();
+    assert_eq!(tasks.len(), 1, "disabled defaults must not reappear");
+    assert_eq!(tasks["formal_verification"]["source"], "operator");
+    assert_eq!(
+        tasks["formal_verification"]["choices"][0]["package"],
+        "synthetic_solver_a"
+    );
+    assert_eq!(frozen["support_contract"], json!(request.support_contract));
+    assert_eq!(frozen["input_schema"], request.input_schema);
+    assert_eq!(frozen["output_schema"], request.output_schema);
+    assert_eq!(frozen["declared_limits"], json!(request.declared_limits));
+    assert_eq!(first.capability_sha256, request.identity().unwrap());
+
+    selected.max_calls = 0;
+    let keyless = Model::new(Vec::new());
+    let reused = implement_with_runner(
+        &request,
+        ImplementationGapKind::Operation,
+        selected.clone(),
+        &keyless,
+        runner.clone(),
+    )
+    .await
+    .unwrap();
+    assert!(reused.reused);
+    assert_eq!(reused.model_calls, 0);
+    assert_eq!(reused.package_manifest, first.package_manifest);
+    assert_eq!(keyless.calls.load(Ordering::SeqCst), 0);
+
+    selected.max_calls = 2;
+    selected.libraries = operator_library_policy("synthetic_solver_b");
+    let changed_model = Model::new(vec![draft_response(&request), code_response("correct")]);
+    let changed = implement_with_runner(
+        &request,
+        ImplementationGapKind::Operation,
+        selected,
+        &changed_model,
+        runner,
+    )
+    .await
+    .unwrap();
+    assert!(!changed.reused);
+    assert_eq!(changed.model_calls, 2);
+    assert_eq!(changed_model.calls.load(Ordering::SeqCst), 2);
+    assert_ne!(changed.package_manifest, first.package_manifest);
+    assert_ne!(
+        changed.qualification.contract_sha256,
+        first.qualification.contract_sha256
+    );
+    assert_eq!(changed.capability_sha256, first.capability_sha256);
+    let changed_package = super::super::package::load_verified(&changed.package_manifest).unwrap();
+    let changed_context: Value =
+        serde_json::from_str(&changed_package.contract().request_context).unwrap();
+    assert_eq!(
+        changed_context["library_policy"]["tasks"]["formal_verification"]["choices"][0]["package"],
+        "synthetic_solver_b"
+    );
+    assert_eq!(changed_context["input_schema"], frozen["input_schema"]);
+    assert_eq!(changed_context["output_schema"], frozen["output_schema"]);
+    assert_eq!(
+        changed_package.contract().draft.fixtures.len(),
+        first_package.contract().draft.fixtures.len()
+    );
+}
+
+#[tokio::test]
+async fn constructor_coding_and_repair_retain_the_same_operator_library_instructions() {
+    let directory = tempfile::tempdir().unwrap();
+    let request = operation();
+    let mut selected = config(directory.path());
+    selected.libraries = operator_library_policy("synthetic_solver_a");
+    selected.max_calls = 3;
+    let runner = Arc::new(FakeRunner::new(&selected));
+    let model = Model::new(vec![
+        draft_response(&request),
+        code_response("compile_error"),
+        code_response("correct"),
+    ]);
+    let result = implement_with_runner(
+        &request,
+        ImplementationGapKind::Operation,
+        selected,
+        &model,
+        runner,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.model_calls, 3);
+    let context = constructor_context(&model);
+    let resolved: Value = serde_json::from_str(&context).unwrap();
+    assert_eq!(
+        resolved["library_policy"]["tasks"]["formal_verification"]["choices"][0]["package"],
+        "synthetic_solver_a"
+    );
+    let requests = model.requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(requests[0].role, Role::Constructor);
+    for coding in &requests[1..] {
+        let supplied: Value = serde_json::from_str(&coding.user).unwrap();
+        assert_eq!(supplied["request_context"].as_str(), Some(context.as_str()));
+        assert_eq!(supplied["input_schema"], request.input_schema);
+        assert_eq!(supplied["result_schema"], request.output_schema);
+        assert!(!supplied.to_string().contains("expected_value"));
+    }
+    let package = super::super::package::load_verified(&result.package_manifest).unwrap();
+    assert_eq!(package.contract().request_context, context);
+}
+
+#[tokio::test]
+async fn invalid_library_preferences_fail_before_docker_store_or_model_admission() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut selected = config(&directory.path().join("must-not-exist"));
+    selected.profile.docker = "/nonexistent/docker".into();
+    selected.libraries = operator_library_policy("invalid\nlibrary");
+    let model = Model::new(Vec::new());
+    let error = implement_capability(
+        &operation(),
+        ImplementationGapKind::Operation,
+        selected.clone(),
+        &model,
+    )
+    .await
+    .unwrap_err();
+    assert!(error.to_string().contains("librar"), "{error}");
+    assert!(!selected.store.exists());
+    assert_eq!(model.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn absent_library_metadata_keeps_legacy_request_serialization_and_operation_identity() {
+    let request = operation();
+    let legacy = json!({
+        "support_contract":request.support_contract,
+        "input_schema":request.input_schema,
+        "output_schema":request.output_schema,
+        "operation_purpose":request.operation_purpose,
+        "declared_limits":request.declared_limits
+    });
+    assert_eq!(serde_json::to_value(&request).unwrap(), legacy);
+    let roundtrip: CapabilityImplementationRequest = serde_json::from_value(legacy).unwrap();
+    assert_eq!(roundtrip.context().unwrap(), request.context().unwrap());
+    assert_eq!(roundtrip.identity().unwrap(), request.identity().unwrap());
+    let mut preferred = request.clone();
+    preferred.library_policy = Some(
+        operator_library_policy("synthetic_solver_a")
+            .resolve("rust")
+            .unwrap(),
+    );
+    assert_eq!(preferred.identity().unwrap(), request.identity().unwrap());
+    assert_ne!(preferred.context().unwrap(), request.context().unwrap());
+}
+
+#[test]
+fn frozen_library_choices_cannot_cross_the_declared_tool_language() {
+    let mut request = operation();
+    request.library_policy = Some(LibraryPolicy::default().resolve("rust").unwrap());
+    let mut frozen = NeedContract {
+        schema: CONTRACT_SCHEMA.into(),
+        language: "rust".into(),
+        need: request.need().unwrap(),
+        request_context: request.context().unwrap(),
+        toolchain_description: "Synthetic fixed Rust toolchain interface".into(),
+        draft: parse_draft(draft_response(&request).as_bytes()).unwrap(),
+    };
+    ensure_fixed_contract(&request, &frozen).unwrap();
+
+    request.library_policy = Some(LibraryPolicy::default().resolve("python").unwrap());
+    // Keep request and frozen context identical: only the admitted language
+    // correspondence can expose this metadata error.
+    frozen.request_context = request.context().unwrap();
+    let error = ensure_fixed_contract(&request, &frozen).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("library policy language differs from the generated tool language")
+    );
 }

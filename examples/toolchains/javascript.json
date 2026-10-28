@@ -1,5 +1,5 @@
 {
-  "schema": "engarg.toolchain/1",
+  "schema": "engarg.toolchain/2",
   "language": "javascript",
   "docker": "docker",
   "image": "node:24-slim",
@@ -16,5 +16,12 @@
   "runtime_network": "none",
   "timeout_seconds": 30,
   "memory_mb": 128,
-  "output_bytes": 1048576
+  "output_bytes": 1048576,
+  "generation": {
+    "libraries": {
+      "use_defaults": true,
+      "fallback": "model",
+      "tasks": {}
+    }
+  }
 }

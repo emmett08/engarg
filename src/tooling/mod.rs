@@ -6,6 +6,7 @@ pub mod direct;
 mod execution_diagnostics;
 pub mod export;
 pub mod generation;
+pub mod library_policy;
 pub mod package;
 pub mod profile;
 mod protocol;

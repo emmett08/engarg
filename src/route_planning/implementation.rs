@@ -125,6 +125,7 @@ pub fn request(
             "provenance":"Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence."
         }))?,
         declared_limits: BTreeMap::new(),
+        library_policy: None,
     };
     request.validate()?;
     Ok(request)

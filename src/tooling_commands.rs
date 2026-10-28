@@ -3,7 +3,7 @@ use clap::Args;
 use engarg::{
     Error,
     provider::LanguageModel,
-    tooling::{ToolchainProfile, capability::CapabilityImplementationConfig},
+    tooling::{capability::CapabilityImplementationConfig, profile::ToolchainConfiguration},
 };
 use serde_json::Value;
 use std::{
@@ -21,7 +21,7 @@ pub struct ToolOptions {
     /// Implementation language. Must match the operator-owned toolchain profile.
     #[arg(long, value_name = "LANGUAGE")]
     tool_language: Option<String>,
-    /// Operator-owned isolated compiler/interpreter and runtime profile.
+    /// Operator-owned execution profile and optional generation library preferences.
     #[arg(long, value_name = "JSON")]
     toolchain: Option<PathBuf>,
     /// Persistent verified collector package store; reusable across attempts.
@@ -87,11 +87,12 @@ impl ToolOptions {
         let language = self.tool_language.clone().ok_or_else(|| {
             Error::InvalidInput("tool implementation requires --tool-language".into())
         })?;
-        let profile = ToolchainProfile::load(self.toolchain.as_deref().ok_or_else(|| {
-            Error::InvalidInput("tool implementation requires --toolchain".into())
-        })?)?;
+        let toolchain =
+            ToolchainConfiguration::load(self.toolchain.as_deref().ok_or_else(|| {
+                Error::InvalidInput("tool implementation requires --toolchain".into())
+            })?)?;
         engarg::tooling::contracts::validate_language(&language)?;
-        if profile.language != language {
+        if toolchain.profile.language != language {
             return Err(Error::InvalidInput(
                 "tool language differs from the operator toolchain profile".into(),
             ));
@@ -107,7 +108,8 @@ impl ToolOptions {
         }
         let config = CapabilityImplementationConfig {
             language,
-            profile,
+            profile: toolchain.profile,
+            libraries: toolchain.libraries,
             store,
             max_calls: self.tool_max_calls.unwrap_or(16),
             max_input_bytes,

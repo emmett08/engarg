@@ -19,6 +19,11 @@ and resource limits. Generated source cannot replace those execution settings.
 [TypeScript](../examples/toolchains/typescript.json) toolchains are included. Their
 dependencies and compilers must already be available in the selected image.
 
+[Library selection](library-selection.md) explains task-specific language
+defaults, operator package/version overrides and model-selected fallback in
+`engarg.toolchain/2` authoring profiles. These generation preferences do not
+install dependencies or change the exported runtime's execution authority.
+
 A missing acquisition with an explicit parameterised `operation_spec` can be
 implemented from the canonical report. Start with operator-owned bindings, even
 if the initial manifest contains only `[tools]`:

@@ -1,5 +1,5 @@
 {
-  "schema": "engarg.toolchain/1",
+  "schema": "engarg.toolchain/2",
   "language": "typescript",
   "docker": "docker",
   "image": "engarg-typescript-tools:5.9.3",
@@ -30,5 +30,12 @@
   "runtime_network": "none",
   "timeout_seconds": 30,
   "memory_mb": 512,
-  "output_bytes": 1048576
+  "output_bytes": 1048576,
+  "generation": {
+    "libraries": {
+      "use_defaults": true,
+      "fallback": "model",
+      "tasks": {}
+    }
+  }
 }
