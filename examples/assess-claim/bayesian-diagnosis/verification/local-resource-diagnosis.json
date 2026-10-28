@@ -1,0 +1,115 @@
+{
+  "source_revision": "6fcb124fdf78f8d8c9b35b7753945a8525790832",
+  "driver": "vfs",
+  "prepared_rust": {
+    "command": "cargo test --locked --test prepared_toolchains rust_ -- --ignored --nocapture --test-threads=1",
+    "exit_status": 101,
+    "passed": 0,
+    "failed": 1,
+    "filtered": 4,
+    "elapsed_seconds": 16.22,
+    "run_outcome_elapsed_ms": 8130,
+    "container_returncode": 125,
+    "execution_error": "container_execution_error",
+    "decoded_stderr": "docker: Error response from daemon: no space left on device\n\nRun 'docker run --help' for more information\n",
+    "interpretation": "Observed Docker storage exhaustion before the smoke final assertion; not an observed timeout or evidence-API calculation failure.",
+    "log_sha256": "ae3f2396ff349e37aa60f012e5eb0247fe0153c8fa13d5b8317bfb73f1b50b6d",
+    "disk_before": {
+      "capture": "/workspace/work/prepared-evidence-images/checks/ignored-integration/prepared-rust.disk-before.txt",
+      "available_bytes": 6778740736,
+      "sha256": "dc3349d9b6e8804e7b8f35b1e59db40af45ec18f71557d37fd130ba2942f27a2"
+    },
+    "disk_after": {
+      "capture": "/workspace/work/prepared-evidence-images/checks/ignored-integration/prepared-rust.disk-after.txt",
+      "available_bytes": 2751516672,
+      "sha256": "bc9b23fabe53f7817e21043ba60693619e1458c9377989d664a88402a234b807"
+    }
+  },
+  "prepared_python": {
+    "command": "cargo test --locked --test prepared_toolchains python_ -- --ignored --nocapture --test-threads=1",
+    "exit_status": 0,
+    "passed": 1,
+    "failed": 0,
+    "filtered": 4,
+    "elapsed_seconds": 32.02,
+    "log_sha256": "e3f90c34aa366ba60663bdde3e88400c73c9165bc8ebb3ac17ec5686e26cf494",
+    "disk_before": {
+      "capture": "/workspace/work/prepared-evidence-images/checks/ignored-integration/prepared-python.disk-before.txt",
+      "available_bytes": 6606884864,
+      "sha256": "c033e553c327e17c420ec3f201ed3c38aae12ba369af9dc8526fb937f7b444e2"
+    },
+    "disk_after": {
+      "capture": "/workspace/work/prepared-evidence-images/checks/ignored-integration/prepared-python.disk-after.txt",
+      "available_bytes": 6606872576,
+      "sha256": "c9fc7853dab17d82e3458624f6ac554c26963f73e5edba107d78f5164820816b"
+    }
+  },
+  "post_failure_docker_inspection": {
+    "provenance": "Read-only managed-Docker tool output retained in this agent conversation; not a rerun or refreshed observation.",
+    "containers": 0,
+    "inactive_volumes": 4,
+    "volume_size_reported": "11.64kB",
+    "images": 9,
+    "image_size_reported": "5.219GB",
+    "build_cache_entries": 41,
+    "build_cache_size_reported": "529.4MB",
+    "deletions": "No containers/volumes/cache removed: no stopped owned container existed and volume ownership was not established."
+  },
+  "cleanup_receipts": {
+    "engarg-test-cache": {
+      "receipt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/engarg-test-cache-cleanup-receipt.json",
+      "sha256": "7e419150db8f9d6f7cb50df638a241a32f2a0fdbcb59df5e42ff761b805e3dc1",
+      "removed_paths": 56,
+      "allocated_bytes_unlinked": 4233736192,
+      "actual_free_bytes_before": 2596757504,
+      "actual_free_bytes_after": 6781218816,
+      "actual_free_bytes_change": 4184461312
+    },
+    "eal-debug-cache": {
+      "receipt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/eal-debug-cache-cleanup-receipt.json",
+      "sha256": "8e7676c615b14e0f3cd68fe2f8f92f6ec6a24bf5a949841ba6819df1300bab4e",
+      "removed_paths": 1280,
+      "allocated_bytes_unlinked": 1304539136,
+      "actual_free_bytes_before": 2750373888,
+      "actual_free_bytes_after": 4054913024,
+      "actual_free_bytes_change": 1304539136
+    },
+    "eal-debug-elf": {
+      "receipt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/eal-debug-elf-cleanup-receipt.json",
+      "sha256": "58d2f0415e65557e4c5742f8ebafaff6ef02ee336bb9eff05aea1ea591f04267",
+      "removed_paths": 90,
+      "allocated_bytes_unlinked": 2905657344,
+      "actual_free_bytes_before": 4054118400,
+      "actual_free_bytes_after": 5552254976,
+      "actual_free_bytes_change": 1498136576
+    },
+    "engarg-obsolete-debug-elf": {
+      "receipt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/engarg-obsolete-debug-elf-cleanup-receipt.json",
+      "sha256": "5de2bfe321dc5aac974dcf12d3287c4ba01393dade5e70787f05d8f3a13e73ce",
+      "removed_paths": 26,
+      "allocated_bytes_unlinked": 1764233216,
+      "actual_free_bytes_before": 5552164864,
+      "actual_free_bytes_after": 6606905344,
+      "actual_free_bytes_change": 1054740480
+    }
+  },
+  "profiles_changed": false,
+  "handoff": "Docker returned to root after canonical prepared Python passed; no further test/compile/Docker activity from this agent pending root handoff.",
+  "local_checks_not_repeated_after_handoff": [
+    "Rust retry after adequate capacity, or matching CI evidence",
+    "Go prepared API",
+    "JavaScript prepared API",
+    "TypeScript prepared API",
+    "10ignored tooling_docker protocol/integration tests"
+  ],
+  "validation_resolution": {
+    "decision": "Root explicitly cancelled remaining local repeats after matching canonical CI jobs succeeded. Local Rust ENOSPC remains a separate failed resource observation.",
+    "ci_receipt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/ci-verification.json",
+    "ci_receipt_sha256": "c347bf13c5333f8a51dc25c24dcc75a4a0fe8026fbce069c793f962badb8beab",
+    "source_commit": "6fcb124fdf78f8d8c9b35b7753945a8525790832",
+    "prepared_api_passed": 5,
+    "protocol_passed": 10,
+    "run_url": "https://github.com/emmett08/engarg/actions/runs/40715473935",
+    "overall_workflow_status_at_read": "in_progress"
+  }
+}

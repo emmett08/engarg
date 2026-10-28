@@ -1,0 +1,45 @@
+schema = "EAL/tool-package/1"
+tool = "acquire_selected"
+version = "1"
+image_id = "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+require_observed_at = true
+
+[profile]
+schema = "engarg.toolchain/1"
+language = "python"
+docker = "docker"
+image = "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+build_argv = [
+    "python3",
+    "-I",
+    "-B",
+    "-c",
+    "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())",
+]
+run_argv = [
+    "python3",
+    "-I",
+    "-B",
+    "/src/collector.py",
+]
+inherit_env = []
+runtime_network = "none"
+timeout_seconds = 120
+memory_mb = 1024
+output_bytes = 1048576
+
+[[source]]
+path = "collector.py"
+sha256 = "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+
+[input_schema]
+path = "input.schema.json"
+sha256 = "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670"
+
+[output_schema]
+path = "output.schema.json"
+sha256 = "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2"
+
+[verification]
+path = "verification.json"
+sha256 = "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"

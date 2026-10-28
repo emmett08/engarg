@@ -1,0 +1,138 @@
+{
+  "schema": "engarg.tool-tests/3",
+  "language": "python",
+  "contract_sha256": "07809fc6fa33dd54df4a47e0d3fcd0a4f354d0c30c00557085474543a8c6ac23",
+  "candidate_sha256": "0d35b2132978b1b83646b71043948427506fe746637a76d0491c91d6a8c3fe03",
+  "source_sha256": "33b416ba945f6380166ba6904bf9b39b40abf7f4b40e16e7ba4db2ed9b0bcabe",
+  "fixtures_sha256": "9fe730a6ae59dc1a39f5070b7ba364c6f5d194cf47939aa4a1ef0bbd8bd6100b",
+  "runner": {
+    "profile_sha256": "9eecf3b45f8d0c1254b4b08f5d4d9d4bacf3a9c141e00f035425364eca96dc59",
+    "image_id": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+    "docker_sha256": "27f239f97492c434e091a70b41b8796c698f0aa2b6052c6f9c28da4ee7ae888b",
+    "runner_sha256": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813",
+    "supervisor_sha256": "4b16dce50723a1325198670c228ab4a653862020c17d70eaf9167ad0b0e63613"
+  },
+  "passed": true,
+  "results": [
+    {
+      "name": "selected_both_sensors",
+      "kind": "positive",
+      "passed": true,
+      "returncode": 0,
+      "stdout_sha256": "5a447e0f45f57ba11202bde307da5e982015b0546b5a27ab400c702c51b3f404",
+      "stderr_sha256": "a2b86ce3d0f8b96656df4b950afea693e52076fbbadcda41fa50fc9eafa04dc1",
+      "elapsed_ms": 32949,
+      "diagnostic": null
+    },
+    {
+      "name": "heartbeat_not_lost",
+      "kind": "negative",
+      "passed": true,
+      "returncode": 0,
+      "stdout_sha256": "25aacdc0069c3407b81a0830c6b2227bb8e1b15734e90111267490df6f8af622",
+      "stderr_sha256": "a2b86ce3d0f8b96656df4b950afea693e52076fbbadcda41fa50fc9eafa04dc1",
+      "elapsed_ms": 20111,
+      "diagnostic": null
+    },
+    {
+      "name": "different_parameters",
+      "kind": "positive",
+      "passed": true,
+      "returncode": 0,
+      "stdout_sha256": "c2c7a75abc107dfab02baf98c8a0f75b764232239787be2ffdeb3fb8be06b8a4",
+      "stderr_sha256": "a2b86ce3d0f8b96656df4b950afea693e52076fbbadcda41fa50fc9eafa04dc1",
+      "elapsed_ms": 26669,
+      "diagnostic": null
+    },
+    {
+      "name": "boolean_probability_rejected",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "bd1ec1c1db3e12f951d0ef24df8286a2663efb513aaf1f523b9d00fb57d53f24",
+      "elapsed_ms": 22304,
+      "diagnostic": null
+    },
+    {
+      "name": "missing_required_evidence",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "0de39fb0fdcea1194814e382f1eeb288d65841266d3fdc0a53380e73d0148893",
+      "elapsed_ms": 29309,
+      "diagnostic": null
+    },
+    {
+      "name": "extra_field_rejected",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "0de39fb0fdcea1194814e382f1eeb288d65841266d3fdc0a53380e73d0148893",
+      "elapsed_ms": 20340,
+      "diagnostic": null
+    },
+    {
+      "name": "out_of_range_probability",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "ccef21d9c45ac740ec216f81a9de4fd78c017c0d65fe7197aa8d7b8104e6f5c7",
+      "elapsed_ms": 21331,
+      "diagnostic": null
+    },
+    {
+      "name": "zero_evidence_mass",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "4f1780b75de9a28dbcb4fab9942b682306f9303c984cd280e03a007ea13a929f",
+      "elapsed_ms": 32996,
+      "diagnostic": null
+    },
+    {
+      "name": "numeric_overflow_at_runtime_boundary",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "ccef21d9c45ac740ec216f81a9de4fd78c017c0d65fe7197aa8d7b8104e6f5c7",
+      "elapsed_ms": 33751,
+      "diagnostic": null
+    },
+    {
+      "name": "malformed_json",
+      "kind": "protocol",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "db7921de300150e9cff46782f3472df73667ef35056e120a8b8dc3b38bda7472",
+      "elapsed_ms": 32281,
+      "diagnostic": null
+    },
+    {
+      "name": "missing_identity",
+      "kind": "protocol",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "0de39fb0fdcea1194814e382f1eeb288d65841266d3fdc0a53380e73d0148893",
+      "elapsed_ms": 32016,
+      "diagnostic": null
+    },
+    {
+      "name": "invalid_context",
+      "kind": "protocol",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "b64f87d7eb1bf718ad2802ea907ab219930dd11722a640963f1a16eb819ebe0c",
+      "elapsed_ms": 30607,
+      "diagnostic": null
+    }
+  ]
+}

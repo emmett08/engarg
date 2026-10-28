@@ -1,0 +1,43 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "calculation_complete": {
+      "type": "boolean",
+      "x-engarg-quantity": {
+        "name": "calculation_complete",
+        "unit": "boolean"
+      },
+      "x-engarg-unit": "boolean"
+    },
+    "collected": {
+      "type": "boolean"
+    },
+    "evidence_normalizer": {
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "type": "number",
+      "x-engarg-quantity": {
+        "name": "evidence_normalizer",
+        "unit": "1"
+      },
+      "x-engarg-unit": "1"
+    },
+    "posterior_fault": {
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number",
+      "x-engarg-quantity": {
+        "name": "posterior_fault",
+        "unit": "1"
+      },
+      "x-engarg-unit": "1"
+    }
+  },
+  "required": [
+    "posterior_fault",
+    "evidence_normalizer",
+    "calculation_complete",
+    "collected"
+  ],
+  "type": "object"
+}

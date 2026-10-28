@@ -7,11 +7,18 @@ profiles were built and their checked-in API smoke sources executed successfully
 in external Docker containers. The JavaScript and TypeScript tags share one
 image, so this represents four distinct immutable image identities.
 
-This record covers dependency preparation and local API behaviour. The native
-`DockerRunner` integration tests and the fresh generated-tool claim investigation
-are separate checks, pending at the time of this record. A local smoke result does
-not establish that generation, verification, export, reuse or claim assessment
-has completed.
+All five profiles also passed the production `DockerRunner` API checks in
+[CI run 40715473935](https://github.com/emmett08/engarg/actions/runs/40715473935)
+at source revision `6fcb124fdf78f8d8c9b35b7753945a8525790832`. The ten existing
+generated-tool protocol tests passed, covering generation, verification, export,
+execution, reuse, cancellation and failure handling. All seven CI jobs passed,
+including Linux/macOS checks and EAL producer/consumer compatibility.
+
+The table below identifies the local builds; CI results apply to the images built
+in that run. Local Python also passed its production-runner check in 32.02 seconds.
+The local Rust attempt exhausted the 32 GB VFS-backed workspace before its smoke
+program ran; the same canonical Rust test passed in CI in 8.98 seconds. These
+package and protocol checks remain distinct from any particular claim assessment.
 
 ## Images actually tested
 
@@ -97,5 +104,7 @@ these sources through EngArg's actual isolated runner after the images exist:
 cargo test --locked --test prepared_toolchains -- --ignored
 ```
 
-That result must be reported separately from these external Docker probes and
-from any subsequent generated-tool claim investigation.
+The recorded CI result covers all five tests above, together with all ten
+existing ignored `tooling_docker` cases. A successful package/API check supplies
+execution evidence; a claim still needs its own observations and qualified
+interpretation.

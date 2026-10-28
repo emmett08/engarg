@@ -1,0 +1,94 @@
+{
+  "revision": "030d4514e9c5e01c95690e0d921a5da2cf6525af",
+  "base_revision": "ea1f6cce3c936dac90fb8158d5e02f858cca376b",
+  "source_diff_sha256": "74439cb0bbac8da3225a54383ffbfd9d65dc19ccf7d8f02bc759cd5f5007ef99",
+  "toolchain": "1.90.0",
+  "profile": "release",
+  "physical_copies": true,
+  "binaries": {
+    "eal-host": {
+      "sha256": "0c88669ed43bb3162d7fb69a1afe9259bb47d695085a4a8f80a50e88fbf63350",
+      "size_bytes": 21912648,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-host"
+    },
+    "eal-mcp": {
+      "sha256": "4684032f1e002f01f8edac2f20e67e602e6cfc583c4f9150c8135ceaaaa0d362",
+      "size_bytes": 38266448,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-mcp"
+    },
+    "eal-method-worker": {
+      "sha256": "faaef11cba5da64eab7be0fe9a0e92b96fc45eb74b0e4d1bf8103047c7f25edf",
+      "size_bytes": 4814968,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-method-worker"
+    },
+    "eal-process-supervisor": {
+      "sha256": "c5878767c146b0a4f5def4dfb246e591e6f9471bcfd50bdd261597a19c531aa6",
+      "size_bytes": 775912,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-process-supervisor"
+    },
+    "eal-tool-run": {
+      "sha256": "64f90430f0eed728a13e3d4f194ad19a955106c7bca372e80cabee123eb283a6",
+      "size_bytes": 7916048,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-tool-run"
+    },
+    "eal-collector": {
+      "sha256": "a319dc7684335354a7b8d2edeb44961a03ecbb1f2af45550a52e1fe44954b395",
+      "size_bytes": 23849448,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-collector"
+    },
+    "eal-coordinate": {
+      "sha256": "baf8f775d4e348c735967264d398114bd65f291c1752dc60cf8b84a3e9cce4b5",
+      "size_bytes": 28176888,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-coordinate"
+    },
+    "eal-mas-server": {
+      "sha256": "b50648312bc5b66e1eb8176145316fb02c789d46ddf0ccd08e319b3ffb85fbec",
+      "size_bytes": 8915248,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-mas-server"
+    },
+    "mas-protocol-codec": {
+      "sha256": "2f81fcbe2251202b9427de2bc60afbecce1ae9498b41386c1b716299b301c992",
+      "size_bytes": 3078048,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/mas-protocol-codec"
+    },
+    "eal": {
+      "sha256": "5a349d79bdfff77766a91306f688fd334c3607d57b17da4b3c66aa2aa23ab1f8",
+      "size_bytes": 32043040,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal"
+    },
+    "eal-core": {
+      "sha256": "4b69ab1d638f7a5a8e977cbf0211005a8276bc6e52e230fa35fada1624520174",
+      "size_bytes": 9643928,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-core"
+    },
+    "eal-syntax": {
+      "sha256": "c9b42439ab9872b87f52bceb95e9f5a525c3df5d5f882394c4cd9bea732feec6",
+      "size_bytes": 5285680,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-syntax"
+    },
+    "eal-runtime": {
+      "sha256": "de80a9609028ea51b65d07aaef0a482f5b5f7996fa0596f812d6d154cdd54e9b",
+      "size_bytes": 31045200,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-runtime"
+    },
+    "eal-aspic-solve": {
+      "sha256": "7d5ab1baeb2f98b6c9b8a51d0b6cb19a0fe12c9474dac33295a071ca4fd78f99",
+      "size_bytes": 3273768,
+      "mode": "0o755",
+      "source": "/workspace/eal-mcp/target/release/eal-aspic-solve"
+    }
+  }
+}

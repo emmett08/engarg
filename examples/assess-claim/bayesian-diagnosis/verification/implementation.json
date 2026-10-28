@@ -1,0 +1,359 @@
+{
+  "schema": "engarg.direct-tooling/1",
+  "input_report_sha256": "081b98b30e6429a2666d55e4f450c2c94cb418ff12acd308d2db92c0ec2df60e",
+  "retained_input": "/workspace/work/prepared-evidence-images/new-claim/implemented-lifecycle-fixed/argument.analysis.json",
+  "tools": "/workspace/work/prepared-evidence-images/new-claim/implemented-lifecycle-fixed/bindings/tools.toml",
+  "tools_sha256": "1837525be20809acd2ad6a0d7a95f439ad9221cb2a4a233770f21e087e157012",
+  "operations": [
+    {
+      "acquisition_id": "acquire_selected",
+      "operation_sha256": "960fe9bd46a0d5a9fce2426475c4ebbe0f76ccc98de7e45219c58ec4384a563e",
+      "implementation": {
+        "schema": "engarg.capability-implementation/2",
+        "capability_sha256": "960fe9bd46a0d5a9fce2426475c4ebbe0f76ccc98de7e45219c58ec4384a563e",
+        "collector": {
+          "id": "generated_1a54d3724c1cb6fdf0989f42b1ba209b",
+          "version": "1",
+          "purpose": "{\"definition\":\"Implement reusable protocol finite_bayes_diagnosis/1 in the operator-prepared Python environment using pgmpy 1.1.2 public DiscreteBayesianNetwork, TabularCPD and VariableElimination.query APIs. For parameters p,a1,a0,h1,h0 construct exactly the graph Fault->Alarm and Fault->HeartbeatLost. Set every variable's state_names to [0,1]. Build Fault CPD rows [[1-p],[p]]. Build Alarm CPD rows [[1-a0,1-a1],[a0,a1]] with evidence=['Fault'], evidence_card=[2] and explicit state_names for Alarm and Fault. Build HeartbeatLost CPD rows [[1-h0,1-h1],[h0,h1]] with the same parent order and explicit state_names. Add all CPDs and require check_model() to succeed. Instantiate VariableElimination. Obtain the unconditional joint sensor factor using query(variables=['Alarm','HeartbeatLost'], joint=True, show_progress=False) without conditioning evidence. Read its selected joint entry using get_value(Alarm=int(alarm), HeartbeatLost=int(heartbeat_lost)). Reject zero or nonfinite evidence mass before conditional inference. Obtain the Fault posterior using query(variables=['Fault'], evidence={'Alarm':int(alarm),'HeartbeatLost':int(heartbeat_lost)}, joint=True, show_progress=False). Read Fault=0 and Fault=1 by explicit state names. Require both entries finite and within [0,1] and their sum within absolute tolerance 1e-12 of one. Return Fault=1 as posterior_fault and the selected unconditional joint entry as evidence_normalizer. Set calculation_complete=true only after all fixed finite library computations and validations finish. Never implement the collected quantities using a handwritten Bayes formula or reference constants. Before coding, freeze independent model-derived expectations for the qualification cases described in input_conditions. Actual qualification must inspect generated source, state and parameter correspondence, normalizer handling, actual public API calls and frozen execution results. The native adapter supplies actual UTC query time and provenance outside the three-field logical result, preserving opaque external request identity/context and JSON precision. This logical blueprint selects no provider or execution authority. After ALL raw pgmpy validations, canonicalize BOTH successful probability outputs uniformly as float(format(raw_value, '.15g')): 15 significant decimal digits, never decimal places. Recheck canonical values as finite probabilities, posterior in [0,1] and normalizer in (0,1]; unexpected nonfinite, out-of-range or zero canonical mass is an acquisition error. Set completion only after these checks. This parameter-independent representation preserves tiny positive scales. No answer-specific branch, fixture detection, reference substitution, handwritten Bayes replacement or fixed-place rounding is allowed. The declared-case 1e-12 reference bound remains; arbitrary near-0.75 decision stability and ill-conditioned-input accuracy are not established.\",\"input_conditions\":[\"Accept exactly the declared object shape and required keys with no extras. Require each probability to be a finite JSON number that is not a boolean and lies in [0,1]. Require the two evidence fields to be booleans.\",\"Use only the fixed three-node graph with two states per variable. Permit no data fitting, stochastic sampling, network access, installation, shell invocation, arbitrary graph execution or Torch dependency.\",\"Freeze expectations before implementation. For p=1/50,a1=19/20,a0=1/20,h1=4/5,h0=1/10 and both flags true, expect posterior 152/201 and mass 201/10000 with completion true. With only heartbeat_lost changed to false, expect posterior 38/479 and mass 479/10000 with completion true. This is a measured-negative threshold case rather than an acquisition error.\",\"Freeze a genuinely different valid case with p=1/2,a1=4/5,a0=1/5,h1=3/5,h0=2/5 and both flags true. Its joint weights are 6/25 and 1/25, so expect mass 7/25 and posterior 6/7 with completion true.\",\"Freeze malformed and out-of-range cases including a boolean probability slot, a missing required field, an extra field and a probability outside [0,1]. Reject nonfinite numbers if presented at the runtime boundary. Each must produce an acquisition error rather than successful values.\",\"Freeze impossible evidence using p=1/2,a1=0,a0=0,h1=1/2,h0=1/2 with alarm=true and heartbeat_lost=true. The evidence mass is zero and the operation must produce an acquisition error.\",\"Use absolute tolerance 1e-12 for independent numerical reference comparisons and posterior normalization. Expected qualification outcomes are derived from the declared finite model rather than assumed software outputs.\",\"Execution authority must come from the separately admitted native binding to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2. Do not accept an input label as attestation.\",\"Normative new frozen successful representations from the unchanged a priori rational references, using 15 significant digits: selected posterior=0.756218905472637, mass=0.0201; heartbeat-not-lost posterior=0.0793319415448852, mass=0.0479; different-parameter posterior=0.857142857142857, mass=0.28. Every other valid case uses the same uniform rule on its independently derived reference. Freeze a new constructor-owned contract; never edit an earlier collector, oracle or receipt.\"],\"methods\":[\"finite_bayes_diagnosis/1\"],\"output_guarantees\":[\"A successful result contains exactly posterior_fault, evidence_normalizer and calculation_complete. No threshold, expected answer or logical collected property is an operation argument or authored result.\",\"Reject invalid models, failed API calls, zero or nonfinite normalizers, out-of-range successful masses or posteriors and posterior normalization error above 1e-12 as acquisition errors.\",\"Successful quantities come from the specified pgmpy factors and conditional inference with complete finite factor coverage. Completion is set only after those computations and validations finish.\",\"Native EAL independently evaluates the posterior threshold, normalizer positivity and completion. A returned completion flag does not replace separate actual implementation qualification.\",\"The native envelope records the actual UTC query time as observed_at using ASCII YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Preserve source/input/context/binding hashes and execution provenance. Do not invent an earlier model observation time or refresh a later supplied source or review clock.\",\"Preserve opaque external identity/context unchanged and retain JSON numeric precision. The adapter may add only its reserved collection-status metadata outside the logical result.\",\"Successful outputs use the uniform 15-significant-digit rule only after raw validation, followed by canonical-value guards. Original 1e-12 bounds remain for declared cases. No universal near-threshold or ill-conditioning guarantee is supplied.\"],\"provenance\":\"Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence.\",\"schema\":\"engarg.operation-specification/1\"}",
+          "parameters": [
+            "model",
+            "evidence"
+          ],
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence": {
+                "additionalProperties": false,
+                "properties": {
+                  "alarm": {
+                    "type": "boolean",
+                    "x-engarg-unit": "boolean"
+                  },
+                  "heartbeat_lost": {
+                    "type": "boolean",
+                    "x-engarg-unit": "boolean"
+                  }
+                },
+                "required": [
+                  "alarm",
+                  "heartbeat_lost"
+                ],
+                "type": "object"
+              },
+              "model": {
+                "additionalProperties": false,
+                "properties": {
+                  "p_alarm_given_fault": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  },
+                  "p_alarm_given_healthy": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  },
+                  "p_fault": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  },
+                  "p_loss_given_fault": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  },
+                  "p_loss_given_healthy": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  }
+                },
+                "required": [
+                  "p_fault",
+                  "p_alarm_given_fault",
+                  "p_alarm_given_healthy",
+                  "p_loss_given_fault",
+                  "p_loss_given_healthy"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "model",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          "result_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "calculation_complete": {
+                "type": "boolean",
+                "x-engarg-quantity": {
+                  "name": "calculation_complete",
+                  "unit": "boolean"
+                },
+                "x-engarg-unit": "boolean"
+              },
+              "collected": {
+                "type": "boolean"
+              },
+              "evidence_normalizer": {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number",
+                "x-engarg-quantity": {
+                  "name": "evidence_normalizer",
+                  "unit": "1"
+                },
+                "x-engarg-unit": "1"
+              },
+              "posterior_fault": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number",
+                "x-engarg-quantity": {
+                  "name": "posterior_fault",
+                  "unit": "1"
+                },
+                "x-engarg-unit": "1"
+              }
+            },
+            "required": [
+              "posterior_fault",
+              "evidence_normalizer",
+              "calculation_complete",
+              "collected"
+            ],
+            "type": "object"
+          },
+          "command": {
+            "argv": [
+              "/workspace/work/prepared-evidence-images/runtime/engarg/bin/engarg",
+              "eal",
+              "tool-run",
+              "--package",
+              "/workspace/work/prepared-evidence-images/new-claim/tool-store/attempts/1a54d3724c1cb6fdf0989f42b1ba209bef67de7cd9bb0d8a3f29df7b5f886b8b-283869-1793201499561878843-0/manifest.json"
+            ],
+            "inherit_env": [
+              "DOCKER_API_VERSION",
+              "DOCKER_CERT_PATH",
+              "DOCKER_CONFIG",
+              "DOCKER_CONTEXT",
+              "DOCKER_HOST",
+              "DOCKER_TLS_VERIFY",
+              "HOME",
+              "LANG",
+              "LC_ALL",
+              "PATH",
+              "SSH_AUTH_SOCK",
+              "TMPDIR",
+              "USER",
+              "XDG_RUNTIME_DIR"
+            ],
+            "timeout_seconds": 180,
+            "max_output_bytes": 1048576,
+            "parallel_safe": true
+          },
+          "acquisition_predicate": "collected == true",
+          "constraints": []
+        },
+        "capability": {
+          "id": "generated_1a54d3724c1cb6fdf0989f42b1ba209b",
+          "version": "1",
+          "description": "{\"definition\":\"Implement reusable protocol finite_bayes_diagnosis/1 in the operator-prepared Python environment using pgmpy 1.1.2 public DiscreteBayesianNetwork, TabularCPD and VariableElimination.query APIs. For parameters p,a1,a0,h1,h0 construct exactly the graph Fault->Alarm and Fault->HeartbeatLost. Set every variable's state_names to [0,1]. Build Fault CPD rows [[1-p],[p]]. Build Alarm CPD rows [[1-a0,1-a1],[a0,a1]] with evidence=['Fault'], evidence_card=[2] and explicit state_names for Alarm and Fault. Build HeartbeatLost CPD rows [[1-h0,1-h1],[h0,h1]] with the same parent order and explicit state_names. Add all CPDs and require check_model() to succeed. Instantiate VariableElimination. Obtain the unconditional joint sensor factor using query(variables=['Alarm','HeartbeatLost'], joint=True, show_progress=False) without conditioning evidence. Read its selected joint entry using get_value(Alarm=int(alarm), HeartbeatLost=int(heartbeat_lost)). Reject zero or nonfinite evidence mass before conditional inference. Obtain the Fault posterior using query(variables=['Fault'], evidence={'Alarm':int(alarm),'HeartbeatLost':int(heartbeat_lost)}, joint=True, show_progress=False). Read Fault=0 and Fault=1 by explicit state names. Require both entries finite and within [0,1] and their sum within absolute tolerance 1e-12 of one. Return Fault=1 as posterior_fault and the selected unconditional joint entry as evidence_normalizer. Set calculation_complete=true only after all fixed finite library computations and validations finish. Never implement the collected quantities using a handwritten Bayes formula or reference constants. Before coding, freeze independent model-derived expectations for the qualification cases described in input_conditions. Actual qualification must inspect generated source, state and parameter correspondence, normalizer handling, actual public API calls and frozen execution results. The native adapter supplies actual UTC query time and provenance outside the three-field logical result, preserving opaque external request identity/context and JSON precision. This logical blueprint selects no provider or execution authority. After ALL raw pgmpy validations, canonicalize BOTH successful probability outputs uniformly as float(format(raw_value, '.15g')): 15 significant decimal digits, never decimal places. Recheck canonical values as finite probabilities, posterior in [0,1] and normalizer in (0,1]; unexpected nonfinite, out-of-range or zero canonical mass is an acquisition error. Set completion only after these checks. This parameter-independent representation preserves tiny positive scales. No answer-specific branch, fixture detection, reference substitution, handwritten Bayes replacement or fixed-place rounding is allowed. The declared-case 1e-12 reference bound remains; arbitrary near-0.75 decision stability and ill-conditioned-input accuracy are not established.\",\"input_conditions\":[\"Accept exactly the declared object shape and required keys with no extras. Require each probability to be a finite JSON number that is not a boolean and lies in [0,1]. Require the two evidence fields to be booleans.\",\"Use only the fixed three-node graph with two states per variable. Permit no data fitting, stochastic sampling, network access, installation, shell invocation, arbitrary graph execution or Torch dependency.\",\"Freeze expectations before implementation. For p=1/50,a1=19/20,a0=1/20,h1=4/5,h0=1/10 and both flags true, expect posterior 152/201 and mass 201/10000 with completion true. With only heartbeat_lost changed to false, expect posterior 38/479 and mass 479/10000 with completion true. This is a measured-negative threshold case rather than an acquisition error.\",\"Freeze a genuinely different valid case with p=1/2,a1=4/5,a0=1/5,h1=3/5,h0=2/5 and both flags true. Its joint weights are 6/25 and 1/25, so expect mass 7/25 and posterior 6/7 with completion true.\",\"Freeze malformed and out-of-range cases including a boolean probability slot, a missing required field, an extra field and a probability outside [0,1]. Reject nonfinite numbers if presented at the runtime boundary. Each must produce an acquisition error rather than successful values.\",\"Freeze impossible evidence using p=1/2,a1=0,a0=0,h1=1/2,h0=1/2 with alarm=true and heartbeat_lost=true. The evidence mass is zero and the operation must produce an acquisition error.\",\"Use absolute tolerance 1e-12 for independent numerical reference comparisons and posterior normalization. Expected qualification outcomes are derived from the declared finite model rather than assumed software outputs.\",\"Execution authority must come from the separately admitted native binding to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2. Do not accept an input label as attestation.\",\"Normative new frozen successful representations from the unchanged a priori rational references, using 15 significant digits: selected posterior=0.756218905472637, mass=0.0201; heartbeat-not-lost posterior=0.0793319415448852, mass=0.0479; different-parameter posterior=0.857142857142857, mass=0.28. Every other valid case uses the same uniform rule on its independently derived reference. Freeze a new constructor-owned contract; never edit an earlier collector, oracle or receipt.\"],\"methods\":[\"finite_bayes_diagnosis/1\"],\"output_guarantees\":[\"A successful result contains exactly posterior_fault, evidence_normalizer and calculation_complete. No threshold, expected answer or logical collected property is an operation argument or authored result.\",\"Reject invalid models, failed API calls, zero or nonfinite normalizers, out-of-range successful masses or posteriors and posterior normalization error above 1e-12 as acquisition errors.\",\"Successful quantities come from the specified pgmpy factors and conditional inference with complete finite factor coverage. Completion is set only after those computations and validations finish.\",\"Native EAL independently evaluates the posterior threshold, normalizer positivity and completion. A returned completion flag does not replace separate actual implementation qualification.\",\"The native envelope records the actual UTC query time as observed_at using ASCII YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Preserve source/input/context/binding hashes and execution provenance. Do not invent an earlier model observation time or refresh a later supplied source or review clock.\",\"Preserve opaque external identity/context unchanged and retain JSON numeric precision. The adapter may add only its reserved collection-status metadata outside the logical result.\",\"Successful outputs use the uniform 15-significant-digit rule only after raw validation, followed by canonical-value guards. Original 1e-12 bounds remain for declared cases. No universal near-threshold or ill-conditioning guarantee is supplied.\"],\"provenance\":\"Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence.\",\"schema\":\"engarg.operation-specification/1\"}",
+          "provider": {
+            "id": "generated_1a54d3724c1cb6fdf0989f42b1ba209b",
+            "version": "1",
+            "transport": "command",
+            "connection": null,
+            "tool": null,
+            "authentication_scope": "no_inherited_credentials",
+            "configuration_sha256": "977c0499905b2fbaae07d36203f6bd28f5a80b36e52ad2f0903adabce75c46f1"
+          },
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "evidence": {
+                "additionalProperties": false,
+                "properties": {
+                  "alarm": {
+                    "type": "boolean",
+                    "x-engarg-unit": "boolean"
+                  },
+                  "heartbeat_lost": {
+                    "type": "boolean",
+                    "x-engarg-unit": "boolean"
+                  }
+                },
+                "required": [
+                  "alarm",
+                  "heartbeat_lost"
+                ],
+                "type": "object"
+              },
+              "model": {
+                "additionalProperties": false,
+                "properties": {
+                  "p_alarm_given_fault": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  },
+                  "p_alarm_given_healthy": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  },
+                  "p_fault": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  },
+                  "p_loss_given_fault": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  },
+                  "p_loss_given_healthy": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number",
+                    "x-engarg-unit": "1"
+                  }
+                },
+                "required": [
+                  "p_fault",
+                  "p_alarm_given_fault",
+                  "p_alarm_given_healthy",
+                  "p_loss_given_fault",
+                  "p_loss_given_healthy"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "model",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          "input_schema_sha256": "f9badd1fb8dfbf97c9f89064243453321c09c0deec615293fbc0f017c49069be",
+          "output_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "calculation_complete": {
+                "type": "boolean",
+                "x-engarg-quantity": {
+                  "name": "calculation_complete",
+                  "unit": "boolean"
+                },
+                "x-engarg-unit": "boolean"
+              },
+              "collected": {
+                "type": "boolean"
+              },
+              "evidence_normalizer": {
+                "exclusiveMinimum": 0,
+                "maximum": 1,
+                "type": "number",
+                "x-engarg-quantity": {
+                  "name": "evidence_normalizer",
+                  "unit": "1"
+                },
+                "x-engarg-unit": "1"
+              },
+              "posterior_fault": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number",
+                "x-engarg-quantity": {
+                  "name": "posterior_fault",
+                  "unit": "1"
+                },
+                "x-engarg-unit": "1"
+              }
+            },
+            "required": [
+              "posterior_fault",
+              "evidence_normalizer",
+              "calculation_complete",
+              "collected"
+            ],
+            "type": "object"
+          },
+          "output_schema_sha256": "3cee2cbc99888761fdfd329a70c09b034cbd0189c819cc530bd10087cb079dde",
+          "semantics": null,
+          "configuration_requirements": [],
+          "limits": {
+            "timeout_seconds": 180,
+            "output_bytes": 1048576,
+            "concurrency": 1,
+            "requests_per_minute": null
+          },
+          "costs": {
+            "configuration_effort_seconds": {
+              "value": null,
+              "basis": "unknown",
+              "reference": "Retained fixture timings do not estimate live source execution costs"
+            },
+            "implementation_effort_seconds": {
+              "value": null,
+              "basis": "unknown",
+              "reference": "Retained fixture timings do not estimate live source execution costs"
+            },
+            "execution_requests": {
+              "value": null,
+              "basis": "unknown",
+              "reference": "Retained fixture timings do not estimate live source execution costs"
+            },
+            "execution_latency_ms": {
+              "value": null,
+              "basis": "unknown",
+              "reference": "Retained fixture timings do not estimate live source execution costs"
+            },
+            "monetary_microunits": {
+              "value": null,
+              "basis": "unknown",
+              "reference": "Retained fixture timings do not estimate live source execution costs"
+            },
+            "transfer_bytes": {
+              "value": null,
+              "basis": "unknown",
+              "reference": "Retained fixture timings do not estimate live source execution costs"
+            }
+          }
+        },
+        "package_manifest": "/workspace/work/prepared-evidence-images/new-claim/tool-store/attempts/1a54d3724c1cb6fdf0989f42b1ba209bef67de7cd9bb0d8a3f29df7b5f886b8b-283869-1793201499561878843-0/manifest.json",
+        "manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+        "qualification": {
+          "schema": "engarg.tested-function-contract/1",
+          "contract_sha256": "07809fc6fa33dd54df4a47e0d3fcd0a4f354d0c30c00557085474543a8c6ac23",
+          "fixtures_sha256": "9fe730a6ae59dc1a39f5070b7ba364c6f5d194cf47939aa4a1ef0bbd8bd6100b",
+          "receipt": "/workspace/work/prepared-evidence-images/new-claim/tool-store/attempts/1a54d3724c1cb6fdf0989f42b1ba209bef67de7cd9bb0d8a3f29df7b5f886b8b-283869-1793201499561878843-0/test-results.json",
+          "receipt_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+          "limitations": [
+            "Synthetic fixtures test only the declared function contract on the retained cases; they are not evidence for an engineering claim.",
+            "Source authority, scientific method adequacy, population coverage and historical availability require separate qualification or review.",
+            "Runtime parameters, credentials and source records must be supplied independently; generation does not establish their availability."
+          ]
+        },
+        "reused": false,
+        "model_calls": 2
+      }
+    }
+  ],
+  "deferred": [],
+  "model_calls": 2,
+  "audit_path": "/workspace/work/prepared-evidence-images/new-claim/implemented-lifecycle-fixed/tooling.audit.jsonl"
+}

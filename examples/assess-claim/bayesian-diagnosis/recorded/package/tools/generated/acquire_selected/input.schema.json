@@ -1,0 +1,71 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "alarm": {
+          "type": "boolean",
+          "x-engarg-unit": "boolean"
+        },
+        "heartbeat_lost": {
+          "type": "boolean",
+          "x-engarg-unit": "boolean"
+        }
+      },
+      "required": [
+        "alarm",
+        "heartbeat_lost"
+      ],
+      "type": "object"
+    },
+    "model": {
+      "additionalProperties": false,
+      "properties": {
+        "p_alarm_given_fault": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-engarg-unit": "1"
+        },
+        "p_alarm_given_healthy": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-engarg-unit": "1"
+        },
+        "p_fault": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-engarg-unit": "1"
+        },
+        "p_loss_given_fault": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-engarg-unit": "1"
+        },
+        "p_loss_given_healthy": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number",
+          "x-engarg-unit": "1"
+        }
+      },
+      "required": [
+        "p_fault",
+        "p_alarm_given_fault",
+        "p_alarm_given_healthy",
+        "p_loss_given_fault",
+        "p_loss_given_healthy"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "model",
+    "evidence"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,7 @@
+# Preserve the bytes used by native source and operator-file digests.
+recorded/** -text
+reviews/** -text
+revision/** -text
+verification/** -text
+# The native EAL exporter includes a terminal blank line; retain its source hash.
+recorded/**/case.eal whitespace=-blank-at-eof

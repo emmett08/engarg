@@ -1,0 +1,66 @@
+{
+  "all_native_file_pins": {
+    "candidate": true,
+    "contract": true,
+    "host_record": true,
+    "operator_profile": true,
+    "package_manifest": true,
+    "profile": true,
+    "tool_binding": true,
+    "verification": true
+  },
+  "exact_warrant_scope_hash": true,
+  "exact_operation_scope_hash": true,
+  "exact_three_requests": {
+    "R_current": true,
+    "R_stronger": true,
+    "R_stronger_conditional": true
+  },
+  "all_original_targets_and_clauses": true,
+  "native_predicates_and_evaluations": true,
+  "operation_and_inputs_unchanged": true,
+  "methods": {
+    "W_math": {
+      "formal_maps_complete": true,
+      "source_scope_preserved": true,
+      "independent_truth_table_assignments": 4,
+      "satisfying_premise_assignments": 1,
+      "premises_consistent": true,
+      "entailed": true,
+      "validity_seconds": 86400,
+      "assumption_ids": []
+    },
+    "W_current": {
+      "formal_maps_complete": true,
+      "source_scope_preserved": true,
+      "independent_truth_table_assignments": 32,
+      "satisfying_premise_assignments": 1,
+      "premises_consistent": true,
+      "entailed": true,
+      "validity_seconds": 86400,
+      "assumption_ids": [
+        "A_binding"
+      ]
+    },
+    "W_stronger": {
+      "formal_maps_complete": true,
+      "source_scope_preserved": true,
+      "independent_truth_table_assignments": 128,
+      "satisfying_premise_assignments": 1,
+      "premises_consistent": true,
+      "entailed": true,
+      "validity_seconds": 86400,
+      "assumption_ids": [
+        "A_binding"
+      ]
+    }
+  },
+  "compiled_queries": {
+    "W_math": true,
+    "W_current": true,
+    "W_stronger": true
+  },
+  "compiled_source_digest_matches": true,
+  "compiled_mandatory_gates_verified": true,
+  "compiled_require_consistent_premises_count": 3
+}

@@ -1,0 +1,989 @@
+{
+  "acquisition_revisions": [
+    {
+      "disposition": "repaired",
+      "previous_step_id": "acquire_selected",
+      "previous_step_sha256": "83c86ec79330bf0a173b2eaf3d3928a61d72e03b3d7be8a00f3ee1007e2c94f7",
+      "reason": "Compact duplicated precision prose to fit the actual native 8192-byte serialized operation-purpose limit without changing semantics: preserve uniform float(format(raw_value, .15g)) on both outputs after all raw pgmpy validation, strict canonical guards, tiny-positive significant-digit behavior, unchanged exact rational references and declared-case1e-12 bounds; no universal near-threshold/ill-conditioning guarantee. All original clauses, predicates, inputs, schemas and review obligations remain unchanged. The earlier precision implementation failed before model/Docker calls and its logs are retained separately.",
+      "replacement_ids": [
+        "acquire_selected"
+      ]
+    }
+  ],
+  "acquisitions": [
+    {
+      "arguments": {
+        "evidence": {
+          "alarm": true,
+          "heartbeat_lost": true
+        },
+        "model": {
+          "p_alarm_given_fault": 0.95,
+          "p_alarm_given_healthy": 0.05,
+          "p_fault": 0.02,
+          "p_loss_given_fault": 0.8,
+          "p_loss_given_healthy": 0.1
+        }
+      },
+      "bindings": [],
+      "contract": {
+        "acceptable_methods": [
+          "finite_bayes_diagnosis/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "exact_calculation",
+        "population": "The eight joint state assignments of the fixed three binary variables, represented exhaustively by exact finite factor inference.",
+        "provenance": {
+          "required_authorities": [
+            "Operator-authorised native binding to the exact prepared image",
+            "Actual source, input, context and binding hashes with original execution time"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "posterior_fault",
+            "unit": "1"
+          },
+          {
+            "name": "evidence_normalizer",
+            "unit": "1"
+          },
+          {
+            "name": "calculation_complete",
+            "unit": "boolean"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "model",
+            "parameters",
+            "evidence",
+            "runtime",
+            "image"
+          ],
+          "kind": "finite_model_computation",
+          "selectors": {
+            "evidence": "Alarm=1|HeartbeatLost=1",
+            "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+            "model": "PS-DIAG/1",
+            "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+            "runtime": "pgmpy1.1.2"
+          },
+          "subject": "PS-DIAG/1"
+        },
+        "support_type": "calculation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 86400,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "for_each": null,
+      "id": "acquire_selected",
+      "operation_spec": {
+        "definition": "Implement reusable protocol finite_bayes_diagnosis/1 in the operator-prepared Python environment using pgmpy 1.1.2 public DiscreteBayesianNetwork, TabularCPD and VariableElimination.query APIs. For parameters p,a1,a0,h1,h0 construct exactly the graph Fault->Alarm and Fault->HeartbeatLost. Set every variable's state_names to [0,1]. Build Fault CPD rows [[1-p],[p]]. Build Alarm CPD rows [[1-a0,1-a1],[a0,a1]] with evidence=['Fault'], evidence_card=[2] and explicit state_names for Alarm and Fault. Build HeartbeatLost CPD rows [[1-h0,1-h1],[h0,h1]] with the same parent order and explicit state_names. Add all CPDs and require check_model() to succeed. Instantiate VariableElimination. Obtain the unconditional joint sensor factor using query(variables=['Alarm','HeartbeatLost'], joint=True, show_progress=False) without conditioning evidence. Read its selected joint entry using get_value(Alarm=int(alarm), HeartbeatLost=int(heartbeat_lost)). Reject zero or nonfinite evidence mass before conditional inference. Obtain the Fault posterior using query(variables=['Fault'], evidence={'Alarm':int(alarm),'HeartbeatLost':int(heartbeat_lost)}, joint=True, show_progress=False). Read Fault=0 and Fault=1 by explicit state names. Require both entries finite and within [0,1] and their sum within absolute tolerance 1e-12 of one. Return Fault=1 as posterior_fault and the selected unconditional joint entry as evidence_normalizer. Set calculation_complete=true only after all fixed finite library computations and validations finish. Never implement the collected quantities using a handwritten Bayes formula or reference constants. Before coding, freeze independent model-derived expectations for the qualification cases described in input_conditions. Actual qualification must inspect generated source, state and parameter correspondence, normalizer handling, actual public API calls and frozen execution results. The native adapter supplies actual UTC query time and provenance outside the three-field logical result, preserving opaque external request identity/context and JSON precision. This logical blueprint selects no provider or execution authority. After ALL raw pgmpy validations, canonicalize BOTH successful probability outputs uniformly as float(format(raw_value, '.15g')): 15 significant decimal digits, never decimal places. Recheck canonical values as finite probabilities, posterior in [0,1] and normalizer in (0,1]; unexpected nonfinite, out-of-range or zero canonical mass is an acquisition error. Set completion only after these checks. This parameter-independent representation preserves tiny positive scales. No answer-specific branch, fixture detection, reference substitution, handwritten Bayes replacement or fixed-place rounding is allowed. The declared-case 1e-12 reference bound remains; arbitrary near-0.75 decision stability and ill-conditioned-input accuracy are not established.",
+        "input_conditions": [
+          "Accept exactly the declared object shape and required keys with no extras. Require each probability to be a finite JSON number that is not a boolean and lies in [0,1]. Require the two evidence fields to be booleans.",
+          "Use only the fixed three-node graph with two states per variable. Permit no data fitting, stochastic sampling, network access, installation, shell invocation, arbitrary graph execution or Torch dependency.",
+          "Freeze expectations before implementation. For p=1/50,a1=19/20,a0=1/20,h1=4/5,h0=1/10 and both flags true, expect posterior 152/201 and mass 201/10000 with completion true. With only heartbeat_lost changed to false, expect posterior 38/479 and mass 479/10000 with completion true. This is a measured-negative threshold case rather than an acquisition error.",
+          "Freeze a genuinely different valid case with p=1/2,a1=4/5,a0=1/5,h1=3/5,h0=2/5 and both flags true. Its joint weights are 6/25 and 1/25, so expect mass 7/25 and posterior 6/7 with completion true.",
+          "Freeze malformed and out-of-range cases including a boolean probability slot, a missing required field, an extra field and a probability outside [0,1]. Reject nonfinite numbers if presented at the runtime boundary. Each must produce an acquisition error rather than successful values.",
+          "Freeze impossible evidence using p=1/2,a1=0,a0=0,h1=1/2,h0=1/2 with alarm=true and heartbeat_lost=true. The evidence mass is zero and the operation must produce an acquisition error.",
+          "Use absolute tolerance 1e-12 for independent numerical reference comparisons and posterior normalization. Expected qualification outcomes are derived from the declared finite model rather than assumed software outputs.",
+          "Execution authority must come from the separately admitted native binding to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2. Do not accept an input label as attestation.",
+          "Normative new frozen successful representations from the unchanged a priori rational references, using 15 significant digits: selected posterior=0.756218905472637, mass=0.0201; heartbeat-not-lost posterior=0.0793319415448852, mass=0.0479; different-parameter posterior=0.857142857142857, mass=0.28. Every other valid case uses the same uniform rule on its independently derived reference. Freeze a new constructor-owned contract; never edit an earlier collector, oracle or receipt."
+        ],
+        "input_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "evidence": {
+              "additionalProperties": false,
+              "properties": {
+                "alarm": {
+                  "type": "boolean",
+                  "x-engarg-unit": "boolean"
+                },
+                "heartbeat_lost": {
+                  "type": "boolean",
+                  "x-engarg-unit": "boolean"
+                }
+              },
+              "required": [
+                "alarm",
+                "heartbeat_lost"
+              ],
+              "type": "object"
+            },
+            "model": {
+              "additionalProperties": false,
+              "properties": {
+                "p_alarm_given_fault": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number",
+                  "x-engarg-unit": "1"
+                },
+                "p_alarm_given_healthy": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number",
+                  "x-engarg-unit": "1"
+                },
+                "p_fault": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number",
+                  "x-engarg-unit": "1"
+                },
+                "p_loss_given_fault": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number",
+                  "x-engarg-unit": "1"
+                },
+                "p_loss_given_healthy": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number",
+                  "x-engarg-unit": "1"
+                }
+              },
+              "required": [
+                "p_fault",
+                "p_alarm_given_fault",
+                "p_alarm_given_healthy",
+                "p_loss_given_fault",
+                "p_loss_given_healthy"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "model",
+            "evidence"
+          ],
+          "type": "object"
+        },
+        "output_guarantees": [
+          "A successful result contains exactly posterior_fault, evidence_normalizer and calculation_complete. No threshold, expected answer or logical collected property is an operation argument or authored result.",
+          "Reject invalid models, failed API calls, zero or nonfinite normalizers, out-of-range successful masses or posteriors and posterior normalization error above 1e-12 as acquisition errors.",
+          "Successful quantities come from the specified pgmpy factors and conditional inference with complete finite factor coverage. Completion is set only after those computations and validations finish.",
+          "Native EAL independently evaluates the posterior threshold, normalizer positivity and completion. A returned completion flag does not replace separate actual implementation qualification.",
+          "The native envelope records the actual UTC query time as observed_at using ASCII YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Preserve source/input/context/binding hashes and execution provenance. Do not invent an earlier model observation time or refresh a later supplied source or review clock.",
+          "Preserve opaque external identity/context unchanged and retain JSON numeric precision. The adapter may add only its reserved collection-status metadata outside the logical result.",
+          "Successful outputs use the uniform 15-significant-digit rule only after raw validation, followed by canonical-value guards. Original 1e-12 bounds remain for declared cases. No universal near-threshold or ill-conditioning guarantee is supplied."
+        ],
+        "output_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "calculation_complete": {
+              "type": "boolean",
+              "x-engarg-unit": "boolean"
+            },
+            "evidence_normalizer": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number",
+              "x-engarg-unit": "1"
+            },
+            "posterior_fault": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number",
+              "x-engarg-unit": "1"
+            }
+          },
+          "required": [
+            "posterior_fault",
+            "evidence_normalizer",
+            "calculation_complete"
+          ],
+          "type": "object"
+        },
+        "schema": "engarg.operation-specification/1"
+      }
+    }
+  ],
+  "alternative_support": [
+    {
+      "alternative_id": "alternative_1",
+      "claim_ids": [
+        "current_claim",
+        "stronger_target"
+      ],
+      "distinguishing_test": "Inspect CPD state and parent-column correspondence and compare both selected-evidence cases with the independently frozen analytic results.",
+      "requirement_ids": [
+        "R_mapping_resolution"
+      ]
+    },
+    {
+      "alternative_id": "alternative_2",
+      "claim_ids": [
+        "current_claim",
+        "stronger_target"
+      ],
+      "distinguishing_test": "Freeze and run the stipulated positive case, the changed-heartbeat negative case, a different valid parameter case and malformed-input and zero-normalizer error cases while inspecting actual pgmpy API use.",
+      "requirement_ids": [
+        "R_substitution_resolution"
+      ]
+    }
+  ],
+  "derivations": [],
+  "evaluations": [
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.",
+        "kind": "judgement"
+      },
+      "id": "E_model",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_model"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "A checked rational derivation obtains faulty weight 152/10000, healthy weight 49/10000, normalizer 201/10000, posterior 152/201 and excess over 3/4 of 5/804.",
+        "kind": "judgement"
+      },
+      "id": "E_math",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_math"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.",
+        "kind": "judgement"
+      },
+      "id": "E_analytic",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_analytic"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "comparison": "at_least",
+        "kind": "numeric",
+        "threshold": 0.75,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "id": "E_posterior",
+      "inputs": [
+        {
+          "pointer": "/posterior_fault",
+          "step_id": "acquire_selected"
+        }
+      ],
+      "max_age_seconds": 86400,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_posterior"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "comparison": "greater_than",
+        "kind": "numeric",
+        "threshold": 0,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "id": "E_normalizer",
+      "inputs": [
+        {
+          "pointer": "/evidence_normalizer",
+          "step_id": "acquire_selected"
+        }
+      ],
+      "max_age_seconds": 86400,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_normalizer"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [
+        {
+          "pointer": "/calculation_complete",
+          "step_id": "acquire_selected"
+        }
+      ],
+      "criterion": {
+        "expected": true,
+        "kind": "equals"
+      },
+      "id": "E_complete",
+      "inputs": [
+        {
+          "pointer": "/calculation_complete",
+          "step_id": "acquire_selected"
+        }
+      ],
+      "max_age_seconds": 86400,
+      "required_coverage": "complete_enumeration",
+      "requirement_id": "R_complete"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "An actual scoped AI assessment accepts the implementation and formal correspondence for the exact selected model, evidence, public pgmpy API calls, positive-normalizer handling, complete finite coverage and output predicates, with reference and normalization errors at most 1e-12.",
+        "kind": "judgement"
+      },
+      "id": "E_correspondence",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_correspondence"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "Actual native provenance binds the assessed artifact and unchanged request context to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2 with original execution and review clocks retained and maximum accepted age 86400 seconds.",
+        "kind": "judgement"
+      },
+      "id": "E_binding",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_binding"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "An actual scoped AI assessment accepts the reusable implementation after independently frozen positive, changed-heartbeat negative, different-parameter, malformed-input and zero-normalizer cases have produced their specified successful values or acquisition errors.",
+        "kind": "judgement"
+      },
+      "id": "E_qualification",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_qualification"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "A scoped reasoning assessment confirms that the selected-run obligations and actual reusable-operation qualification jointly establish stronger_target without treating finite tests as a proof of unrestricted algorithm correctness.",
+        "kind": "judgement"
+      },
+      "id": "E_stronger",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_stronger"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "kind": "unavailable",
+        "reason": "No positive evidence of a state-order or evidence-mapping discrepancy is supplied."
+      },
+      "id": "E_mapping_activation",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_mapping_activation"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "Actual source and case assessment establishes the declared state names, parent-column order and evidence mapping for both sensor settings without a mapping discrepancy.",
+        "kind": "judgement"
+      },
+      "id": "E_mapping_resolution",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_mapping_resolution"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "kind": "unavailable",
+        "reason": "No positive evidence of constant-answer or handwritten-formula substitution is supplied."
+      },
+      "id": "E_substitution_activation",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_substitution_activation"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "Actual source and frozen-case assessment establishes public pgmpy inference calls and reusable parameter dependence rather than constant or handwritten-formula substitution.",
+        "kind": "judgement"
+      },
+      "id": "E_substitution_resolution",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_substitution_resolution"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "A scoped assessment accepts the W_current premise interpretation and composition under the exact selected-model scope, with each formal premise linked to its own accepted evidence requirement and any operational validity interval derived from original record times and the authorised 86400-second age bound.",
+        "kind": "judgement"
+      },
+      "id": "E_current",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R_current"
+    }
+  ],
+  "requirements": [
+    {
+      "acceptance": {
+        "criterion": "The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "This checks transcription of authored model definitions rather than empirical adequacy. Any actual assessment must retain its original review clock and satisfy the authorised maximum age of 86400 seconds.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_model"
+      ],
+      "gaps": [
+        {
+          "description": "An actual source-correspondence decision has not been supplied. No existing reviewer record or qualified review retrieval interface is declared.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_model",
+      "original_acceptance_criteria": [
+        "The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations."
+      ],
+      "role": "support",
+      "target_id": "G_model"
+    },
+    {
+      "acceptance": {
+        "criterion": "A checked rational derivation obtains faulty weight 152/10000, healthy weight 49/10000, normalizer 201/10000, posterior 152/201 and excess over 3/4 of 5/804.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "Exact rational assessment is sufficient for this bounded mathematical warrant. Any actual assessment must retain its original review time and satisfy the authorised maximum age of 86400 seconds.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_math"
+      ],
+      "gaps": [
+        {
+          "description": "The displayed derivation awaits an actual arithmetic assessment. No accepted review is authored here.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_math",
+      "original_acceptance_criteria": [
+        "A checked rational derivation obtains faulty weight 152/10000, healthy weight 49/10000, normalizer 201/10000, posterior 152/201 and excess over 3/4 of 5/804."
+      ],
+      "role": "support",
+      "target_id": "W_math"
+    },
+    {
+      "acceptance": {
+        "criterion": "An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "This licenses only the analytic atom for the proposed formal composition. The intended subject is PS-DIAG/1 with the five stipulated parameters and Alarm=1 and HeartbeatLost=1. An actual assessment must retain its original clock and satisfy the authorised maximum age of 86400 seconds.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_analytic"
+      ],
+      "gaps": [
+        {
+          "description": "No actual scoped AI assessment has yet accepted this premise. A subsequent operational binding must preserve every target selector and identity dimension rather than treating a null pending judgement scope as acquired scope evidence.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_analytic",
+      "original_acceptance_criteria": [
+        "An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence."
+      ],
+      "role": "support",
+      "target_id": "S_analytic"
+    },
+    {
+      "acceptance": {
+        "comparison": "at_least",
+        "kind": "numeric",
+        "threshold": 0.75,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "acceptance_rationale": "The strict numeric output contract supplies finiteness and range validation. Native EAL applies the requested threshold. This is an exact finite calculation rather than a population-enumeration estimate. Complete finite inference remains separately required through R_complete and R_correspondence.",
+      "contract": {
+        "acceptable_methods": [
+          "finite_bayes_diagnosis/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "exact_calculation",
+        "population": null,
+        "provenance": {
+          "required_authorities": [
+            "Operator-authorised native binding to the exact prepared image",
+            "Actual source, input, context and binding hashes with original execution time"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "posterior_fault",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "model",
+            "parameters",
+            "evidence",
+            "runtime",
+            "image"
+          ],
+          "kind": "finite_model_computation",
+          "selectors": {
+            "evidence": "Alarm=1|HeartbeatLost=1",
+            "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+            "model": "PS-DIAG/1",
+            "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+            "runtime": "pgmpy1.1.2"
+          },
+          "subject": "PS-DIAG/1"
+        },
+        "support_type": "calculation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 86400,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_posterior"
+      ],
+      "gaps": [
+        {
+          "description": "The reusable operation requires native implementation and operator binding. No operation is currently available.",
+          "kind": "source_unavailable"
+        },
+        {
+          "description": "The finite_bayes_diagnosis/1 protocol is specified but not yet qualified. R_correspondence and R_binding remain required gates.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_posterior",
+      "original_acceptance_criteria": [
+        "The actual selected-run posterior_fault is finite and at least 0.75."
+      ],
+      "role": "support",
+      "target_id": "G_posterior"
+    },
+    {
+      "acceptance": {
+        "comparison": "greater_than",
+        "kind": "numeric",
+        "threshold": 0,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "acceptance_rationale": "The operation rejects nonfinite or zero mass as acquisition errors and the native evaluator independently checks positivity of the successful numeric result. This exact-calculation predicate does not itself establish complete finite inference, which remains a separate claim gate.",
+      "contract": {
+        "acceptable_methods": [
+          "finite_bayes_diagnosis/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "exact_calculation",
+        "population": null,
+        "provenance": {
+          "required_authorities": [
+            "Operator-authorised native binding to the exact prepared image",
+            "Actual source, input, context and binding hashes with original execution time"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "evidence_normalizer",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "model",
+            "parameters",
+            "evidence",
+            "runtime",
+            "image"
+          ],
+          "kind": "finite_model_computation",
+          "selectors": {
+            "evidence": "Alarm=1|HeartbeatLost=1",
+            "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+            "model": "PS-DIAG/1",
+            "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+            "runtime": "pgmpy1.1.2"
+          },
+          "subject": "PS-DIAG/1"
+        },
+        "support_type": "calculation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 86400,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_normalizer"
+      ],
+      "gaps": [
+        {
+          "description": "The shared finite computation is not implemented or bound.",
+          "kind": "source_unavailable"
+        },
+        {
+          "description": "Actual unconditional joint-query correspondence must be accepted under R_correspondence.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_normalizer",
+      "original_acceptance_criteria": [
+        "The actual selected-run evidence_normalizer is finite and strictly greater than zero."
+      ],
+      "role": "support",
+      "target_id": "G_normalizer"
+    },
+    {
+      "acceptance": {
+        "expected": true,
+        "kind": "equals"
+      },
+      "acceptance_rationale": "Native EAL checks the completion boolean and requires complete finite coverage. The coverage reference is usable only after actual implementation qualification establishes exact finite library inference. The returned flag alone does not resolve that qualification obligation.",
+      "contract": {
+        "acceptable_methods": [
+          "finite_bayes_diagnosis/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "exact_calculation",
+        "population": "The eight joint state assignments of the fixed three binary variables, represented exhaustively by exact finite factor inference.",
+        "provenance": {
+          "required_authorities": [
+            "Operator-authorised native binding to the exact prepared image",
+            "Actual source, input, context and binding hashes with original execution time"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "calculation_complete",
+            "unit": "boolean"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "model",
+            "parameters",
+            "evidence",
+            "runtime",
+            "image"
+          ],
+          "kind": "finite_model_computation",
+          "selectors": {
+            "evidence": "Alarm=1|HeartbeatLost=1",
+            "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+            "model": "PS-DIAG/1",
+            "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+            "runtime": "pgmpy1.1.2"
+          },
+          "subject": "PS-DIAG/1"
+        },
+        "support_type": "calculation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 86400,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_complete"
+      ],
+      "gaps": [
+        {
+          "description": "No completed native execution exists.",
+          "kind": "source_unavailable"
+        },
+        {
+          "description": "Qualified complete finite coverage remains unresolved under R_correspondence. A self-authored true flag is insufficient without that separate actual assessment and native execution provenance.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_complete",
+      "original_acceptance_criteria": [
+        "The actual selected-run calculation_complete equals true and qualified native coverage establishes complete finite inference over the fixed three-binary-variable model."
+      ],
+      "role": "support",
+      "target_id": "G_complete"
+    },
+    {
+      "acceptance": {
+        "criterion": "An actual scoped AI assessment accepts the implementation and formal correspondence for the exact selected model, evidence, public pgmpy API calls, positive-normalizer handling, complete finite coverage and output predicates, with reference and normalization errors at most 1e-12.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "The intended review scope is the generated finite_bayes_diagnosis/1 artifact under the exact PS-DIAG/1 selected arguments, pinned image and pgmpy 1.1.2, together with the A/P/Z/K implication in W_current. Review must inspect actual API calls and state correspondence and establish exact finite inference rather than sampling. Retain the actual reviewer, reasons, artifact identity and original review time with maximum accepted age 86400 seconds. Any future formal binding must treat this implication as a separately licensed premise observation, not merely as applicability metadata.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_correspondence"
+      ],
+      "gaps": [
+        {
+          "description": "No generated artifact or actual AI decision exists yet. Pending judgement scope is null rather than a fabricated accepted review. No review retrieval acquisition is invented.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_correspondence",
+      "original_acceptance_criteria": [
+        "An actual scoped AI assessment accepts the implementation and formal correspondence for the exact selected model, evidence, public pgmpy API calls, positive-normalizer handling, complete finite coverage and output predicates, with reference and normalization errors at most 1e-12."
+      ],
+      "role": "support",
+      "target_id": "G_correspondence"
+    },
+    {
+      "acceptance": {
+        "criterion": "Actual native provenance binds the assessed artifact and unchanged request context to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2 with original execution and review clocks retained and maximum accepted age 86400 seconds.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "This bounds both conditioned claims to actual operator-authorised execution rather than an input label. Preserve all declared target selectors and identity dimensions. The supplied canonical target identity is engarg.scope:1f31d3bcda463152dc7eadae4fb4bf002016bea9e73ca5af30928291ad762798. No digest is guessed.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_binding"
+      ],
+      "gaps": [
+        {
+          "description": "Actual binding provenance and its assessment are not supplied. The operator's declared image is authority for the intended environment rather than evidence of an execution.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_binding",
+      "original_acceptance_criteria": [
+        "Actual native provenance binds the assessed artifact and unchanged request context to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2 with original execution and review clocks retained and maximum accepted age 86400 seconds."
+      ],
+      "role": "support",
+      "target_id": "A_binding"
+    },
+    {
+      "acceptance": {
+        "criterion": "An actual scoped AI assessment accepts the reusable implementation after independently frozen positive, changed-heartbeat negative, different-parameter, malformed-input and zero-normalizer cases have produced their specified successful values or acquisition errors.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "The intended assessment covers the generated reusable fixed-graph operation, its public pgmpy calls, strict validation and frozen cases stated in the operation specification. Retain original review and execution clocks with maximum age 86400 seconds. This does not claim exhaustive testing of all real-valued inputs.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_qualification"
+      ],
+      "gaps": [
+        {
+          "description": "Generation, frozen-case execution and an actual source/artifact assessment remain pending.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_qualification",
+      "original_acceptance_criteria": [
+        "An actual scoped AI assessment accepts the reusable implementation after independently frozen positive, changed-heartbeat negative, different-parameter, malformed-input and zero-normalizer cases have produced their specified successful values or acquisition errors."
+      ],
+      "role": "support",
+      "target_id": "G_qualification"
+    },
+    {
+      "acceptance": {
+        "criterion": "A scoped reasoning assessment confirms that the selected-run obligations and actual reusable-operation qualification jointly establish stronger_target without treating finite tests as a proof of unrestricted algorithm correctness.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "The intended decision covers W_stronger and its declared premises only. It requires an actual authored assessment with reasons and original review time within 86400 seconds before use.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_stronger"
+      ],
+      "gaps": [
+        {
+          "description": "No actual qualification-adequacy assessment has been supplied.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_stronger",
+      "original_acceptance_criteria": [
+        "A scoped reasoning assessment confirms that the selected-run obligations and actual reusable-operation qualification jointly establish stronger_target without treating finite tests as a proof of unrestricted algorithm correctness."
+      ],
+      "role": "support",
+      "target_id": "W_stronger"
+    },
+    {
+      "acceptance": {
+        "kind": "unavailable",
+        "reason": "No positive evidence of a state-order or evidence-mapping discrepancy is supplied."
+      },
+      "acceptance_rationale": "Hypothetical activity is not inferred from the existence of the objection or from its future resolution assessment.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [],
+      "gaps": [
+        {
+          "description": "Activation would require an actual source discrepancy or discriminating output mismatch tied to the selected implementation. No such record exists.",
+          "kind": "source_unavailable"
+        }
+      ],
+      "id": "R_mapping_activation",
+      "original_acceptance_criteria": [],
+      "role": "challenge_activation",
+      "target_id": "D_mapping"
+    },
+    {
+      "acceptance": {
+        "criterion": "Actual source and case assessment establishes the declared state names, parent-column order and evidence mapping for both sensor settings without a mapping discrepancy.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "The intended actual AI decision covers generated source and both evidence cases under the pinned runtime. Positive and changed-heartbeat values are model-derived references with absolute tolerance 1e-12. Retain the actual review clock and maximum age 86400 seconds.",
+      "contract": null,
+      "discriminating_evidence": [
+        "Inspect CPD state and parent-column correspondence and compare both selected-evidence cases with the independently frozen analytic results."
+      ],
+      "evidence_need_ids": [
+        "N_mapping"
+      ],
+      "gaps": [
+        {
+          "description": "No actual source or case assessment resolves D_mapping. This remains a gate for both claims.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_mapping_resolution",
+      "original_acceptance_criteria": [
+        "Actual source and case assessment establishes the declared state names, parent-column order and evidence mapping for both sensor settings without a mapping discrepancy."
+      ],
+      "role": "challenge_resolution",
+      "target_id": "D_mapping"
+    },
+    {
+      "acceptance": {
+        "kind": "unavailable",
+        "reason": "No positive evidence of constant-answer or handwritten-formula substitution is supplied."
+      },
+      "acceptance_rationale": "The concern remains hypothetical. A future resolution observation cannot also be treated as evidence that substitution occurred.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [],
+      "gaps": [
+        {
+          "description": "Activation would require actual nonconforming source or execution evidence tied to the generated artifact. No such record exists.",
+          "kind": "source_unavailable"
+        }
+      ],
+      "id": "R_substitution_activation",
+      "original_acceptance_criteria": [],
+      "role": "challenge_activation",
+      "target_id": "D_substitution"
+    },
+    {
+      "acceptance": {
+        "criterion": "Actual source and frozen-case assessment establishes public pgmpy inference calls and reusable parameter dependence rather than constant or handwritten-formula substitution.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "The intended actual AI decision must inspect the generated implementation and frozen outcomes rather than infer library use from a matching number. Retain original review time and maximum age 86400 seconds.",
+      "contract": null,
+      "discriminating_evidence": [
+        "Freeze and run the stipulated positive case, the changed-heartbeat negative case, a different valid parameter case and malformed-input and zero-normalizer error cases while inspecting actual pgmpy API use."
+      ],
+      "evidence_need_ids": [
+        "N_substitution"
+      ],
+      "gaps": [
+        {
+          "description": "No generated source or actual qualification assessment resolves D_substitution. This remains a gate for both claims.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_substitution_resolution",
+      "original_acceptance_criteria": [
+        "Actual source and frozen-case assessment establishes public pgmpy inference calls and reusable parameter dependence rather than constant or handwritten-formula substitution."
+      ],
+      "role": "challenge_resolution",
+      "target_id": "D_substitution"
+    },
+    {
+      "acceptance": {
+        "criterion": "A scoped assessment accepts the W_current premise interpretation and composition under the exact selected-model scope, with each formal premise linked to its own accepted evidence requirement and any operational validity interval derived from original record times and the authorised 86400-second age bound.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "The intended assessment covers only W_current's explicit A/P/Z/K modus-ponens composition and its interpretation under the supplied canonical target scope identity. Check premise consistency separately from entailment. Preserve N_correspondence as a premise source and N_binding as the applicability check for A_binding. An actual assessment must retain its original review time and satisfy maximum age 86400 seconds.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N_current"
+      ],
+      "gaps": [
+        {
+          "description": "No actual accepted premise records or scoped composition assessment exist. The logical argument is retained, but an operational binding with honest absolute validity timestamps remains unresolved.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R_current",
+      "original_acceptance_criteria": [
+        "A scoped assessment accepts the W_current premise interpretation and composition under the exact selected-model scope, with each formal premise linked to its own accepted evidence requirement and any operational validity interval derived from original record times and the authorised 86400-second age bound."
+      ],
+      "role": "support",
+      "target_id": "W_current"
+    }
+  ],
+  "revisions": [],
+  "schema": "engarg.support-elaboration/2"
+}

@@ -1,0 +1,88 @@
+{
+  "schema": "work.native-final-audit/1",
+  "reviewer": "AI agent /root/real_claim_audit/fixedpoint_challenge; read-only artifact inspection, not human or provider-independent scientific review",
+  "collector_source_sha256": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+  "native_integrity": {
+    "contract_candidate_profile_sources_fixtures_receipt_manifest_canonical_hashes": "match",
+    "numeric_tokens_preserved_for_1e400_boundary_fixture": true,
+    "staged_original_files_exact": "match",
+    "exported_tool_schema_source_receipt_pins": "match",
+    "positive_package_build_hashes": "match",
+    "registry_pins_verified": 14,
+    "all_cases_passed": 12,
+    "native_provider_request_completion_pairs": 2,
+    "model": "gpt-6.1-sol"
+  },
+  "source_findings": [
+    "Actual pgmpy1.1.2 DiscreteBayesianNetwork, TabularCPD and two VariableElimination.query calls.",
+    "Explicit binary state names and CPD parameter/parent order match the specification.",
+    "Unconditional joint sensor factor supplies positive mass before conditioned posterior inference.",
+    "Both raw posterior entries are finite probabilities and normalized at1e-12 before uniform .15g conversion of both outputs.",
+    "Expected constants are confined to documentation; calculate has no answer-specific branch, fixture detection or handwritten Bayes replacement.",
+    "Opaque transport precision is preserved and actual UTC is recorded after computation."
+  ],
+  "independent_exact_rational_frozen_reference_checks": [
+    {
+      "fixture": "selected_both_sensors",
+      "posterior_rational": "152/201",
+      "mass_rational": "201/10000"
+    },
+    {
+      "fixture": "heartbeat_not_lost",
+      "posterior_rational": "38/479",
+      "mass_rational": "479/10000"
+    },
+    {
+      "fixture": "different_parameters",
+      "posterior_rational": "6/7",
+      "mass_rational": "7/25"
+    }
+  ],
+  "pinned_image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+  "actual": {
+    "status": "ok",
+    "returncode": 0,
+    "collected_at": "2026-10-28T15:58:11.819870Z",
+    "started_at": "2026-10-28T15:58:00.066241Z",
+    "ingested_at": "2026-10-28T15:58:14.006065Z",
+    "input_digest": "ee069ac3804553ef2cb0fd24dd9790fbf2d209d0106ddacd8161b53308c0cb6c",
+    "data_digest": "eee4c200cda63027a3a0f8b0b642223f723a556a2c41943561167a6ccf6f803c",
+    "acquisition_request_digest": "b464083e4bcf9b228a2a0db4284879d8124a2ab25c391b9d99ac5d8cf459051f",
+    "tool_binding_digest": "27976d0ea63f766f6e4ff129e722a97f112bba86c02306fe469b4ecac0a1d4a4",
+    "source_digest": "36cc17d8cfa720fc1dc4e9fcf0fe678b4a6239e52f9bcb69e3887100da86a555"
+  },
+  "value": {
+    "posterior_fault": 0.756218905472637,
+    "evidence_normalizer": 0.0201,
+    "calculation_complete": true,
+    "collected": true
+  },
+  "baseline_query_time_preserved": "2026-10-28T15:39:22.773512Z",
+  "assessment": {
+    "valid": true,
+    "complete": true,
+    "claims": {
+      "claim_63757272656e745f636c61696d": "supported",
+      "claim_7374726f6e6765725f746172676574": "supported",
+      "claim_535f616e616c79746963": "supported",
+      "ground_475f6d6f64656c": "supported",
+      "ground_475f706f73746572696f72": "supported",
+      "ground_475f6e6f726d616c697a6572": "supported",
+      "ground_475f636f6d706c657465": "supported",
+      "ground_475f636f72726573706f6e64656e6365": "supported",
+      "ground_475f7175616c696669636174696f6e": "supported",
+      "ground_475f6d6174685f636f6e646974696f6e616c": "supported",
+      "ground_475f7374726f6e6765725f636f6e646974696f6e616c": "supported",
+      "route_575f6d617468": "supported",
+      "route_575f63757272656e74": "supported",
+      "route_575f7374726f6e676572": "supported",
+      "assumption_condition_415f62696e64696e67": "supported"
+    }
+  },
+  "blocks": [],
+  "limits": [
+    "No collector execution or affirmative argument review is supplied by this audit.",
+    "Finite cases and source inspection do not establish universal ill-conditioned-input accuracy or arbitrary near-threshold stability.",
+    "Posterior is conditional on the specified model, not empirical fault rates or real-world causal validity."
+  ]
+}

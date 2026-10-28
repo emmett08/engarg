@@ -21,6 +21,12 @@ eal-host run investigation/case.eal --tools investigation/tools.toml --workspace
 The assessment preserves missing evidence, measured negatives and unresolved
 reviews. A completed execution may conclude that the claim remains unsupported.
 
+The [recorded Bayesian diagnosis example](examples/assess-claim/bayesian-diagnosis/README.md)
+includes real model-generated pgmpy tooling, native verification, scoped reviews
+and a completed EAL-host assessment, with measured-negative and missing-binding
+controls. [Prepared language images](docs/prepared-toolchain-verification.md)
+supply the pinned evidence packages before execution.
+
 For contributors, [architecture](docs/EXECUTABLE_ARCHITECTURE.md) explains the
 responsibility boundaries and [verification](docs/VALIDATION.md) gives the
 repository and installed-runtime checks. [Evaluation](docs/EVALUATION.md)

@@ -1,0 +1,8 @@
+{
+  "manifest_file_sha256": "e900edcb4e6e43da4d9017e0a63f2eb3062aaaf971a6b3a2d73bf63f72cf1b5e",
+  "frozen_metadata_manifest_sha256": "e900edcb4e6e43da4d9017e0a63f2eb3062aaaf971a6b3a2d73bf63f72cf1b5e",
+  "freeze_git_head": "f6d34c5688ea34b007721130bf29b6f302c68098",
+  "cited_committed_revision": "6fcb124fdf78f8d8c9b35b7753945a8525790832",
+  "frozen_source_manifest_entries": 360,
+  "mismatches": []
+}

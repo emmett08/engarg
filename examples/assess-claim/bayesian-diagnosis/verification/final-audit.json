@@ -1,0 +1,2101 @@
+{
+  "schema": "work.finite-bayes-final-audit/1",
+  "audited_at": "2026-10-28T16:03:51.503640Z",
+  "audit_actor": "OpenAI Codex AI agent /root/real_claim_audit; shared parent/task context; author of work-only qualification proposal/helper. This is read-only verification of retained artifacts, not external human or institutional approval.",
+  "status": "passed",
+  "blockers": [],
+  "read_only_boundary": {
+    "docker_executed": false,
+    "provider_called": false,
+    "generated_source_or_oracle_edited": false,
+    "new_reviews_written": false
+  },
+  "positive": {
+    "source_digest": "36cc17d8cfa720fc1dc4e9fcf0fe678b4a6239e52f9bcb69e3887100da86a555",
+    "executable_digest": "6b110da502cf17c3fb61a166aeaa727c703bcbbe7baf746a15f05817ddff7294",
+    "valid": true,
+    "complete": true,
+    "record_status_counts": {
+      "ok": 46
+    },
+    "current_claim": "supported",
+    "stronger_target": "supported",
+    "actual_values": {
+      "posterior_fault": 0.756218905472637,
+      "evidence_normalizer": 0.0201,
+      "calculation_complete": true,
+      "collected": true
+    },
+    "actual_collected_at": "2026-10-28T15:58:11.819870Z",
+    "tool_binding_digest": "27976d0ea63f766f6e4ff129e722a97f112bba86c02306fe469b4ecac0a1d4a4",
+    "reference": {
+      "posterior": "152/201",
+      "evidence_normalizer": "201/10000",
+      "selected_absolute_bound": "1e-12"
+    }
+  },
+  "revision": {
+    "requirements": 17,
+    "original_requirement_targets_and_clauses_retained": 15,
+    "native_predicates_preserved": 3,
+    "source_operation_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+    "new_conditional_ground_reviews": [
+      "R_math_conditional",
+      "R_stronger_conditional"
+    ],
+    "paired_decisions_independent_confirmation": false
+  },
+  "actual_reviews": [
+    {
+      "requirement": "R_analytic",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI reviewer /root/library_catalogue; actual scoped model/arithmetic assessment; prepared Python image contributor; shared parent/task context",
+      "original_reviewed_at": "2026-10-28T15:49:55.899141Z"
+    },
+    {
+      "requirement": "R_binding",
+      "verdict": "supported",
+      "reviewer": "Codex scoped review agent /root/runtime_readiness (AI)",
+      "original_reviewed_at": "2026-10-28T15:57:16.248595Z"
+    },
+    {
+      "requirement": "R_correspondence",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI agent /root/independent_review: source/API, finite-case and challenge assessment",
+      "original_reviewed_at": "2026-10-28T15:53:31.215714Z"
+    },
+    {
+      "requirement": "R_current",
+      "verdict": "supported",
+      "reviewer": "Codex AI formal-composition reviewer /root/library_architecture; GPT-6 family, shared orchestration disclosed",
+      "original_reviewed_at": "2026-10-28T15:51:52Z"
+    },
+    {
+      "requirement": "R_mapping_activation",
+      "verdict": "rejected",
+      "reviewer": "OpenAI Codex AI agent /root/independent_review: source/API, finite-case and challenge assessment",
+      "original_reviewed_at": "2026-10-28T15:53:31.215714Z"
+    },
+    {
+      "requirement": "R_mapping_resolution",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI agent /root/independent_review: source/API, finite-case and challenge assessment",
+      "original_reviewed_at": "2026-10-28T15:53:31.215714Z"
+    },
+    {
+      "requirement": "R_math",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI reviewer /root/library_catalogue; actual scoped model/arithmetic assessment; prepared Python image contributor; shared parent/task context",
+      "original_reviewed_at": "2026-10-28T15:49:55.899141Z"
+    },
+    {
+      "requirement": "R_math_conditional",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI reviewer /root/library_catalogue; actual scoped model/arithmetic assessment; prepared Python image contributor; shared parent/task context",
+      "original_reviewed_at": "2026-10-28T15:49:55.899141Z"
+    },
+    {
+      "requirement": "R_model",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI reviewer /root/library_catalogue; actual scoped model/arithmetic assessment; prepared Python image contributor; shared parent/task context",
+      "original_reviewed_at": "2026-10-28T15:49:55.899141Z"
+    },
+    {
+      "requirement": "R_qualification",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI agent /root/independent_review: source/API, finite-case and challenge assessment",
+      "original_reviewed_at": "2026-10-28T15:53:31.215714Z"
+    },
+    {
+      "requirement": "R_stronger",
+      "verdict": "supported",
+      "reviewer": "Codex AI formal-composition reviewer /root/library_architecture; GPT-6 family, shared orchestration disclosed",
+      "original_reviewed_at": "2026-10-28T15:51:52Z"
+    },
+    {
+      "requirement": "R_stronger_conditional",
+      "verdict": "supported",
+      "reviewer": "Codex AI formal-composition reviewer /root/library_architecture; GPT-6 family, shared orchestration disclosed",
+      "original_reviewed_at": "2026-10-28T15:51:52Z"
+    },
+    {
+      "requirement": "R_substitution_activation",
+      "verdict": "rejected",
+      "reviewer": "OpenAI Codex AI agent /root/independent_review: source/API, finite-case and challenge assessment",
+      "original_reviewed_at": "2026-10-28T15:53:31.215714Z"
+    },
+    {
+      "requirement": "R_substitution_resolution",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI agent /root/independent_review: source/API, finite-case and challenge assessment",
+      "original_reviewed_at": "2026-10-28T15:53:31.215714Z"
+    }
+  ],
+  "native_proofs": [
+    {
+      "warrant": "W_math",
+      "method": "deductive/1",
+      "details": {
+        "entailed": true,
+        "consistent_premises": true,
+        "counterexample": null,
+        "atoms": [
+          "A",
+          "M"
+        ],
+        "valuations": 4,
+        "satisfying_premise_valuations": 1
+      },
+      "dependencies": {
+        "evidence": [
+          "requirement_525f6d617468"
+        ],
+        "assumptions": [],
+        "premises": [
+          "ground_475f6d6174685f636f6e646974696f6e616c",
+          "ground_475f6d6f64656c"
+        ],
+        "reasoning": "warrant_575f6d617468"
+      },
+      "input_digest": "9a324fcee57efd73091de991c8cda289f4b0187d9f595990b5156fd313f8e4f6",
+      "interpretation_automatically_verified": false
+    },
+    {
+      "warrant": "W_current",
+      "method": "deductive/1",
+      "details": {
+        "entailed": true,
+        "consistent_premises": true,
+        "counterexample": null,
+        "atoms": [
+          "A",
+          "C",
+          "K",
+          "P",
+          "Z"
+        ],
+        "valuations": 32,
+        "satisfying_premise_valuations": 1
+      },
+      "dependencies": {
+        "evidence": [
+          "requirement_525f63757272656e74"
+        ],
+        "assumptions": [
+          "assumption_415f62696e64696e67"
+        ],
+        "premises": [
+          "claim_535f616e616c79746963",
+          "ground_475f636f6d706c657465",
+          "ground_475f636f72726573706f6e64656e6365",
+          "ground_475f6e6f726d616c697a6572",
+          "ground_475f706f73746572696f72"
+        ],
+        "reasoning": "warrant_575f63757272656e74"
+      },
+      "input_digest": "28467fd38580ddf47bb66f5c3815485f5ab1496ab9e26106d6b37cbc36cefe54",
+      "interpretation_automatically_verified": false
+    },
+    {
+      "warrant": "W_stronger",
+      "method": "deductive/1",
+      "details": {
+        "entailed": true,
+        "consistent_premises": true,
+        "counterexample": null,
+        "atoms": [
+          "A",
+          "C",
+          "K",
+          "P",
+          "Q",
+          "S",
+          "Z"
+        ],
+        "valuations": 128,
+        "satisfying_premise_valuations": 1
+      },
+      "dependencies": {
+        "evidence": [
+          "requirement_525f7374726f6e676572"
+        ],
+        "assumptions": [
+          "assumption_415f62696e64696e67"
+        ],
+        "premises": [
+          "claim_535f616e616c79746963",
+          "ground_475f636f6d706c657465",
+          "ground_475f636f72726573706f6e64656e6365",
+          "ground_475f6e6f726d616c697a6572",
+          "ground_475f706f73746572696f72",
+          "ground_475f7175616c696669636174696f6e",
+          "ground_475f7374726f6e6765725f636f6e646974696f6e616c"
+        ],
+        "reasoning": "warrant_575f7374726f6e676572"
+      },
+      "input_digest": "863d8f32f149480ea28b3837488ed97d2a8e61d08b67441da6a1acc3198b6245",
+      "interpretation_automatically_verified": false
+    }
+  ],
+  "challenge_resolution_gate": "Both actual positive resolution requirements independently gate correspondence and current/stronger composition; two actual rejected positive-activation predicates supply no positive counterexample.",
+  "missing_review_binding_control": {
+    "valid": true,
+    "complete": true,
+    "record_status_counts": {
+      "ok": 4,
+      "error": 42
+    },
+    "current_claim": "unsupported",
+    "stronger_target": "unsupported",
+    "same_source_and_executable": true,
+    "only_registry_review_key_removed": true,
+    "numeric_acquisition_still_successful": true
+  },
+  "changed_heartbeat_control": {
+    "actual_values": {
+      "posterior_fault": 0.0793319415448852,
+      "evidence_normalizer": 0.0479,
+      "calculation_complete": true,
+      "collected": true
+    },
+    "collected_at": "2026-10-28T15:43:21.480876Z",
+    "current_claim": "unsupported",
+    "native_posterior_predicate": false,
+    "native_normalizer_and_complete_predicates": true,
+    "record_status_counts": {
+      "ok": 4,
+      "error": 22
+    },
+    "isolated_full_claim_control": false,
+    "limits": "This explicit scope/math-reference revision leaves separate judgement qualification and method obligations unresolved; unsupported full claim has multiple causes. The executed native posterior predicate itself fails for the changed input."
+  },
+  "limits": [
+    "The fixed graph and probabilities are stipulated engineering-model inputs. No hardware, population, scientific-validity or causal-inference claim is established.",
+    "Native propositional proofs establish accepted-premise composition; scoped AI reviews supply arithmetic/formalisation/source/binding interpretations with shared context and overlapping evidence disclosed.",
+    "Scope pins a successful baseline observation at15:39:22.773512Z and immutable generated bytes; the completed positive acquisition was freshly executed later at15:58:11.819870Z with the same model/input/code. Review clocks remain original and were not refreshed to that later execution.",
+    "Frozen cases and selected1e-12 bounds do not prove arbitrary input-domain stability, extreme-underflow accuracy, or pgmpy/library correctness."
+  ],
+  "checks": [
+    {
+      "check": "positive envelope and rendered result agree",
+      "passed": true
+    },
+    {
+      "check": "positive valid complete and all records ok",
+      "passed": true
+    },
+    {
+      "check": "analytic current stronger all supported",
+      "passed": true
+    },
+    {
+      "check": "source digest and executable stable from request export",
+      "passed": true
+    },
+    {
+      "check": "positive file pin actual-artifacts/candidate.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin actual-artifacts/contract.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin actual-artifacts/host_record.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin actual-artifacts/operator_profile.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin actual-artifacts/package_manifest.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin actual-artifacts/profile.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin actual-artifacts/tool_binding.toml",
+      "passed": true
+    },
+    {
+      "check": "positive file pin actual-artifacts/verification.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin case.eal",
+      "passed": true
+    },
+    {
+      "check": "positive file pin review-inputs.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin tools.toml",
+      "passed": true
+    },
+    {
+      "check": "positive file pin tools/generated/acquire_selected/input.schema.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin tools/generated/acquire_selected/output.schema.json",
+      "passed": true
+    },
+    {
+      "check": "positive file pin tools/generated/acquire_selected/source/collector.py",
+      "passed": true
+    },
+    {
+      "check": "positive file pin tools/generated/acquire_selected/tool.toml",
+      "passed": true
+    },
+    {
+      "check": "positive file pin tools/generated/acquire_selected/verification.json",
+      "passed": true
+    },
+    {
+      "check": "static export no provider calls",
+      "passed": true
+    },
+    {
+      "check": "17 requirements retain original15 targets and acceptance clauses",
+      "passed": true
+    },
+    {
+      "check": "unchanged native predicate R_posterior",
+      "passed": true
+    },
+    {
+      "check": "unchanged native predicate R_normalizer",
+      "passed": true
+    },
+    {
+      "check": "unchanged native predicate R_complete",
+      "passed": true
+    },
+    {
+      "check": "public precision operation and acquisition unchanged",
+      "passed": true
+    },
+    {
+      "check": "stronger alternatives and dissent origins retained",
+      "passed": true
+    },
+    {
+      "check": "no fictional target changes or authored challenge resolution",
+      "passed": true
+    },
+    {
+      "check": "14 exact emitted requests and actual review decisions",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_analytic",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_analytic",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_analytic",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_analytic",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_analytic",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_analytic",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_analytic",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_analytic candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_analytic contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_analytic host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_analytic operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_analytic package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_analytic profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_analytic tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_analytic verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_analytic",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_binding",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_binding",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_binding",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_binding",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_binding",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_binding",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_binding candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_binding contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_binding host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_binding operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_binding package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_binding profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_binding tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_binding verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_binding",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_correspondence candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_correspondence contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_correspondence host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_correspondence operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_correspondence package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_correspondence profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_correspondence tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_correspondence verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_current",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_current",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_current",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_current",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_current",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_current",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_current",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_current candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_current contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_current host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_current operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_current package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_current profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_current tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_current verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_current",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_activation candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_activation contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_activation host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_activation operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_activation package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_activation profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_activation tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_activation verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_resolution candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_resolution contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_resolution host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_resolution operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_resolution package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_resolution profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_resolution tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_mapping_resolution verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_math",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_math",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_math",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_math",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_math",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_math",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_math",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_math",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math_conditional candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math_conditional contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math_conditional host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math_conditional operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math_conditional package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math_conditional profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math_conditional tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_math_conditional verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_model",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_model",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_model",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_model",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_model",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_model",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_model",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_model candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_model contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_model host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_model operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_model package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_model profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_model tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_model verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_model",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_qualification",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_qualification",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_qualification",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_qualification",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_qualification",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_qualification",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_qualification",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_qualification candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_qualification contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_qualification host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_qualification operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_qualification package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_qualification profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_qualification tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_qualification verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_qualification",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_stronger",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_stronger",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_stronger",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_stronger",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_stronger",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_stronger",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_stronger",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_stronger",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger_conditional candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger_conditional contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger_conditional host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger_conditional operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger_conditional package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger_conditional profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger_conditional tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_stronger_conditional verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_activation candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_activation contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_activation host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_activation operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_activation package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_activation profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_activation tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_activation verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "exact request and original value R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "exact criterion target scope R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "identified actual reviewer reasons provenance R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "original imported value and clock retained R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "actual review request used R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "review age within authorised immutable model interval R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "review predicate represents actual verdict R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_resolution candidate",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_resolution contract",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_resolution host_record",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_resolution operator_profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_resolution package_manifest",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_resolution profile",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_resolution tool_binding",
+      "passed": true
+    },
+    {
+      "check": "review artifact pin R_substitution_resolution verification",
+      "passed": true
+    },
+    {
+      "check": "review operation warrants scope R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "12 supported plus2 rejected positive-activation decisions",
+      "passed": true
+    },
+    {
+      "check": "actual native proof W_math",
+      "passed": true
+    },
+    {
+      "check": "proof source dependencies accepted W_math",
+      "passed": true
+    },
+    {
+      "check": "native proof original validity interval W_math",
+      "passed": true
+    },
+    {
+      "check": "actual native proof W_current",
+      "passed": true
+    },
+    {
+      "check": "proof source dependencies accepted W_current",
+      "passed": true
+    },
+    {
+      "check": "native proof original validity interval W_current",
+      "passed": true
+    },
+    {
+      "check": "actual native proof W_stronger",
+      "passed": true
+    },
+    {
+      "check": "proof source dependencies accepted W_stronger",
+      "passed": true
+    },
+    {
+      "check": "native proof original validity interval W_stronger",
+      "passed": true
+    },
+    {
+      "check": "separate challenge resolution gate ground_argument_475f636f72726573706f6e64656e6365",
+      "passed": true
+    },
+    {
+      "check": "separate challenge resolution gate composition_argument_63757272656e745f636c61696d",
+      "passed": true
+    },
+    {
+      "check": "separate challenge resolution gate composition_argument_7374726f6e6765725f746172676574",
+      "passed": true
+    },
+    {
+      "check": "negative positive-activation is unavailable not fabricated witness R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "negative positive-activation is unavailable not fabricated witness R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "actual positive pgmpy values and rational reference bound",
+      "passed": true
+    },
+    {
+      "check": "selected observation identity input and source scope",
+      "passed": true
+    },
+    {
+      "check": "native acceptance and common observation dependency R_posterior",
+      "passed": true
+    },
+    {
+      "check": "native acceptance and common observation dependency R_normalizer",
+      "passed": true
+    },
+    {
+      "check": "native acceptance and common observation dependency R_complete",
+      "passed": true
+    },
+    {
+      "check": "control parsed operator registry change is exactly review removal",
+      "passed": true
+    },
+    {
+      "check": "control source and executable byte identity",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin actual-artifacts/candidate.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin actual-artifacts/contract.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin actual-artifacts/host_record.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin actual-artifacts/operator_profile.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin actual-artifacts/package_manifest.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin actual-artifacts/profile.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin actual-artifacts/tool_binding.toml",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin actual-artifacts/verification.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin case.eal",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin review-inputs.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin tools/generated/acquire_selected/input.schema.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin tools/generated/acquire_selected/output.schema.json",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin tools/generated/acquire_selected/source/collector.py",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin tools/generated/acquire_selected/tool.toml",
+      "passed": true
+    },
+    {
+      "check": "control unchanged source evidence review pin tools/generated/acquire_selected/verification.json",
+      "passed": true
+    },
+    {
+      "check": "control actual unchanged acquisition and unsupported results",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_model",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_math",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_analytic",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_correspondence",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_binding",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_qualification",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_stronger",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_mapping_activation",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_mapping_resolution",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_substitution_activation",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_substitution_resolution",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_current",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_math_conditional",
+      "passed": true
+    },
+    {
+      "check": "control missing review importer R_stronger_conditional",
+      "passed": true
+    },
+    {
+      "check": "adverse actual changed heartbeat only in operation arguments",
+      "passed": true
+    },
+    {
+      "check": "adverse actual expected values and posterior rejection",
+      "passed": true
+    },
+    {
+      "check": "adverse generated implementation unchanged",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest acquisition_616371756972655f73656c6563746564",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest acquisition_616371756972655f73656c6563746564",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest acquisition_616371756972655f73656c6563746564",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d6f64656c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d6f64656c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d6f64656c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617468_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617468_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617468_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f616e616c79746963_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f616e616c79746963_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f616e616c79746963_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f636f72726573706f6e64656e6365_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f636f72726573706f6e64656e6365_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f636f72726573706f6e64656e6365_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f62696e64696e67_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f62696e64696e67_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f62696e64696e67_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7175616c696669636174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7175616c696669636174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7175616c696669636174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7374726f6e676572_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7374726f6e676572_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7374726f6e676572_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617070696e675f61637469766174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617070696e675f61637469766174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617070696e675f61637469766174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617070696e675f7265736f6c7574696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617070696e675f7265736f6c7574696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617070696e675f7265736f6c7574696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f63757272656e74_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f63757272656e74_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f63757272656e74_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d6174685f636f6e646974696f6e616c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d6174685f636f6e646974696f6e616c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d6174685f636f6e646974696f6e616c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d6f64656c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d6f64656c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d6f64656c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617468_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617468_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617468_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f616e616c79746963_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f616e616c79746963_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f616e616c79746963_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f706f73746572696f72",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f706f73746572696f72",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f706f73746572696f72",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6e6f726d616c697a6572",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6e6f726d616c697a6572",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6e6f726d616c697a6572",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f636f6d706c657465",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f636f6d706c657465",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f636f6d706c657465",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f636f72726573706f6e64656e6365_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f636f72726573706f6e64656e6365_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f636f72726573706f6e64656e6365_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f62696e64696e67_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f62696e64696e67_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f62696e64696e67_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7175616c696669636174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7175616c696669636174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7175616c696669636174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7374726f6e676572_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7374726f6e676572_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7374726f6e676572_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617070696e675f61637469766174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617070696e675f61637469766174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617070696e675f61637469766174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617070696e675f7265736f6c7574696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617070696e675f7265736f6c7574696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617070696e675f7265736f6c7574696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f63757272656e74_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f63757272656e74_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f63757272656e74_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d6174685f636f6e646974696f6e616c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d6174685f636f6e646974696f6e616c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d6174685f636f6e646974696f6e616c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c_scoped_review",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d6f64656c",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d6f64656c",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d6f64656c",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617468",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617468",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617468",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f616e616c79746963",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f616e616c79746963",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f616e616c79746963",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f636f72726573706f6e64656e6365",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f636f72726573706f6e64656e6365",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f636f72726573706f6e64656e6365",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f62696e64696e67",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f62696e64696e67",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f62696e64696e67",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7175616c696669636174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7175616c696669636174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7175616c696669636174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7374726f6e676572",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7374726f6e676572",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7374726f6e676572",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617070696e675f61637469766174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617070696e675f61637469766174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617070696e675f61637469766174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d617070696e675f7265736f6c7574696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d617070696e675f7265736f6c7574696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d617070696e675f7265736f6c7574696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f737562737469747574696f6e5f61637469766174696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f63757272656e74",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f63757272656e74",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f63757272656e74",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f6d6174685f636f6e646974696f6e616c",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f6d6174685f636f6e646974696f6e616c",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f6d6174685f636f6e646974696f6e616c",
+      "passed": true
+    },
+    {
+      "check": "positive canonical input_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c",
+      "passed": true
+    },
+    {
+      "check": "positive canonical data_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c",
+      "passed": true
+    },
+    {
+      "check": "positive canonical acquisition_request_digest requirement_525f7374726f6e6765725f636f6e646974696f6e616c",
+      "passed": true
+    },
+    {
+      "check": "all 31 derived dependency identities and original clocks match actual records",
+      "passed": true
+    }
+  ],
+  "native_integrity_audit": {
+    "path": "/workspace/work/new-claim-design/native-final-audit.json",
+    "sha256": "b4dbadf31f22a7d102786929a809e489ea72385458a66186a1ad96676baec4ea",
+    "scope": "Delegated separate AI read-only source/native integrity inspection; shared task context, no new collector execution or argument review.",
+    "findings": {
+      "contract_candidate_profile_sources_fixtures_receipt_manifest_canonical_hashes": "match",
+      "numeric_tokens_preserved_for_1e400_boundary_fixture": true,
+      "staged_original_files_exact": "match",
+      "exported_tool_schema_source_receipt_pins": "match",
+      "positive_package_build_hashes": "match",
+      "registry_pins_verified": 14,
+      "all_cases_passed": 12,
+      "native_provider_request_completion_pairs": 2,
+      "model": "gpt-6.1-sol"
+    },
+    "source_sha256": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+    "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+    "source_findings": [
+      "Actual pgmpy1.1.2 DiscreteBayesianNetwork, TabularCPD and two VariableElimination.query calls.",
+      "Explicit binary state names and CPD parameter/parent order match the specification.",
+      "Unconditional joint sensor factor supplies positive mass before conditioned posterior inference.",
+      "Both raw posterior entries are finite probabilities and normalized at1e-12 before uniform .15g conversion of both outputs.",
+      "Expected constants are confined to documentation; calculate has no answer-specific branch, fixture detection or handwritten Bayes replacement.",
+      "Opaque transport precision is preserved and actual UTC is recorded after computation."
+    ],
+    "limits": [
+      "No collector execution or affirmative argument review is supplied by this audit.",
+      "Finite cases and source inspection do not establish universal ill-conditioned-input accuracy or arbitrary near-threshold stability.",
+      "Posterior is conditional on the specified model, not empirical fault rates or real-world causal validity."
+    ]
+  },
+  "binding_digest_interpretation": "The observed tool_binding_digest is a host store-keyed HMAC, not a publicly recomputable file SHA256. This audit independently verifies declared file SHA256 pins and dependency copies; native acquisition validates binding pins before and after execution. Private store keys were not read.",
+  "checks_total": 447
+}

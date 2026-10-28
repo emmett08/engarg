@@ -1,0 +1,9 @@
+{
+  "kind": "deliberate_operator_binding_control",
+  "changed_files": [
+    "tools.toml"
+  ],
+  "semantic_change": "removed only tools.engarg_review_contract",
+  "source_sha256": "36cc17d8cfa720fc1dc4e9fcf0fe678b4a6239e52f9bcb69e3887100da86a555",
+  "unchanged": "source, generated code, schemas, native receipt, actual artifacts, actual reviews and original clocks"
+}

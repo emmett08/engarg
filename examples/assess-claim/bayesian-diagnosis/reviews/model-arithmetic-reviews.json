@@ -1,0 +1,773 @@
+{
+  "schema": "eal.review-inputs/2",
+  "reviews": [
+    {
+      "request": {
+        "tool": "engarg_review_contract",
+        "tool_version": "1",
+        "input": {
+          "acceptance": {
+            "criterion": "The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.",
+            "kind": "judgement",
+            "scope": {
+              "identity_dimensions": [
+                "model",
+                "parameters",
+                "evidence",
+                "runtime",
+                "image",
+                "candidate_sha256",
+                "contract_sha256",
+                "host_record_sha256",
+                "operator_profile_sha256",
+                "package_manifest_sha256",
+                "profile_sha256",
+                "tool_binding_sha256",
+                "verification_sha256",
+                "warrants_sha256",
+                "operation_spec_sha256"
+              ],
+              "kind": "finite_model_computation",
+              "selectors": {
+                "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+                "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+                "evidence": "Alarm=1|HeartbeatLost=1",
+                "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+                "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+                "model": "PS-DIAG/1",
+                "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+                "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+                "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+                "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+                "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+                "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+                "runtime": "pgmpy1.1.2",
+                "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+                "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+                "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+              },
+              "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+            }
+          },
+          "criterion": "The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.",
+          "requirement": "R_model",
+          "role": "support",
+          "scope": {
+            "identity_dimensions": [
+              "model",
+              "parameters",
+              "evidence",
+              "runtime",
+              "image",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256",
+              "warrants_sha256",
+              "operation_spec_sha256"
+            ],
+            "kind": "finite_model_computation",
+            "selectors": {
+              "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+              "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+              "evidence": "Alarm=1|HeartbeatLost=1",
+              "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+              "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+              "model": "PS-DIAG/1",
+              "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+              "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+              "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+              "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+              "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+              "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+              "runtime": "pgmpy1.1.2",
+              "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+              "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+              "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+            },
+            "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+          },
+          "target": "G_model"
+        },
+        "context": {
+          "engarg_export_digest": "11c47113ad188dba192f130e40b4cd9ca08fb59687b851e8b756de61e87d39b7"
+        }
+      },
+      "value": {
+        "criterion": "The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.",
+        "target": "G_model",
+        "scope": {
+          "identity_dimensions": [
+            "model",
+            "parameters",
+            "evidence",
+            "runtime",
+            "image",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256",
+            "warrants_sha256",
+            "operation_spec_sha256"
+          ],
+          "kind": "finite_model_computation",
+          "selectors": {
+            "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+            "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+            "evidence": "Alarm=1|HeartbeatLost=1",
+            "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+            "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+            "model": "PS-DIAG/1",
+            "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+            "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+            "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+            "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+            "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+            "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+            "runtime": "pgmpy1.1.2",
+            "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+            "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+            "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+          },
+          "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+        },
+        "reviewer": "OpenAI Codex AI reviewer /root/library_catalogue; actual scoped model/arithmetic assessment; prepared Python image contributor; shared parent/task context",
+        "verdict": "supported",
+        "reasons": [
+          "The original request, revised argument scope, selected operation arguments and actual host-record input agree on the fixed edges Fault->Alarm and Fault->HeartbeatLost, Fault state0=healthy/state1=faulty, sensor0=false/sensor1=true, parameters p=1/50,a1=19/20,a0=1/20,h1=4/5,h0=1/10, and selected Alarm=1,HeartbeatLost=1. These are model stipulations rather than measured hardware frequencies.",
+          "The inspected generated collector preserves that mapping explicitly: prior rows [[1-p],[p]], sensor rows [[1-a0,1-a1],[a0,a1]] and [[1-h0,1-h1],[h0,h1]], parent Fault with state_names [0,1], integer evidence states, and Fault=1 posterior lookup. Candidate file contents equal the staged collector byte for byte.",
+          "All eight staged artifact byte hashes, the canonical warrants hash and operation-specification hash match the exact review scope selectors. This supports the requested transcription criterion only; empirical model adequacy, unrestricted numerical correctness and independent institutional approval are outside this assessment."
+        ],
+        "reviewed_at": "2026-10-28T15:49:55.899141Z",
+        "provenance": {
+          "assessment_kind": "actual scoped AI judgement after source/artifact inspection and independent exact rational calculation",
+          "shared_ai_task_context": true,
+          "reviewer_contribution": "Prepared the Python evidence image and API smoke; did not author or edit the generated collector, frozen qualification cases, native host record or scoped request.",
+          "related_review_requirements": [
+            "R_model",
+            "R_math",
+            "R_analytic",
+            "R_math_conditional"
+          ],
+          "independence_limit": "These four records separate obligation roles and share one AI reviewer and one arithmetic basis; no human approval, institutional independence or independent corroboration is asserted.",
+          "calculation_method": "Python standard-library Fraction exact arithmetic and Decimal70 display/canonical-reference calculations; no library inference, provider call or Docker execution performed by this reviewer during this assessment.",
+          "inspected_source_sha256": {
+            "review_requests_v2": "3c02d818972a9f764166c7ddbbd95e581d54ce26438d52d4e4c0509019121b6a",
+            "revision_proposed_v2": "369eed01e5a64302b803262bd7afd0b5051e8ad7f587cfce52927fc32ce539b5",
+            "original_request": "1ede1939cc53a7536a1ab24bf6df179e26b2e327fec1c62526a1931c0da1bcfc",
+            "independent_rational_calculations": "510b8865a1992ec93d31f404168317cf8c99ecf205ae88eb187dfca8b21e6289",
+            "generated_collector": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+          },
+          "verified_scope_artifact_sha256": {
+            "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+            "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+            "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+            "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+            "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+            "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+            "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+            "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+            "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+            "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+          },
+          "actual_selected_native_observed_at_preserved": "2026-10-28T15:39:22.773512Z",
+          "native_qualification_receipt": "Inspected retained passed12-case engarg.tool-tests/3 receipt; no execution rerun or clock refresh.",
+          "runtime_numeric_reference_bound": "absolute1e-12 for declared cases; exact fractions denote mathematical references"
+        },
+        "evidence_refs": [
+          "original PS-DIAG/1 request",
+          "independent-model-arithmetic/rational-results.json",
+          "revision-proposed-v2/analysis.json",
+          "operator/actual-artifacts/candidate.json",
+          "operator/actual-artifacts/contract.json",
+          "operator/actual-artifacts/verification.json",
+          "operator/actual-artifacts/host_record.json"
+        ]
+      }
+    },
+    {
+      "request": {
+        "tool": "engarg_review_contract",
+        "tool_version": "1",
+        "input": {
+          "acceptance": {
+            "criterion": "A checked rational derivation obtains faulty weight 152/10000, healthy weight 49/10000, normalizer 201/10000, posterior 152/201 and excess over 3/4 of 5/804.",
+            "kind": "judgement",
+            "scope": {
+              "identity_dimensions": [
+                "model",
+                "parameters",
+                "evidence",
+                "runtime",
+                "image",
+                "candidate_sha256",
+                "contract_sha256",
+                "host_record_sha256",
+                "operator_profile_sha256",
+                "package_manifest_sha256",
+                "profile_sha256",
+                "tool_binding_sha256",
+                "verification_sha256",
+                "warrants_sha256",
+                "operation_spec_sha256"
+              ],
+              "kind": "finite_model_computation",
+              "selectors": {
+                "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+                "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+                "evidence": "Alarm=1|HeartbeatLost=1",
+                "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+                "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+                "model": "PS-DIAG/1",
+                "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+                "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+                "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+                "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+                "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+                "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+                "runtime": "pgmpy1.1.2",
+                "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+                "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+                "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+              },
+              "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+            }
+          },
+          "criterion": "A checked rational derivation obtains faulty weight 152/10000, healthy weight 49/10000, normalizer 201/10000, posterior 152/201 and excess over 3/4 of 5/804.",
+          "requirement": "R_math",
+          "role": "support",
+          "scope": {
+            "identity_dimensions": [
+              "model",
+              "parameters",
+              "evidence",
+              "runtime",
+              "image",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256",
+              "warrants_sha256",
+              "operation_spec_sha256"
+            ],
+            "kind": "finite_model_computation",
+            "selectors": {
+              "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+              "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+              "evidence": "Alarm=1|HeartbeatLost=1",
+              "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+              "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+              "model": "PS-DIAG/1",
+              "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+              "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+              "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+              "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+              "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+              "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+              "runtime": "pgmpy1.1.2",
+              "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+              "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+              "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+            },
+            "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+          },
+          "target": "W_math"
+        },
+        "context": {
+          "engarg_export_digest": "11c47113ad188dba192f130e40b4cd9ca08fb59687b851e8b756de61e87d39b7"
+        }
+      },
+      "value": {
+        "criterion": "A checked rational derivation obtains faulty weight 152/10000, healthy weight 49/10000, normalizer 201/10000, posterior 152/201 and excess over 3/4 of 5/804.",
+        "target": "W_math",
+        "scope": {
+          "identity_dimensions": [
+            "model",
+            "parameters",
+            "evidence",
+            "runtime",
+            "image",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256",
+            "warrants_sha256",
+            "operation_spec_sha256"
+          ],
+          "kind": "finite_model_computation",
+          "selectors": {
+            "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+            "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+            "evidence": "Alarm=1|HeartbeatLost=1",
+            "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+            "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+            "model": "PS-DIAG/1",
+            "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+            "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+            "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+            "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+            "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+            "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+            "runtime": "pgmpy1.1.2",
+            "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+            "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+            "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+          },
+          "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+        },
+        "reviewer": "OpenAI Codex AI reviewer /root/library_catalogue; actual scoped model/arithmetic assessment; prepared Python image contributor; shared parent/task context",
+        "verdict": "supported",
+        "reasons": [
+          "An independently evaluated standard-library Fraction calculation gives faulty joint weight (1/50)*(19/20)*(4/5)=152/10000 and healthy weight (49/50)*(1/20)*(1/10)=49/10000. Their sum is positive201/10000. Dividing the faulty weight by this sum gives152/201; exact subtraction of3/4 gives5/804>0.",
+          "The same exact calculation checks the adverse heartbeat-not-lost weights38/10000 and441/10000, mass479/10000 and posterior38/479<3/4; a genuinely different parameter set gives6/25 and1/25, mass7/25 and posterior6/7. All four selected-model sensor events sum to probability one. These controls concern different events/parameters and do not rebut the original selected-event result.",
+          "The fractions are exact analytic references. The actual selected output0.756218905472637 differs from152/201 by less than2.22e-16 in binary-float representation and the decimal mass0.0201 equals201/10000; both are within the unchanged absolute1e-12 bound. Uniform15-significant-digit representation is distinct from exact rational arithmetic. This assessment retains the original R_math warrant-check obligation and does not attribute arithmetic execution to native propositional deduction."
+        ],
+        "reviewed_at": "2026-10-28T15:49:55.899141Z",
+        "provenance": {
+          "assessment_kind": "actual scoped AI judgement after source/artifact inspection and independent exact rational calculation",
+          "shared_ai_task_context": true,
+          "reviewer_contribution": "Prepared the Python evidence image and API smoke; did not author or edit the generated collector, frozen qualification cases, native host record or scoped request.",
+          "related_review_requirements": [
+            "R_model",
+            "R_math",
+            "R_analytic",
+            "R_math_conditional"
+          ],
+          "independence_limit": "These four records separate obligation roles and share one AI reviewer and one arithmetic basis; no human approval, institutional independence or independent corroboration is asserted.",
+          "calculation_method": "Python standard-library Fraction exact arithmetic and Decimal70 display/canonical-reference calculations; no library inference, provider call or Docker execution performed by this reviewer during this assessment.",
+          "inspected_source_sha256": {
+            "review_requests_v2": "3c02d818972a9f764166c7ddbbd95e581d54ce26438d52d4e4c0509019121b6a",
+            "revision_proposed_v2": "369eed01e5a64302b803262bd7afd0b5051e8ad7f587cfce52927fc32ce539b5",
+            "original_request": "1ede1939cc53a7536a1ab24bf6df179e26b2e327fec1c62526a1931c0da1bcfc",
+            "independent_rational_calculations": "510b8865a1992ec93d31f404168317cf8c99ecf205ae88eb187dfca8b21e6289",
+            "generated_collector": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+          },
+          "verified_scope_artifact_sha256": {
+            "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+            "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+            "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+            "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+            "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+            "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+            "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+            "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+            "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+            "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+          },
+          "actual_selected_native_observed_at_preserved": "2026-10-28T15:39:22.773512Z",
+          "native_qualification_receipt": "Inspected retained passed12-case engarg.tool-tests/3 receipt; no execution rerun or clock refresh.",
+          "runtime_numeric_reference_bound": "absolute1e-12 for declared cases; exact fractions denote mathematical references"
+        },
+        "evidence_refs": [
+          "original PS-DIAG/1 request",
+          "independent-model-arithmetic/rational-results.json",
+          "revision-proposed-v2/analysis.json",
+          "operator/actual-artifacts/candidate.json",
+          "operator/actual-artifacts/contract.json",
+          "operator/actual-artifacts/verification.json",
+          "operator/actual-artifacts/host_record.json"
+        ]
+      }
+    },
+    {
+      "request": {
+        "tool": "engarg_review_contract",
+        "tool_version": "1",
+        "input": {
+          "acceptance": {
+            "criterion": "An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.",
+            "kind": "judgement",
+            "scope": {
+              "identity_dimensions": [
+                "model",
+                "parameters",
+                "evidence",
+                "runtime",
+                "image",
+                "candidate_sha256",
+                "contract_sha256",
+                "host_record_sha256",
+                "operator_profile_sha256",
+                "package_manifest_sha256",
+                "profile_sha256",
+                "tool_binding_sha256",
+                "verification_sha256",
+                "warrants_sha256",
+                "operation_spec_sha256"
+              ],
+              "kind": "finite_model_computation",
+              "selectors": {
+                "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+                "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+                "evidence": "Alarm=1|HeartbeatLost=1",
+                "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+                "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+                "model": "PS-DIAG/1",
+                "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+                "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+                "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+                "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+                "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+                "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+                "runtime": "pgmpy1.1.2",
+                "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+                "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+                "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+              },
+              "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+            }
+          },
+          "criterion": "An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.",
+          "requirement": "R_analytic",
+          "role": "support",
+          "scope": {
+            "identity_dimensions": [
+              "model",
+              "parameters",
+              "evidence",
+              "runtime",
+              "image",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256",
+              "warrants_sha256",
+              "operation_spec_sha256"
+            ],
+            "kind": "finite_model_computation",
+            "selectors": {
+              "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+              "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+              "evidence": "Alarm=1|HeartbeatLost=1",
+              "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+              "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+              "model": "PS-DIAG/1",
+              "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+              "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+              "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+              "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+              "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+              "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+              "runtime": "pgmpy1.1.2",
+              "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+              "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+              "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+            },
+            "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+          },
+          "target": "S_analytic"
+        },
+        "context": {
+          "engarg_export_digest": "11c47113ad188dba192f130e40b4cd9ca08fb59687b851e8b756de61e87d39b7"
+        }
+      },
+      "value": {
+        "criterion": "An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.",
+        "target": "S_analytic",
+        "scope": {
+          "identity_dimensions": [
+            "model",
+            "parameters",
+            "evidence",
+            "runtime",
+            "image",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256",
+            "warrants_sha256",
+            "operation_spec_sha256"
+          ],
+          "kind": "finite_model_computation",
+          "selectors": {
+            "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+            "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+            "evidence": "Alarm=1|HeartbeatLost=1",
+            "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+            "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+            "model": "PS-DIAG/1",
+            "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+            "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+            "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+            "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+            "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+            "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+            "runtime": "pgmpy1.1.2",
+            "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+            "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+            "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+          },
+          "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+        },
+        "reviewer": "OpenAI Codex AI reviewer /root/library_catalogue; actual scoped model/arithmetic assessment; prepared Python image contributor; shared parent/task context",
+        "verdict": "supported",
+        "reasons": [
+          "S_analytic states the exact consequence of the stipulated finite factorisation and selected event: joint masses152/10000 and49/10000, positive normalizer201/10000, posterior152/201 and threshold excess5/804. Independent exact rational multiplication, marginalisation, division and comparison establish every stated part.",
+          "The scoped revised claim explicitly distinguishes exact fraction references from successful returned probabilities represented uniformly to15significant digits and compared within absolute1e-12. Its qualifier supplies no literal equality claim for binary floating-point outputs and no universal near-threshold or ill-conditioning guarantee.",
+          "I accept this analytic premise only for the exact PS-DIAG/1 parameters and Alarm=1|HeartbeatLost=1 scope. It supplies no pgmpy-execution observation, hardware claim or algorithm-correctness proof. This review shares its arithmetic basis with R_math and R_math_conditional and is not an independent confirmation of them."
+        ],
+        "reviewed_at": "2026-10-28T15:49:55.899141Z",
+        "provenance": {
+          "assessment_kind": "actual scoped AI judgement after source/artifact inspection and independent exact rational calculation",
+          "shared_ai_task_context": true,
+          "reviewer_contribution": "Prepared the Python evidence image and API smoke; did not author or edit the generated collector, frozen qualification cases, native host record or scoped request.",
+          "related_review_requirements": [
+            "R_model",
+            "R_math",
+            "R_analytic",
+            "R_math_conditional"
+          ],
+          "independence_limit": "These four records separate obligation roles and share one AI reviewer and one arithmetic basis; no human approval, institutional independence or independent corroboration is asserted.",
+          "calculation_method": "Python standard-library Fraction exact arithmetic and Decimal70 display/canonical-reference calculations; no library inference, provider call or Docker execution performed by this reviewer during this assessment.",
+          "inspected_source_sha256": {
+            "review_requests_v2": "3c02d818972a9f764166c7ddbbd95e581d54ce26438d52d4e4c0509019121b6a",
+            "revision_proposed_v2": "369eed01e5a64302b803262bd7afd0b5051e8ad7f587cfce52927fc32ce539b5",
+            "original_request": "1ede1939cc53a7536a1ab24bf6df179e26b2e327fec1c62526a1931c0da1bcfc",
+            "independent_rational_calculations": "510b8865a1992ec93d31f404168317cf8c99ecf205ae88eb187dfca8b21e6289",
+            "generated_collector": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+          },
+          "verified_scope_artifact_sha256": {
+            "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+            "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+            "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+            "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+            "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+            "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+            "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+            "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+            "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+            "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+          },
+          "actual_selected_native_observed_at_preserved": "2026-10-28T15:39:22.773512Z",
+          "native_qualification_receipt": "Inspected retained passed12-case engarg.tool-tests/3 receipt; no execution rerun or clock refresh.",
+          "runtime_numeric_reference_bound": "absolute1e-12 for declared cases; exact fractions denote mathematical references"
+        },
+        "evidence_refs": [
+          "original PS-DIAG/1 request",
+          "independent-model-arithmetic/rational-results.json",
+          "revision-proposed-v2/analysis.json",
+          "operator/actual-artifacts/candidate.json",
+          "operator/actual-artifacts/contract.json",
+          "operator/actual-artifacts/verification.json",
+          "operator/actual-artifacts/host_record.json"
+        ]
+      }
+    },
+    {
+      "request": {
+        "tool": "engarg_review_contract",
+        "tool_version": "1",
+        "input": {
+          "acceptance": {
+            "criterion": "An actual scoped assessment establishes that acceptance of the exact stipulated G_model licenses G_model implies S_analytic, with rational arithmetic separately checked under the unchanged R_math warrant obligation; native deduction certifies only the accepted-premise composition.",
+            "kind": "judgement",
+            "scope": {
+              "identity_dimensions": [
+                "model",
+                "parameters",
+                "evidence",
+                "runtime",
+                "image",
+                "candidate_sha256",
+                "contract_sha256",
+                "host_record_sha256",
+                "operator_profile_sha256",
+                "package_manifest_sha256",
+                "profile_sha256",
+                "tool_binding_sha256",
+                "verification_sha256",
+                "warrants_sha256",
+                "operation_spec_sha256"
+              ],
+              "kind": "finite_model_computation",
+              "selectors": {
+                "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+                "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+                "evidence": "Alarm=1|HeartbeatLost=1",
+                "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+                "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+                "model": "PS-DIAG/1",
+                "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+                "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+                "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+                "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+                "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+                "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+                "runtime": "pgmpy1.1.2",
+                "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+                "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+                "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+              },
+              "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+            }
+          },
+          "criterion": "An actual scoped assessment establishes that acceptance of the exact stipulated G_model licenses G_model implies S_analytic, with rational arithmetic separately checked under the unchanged R_math warrant obligation; native deduction certifies only the accepted-premise composition.",
+          "requirement": "R_math_conditional",
+          "role": "support",
+          "scope": {
+            "identity_dimensions": [
+              "model",
+              "parameters",
+              "evidence",
+              "runtime",
+              "image",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256",
+              "warrants_sha256",
+              "operation_spec_sha256"
+            ],
+            "kind": "finite_model_computation",
+            "selectors": {
+              "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+              "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+              "evidence": "Alarm=1|HeartbeatLost=1",
+              "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+              "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+              "model": "PS-DIAG/1",
+              "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+              "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+              "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+              "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+              "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+              "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+              "runtime": "pgmpy1.1.2",
+              "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+              "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+              "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+            },
+            "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+          },
+          "target": "G_math_conditional"
+        },
+        "context": {
+          "engarg_export_digest": "11c47113ad188dba192f130e40b4cd9ca08fb59687b851e8b756de61e87d39b7"
+        }
+      },
+      "value": {
+        "criterion": "An actual scoped assessment establishes that acceptance of the exact stipulated G_model licenses G_model implies S_analytic, with rational arithmetic separately checked under the unchanged R_math warrant obligation; native deduction certifies only the accepted-premise composition.",
+        "target": "G_math_conditional",
+        "scope": {
+          "identity_dimensions": [
+            "model",
+            "parameters",
+            "evidence",
+            "runtime",
+            "image",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256",
+            "warrants_sha256",
+            "operation_spec_sha256"
+          ],
+          "kind": "finite_model_computation",
+          "selectors": {
+            "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+            "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+            "evidence": "Alarm=1|HeartbeatLost=1",
+            "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+            "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+            "model": "PS-DIAG/1",
+            "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+            "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+            "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+            "parameters": "{\"p_fault\":0.02,\"p_alarm_given_fault\":0.95,\"p_alarm_given_healthy\":0.05,\"p_loss_given_fault\":0.8,\"p_loss_given_healthy\":0.1}",
+            "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+            "review_boundary": "actual scoped AI assessment; shared task context disclosed; no human or institutional approval",
+            "runtime": "pgmpy1.1.2",
+            "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+            "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+            "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+          },
+          "subject": "Exact PS-DIAG/1 model, selected evidence, native implementation and actual execution"
+        },
+        "reviewer": "OpenAI Codex AI reviewer /root/library_catalogue; actual scoped model/arithmetic assessment; prepared Python image contributor; shared parent/task context",
+        "verdict": "supported",
+        "reasons": [
+          "For the exact scoped interpretation M=G_model and A=S_analytic, accepting the stipulated factorisation, state meanings, selected parameters and selected evidence licenses M implies A: conditional independence supplies the two joint products, their positive sum permits conditioning, and the independently checked rational derivation yields152/201 with excess5/804 over3/4.",
+          "The revised W_math explicitly binds native deductive/1 premises M and (M implies A) to G_model/N_model and G_math_conditional/N_math_conditional. This is accepted-premise modus ponens composition; it does not ask the propositional checker to perform rational arithmetic, establish premise truth or prove the implementation correct.",
+          "R_math remains a separate retained check of the arithmetic warrant. This conditional review and R_math/R_analytic reuse the same exact calculation and shared task context, so their distinct obligation roles must not be presented as statistically or institutionally independent corroboration. The licence holds only under the pinned scope, with the unchanged numeric-reference bound and original record clocks."
+        ],
+        "reviewed_at": "2026-10-28T15:49:55.899141Z",
+        "provenance": {
+          "assessment_kind": "actual scoped AI judgement after source/artifact inspection and independent exact rational calculation",
+          "shared_ai_task_context": true,
+          "reviewer_contribution": "Prepared the Python evidence image and API smoke; did not author or edit the generated collector, frozen qualification cases, native host record or scoped request.",
+          "related_review_requirements": [
+            "R_model",
+            "R_math",
+            "R_analytic",
+            "R_math_conditional"
+          ],
+          "independence_limit": "These four records separate obligation roles and share one AI reviewer and one arithmetic basis; no human approval, institutional independence or independent corroboration is asserted.",
+          "calculation_method": "Python standard-library Fraction exact arithmetic and Decimal70 display/canonical-reference calculations; no library inference, provider call or Docker execution performed by this reviewer during this assessment.",
+          "inspected_source_sha256": {
+            "review_requests_v2": "3c02d818972a9f764166c7ddbbd95e581d54ce26438d52d4e4c0509019121b6a",
+            "revision_proposed_v2": "369eed01e5a64302b803262bd7afd0b5051e8ad7f587cfce52927fc32ce539b5",
+            "original_request": "1ede1939cc53a7536a1ab24bf6df179e26b2e327fec1c62526a1931c0da1bcfc",
+            "independent_rational_calculations": "510b8865a1992ec93d31f404168317cf8c99ecf205ae88eb187dfca8b21e6289",
+            "generated_collector": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+          },
+          "verified_scope_artifact_sha256": {
+            "candidate_sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+            "contract_sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+            "host_record_sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+            "operation_spec_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+            "operator_profile_sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+            "package_manifest_sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+            "profile_sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+            "tool_binding_sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+            "verification_sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+            "warrants_sha256": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+          },
+          "actual_selected_native_observed_at_preserved": "2026-10-28T15:39:22.773512Z",
+          "native_qualification_receipt": "Inspected retained passed12-case engarg.tool-tests/3 receipt; no execution rerun or clock refresh.",
+          "runtime_numeric_reference_bound": "absolute1e-12 for declared cases; exact fractions denote mathematical references"
+        },
+        "evidence_refs": [
+          "original PS-DIAG/1 request",
+          "independent-model-arithmetic/rational-results.json",
+          "revision-proposed-v2/analysis.json",
+          "operator/actual-artifacts/candidate.json",
+          "operator/actual-artifacts/contract.json",
+          "operator/actual-artifacts/verification.json",
+          "operator/actual-artifacts/host_record.json"
+        ]
+      }
+    }
+  ]
+}
