@@ -13,12 +13,12 @@ name = "engarg-process-supervisor"
 path = "src/bin/process_supervisor.rs"
 
 [dependencies]
-eal-tool-runtime = { git = "https://github.com/emmett08/eal-mcp", rev = "18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7" }
-eal-coordination-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7" }
-eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7" }
-eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7" }
-eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7" }
-eal-core = { git = "https://github.com/emmett08/eal-mcp", rev = "18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7" }
+eal-tool-runtime = { git = "https://github.com/emmett08/eal-mcp", rev = "18f2870be09523255c2c6161248e998cf049e03f" }
+eal-coordination-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "18f2870be09523255c2c6161248e998cf049e03f" }
+eal-collector-contracts = { git = "https://github.com/emmett08/eal-mcp", rev = "18f2870be09523255c2c6161248e998cf049e03f" }
+eal-process = { git = "https://github.com/emmett08/eal-mcp", rev = "18f2870be09523255c2c6161248e998cf049e03f" }
+eal-adapters = { git = "https://github.com/emmett08/eal-mcp", rev = "18f2870be09523255c2c6161248e998cf049e03f" }
+eal-core = { git = "https://github.com/emmett08/eal-mcp", rev = "18f2870be09523255c2c6161248e998cf049e03f" }
 clap = { version = "4.6.7", features = ["derive", "env"] }
 chrono = { version = "0.4.42", default-features = false, features = ["std"] }
 httpdate = "1.0.3"
@@ -36,7 +36,7 @@ toml = "0.9.8"
 
 [dev-dependencies]
 tiktoken-rs = "0.12.1"
-rmcp = { git = "https://github.com/emmett08/eal-mcp", rev = "18c77180eb1d160d0f609c9b38e3f5dfcdd2bde7", default-features = false, features = ["server", "transport-io"] }
+rmcp = { git = "https://github.com/emmett08/eal-mcp", rev = "18f2870be09523255c2c6161248e998cf049e03f", default-features = false, features = ["server", "transport-io"] }
 tokio = { version = "1.54.1", features = ["io-std"] }
 
 [lints.rust]
