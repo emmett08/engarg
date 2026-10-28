@@ -77,12 +77,12 @@ compatible declarations and module settings.
 |---|---|---|---|---|
 | `causal_discovery` | `causal-learn` plus `dowhy` | `why_rs` | `github.com/causalgo/causalgo` | — |
 | `causal_modelling` | `dowhy` | `why_rs` | — | — |
-| `causal_identification` | `dowhy` | — | — | `libdagitty` source |
+| `causal_identification` | `dowhy` | — | — | `jtextor/libdagitty` pinned source |
 | `causal_estimation` | `dowhy` | — | — | — |
 | `causal_testing` | `dowhy` | — | — | — |
 | `counterfactual` | `dowhy` GCM | `deep_causality` | — | — |
 | `statistical_inference` | `scipy`, `statsmodels` | `statrs` | Gonum `stat` | `simple-statistics` |
-| `formal_verification` | `z3-solver`, `sympy` | `varisat` | `github.com/crillab/gophersat` | `logic-solver` |
+| `formal_verification` | `z3-solver`, `sympy` | `varisat` | `github.com/crillab/gophersat/solver` | `logic-solver` |
 | `probabilistic_inference` | `pgmpy` | `statrs` primitives | Gonum `stat/distuv` primitives | `mathjs` primitives |
 | `similarity` | `scikit-learn` | `linfa-nn` | Gonum `spatial/kdtree` | `ml-distance` |
 | `optimisation` | `scipy.optimize` | `good_lp` | Gonum `optimize` | `javascript-lp-solver` |
@@ -113,19 +113,29 @@ For causal work, preserve more specific distinctions:
   not supply a general graph-identification/refutation workflow.
 - [libdagitty](https://github.com/jtextor/libdagitty) supplies JavaScript graph
   adjustment, separation and identification criteria. It does not estimate
-  numerical effects. The npm registry had no `libdagitty` package when checked;
-  prepare a pinned source build and TypeScript adapter rather than assuming
-  `npm install libdagitty` works. Source entry point: `src/index.js`.
+  numerical effects. The npm registry has neither `libdagitty` nor `dagitty`.
+  The default is the source package `jtextor/libdagitty`, pinned to revision
+  `1f3d1463285315deda09b5454dc56338bf379cbc`. Prepare that source and its lockfile
+  in the trusted image, then expose `libdagitty/src/index.js` with a checked
+  TypeScript adapter where needed. The upstream package's root `main` points to
+  an absent `index.js`, so a bare `require("libdagitty")` is not a valid entry.
+  The pinned `src/index.js` API was executed against a confounded DAG: adjusting
+  for the confounder succeeds and omitting it fails.
 - [causalkit](https://github.com/rakutentech/causalkit) is a Rust implementation
   exposed through a PyO3 Python extension. Its documented installation is through
   pip, and its `cdylib` is not a verified ordinary Rust dependency. The published
   Rust crate named `smelt` is a metabuild tool, not a causal-forest implementation.
   Neither name is supplied as a Rust default.
 
+The Go formal-check default uses `github.com/crillab/gophersat/solver`.
+The module root is `package main`, so `github.com/crillab/gophersat` itself is
+not an importable solver library. The published solver subpackage and the Gonum
+subpackages in the matrix were checked directly in their module archives.
+
 These package identities and interfaces were checked against their upstream
-sources and registries on 28 October 2026. Default recommendations omit version
+sources and registries on 28 October 2026. Registry recommendations omit version
 pins because the operator must choose versions compatible with the actual
-prepared environment. The optional scientific image below pins its own complete
+prepared environment; source-only defaults carry an immutable revision. The optional scientific image below pins its own complete
 dependency set.
 
 ## Prepare the dependencies

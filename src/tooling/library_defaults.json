@@ -176,9 +176,9 @@
     ],
     "formal_verification": [
       {
-        "package": "github.com/crillab/gophersat",
+        "package": "github.com/crillab/gophersat/solver",
         "reference": "https://github.com/crillab/gophersat",
-        "guidance": "Propositional SAT/pseudo-Boolean constraints only; preserve authored encodings and bounded solver outcomes."
+        "guidance": "Import the solver library subpackage; the module root is an executable. Propositional SAT/pseudo-Boolean constraints only; preserve authored encodings and bounded solver outcomes."
       }
     ],
     "probabilistic_inference": [
@@ -208,9 +208,10 @@
     "causal_modelling": [],
     "causal_identification": [
       {
-        "package": "libdagitty",
-        "reference": "https://github.com/jtextor/libdagitty",
-        "guidance": "Graph adjustment and separation criteria only. Vendor pinned CommonJS source; npm package is unavailable; TypeScript needs an adapter."
+        "package": "jtextor/libdagitty",
+        "reference": "https://github.com/jtextor/libdagitty/tree/1f3d1463285315deda09b5454dc56338bf379cbc",
+        "guidance": "Graph adjustment and separation criteria only. Prepare this pinned GitHub source with its lockfile and use libdagitty/src/index.js; its root main is absent and no npm package is published. TypeScript needs checked interop declarations.",
+        "version": "1f3d1463285315deda09b5454dc56338bf379cbc"
       }
     ],
     "causal_estimation": [],
@@ -257,9 +258,10 @@
     "causal_modelling": [],
     "causal_identification": [
       {
-        "package": "libdagitty",
-        "reference": "https://github.com/jtextor/libdagitty",
-        "guidance": "Graph adjustment and separation criteria only. Vendor pinned CommonJS source; npm package is unavailable; TypeScript needs an adapter."
+        "package": "jtextor/libdagitty",
+        "reference": "https://github.com/jtextor/libdagitty/tree/1f3d1463285315deda09b5454dc56338bf379cbc",
+        "guidance": "Graph adjustment and separation criteria only. Prepare this pinned GitHub source with its lockfile and use libdagitty/src/index.js; its root main is absent and no npm package is published. TypeScript needs checked interop declarations.",
+        "version": "1f3d1463285315deda09b5454dc56338bf379cbc"
       }
     ],
     "causal_estimation": [],

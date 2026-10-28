@@ -294,6 +294,30 @@ mod tests {
     }
 
     #[test]
+    fn causal_source_defaults_and_go_solver_name_usable_library_entries() {
+        for language in ["javascript", "typescript"] {
+            let resolved = LibraryPolicy::default().resolve(language).unwrap();
+            let choices = &resolved.tasks["causal_identification"].choices;
+            assert_eq!(choices.len(), 1);
+            let source = &choices[0];
+            assert_eq!(source.package, "jtextor/libdagitty");
+            let revision = source.version.as_ref().expect("source default needs a pin");
+            assert_eq!(revision.len(), 40);
+            assert!(revision.bytes().all(|byte| byte.is_ascii_hexdigit()));
+            assert_eq!(
+                source.reference.as_deref(),
+                Some(format!("https://github.com/jtextor/libdagitty/tree/{revision}").as_str())
+            );
+            assert!(source.guidance.contains("libdagitty/src/index.js"));
+        }
+        let go = LibraryPolicy::default().resolve("go").unwrap();
+        assert_eq!(
+            go.tasks["formal_verification"].choices[0].package,
+            "github.com/crillab/gophersat/solver"
+        );
+    }
+
+    #[test]
     fn malformed_and_excessive_policies_fail_admission() {
         for value in [
             json!({"unknown":true}),
