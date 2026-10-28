@@ -256,7 +256,11 @@ mod tests {
         }
     }
     fn profile() -> ToolchainProfile {
-        serde_json::from_str(include_str!("../../examples/toolchains/rust.json")).unwrap()
+        super::super::profile::ToolchainConfiguration::load(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/toolchains/rust.json"),
+        )
+        .unwrap()
+        .profile
     }
     fn runner(returncode: i32, execution_error: Option<&str>, stdout: &[u8]) -> ProbeRunner {
         ProbeRunner {
@@ -329,8 +333,12 @@ mod tests {
                 "collector.mjs",
             ),
         ] {
-            let profile: ToolchainProfile = serde_json::from_str(source).unwrap();
-            profile.validate().unwrap();
+            let directory = tempfile::tempdir().unwrap();
+            let file = directory.path().join("toolchain.json");
+            std::fs::write(&file, source).unwrap();
+            let profile = super::super::profile::ToolchainConfiguration::load(&file)
+                .unwrap()
+                .profile;
             assert_eq!(probe_source(&profile).unwrap().path, path);
         }
         let mut profile = profile();

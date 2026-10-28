@@ -675,4 +675,50 @@ pub(crate) mod tests {
         let supplied: Value = serde_json::from_str(&optional.user).unwrap();
         assert_eq!(supplied["original_observation_time_required"], false);
     }
+
+    #[test]
+    fn library_metadata_preserves_required_source_time_in_observation_and_coding_contracts() {
+        use crate::tooling::{
+            capability::CapabilityImplementationRequest, library_policy::LibraryPolicy,
+        };
+
+        let model_fallback: LibraryPolicy = serde_json::from_value(json!({
+            "use_defaults":false,"fallback":"model","tasks":{}
+        }))
+        .unwrap();
+        for policy in [LibraryPolicy::default(), model_fallback] {
+            let mut contract = capability_contract(true);
+            let mut operation: CapabilityImplementationRequest =
+                serde_json::from_str(&contract.request_context).unwrap();
+            operation.library_policy = Some(policy.resolve("python").unwrap());
+            contract.request_context = serde_json::to_string(&operation).unwrap();
+            assert!(requires_original_observation_time(&contract));
+
+            let (request, mut envelope) = successful_observation();
+            let error =
+                validate_observation(&contract, &request, &serde_json::to_vec(&envelope).unwrap())
+                    .unwrap_err();
+            assert!(error.to_string().contains("requires original observed_at"));
+            envelope["observed_at"] = json!("2026-10-25T12:00:00.123000Z");
+            let admitted =
+                validate_observation(&contract, &request, &serde_json::to_vec(&envelope).unwrap())
+                    .unwrap();
+            assert_eq!(
+                admitted.observed_at.as_deref(),
+                Some("2026-10-25T12:00:00.123000Z")
+            );
+
+            let prompt = super::super::generation::code_request(&contract);
+            let supplied: Value = serde_json::from_str(&prompt.user).unwrap();
+            assert_eq!(supplied["original_observation_time_required"], true);
+            let context: Value =
+                serde_json::from_str(supplied["request_context"].as_str().unwrap()).unwrap();
+            assert_eq!(context["library_policy"]["language"], "python");
+            assert_eq!(context["library_policy"]["fallback"], "model");
+            assert_eq!(
+                context["support_contract"]["time"]["require_original_observation_time"],
+                true
+            );
+        }
+    }
 }

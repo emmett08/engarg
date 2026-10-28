@@ -209,7 +209,8 @@ fn admit_implementation(config: &mut Configuration, base: &Path) -> Result<(), E
         } else {
             base.join(&implementation.store)
         })?;
-    let toolchain = engarg::tooling::ToolchainProfile::load(&implementation.toolchain)?;
+    let toolchain =
+        engarg::tooling::profile::ToolchainConfiguration::load(&implementation.toolchain)?.profile;
     engarg::tooling::contracts::validate_language(&implementation.language)?;
     if toolchain.language != implementation.language {
         return Err(Error::InvalidInput(

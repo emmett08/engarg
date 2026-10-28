@@ -599,7 +599,7 @@ fn profile(path: &Path, language: &str, image: &str, entry: &str) {
         json!(["node", format!("/src/{entry}")])
     };
     let value = json!({
-        "schema": "engarg.toolchain/1",
+        "schema": "engarg.toolchain/2",
         "language": language,
         "docker": std::env::var("ENGARG_TOOL_DOCKER").unwrap_or_else(|_| "docker".into()),
         "image": image,
@@ -609,7 +609,8 @@ fn profile(path: &Path, language: &str, image: &str, entry: &str) {
         "runtime_network": "none",
         "timeout_seconds": 30,
         "memory_mb": 128,
-        "output_bytes": 1_048_576
+        "output_bytes": 1_048_576,
+        "generation":{"libraries":{"use_defaults":false,"fallback":"standard_library","tasks":{}}}
     });
     fs::write(path, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
 }
@@ -1040,6 +1041,25 @@ fn exercise(language: &str, image: &str, entry: &str, code: &str) {
     let results = receipt["results"].as_array().unwrap();
     assert!(results.len() >= 6);
     assert!(results.iter().all(|result| result["passed"] == true));
+    let retained_contract: Value = serde_json::from_slice(
+        &fs::read(manifest.parent().unwrap().join("contract.json")).unwrap(),
+    )
+    .unwrap();
+    let frozen_context: Value =
+        serde_json::from_str(retained_contract["request_context"].as_str().unwrap()).unwrap();
+    assert_eq!(frozen_context["library_policy"]["language"], language);
+    if combined {
+        assert_eq!(
+            frozen_context["library_policy"]["fallback"],
+            "standard_library"
+        );
+        assert_eq!(frozen_context["library_policy"]["tasks"], json!({}));
+    }
+    let runtime_profile: Value =
+        serde_json::from_slice(&fs::read(manifest.parent().unwrap().join("profile.json")).unwrap())
+            .unwrap();
+    assert_eq!(runtime_profile["schema"], "engarg.toolchain/1");
+    assert!(runtime_profile.get("generation").is_none());
     for field in [
         "profile_sha256",
         "docker_sha256",
@@ -1237,7 +1257,6 @@ async fn capability_contract_generates_rust_and_reuses_it_for_different_claims()
     use engarg::{
         provider::{Completion, CompletionRequest, LanguageModel},
         tooling::{
-            ToolchainProfile,
             capability::{
                 CapabilityImplementationConfig, CapabilityImplementationRequest,
                 ImplementationGapKind, implement_capability,
@@ -1300,10 +1319,13 @@ async fn capability_contract_generates_rust_and_reuses_it_for_different_claims()
         output_schema: serde_json::from_str(draft["result_schema_json"].as_str().unwrap()).unwrap(),
         operation_purpose: draft["purpose"].as_str().unwrap().into(),
         declared_limits: Default::default(),
+        library_policy: None,
     };
+    let configuration = engarg::tooling::profile::ToolchainConfiguration::load(&toolchain).unwrap();
     let mut selected = CapabilityImplementationConfig {
         language: "rust".into(),
-        profile: ToolchainProfile::load(&toolchain).unwrap(),
+        libraries: configuration.libraries,
+        profile: configuration.profile,
         store: directory.path().join("store"),
         max_calls: 2,
         max_input_bytes: 1_048_576,

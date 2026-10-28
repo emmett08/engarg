@@ -39,6 +39,7 @@ fn config(root: &Path) -> DirectImplementationConfig {
     DirectImplementationConfig {
         implementation: CapabilityImplementationConfig {
             language: "python".into(),
+            libraries: Default::default(),
             profile: ToolchainProfile {
                 schema: "engarg.toolchain/1".into(),
                 language: "python".into(),

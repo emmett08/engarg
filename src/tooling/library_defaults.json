@@ -1,0 +1,304 @@
+{
+  "python": {
+    "causal_discovery": [
+      {
+        "package": "causal-learn",
+        "reference": "https://github.com/py-why/causal-learn",
+        "guidance": "Discovery and independence tests under explicit assumptions; retain equivalence classes and orientation uncertainty."
+      },
+      {
+        "package": "dowhy",
+        "reference": "https://github.com/py-why/dowhy",
+        "guidance": "Model and test the discovered or supplied assumptions; DoWhy is not a general causal discovery algorithm."
+      }
+    ],
+    "causal_modelling": [
+      {
+        "package": "dowhy",
+        "reference": "https://github.com/py-why/dowhy",
+        "guidance": "Represent explicit causal graphs and mechanisms; model adequacy and assumptions need separate evidence."
+      }
+    ],
+    "causal_identification": [
+      {
+        "package": "dowhy",
+        "reference": "https://github.com/py-why/dowhy",
+        "guidance": "Identify effects from an explicit graph and estimand; preserve unidentifiable results and assumptions."
+      }
+    ],
+    "causal_estimation": [
+      {
+        "package": "dowhy",
+        "reference": "https://github.com/py-why/dowhy",
+        "guidance": "Estimate only an identified estimand with declared treatment, population, confounding assumptions and uncertainty."
+      }
+    ],
+    "causal_testing": [
+      {
+        "package": "dowhy",
+        "reference": "https://github.com/py-why/dowhy",
+        "guidance": "Use refutation or graph falsification for the stated assumptions; passing a test does not prove causal validity."
+      }
+    ],
+    "counterfactual": [
+      {
+        "package": "dowhy",
+        "reference": "https://github.com/py-why/dowhy",
+        "guidance": "Use graphical causal mechanisms with explicit interventions and factual conditioning; model-dependent results are not new observations."
+      }
+    ],
+    "statistical_inference": [
+      {
+        "package": "scipy",
+        "reference": "https://github.com/scipy/scipy",
+        "guidance": "Statistical estimators and tests with explicit sampling design, units, uncertainty and numerical limits."
+      },
+      {
+        "package": "statsmodels",
+        "reference": "https://github.com/statsmodels/statsmodels",
+        "guidance": "Statistical model fitting and diagnostics; retain model/design assumptions and uncertainty."
+      }
+    ],
+    "formal_verification": [
+      {
+        "package": "z3-solver",
+        "reference": "https://github.com/Z3Prover/z3",
+        "guidance": "SMT over an authored formalisation with explicit solver bounds; unknown or timeout is not proof."
+      },
+      {
+        "package": "sympy",
+        "reference": "https://github.com/sympy/sympy",
+        "guidance": "Symbolic calculations under explicit domains and assumptions; symbolic output alone is not a proof certificate."
+      }
+    ],
+    "probabilistic_inference": [
+      {
+        "package": "pgmpy",
+        "reference": "https://github.com/pgmpy/pgmpy",
+        "guidance": "Bayesian-model inference over supplied hypotheses, graph, priors, likelihoods and observations; do not invent them."
+      }
+    ],
+    "similarity": [
+      {
+        "package": "scikit-learn",
+        "reference": "https://github.com/scikit-learn/scikit-learn",
+        "guidance": "Authored feature distances or nearest neighbours; retain feature scaling and separate transfer/applicability review."
+      }
+    ],
+    "optimisation": [
+      {
+        "package": "scipy",
+        "reference": "https://github.com/scipy/scipy",
+        "guidance": "Use scipy.optimize for an authored objective and constraints; retain solver status, tolerances and exhausted computation."
+      }
+    ]
+  },
+  "rust": {
+    "causal_discovery": [
+      {
+        "package": "why_rs",
+        "reference": "https://github.com/jwhogg/why-rs",
+        "guidance": "PC discovery under explicit assumptions; preserve ambiguous orientations and do not substitute for general causal identification."
+      }
+    ],
+    "causal_modelling": [
+      {
+        "package": "why_rs",
+        "reference": "https://github.com/jwhogg/why-rs",
+        "guidance": "Explicit DAG/functional mechanisms, sampling and interventions; mechanism fit does not establish external validity."
+      }
+    ],
+    "causal_identification": [],
+    "causal_estimation": [],
+    "causal_testing": [],
+    "counterfactual": [
+      {
+        "package": "deep_causality",
+        "reference": "https://github.com/deepcausality-rs/deep_causality",
+        "guidance": "Dynamic causal model interventions and what-if runs; preserve accepted mechanisms, context and factual conditioning."
+      }
+    ],
+    "statistical_inference": [
+      {
+        "package": "statrs",
+        "reference": "https://github.com/statrs-dev/statrs",
+        "guidance": "Distributions, statistical functions and tests under an explicit sampling design; retain numerical and uncertainty limits."
+      }
+    ],
+    "formal_verification": [
+      {
+        "package": "varisat",
+        "reference": "https://github.com/jix/varisat",
+        "guidance": "Propositional CNF SAT only; use a separately prepared SMT solver if the operation needs arithmetic or quantifiers."
+      }
+    ],
+    "probabilistic_inference": [
+      {
+        "package": "statrs",
+        "reference": "https://github.com/statrs-dev/statrs",
+        "guidance": "Distribution and likelihood primitives only; not a Bayesian-network or general abduction engine."
+      }
+    ],
+    "similarity": [
+      {
+        "package": "linfa-nn",
+        "reference": "https://github.com/rust-ml/linfa",
+        "guidance": "Nearest-neighbour and distance calculations over authored features; similarity does not qualify an analogy."
+      }
+    ],
+    "optimisation": [
+      {
+        "package": "good_lp",
+        "reference": "https://github.com/rust-or/good_lp",
+        "guidance": "LP/MIP modelling with an explicitly prepared solver backend; default features need external CBC; retain solver status."
+      }
+    ]
+  },
+  "go": {
+    "causal_discovery": [
+      {
+        "package": "github.com/causalgo/causalgo",
+        "reference": "https://github.com/causalgo/causalgo",
+        "guidance": "Time-series SURD/SCIC/VarSelect operations under their stated assumptions; not a general DoWhy identification/refutation substitute."
+      }
+    ],
+    "causal_modelling": [],
+    "causal_identification": [],
+    "causal_estimation": [],
+    "causal_testing": [],
+    "counterfactual": [],
+    "statistical_inference": [
+      {
+        "package": "gonum.org/v1/gonum/stat",
+        "reference": "https://github.com/gonum/gonum",
+        "guidance": "Statistical estimators and tests with declared sampling, units and uncertainty."
+      }
+    ],
+    "formal_verification": [
+      {
+        "package": "github.com/crillab/gophersat",
+        "reference": "https://github.com/crillab/gophersat",
+        "guidance": "Propositional SAT/pseudo-Boolean constraints only; preserve authored encodings and bounded solver outcomes."
+      }
+    ],
+    "probabilistic_inference": [
+      {
+        "package": "gonum.org/v1/gonum/stat/distuv",
+        "reference": "https://github.com/gonum/gonum",
+        "guidance": "Distribution and likelihood primitives only; hypotheses, priors and the inference algorithm remain explicit."
+      }
+    ],
+    "similarity": [
+      {
+        "package": "gonum.org/v1/gonum/spatial/kdtree",
+        "reference": "https://github.com/gonum/gonum",
+        "guidance": "Neighbour search over authored vectors and metric; separate similarity from transfer applicability."
+      }
+    ],
+    "optimisation": [
+      {
+        "package": "gonum.org/v1/gonum/optimize",
+        "reference": "https://github.com/gonum/gonum",
+        "guidance": "Numerical optimisation under the authored objective; enforce authored constraints and retain termination status."
+      }
+    ]
+  },
+  "javascript": {
+    "causal_discovery": [],
+    "causal_modelling": [],
+    "causal_identification": [
+      {
+        "package": "libdagitty",
+        "reference": "https://github.com/jtextor/libdagitty",
+        "guidance": "Graph adjustment and separation criteria only. Vendor pinned CommonJS source; npm package is unavailable; TypeScript needs an adapter."
+      }
+    ],
+    "causal_estimation": [],
+    "causal_testing": [],
+    "counterfactual": [],
+    "statistical_inference": [
+      {
+        "package": "simple-statistics",
+        "reference": "https://github.com/simple-statistics/simple-statistics",
+        "guidance": "Statistical calculations under the authored sampling design; retain uncertainty and finite-sample limits."
+      }
+    ],
+    "formal_verification": [
+      {
+        "package": "logic-solver",
+        "reference": "https://github.com/meteor/logic-solver",
+        "guidance": "Propositional constraints only; no general SMT or theorem-proof claim. TypeScript requires checked interop declarations."
+      }
+    ],
+    "probabilistic_inference": [
+      {
+        "package": "mathjs",
+        "reference": "https://github.com/josdejong/mathjs",
+        "guidance": "Numerical probability arithmetic only; hypotheses, priors and inference model remain authored obligations."
+      }
+    ],
+    "similarity": [
+      {
+        "package": "ml-distance",
+        "reference": "https://github.com/mljs/distance",
+        "guidance": "Explicit vector distance or similarity; use its ESM API. Similarity does not establish transfer or analogy validity."
+      }
+    ],
+    "optimisation": [
+      {
+        "package": "javascript-lp-solver",
+        "reference": "https://github.com/JWally/jsLPSolver",
+        "guidance": "LP/MIP for authored objectives and constraints; retain infeasible, timeout, tolerances and solver status."
+      }
+    ]
+  },
+  "typescript": {
+    "causal_discovery": [],
+    "causal_modelling": [],
+    "causal_identification": [
+      {
+        "package": "libdagitty",
+        "reference": "https://github.com/jtextor/libdagitty",
+        "guidance": "Graph adjustment and separation criteria only. Vendor pinned CommonJS source; npm package is unavailable; TypeScript needs an adapter."
+      }
+    ],
+    "causal_estimation": [],
+    "causal_testing": [],
+    "counterfactual": [],
+    "statistical_inference": [
+      {
+        "package": "simple-statistics",
+        "reference": "https://github.com/simple-statistics/simple-statistics",
+        "guidance": "Statistical calculations under the authored sampling design; retain uncertainty and finite-sample limits."
+      }
+    ],
+    "formal_verification": [
+      {
+        "package": "logic-solver",
+        "reference": "https://github.com/meteor/logic-solver",
+        "guidance": "Propositional constraints only; no general SMT or theorem-proof claim. TypeScript requires checked interop declarations."
+      }
+    ],
+    "probabilistic_inference": [
+      {
+        "package": "mathjs",
+        "reference": "https://github.com/josdejong/mathjs",
+        "guidance": "Numerical probability arithmetic only; hypotheses, priors and inference model remain authored obligations."
+      }
+    ],
+    "similarity": [
+      {
+        "package": "ml-distance",
+        "reference": "https://github.com/mljs/distance",
+        "guidance": "Explicit vector distance or similarity; use its ESM API. Similarity does not establish transfer or analogy validity."
+      }
+    ],
+    "optimisation": [
+      {
+        "package": "javascript-lp-solver",
+        "reference": "https://github.com/JWally/jsLPSolver",
+        "guidance": "LP/MIP for authored objectives and constraints; retain infeasible, timeout, tolerances and solver status."
+      }
+    ]
+  }
+}

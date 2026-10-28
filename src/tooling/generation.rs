@@ -57,7 +57,7 @@ pub fn draft_request(
 ) -> CompletionRequest {
     CompletionRequest {
         role: Role::Constructor,
-        system: concat!(
+        system: [concat!(
             "Design one bounded evidence collector contract for the exact supplied evidence need. ",
             "A collector records observations; it does not adjudicate the claim or manufacture evidence, credentials or independent review. ",
             "Use only supplied values for arguments; partition every parameter exactly once between arguments and unresolved_arguments. ",
@@ -72,7 +72,7 @@ pub fn draft_request(
             "Each fixture has at most 16 files, each at most 128 KiB, totaling at most 512 KiB; all encoded fixture data together is at most 1 MiB. ",
             "Schema and individual JSON values are at most 256 KiB; purpose is at most 8192 characters and 16 KiB and fixture names are unique and at most 128 characters. ",
             "Fixture files use safe relative paths without dot or dot-dot components, absolute paths, backslashes or case-fold aliases and may contain only synthetic local data. Return only the strict structured response."
-        ).into(),
+        ), super::library_policy::GENERATION_INSTRUCTIONS].join("\n\n"),
         user: json!({
             "need":need,"request":request,"language":language,"toolchain_description":description
         }).to_string(),
@@ -83,7 +83,7 @@ pub fn draft_request(
 pub fn code_request(contract: &NeedContract) -> CompletionRequest {
     CompletionRequest {
         role: Role::Single,
-        system: concat!(
+        system: [concat!(
             "Implement the supplied frozen collector contract in the selected language and operator toolchain. ",
             "Return only source files and the unchanged language identifier. Use 1 to 16 source files, at most 128 KiB each and 512 KiB total. File paths must be safe relative paths without dot or dot-dot components, absolute paths, backslashes or case-fold aliases. ",
             "The program reads exactly one bounded JSON object from stdin and emits exactly one JSON object on stdout on success. ",
@@ -104,7 +104,7 @@ pub fn code_request(contract: &NeedContract) -> CompletionRequest {
             "Do not invent measurements, credentials, independent acceptance or host capabilities. ",
             "Use only the configured toolchain and the stated runtime network access. The host, not generated code, runs fixtures and decides whether implementation passes. ",
             "Source files must contain the complete implementation; do not return shell commands, deployment actions, a narrative, or test expectations."
-        ).into(),
+        ), super::library_policy::GENERATION_INSTRUCTIONS].join("\n\n"),
         user: json!({
             "schema":contract.schema,
             "language":contract.language,

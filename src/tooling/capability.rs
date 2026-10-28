@@ -11,6 +11,7 @@ use super::{
         validate_language,
     },
     generation::{code_request, draft_request, parse_draft},
+    library_policy::{LibraryPolicy, ResolvedLibraryPolicy},
     package::{PackageStore, VerifiedPackage},
     profile::ToolchainProfile,
     runner::{DockerRunner, FixtureRunner},
@@ -91,12 +92,16 @@ pub struct CapabilityImplementationRequest {
     pub operation_purpose: String,
     #[serde(deserialize_with = "eal_collector_contracts::deserialize_value_map_exact")]
     pub declared_limits: BTreeMap<String, Value>,
+    /// Generation choices travel with the frozen request, not its logical operation identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library_policy: Option<ResolvedLibraryPolicy>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CapabilityImplementationConfig {
     pub language: String,
     pub profile: ToolchainProfile,
+    pub libraries: LibraryPolicy,
     pub store: PathBuf,
     pub max_calls: u32,
     pub max_input_bytes: usize,
@@ -138,9 +143,13 @@ fn invalid(message: impl Into<String>) -> Error {
 impl CapabilityImplementationRequest {
     /// Stable across consumer claims, need identifiers and criterion wording.
     pub fn identity(&self) -> Result<String, Error> {
+        // Library choices change the frozen generation context/cache identity,
+        // while the authored operation and direct-report correspondence remain exact.
+        let mut operation = self.clone();
+        operation.library_policy = None;
         canonical_identity(&json!({
             "schema": CAPABILITY_IMPLEMENTATION_SCHEMA,
-            "request": self
+            "request": operation
         }))
         .map_err(invalid)
     }
@@ -183,6 +192,9 @@ impl CapabilityImplementationRequest {
     }
 
     pub fn validate(&self) -> Result<(), Error> {
+        if let Some(policy) = &self.library_policy {
+            policy.validate()?;
+        }
         self.support_contract.validate().map_err(invalid)?;
         if self.operation_purpose.trim().is_empty()
             || self.operation_purpose.len() > 8192
@@ -290,6 +302,7 @@ impl CapabilityImplementationConfig {
     fn validate(&self) -> Result<(), Error> {
         validate_language(&self.language)?;
         self.profile.validate()?;
+        self.libraries.resolve(&self.language)?;
         if self.language != self.profile.language {
             return Err(invalid(
                 "implementation language differs from the operator profile",
@@ -344,6 +357,9 @@ async fn implement_with_runner<M: LanguageModel>(
     gap_kind.admit()?;
     request.validate()?;
     config.validate()?;
+    let mut selected_request = request.clone();
+    selected_request.library_policy = Some(config.libraries.resolve(&config.language)?);
+    let request = &selected_request;
     let cancellation = CancellationToken::default();
     let _guard = CancelOnDrop(cancellation.clone());
     let store = PackageStore::new(&config.store)?;
@@ -472,6 +488,15 @@ fn ensure_fixed_contract(
     request: &CapabilityImplementationRequest,
     contract: &NeedContract,
 ) -> Result<(), Error> {
+    if request
+        .library_policy
+        .as_ref()
+        .is_some_and(|policy| policy.language != contract.language)
+    {
+        return Err(invalid(
+            "frozen library policy language differs from the generated tool language",
+        ));
+    }
     let parameters = request.parameters()?;
     let mut unresolved = contract.draft.unresolved_arguments.clone();
     unresolved.sort();
@@ -603,6 +628,7 @@ pub fn revalidate_implemented_capability(
     let config = CapabilityImplementationConfig {
         language: package.contract().language.clone(),
         profile: package.profile().clone(),
+        libraries: LibraryPolicy::default(),
         store: PathBuf::new(),
         max_calls: 0,
         max_input_bytes: 1,
