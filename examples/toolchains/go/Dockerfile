@@ -1,31 +1,29 @@
-FROM golang:1.25.14-bookworm AS dependencies
-# Freeze the complete pure-Go standard library during the trusted image build.
-# Generated collectors do not resolve modules or build into a writable Go cache.
+FROM golang:1.25.14-alpine AS dependencies
+# Freeze the standard library and selected pure-Go evidence APIs during the
+# trusted image build. Generated collectors never resolve or download modules.
 ENV CGO_ENABLED=0
-RUN mkdir -p /opt/engarg-go/packages \
-    && go list -export -f '{{if .Export}}{{.ImportPath}} {{.Export}}{{end}}' std > /tmp/exports \
-    && while read -r package archive; do \
-        test -n "$package" || continue; \
-        destination="/opt/engarg-go/packages/$package.a"; \
-        mkdir -p "$(dirname "$destination")"; \
-        cp "$archive" "$destination"; \
-        printf 'packagefile %s=%s\n' "$package" "$destination" >> /opt/engarg-go/importcfg; \
-    done < /tmp/exports
+ENV GOTOOLCHAIN=local
+WORKDIR /dependencies
+COPY go.mod go.sum packages.txt smoke.go build-collector.sh prepare-dependencies.sh ./
+RUN --mount=type=secret,id=proxy_ca \
+    sh prepare-dependencies.sh
 
-FROM golang:1.25.14-bookworm
+FROM golang:1.25.14-alpine
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local
 COPY --from=dependencies /opt/engarg-go /opt/engarg-go
-COPY --chmod=0755 build-collector.sh /usr/local/bin/build-collector
-# Check the exact single-file build and link interface under the runtime UID.
-RUN mkdir /src /build \
-    && printf '%s\n' 'package main' 'import("encoding/json";"fmt";"net/http")' \
-       'func main() { _ = http.Client{}; b, _ := json.Marshal(true); fmt.Println(string(b)) }' > /src/main.go \
-    && chown 65534:65534 /build
+# Check actual evidence APIs through the exact offline compile/link interface.
+RUN --network=none \
+    cp /opt/engarg-go/build-collector.sh /usr/local/bin/build-collector \
+    && chmod 0755 /usr/local/bin/build-collector \
+    && mkdir /src /build \
+    && cp /opt/engarg-go/smoke.go /src/main.go \
+    && chmod 0644 /src/main.go \
+    && chown 65534:65534 /build \
+    && su -s /bin/sh -c 'export PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin; \
+        test "$(id -u)" = 65534 && test "$(id -g)" = 65534 && cd /build \
+        && build-collector /src/main.go -o /build/collector \
+        && test "$(/build/collector)" = evidence-packages-ok' nobody \
+    && rm -rf /src /build \
+    && rm /opt/engarg-go/build-collector.sh /opt/engarg-go/smoke.go
 USER 65534:65534
-WORKDIR /build
-RUN build-collector /src/main.go -o /build/collector \
-    && test "$(/build/collector)" = true \
-    && rm /build/collector /build/collector.a
-USER root
 WORKDIR /
-RUN rm -rf /src /build
-USER 65534:65534

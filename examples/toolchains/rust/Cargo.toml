@@ -8,5 +8,26 @@ publish = false
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.154", features = ["arbitrary_precision", "raw_value"] }
 reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "json", "rustls"] }
+why_rs = "=0.2.1"
+# why_rs's public discovery/model APIs accept Polars DataFrame inputs. It already
+# enables Polars defaults; this direct handle adds no further features.
+polars = { version = "=0.52.0", default-features = false }
+statrs = "=0.19.1"
+nalgebra = "=0.35.0"
+varisat = "=0.2.2"
+linfa-nn = "=0.8.1"
+# linfa-nn's public API accepts ndarray values, so expose its matching version.
+ndarray = "=0.16.1"
+# Keep the modelling API usable without a system CBC installation.
+# 1.15+ microlp requires sprs>=0.11.4; linfa0.8.1 pins sprs0.11.2.
+good_lp = { version = "=1.14.2", default-features = false, features = ["microlp"] }
+
+[profile.release]
+debug = 0
+incremental = false
+# Polars is an unconditional why_rs dependency. Dependency preparation favours
+# bounded compilation resources over optimisation of these evidence primitives.
+opt-level = 0
+codegen-units = 256
 
 [workspace]

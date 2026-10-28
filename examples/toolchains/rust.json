@@ -11,6 +11,22 @@
     "serde_json",
     "--extern",
     "reqwest",
+    "--extern",
+    "why_rs",
+    "--extern",
+    "polars",
+    "--extern",
+    "statrs",
+    "--extern",
+    "nalgebra",
+    "--extern",
+    "varisat",
+    "--extern",
+    "linfa_nn",
+    "--extern",
+    "ndarray",
+    "--extern",
+    "good_lp",
     "/src/main.rs",
     "-o",
     "/build/collector"
@@ -27,7 +43,16 @@
     "libraries": {
       "use_defaults": true,
       "fallback": "model",
-      "tasks": {}
+      "tasks": {
+        "optimisation": [
+          {
+            "package": "good_lp",
+            "version": "1.14.2",
+            "reference": "https://github.com/rust-or/good_lp",
+            "guidance": "The prepared image provides good_lp with the pure Rust microlp backend as default_solver, without CBC. Preserve the authored objective, constraints, integrality and solver status; preparing a solver does not qualify a model."
+          }
+        ]
+      }
     }
   }
 }

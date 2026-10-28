@@ -2,13 +2,13 @@
   "schema": "engarg.toolchain/2",
   "language": "python",
   "docker": "docker",
-  "image": "engarg-python-evidence:0.14",
+  "image": "engarg-python-evidence:0.14-prepared",
   "build_argv": [
     "python3",
     "-I",
     "-B",
     "-c",
-    "import ast, pathlib, dowhy, causallearn; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+    "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
   ],
   "run_argv": [
     "python3",
@@ -74,10 +74,10 @@
         ],
         "abductive": [
           {
-            "package": "scipy",
-            "reference": "https://github.com/scipy/scipy",
-            "guidance": "This image supplies SciPy, not pgmpy. Use distribution probability masses and scipy.special.logsumexp only for explicitly supplied finite hypotheses, priors and likelihoods. Reject zero or nonfinite evidence mass; retain candidate-set and observation-model adequacy obligations. No general Bayesian-network engine.",
-            "version": "1.18.1"
+            "package": "pgmpy",
+            "version": "1.1.2",
+            "reference": "https://github.com/pgmpy/pgmpy",
+            "guidance": "Use the prepared NumPy backend for conditional posterior or MAP queries over an explicitly supplied Bayesian network. Reject zero or nonfinite evidence mass before conditioning; retain candidate-set, prior and observation-model adequacy obligations. Torch/Pyro are not installed; hosted-model access is not required and runtime networking stays disabled."
           }
         ],
         "inductive": [
@@ -118,6 +118,12 @@
         ],
         "formal_verification": [
           {
+            "package": "z3-solver",
+            "version": "5.3.2.0",
+            "reference": "https://github.com/Z3Prover/z3",
+            "guidance": "Check explicitly authored SMT encodings and preserve sat, unsat and unknown separately. Retain domains, assumptions and model interpretation; satisfiability does not validate the external model."
+          },
+          {
             "package": "sympy",
             "reference": "https://github.com/sympy/sympy",
             "guidance": "Symbolic calculations under explicit domains and assumptions; symbolic output alone is not a proof certificate.",
@@ -138,6 +144,14 @@
             "reference": "https://github.com/scipy/scipy",
             "guidance": "Use scipy.optimize for an authored objective and constraints; retain solver status, tolerances and exhausted computation.",
             "version": "1.18.1"
+          }
+        ],
+        "probabilistic_inference": [
+          {
+            "package": "pgmpy",
+            "version": "1.1.2",
+            "reference": "https://github.com/pgmpy/pgmpy",
+            "guidance": "Use the prepared NumPy backend for conditional posterior or MAP queries over an explicitly supplied Bayesian network. Reject zero or nonfinite evidence mass before conditioning; retain candidate-set, prior and observation-model adequacy obligations. Torch/Pyro are not installed; hosted-model access is not required and runtime networking stays disabled."
           }
         ]
       }

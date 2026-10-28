@@ -1,9 +1,16 @@
 {
-  "name": "engarg-typescript-tool-dependencies",
+  "name": "engarg-node-evidence-dependencies",
   "version": "0.0.0",
   "private": true,
+  "description": "Immutable JavaScript and TypeScript evidence dependencies, installed only during the trusted image build.",
   "dependencies": {
-    "typescript": "5.9.3",
-    "@types/node": "24.10.1"
+    "@types/node": "24.10.1",
+    "javascript-lp-solver": "1.0.3",
+    "libdagitty": "https://codeload.github.com/jtextor/libdagitty/tar.gz/1f3d1463285315deda09b5454dc56338bf379cbc",
+    "logic-solver": "2.0.1",
+    "mathjs": "15.2.0",
+    "ml-distance": "5.0.0",
+    "simple-statistics": "7.12.1",
+    "typescript": "5.9.3"
   }
 }

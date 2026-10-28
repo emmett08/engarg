@@ -1,0 +1,10 @@
+github.com/causalgo/causalgo v0.6.3 h1:v1IMOU6BsmgxWvDRoCaOQ62XLqyZSsHc9tkjSEo836U=
+github.com/causalgo/causalgo v0.6.3/go.mod h1:1wXwArvf+mTWVFXeFokzzWA4Rxj2UE6H4E4y5uHpbUw=
+github.com/causalgo/lasso v0.2.1 h1:9K7T7/ORl9va2Dmrew7WEUOK3ttOz+23B+TO/IY3tBU=
+github.com/causalgo/lasso v0.2.1/go.mod h1:ar6oK2qfdIzCn9MuUPj8576X5gC9nuNk5fNBiQ2mXPk=
+github.com/crillab/gophersat v1.4.0 h1:irf9ajKmNnEURjgPU4oz+ouqIXXLQ59ZNd3NC+hULMc=
+github.com/crillab/gophersat v1.4.0/go.mod h1:gDzeMEBrqJR20IL9JW25tFHNGLU5+GDeJzr0zpi3mxs=
+golang.org/x/tools v0.30.0 h1:BgcpHewrV5AUp2G9MebG4XPFI1E2W41zU1SaqVA9vJY=
+golang.org/x/tools v0.30.0/go.mod h1:c347cR/OJfw5TI+GfX7RUPNMdDRRbjvYTS0jPyvsVtY=
+gonum.org/v1/gonum v0.17.0 h1:VbpOemQlsSMrYmn7T2OUvQ4dqxQXU+ouZFQsZOx50z4=
+gonum.org/v1/gonum v0.17.0/go.mod h1:El3tOrEuMpv2UdMrbNlKEh9vd86bmQ6vqIcDwxEOc1E=

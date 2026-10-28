@@ -572,6 +572,7 @@ fn profile(path: &Path, language: &str, image: &str, entry: &str) {
         "rust" => Some(include_str!("../examples/toolchains/rust.json")),
         "go" => Some(include_str!("../examples/toolchains/go.json")),
         "typescript" => Some(include_str!("../examples/toolchains/typescript.json")),
+        "javascript" => Some(include_str!("../examples/toolchains/javascript.json")),
         _ => None,
     };
     if let Some(builtin) = builtin {
@@ -1209,11 +1210,11 @@ fn python_combined_authoring_implements_revises_builds_executes_and_reuses() {
 }
 
 #[test]
-#[ignore = "requires Docker and the preloaded node:24-slim image"]
+#[ignore = "requires Docker and the prepared engarg-javascript-tools:24 image"]
 fn javascript_collector_preserves_exact_protocol_identity_and_reuses_verified_code() {
     exercise(
         "javascript",
-        "node:24-slim",
+        "engarg-javascript-tools:24",
         "collector.mjs",
         JAVASCRIPT_COLLECTOR,
     );

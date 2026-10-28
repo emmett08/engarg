@@ -2,7 +2,7 @@
   "schema": "engarg.toolchain/2",
   "language": "javascript",
   "docker": "docker",
-  "image": "node:24-slim",
+  "image": "engarg-javascript-tools:24",
   "build_argv": [
     "node",
     "--check",

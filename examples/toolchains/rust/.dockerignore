@@ -3,3 +3,5 @@
 !Cargo.toml
 !Cargo.lock
 !build-collector.sh
+!prepare-libraries.sh
+!smoke.rs

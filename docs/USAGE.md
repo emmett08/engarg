@@ -348,7 +348,7 @@ engarg eal implement --input "$AUTHORING_REPORT" --tools tools.toml \
   --tool-max-calls 16 --tool-timeout-secs 3600 \
   --request-timeout-secs 600 --progress
 
-# Go: main.go, using the standard library in the selected Go image.
+# Go: main.go, using the prepared standard library and evidence packages.
 engarg eal toolchain-check --toolchain "$GO_TOOLCHAIN" \
   --output go-toolchain-check.json
 engarg eal implement --input "$AUTHORING_REPORT" --tools tools.toml \
