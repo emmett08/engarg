@@ -1,0 +1,153 @@
+{
+  "schema": "work.qualification-completion-final-audit/1",
+  "status": "passed",
+  "blockers": [],
+  "audited_at": "2026-10-28T12:39:55.038387Z",
+  "auditor": "Codex AI agent /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+  "audit_boundary": "Read-only execution/byte/hash audit; no collector, Docker, build or compiler invocation. Same AI agent authored R7/R9/R10 reviews; this checks actual import and execution correspondence, not independent institutional approval.",
+  "positive": {
+    "claim": "supported",
+    "valid": true,
+    "complete": true,
+    "all_collected_records_ok": 43,
+    "implementation_model_calls": 0,
+    "source_digest": "9fdbdc29e4b35e01c329ea6095a573d9fcb27d2e384fdda2897b845113f4871b",
+    "executable_digest": "426ef8620c649bb271e4dacf8088b4fbcd3351b4b13c54e85ba12acce22dc56c",
+    "build_file_pins_verified": 17,
+    "code_sha256": "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46",
+    "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+    "actual_metadata_observed_at": "2026-10-28T12:26:39.088887Z",
+    "observed": {
+      "satisfied": true,
+      "inventory_complete": true,
+      "violations_count": 0,
+      "checked_distributions": 50,
+      "checked_requirements": 93
+    },
+    "native_equalities": {
+      "native_equal_profile": true,
+      "native_equal_receipt_schema": true,
+      "native_equal_receipt_language": true,
+      "native_equal_receipt_contract": true,
+      "native_equal_receipt_candidate": true,
+      "native_equal_receipt_source": true,
+      "native_equal_receipt_fixtures": true,
+      "native_equal_receipt_profile": true,
+      "native_equal_receipt_image": true,
+      "native_equal_manifest_profile": true,
+      "native_equal_manifest_contract": true,
+      "native_equal_manifest_candidate": true,
+      "native_equal_manifest_source": true,
+      "native_equal_manifest_fixtures": true,
+      "native_equal_manifest_receipt": true,
+      "native_equal_manifest_runner": true,
+      "native_equal_host_status": true,
+      "native_equal_host_returncode": true,
+      "native_equal_host_input": true,
+      "native_equal_host_tool": true,
+      "native_equal_host_version": true,
+      "native_equal_host_binding": true
+    },
+    "receipt_passed": true,
+    "verified_cases": 11,
+    "R6_true_inputs": 23,
+    "R6_original_artifact_clock": "2026-10-28T12:05:45.234085Z",
+    "original_host_baseline_clock": "2026-10-28T12:11:25.591036Z",
+    "actual_reviews": {
+      "R7": {
+        "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+        "verdict": "supported",
+        "reviewed_at": "2026-10-28T12:22:54.420771Z",
+        "predicate_accepted": true
+      },
+      "R9": {
+        "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+        "verdict": "rejected",
+        "reviewed_at": "2026-10-28T12:22:54.421263Z",
+        "predicate_accepted": false
+      },
+      "R10": {
+        "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+        "verdict": "supported",
+        "reviewed_at": "2026-10-28T12:22:54.421454Z",
+        "predicate_accepted": true
+      },
+      "R12": {
+        "reviewer": "OpenAI Codex AI reviewer /root/independent_review; separate formalisation-review role; EAL diagnostic-change author",
+        "verdict": "supported",
+        "reviewed_at": "2026-10-28T12:23:42Z",
+        "predicate_accepted": true
+      }
+    },
+    "stronger_target": "unsupported; R8/R11 not collected and unavailable"
+  },
+  "deductive_method": {
+    "identifier": "deductive/1",
+    "query": {
+      "conclusion": "metadata_predicate",
+      "premises": [
+        "audit_accepted",
+        {
+          "implies": [
+            "audit_accepted",
+            "metadata_predicate"
+          ]
+        }
+      ]
+    },
+    "entailed": true,
+    "consistent_premises": true,
+    "valuations": 4,
+    "satisfying_premise_valuations": 1,
+    "prose_verified": false,
+    "physical_interpretation_verified": false,
+    "G3_mechanically_proved": false,
+    "interpretation": "Finite modus ponens only. G3 is supported by the actual bounded AI implementation review, not mechanically proved algorithm correctness."
+  },
+  "D1": {
+    "positive_activation_predicate": false,
+    "R9_valid_rejected_data": true,
+    "R10_resolution_accepted": true,
+    "R10_explicitly_required_by_W1": true,
+    "R12_explicitly_required_by_W1": true,
+    "A1_explicitly_required_by_W1": true,
+    "resolution_basis": "Positive source/coverage argument plus strict boundary verification, separately from rejected activation; no positive omission witness invented."
+  },
+  "adverse_controls": {
+    "missing-review-binding": {
+      "status": "passed_adverse_control",
+      "claim": "unsupported",
+      "source_and_executable_unchanged": true,
+      "generated_code_schemas_receipt_unchanged": true,
+      "metadata_value_unchanged": true,
+      "R1_through_R6_still_pass": true,
+      "operator_manifest_diff_paths": [
+        "/tools/engarg_review_contract"
+      ],
+      "review_diff_paths": [],
+      "cause": "Only review importer binding removed; all four reviews unavailable and claim unsupported while empirical R1-R6 still pass.",
+      "execution_sha256": "231332e653a0190becf77d4b7120e9ff559f6ecaf1b5448bd836d10188048d7c"
+    },
+    "wrong-review-scope": {
+      "status": "passed_adverse_control",
+      "claim": "unsupported",
+      "source_and_executable_unchanged": true,
+      "generated_code_schemas_receipt_unchanged": true,
+      "metadata_value_unchanged": true,
+      "R1_through_R6_still_pass": true,
+      "operator_manifest_diff_paths": [
+        "/tools/engarg_review_contract/pinned_files/9/sha256"
+      ],
+      "review_diff_paths": [
+        "/reviews/3/value/scope/selectors/image_id"
+      ],
+      "cause": "Only labelled R12 value scope image_id and importer file pin changed. Exact request and review clock unchanged. Native exit2 with89-byte scope-mismatch diagnostic matching retained stderr digest. R7/R10 remain available, R12 unavailable, claim unsupported.",
+      "execution_sha256": "5be5cb312b6ddfb2cb49aba51b9c35064b6c1734c6bb24281b7ccdb74c2e3b4b"
+    }
+  },
+  "limits": [
+    "Equality predicates establish pinned operator/native correspondence; they do not independently prove trust in host, image filesystem, CPython or Packaging.",
+    "Support is conditional on exact scope, trusted host/stable directory, bounded AI implementation/interpretation assessments and original freshness window; no human/organisational approval, API correctness or scientific causal validity is inferred.",
+    "Wrong-scope review is an explicitly labelled control copy, not an actual reviewer decision; original reviews and clocks remain unchanged."
+  ]
+}

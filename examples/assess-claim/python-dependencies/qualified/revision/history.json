@@ -1,0 +1,31 @@
+{
+  "schema": "engarg.qualification-revision-history/1",
+  "strict_source_revision": {
+    "schema": "engarg.argument-revision/2",
+    "parent_report_sha256": "8389fa2bc8f123f46cce2eb67ed4311c00dedb9cf92fc3bfc1a111a1eea93862",
+    "argument_sha256": "63c2cffe3cc4b48a168d98194c28e48c6a609587dd93ec436108bc965e8b5ccd",
+    "support_elaboration_sha256": "e7c1ed1928eadabe65109cb8b73b0f085bf3bcf2cf4ab98c0d32b344870129ce",
+    "invalidated": [
+      "direct_bindings",
+      "tooling",
+      "eal_export",
+      "collection",
+      "assessment"
+    ]
+  },
+  "qualification_revision": {
+    "schema": "engarg.argument-revision/2",
+    "parent_report_sha256": "ab5265df7015967ad68edc2a3637d615c3eb2b679d95cf591121b77c0bd4cdfd",
+    "argument_sha256": "e5e9e7d4687da89444facd49fb9501008d0534cc5048374bf8ba15b40e7ee992",
+    "support_elaboration_sha256": "702f89a6211f29cfc92372f7b35bd1f780fb527b9eb354842cb19c70e4fd75fa",
+    "invalidated": [
+      "direct_bindings",
+      "tooling",
+      "eal_export",
+      "collection",
+      "assessment"
+    ]
+  },
+  "origin": "Public engarg eal revise outputs; complete admitted reports and transcripts retained in the investigation workspace. Canonical argument/support, preview and exact native subjects are published here.",
+  "criteria": "Original R1 through R11 acceptance clauses preserved; R1-R5 expressions unchanged. R7 moves the same code-coverage clause to explicit conditional ground G3; R12 adds formal-correspondence qualification. D1 stays material and open with separate activation and resolution gates."
+}

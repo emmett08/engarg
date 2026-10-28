@@ -1,0 +1,61 @@
+{
+  "schema": "engarg.ai-implementation-assessment-analysis/1",
+  "status": "fresh_analysis_pending_formal_scope_with_source_error_policy_caveat",
+  "formal_verdict": null,
+  "reviewer": {
+    "identity": "Codex AI review agent /root/real_claim_audit",
+    "model": "GPT-6 family; exact deployment variant not independently exposed",
+    "independence_limits": "Separate from native constructor/coding calls; shares parent task context; not human or organisational approval."
+  },
+  "written_at": "2026-10-28T12:01:58.211205Z",
+  "artifacts": {
+    "source/collector.py": "83198654b2ab21e99cbe12afddfd0fea4c4058a1d0c4e689002ef773161a4535",
+    "contract.json": "7d222272965dfeb9671fcf8b325ec27897c32a8a567f12da55f3fcc3d89d52e1",
+    "candidate.json": "8638bda1a115fe5b14f5c3cf88c6d20082c8068305b4ccc84895269366aee93b",
+    "test-results.json": "0b75a00a9a5593c54985b1414a28bc45c563f88bcfad645432a8fc02b8606501",
+    "profile.json": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c"
+  },
+  "native_qualification": {
+    "cases": 9,
+    "passed": true,
+    "runner": {
+      "profile_sha256": "61b8ce4f103ffa8ef54fa60392a0d9099e875fbbb7381c887356e0be40f8c3d2",
+      "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+      "docker_sha256": "27f239f97492c434e091a70b41b8796c698f0aa2b6052c6f9c28da4ee7ae888b",
+      "runner_sha256": "69a58c9b33f911f62accd13003c332286199fca9dd486a9bcabdf4539c707a91",
+      "supervisor_sha256": "2d4a3ebe2bbb354a46c38973eccbd9f969c9421f4599ce6bc36c45eef9862f30"
+    },
+    "contract_canonical_sha256": "c0cf572f36106f7b81854300d8a93e26f336dbf470abf4baf7717b2192bc57a6",
+    "fixtures_canonical_sha256": "6e9b998dcdde8d8b59ae4c89122a836d8bc3747cc61b83aaff997faf23dc93d0"
+  },
+  "frozen_oracles": {
+    "wrong_expectation_identified": false,
+    "positive": "A[start] is explicit despite its false root marker; default Packaging26.3 membership accepts2.0rc1 for>=1. A0,A3 activate two B[late] occurrences; B0 activates A[late]; A1 activates C; one root+four indexed occurrences=5 checks. A2 ghost/off stays skipped.",
+    "negative": "A>=2 conflicts withA1.9; a->b>=2 conflicts withB1.9; b->missing>=1 is checked despite both conflicts. Three checks and three violations are correct.",
+    "empty": "Two root checks, missing versions/null and two indexed violations preserve input order.",
+    "errors": "Unreachable invalid version and URL are errors because whole inventory validation precedes closure. 110 marker occurrences across201 base+extra contexts give22110 potential evaluations, so the20000-unit shared bound must fail."
+  },
+  "new_source_correspondence": {
+    "inventory": "Lines145-195 enumerate the explicit directory with importlib.metadata.distributions, preserve every field occurrence, parse and reject invalid identities/versions/requirements, duplicates and URLs before graph work. Caveat below affects broad source-error conformance.",
+    "closure": "Lines212-251 maintain monotone reachable/enabled/scheduled sets. New identities schedule base context; each newly enabled normalized extra schedules its own state. Every indexed occurrence is evaluated for each such state; first activation introduces all target extras. This supports the same induction for these new bytes, rather than transferring the old-source receipt.",
+    "checks": "Lines256-320 check all roots and active indexed occurrences once after queue exhaustion; missing or incompatible targets yield violations, with contains(...,prereleases=None).",
+    "bounds": "Distribution count checked against512, one guard before each20000-unit increment, and no partial successful return after errors. Finite parsed identities/extras and unique scheduled states establish termination of the specified graph work."
+  },
+  "source_error_policy_caveat": {
+    "location": "source/collector.py:162-166",
+    "finding": "distribution.read_text(METADATA) suppresses specific filesystem errors in CPython3.13 and returnsNone; the candidate then triesPKG-INFO. It does not distinguish absent METADATA from unreadable or wrong-type METADATA.",
+    "primary_source": "cpython313-read-text-control.json (CPython blob8ce62dd864fc2735dc4c863909b0622b4f5f4548)",
+    "candidate_counterexample": "A-1.dist-info has METADATA as a directory (or unreadable file with an unmet Requires-Dist) and a readable benign PKG-INFO. The current fallback can usePKG-INFO and returncomplete=true. Broad policy says malformed/unreadable source should fail.",
+    "observed_witness": null,
+    "classification": "Source-level candidate counterexample to broad error handling; no actual retained counterexample and no R9 activation. Exact current well-formed readable image may exclude it.",
+    "review_implication": "Cannot give unqualified whole-operation source-error conformance without resolving this ambiguity or showing the exact review scope and host source facts exclude it. Do not silently hide it in a positive review.",
+    "native_test_route": "If repairing general source-error behavior, freeze a new constructor-owned error case through the public revision/implementation workflow: METADATA/sentinel plus benignPKG-INFO. Do not edit this frozen contract, oracle, source or receipt manually."
+  },
+  "other_limits": [
+    "Native result schema adds requiredcollected=true as host adapter convention despite authored logical-output prose; algorithm review does not imply unqualified protocol equivalence.",
+    "Trusted CPython3.13 discovery, Packaging26.3, immutable consistent directory and host image confinement remain dependencies.",
+    "All9 frozen passes cover only those finite cases, not exhaustive metadata/filesystem behavior.",
+    "No new collector, Docker, build or native generation was invoked by this reviewer.",
+    "Original f7c7 source analysis remains separate and is not automatically evidence for source831986."
+  ]
+}

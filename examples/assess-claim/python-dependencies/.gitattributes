@@ -3,3 +3,5 @@ recorded/** -text
 # Native EAL export retains its terminal blank line as part of the source digest.
 recorded/package/case.eal whitespace=-blank-at-eof
 recorded/negative-control/case.eal whitespace=-blank-at-eof
+qualified/** -text
+qualified/package/case.eal whitespace=-blank-at-eof

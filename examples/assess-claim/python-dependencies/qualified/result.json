@@ -1,0 +1,489 @@
+{
+  "schema": "engarg.qualified-claim-record/1",
+  "scope": "Real installed Python dependency metadata for exact immutable image and roots; supported only under the declared trusted-host and scoped AI-assessment boundaries. No runtime API or scientific-validity conclusion.",
+  "eal_revision": "18f2870be09523255c2c6161248e998cf049e03f",
+  "engarg_base_revision": "1d009cf7f7b6ba3b20ff526d66e87ba6f8c467a7",
+  "producer_engarg_sha256": "69a58c9b33f911f62accd13003c332286199fca9dd486a9bcabdf4539c707a91",
+  "eal_host_sha256": "0c88669ed43bb3162d7fb69a1afe9259bb47d695085a4a8f80a50e88fbf63350",
+  "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+  "native_generation": {
+    "model": "gpt-6.1-sol",
+    "successful_strict_attempt_model_calls": 2,
+    "passed_cases": 11,
+    "generated_source_sha256": "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46",
+    "manual_source_or_oracle_edits": false,
+    "superseded_attempt": "Earlier fresh candidate passed9cases but source review found suppressed METADATA read errors/fallback. The public strict-source revision clarified the existing error policy; this strict source was regenerated natively and passed the new boundary case."
+  },
+  "native_artifact_identity_checks": 22,
+  "native_artifact_observed_at": "2026-10-28T12:05:45.234085Z",
+  "review_boundary": "Actual AI source/formal reviews with exact scoped requests; shared orchestration/context disclosed; no human or institutional independent approval claimed. Review original times are preserved.",
+  "review_verdicts": {
+    "R7": {
+      "target": "G3",
+      "verdict": "supported",
+      "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+      "reviewed_at": "2026-10-28T12:22:54.420771Z"
+    },
+    "R9": {
+      "target": "D1",
+      "verdict": "rejected",
+      "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+      "reviewed_at": "2026-10-28T12:22:54.421263Z"
+    },
+    "R10": {
+      "target": "D1",
+      "verdict": "supported",
+      "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+      "reviewed_at": "2026-10-28T12:22:54.421454Z"
+    },
+    "R12": {
+      "target": "W1",
+      "verdict": "supported",
+      "reviewer": "OpenAI Codex AI reviewer /root/independent_review; separate formalisation-review role; EAL diagnostic-change author",
+      "reviewed_at": "2026-10-28T12:23:42Z"
+    }
+  },
+  "runs": {
+    "positive": {
+      "source_digest": "9fdbdc29e4b35e01c329ea6095a573d9fcb27d2e384fdda2897b845113f4871b",
+      "executable_digest": "426ef8620c649bb271e4dacf8088b4fbcd3351b4b13c54e85ba12acce22dc56c",
+      "valid": true,
+      "complete": true,
+      "current_claim": "supported",
+      "stronger_target": "unsupported",
+      "collected_at": "2026-10-28T12:26:39.088887Z",
+      "observed": {
+        "satisfied": true,
+        "inventory_complete": true,
+        "checked_distributions": 50,
+        "checked_requirements": 93,
+        "violations_count": 0
+      },
+      "record_count": 43,
+      "failed_record_count": 0,
+      "requirements": {
+        "R1": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b518502690a738e725d5c793345ebf676f10ebf6e86568f36348db0b545744d8",
+          "run_id": "43554254-e032-46af-9ce7-fec86bcc5594"
+        },
+        "R2": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b518502690a738e725d5c793345ebf676f10ebf6e86568f36348db0b545744d8",
+          "run_id": "e21d1bca-c3c9-40a7-9856-fd25cd596bc2"
+        },
+        "R3": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "6a6d36b44f7e1d119cbbbaf71aebfbaf6ee7a4faabfd5c5ef4d21d5ded3e73af",
+          "run_id": "4801a5df-1078-460b-b3d1-7f1b80aae8e1"
+        },
+        "R4": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "c5862a96a9ce05080425a1951a218999d7ea56b79746f05c1aae0b1f236a6653",
+          "run_id": "76cecbaa-3770-4215-a0a6-7010346a4234"
+        },
+        "R5": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "c5862a96a9ce05080425a1951a218999d7ea56b79746f05c1aae0b1f236a6653",
+          "run_id": "4f0b21d1-1484-4a9a-ab5b-1537d263f622"
+        },
+        "R6": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "ecaac34b49216f4a40081e059e49959828cd9963016b6bce03c28b6385989c24",
+          "run_id": "5f412d08-eddf-42e8-b8ad-51d63b514137"
+        },
+        "R7": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "849510dcc56a869437eb7a5773160679fbd7f7ebc3f0156ef3466decdc7d1788",
+          "run_id": "8fd55c63-7a10-44ad-9dae-6401809bb9e7"
+        },
+        "R9": {
+          "status": "unavailable",
+          "reasons": [
+            "Field 'accepted' == True does not hold (observed False)"
+          ],
+          "availability_issues": [
+            "predicate_not_met"
+          ],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "597d091b9f9191c326578c49d293b716ef27900a00c13cc8d69465fa12f7aa4c",
+          "run_id": "e7e07adc-6246-4747-97ad-c45464d72ef1",
+          "predicate_failures": [
+            {
+              "path": "accepted",
+              "issue": "not_met"
+            }
+          ]
+        },
+        "R10": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b0a486dadabba1a6d4745a8ae134607214bf97b44e2978af9b8a52227dd0235e",
+          "run_id": "dc6c6a61-425f-4efe-be44-736ba0d00334"
+        },
+        "R12": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b4844a3edb5644669e9bf2fb28a405b3e9ba44e250daa75591703da34ae6650e",
+          "run_id": "6b640669-2ec6-4eb4-8202-54e075b77736"
+        }
+      }
+    },
+    "missing-review-binding": {
+      "source_digest": "9fdbdc29e4b35e01c329ea6095a573d9fcb27d2e384fdda2897b845113f4871b",
+      "executable_digest": "426ef8620c649bb271e4dacf8088b4fbcd3351b4b13c54e85ba12acce22dc56c",
+      "valid": true,
+      "complete": true,
+      "current_claim": "unsupported",
+      "stronger_target": "unsupported",
+      "collected_at": "2026-10-28T12:31:35.487480Z",
+      "observed": {
+        "satisfied": true,
+        "inventory_complete": true,
+        "checked_distributions": 50,
+        "checked_requirements": 93,
+        "violations_count": 0
+      },
+      "record_count": 43,
+      "failed_record_count": 12,
+      "requirements": {
+        "R1": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b518502690a738e725d5c793345ebf676f10ebf6e86568f36348db0b545744d8",
+          "run_id": "0980a6ec-03f4-4ae1-9501-f9fdde4680ed"
+        },
+        "R2": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b518502690a738e725d5c793345ebf676f10ebf6e86568f36348db0b545744d8",
+          "run_id": "fe880a21-13c0-43a4-a373-bdb89128761a"
+        },
+        "R3": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "6a6d36b44f7e1d119cbbbaf71aebfbaf6ee7a4faabfd5c5ef4d21d5ded3e73af",
+          "run_id": "86dc8032-a62f-4d62-b50e-32d3a2be2473"
+        },
+        "R4": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "c5862a96a9ce05080425a1951a218999d7ea56b79746f05c1aae0b1f236a6653",
+          "run_id": "1af2a244-2fa4-4888-aa91-2848059865b6"
+        },
+        "R5": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "c5862a96a9ce05080425a1951a218999d7ea56b79746f05c1aae0b1f236a6653",
+          "run_id": "8272881b-cdd2-44af-8d61-575fa129666d"
+        },
+        "R6": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "ecaac34b49216f4a40081e059e49959828cd9963016b6bce03c28b6385989c24",
+          "run_id": "6f53dbe6-f563-42e6-ace3-10430b769e7d"
+        },
+        "R7": {
+          "status": "unavailable",
+          "reasons": [
+            "Dependency requirement_5237_scoped_review is unavailable, stale or invalid"
+          ],
+          "availability_issues": [
+            "dependency_unavailable"
+          ]
+        },
+        "R9": {
+          "status": "unavailable",
+          "reasons": [
+            "Dependency requirement_5239_scoped_review is unavailable, stale or invalid"
+          ],
+          "availability_issues": [
+            "dependency_unavailable"
+          ]
+        },
+        "R10": {
+          "status": "unavailable",
+          "reasons": [
+            "Dependency requirement_523130_scoped_review is unavailable, stale or invalid"
+          ],
+          "availability_issues": [
+            "dependency_unavailable"
+          ]
+        },
+        "R12": {
+          "status": "unavailable",
+          "reasons": [
+            "Dependency requirement_523132_scoped_review is unavailable, stale or invalid"
+          ],
+          "availability_issues": [
+            "dependency_unavailable"
+          ]
+        }
+      },
+      "control": "Only operator binding/labelled review-copy data changes; source, code, frozen tests and predicates unchanged."
+    },
+    "wrong-review-scope": {
+      "source_digest": "9fdbdc29e4b35e01c329ea6095a573d9fcb27d2e384fdda2897b845113f4871b",
+      "executable_digest": "426ef8620c649bb271e4dacf8088b4fbcd3351b4b13c54e85ba12acce22dc56c",
+      "valid": true,
+      "complete": true,
+      "current_claim": "unsupported",
+      "stronger_target": "unsupported",
+      "collected_at": "2026-10-28T12:32:10.399867Z",
+      "observed": {
+        "satisfied": true,
+        "inventory_complete": true,
+        "checked_distributions": 50,
+        "checked_requirements": 93,
+        "violations_count": 0
+      },
+      "record_count": 43,
+      "failed_record_count": 3,
+      "requirements": {
+        "R1": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b518502690a738e725d5c793345ebf676f10ebf6e86568f36348db0b545744d8",
+          "run_id": "05682447-94fe-416a-9ff1-3f6b87d5738e"
+        },
+        "R2": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b518502690a738e725d5c793345ebf676f10ebf6e86568f36348db0b545744d8",
+          "run_id": "34a94383-ee32-4769-8178-bf395ba56d62"
+        },
+        "R3": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "6a6d36b44f7e1d119cbbbaf71aebfbaf6ee7a4faabfd5c5ef4d21d5ded3e73af",
+          "run_id": "334fd16f-f331-445e-baec-40c6355fa345"
+        },
+        "R4": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "c5862a96a9ce05080425a1951a218999d7ea56b79746f05c1aae0b1f236a6653",
+          "run_id": "ed4c4545-53b6-4af5-b66d-64d2ef13eb5b"
+        },
+        "R5": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "c5862a96a9ce05080425a1951a218999d7ea56b79746f05c1aae0b1f236a6653",
+          "run_id": "44bb71d5-6c47-425b-8ba4-32ab6293d82e"
+        },
+        "R6": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "ecaac34b49216f4a40081e059e49959828cd9963016b6bce03c28b6385989c24",
+          "run_id": "2ef70f80-4e49-4576-a138-da7ec50b186f"
+        },
+        "R7": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "849510dcc56a869437eb7a5773160679fbd7f7ebc3f0156ef3466decdc7d1788",
+          "run_id": "ca86004f-7c85-45e1-a8e7-4003b2a0f2e9"
+        },
+        "R9": {
+          "status": "unavailable",
+          "reasons": [
+            "Field 'accepted' == True does not hold (observed False)"
+          ],
+          "availability_issues": [
+            "predicate_not_met"
+          ],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "597d091b9f9191c326578c49d293b716ef27900a00c13cc8d69465fa12f7aa4c",
+          "run_id": "b5980e4a-ac96-4f2b-8576-a3605c39b27e",
+          "predicate_failures": [
+            {
+              "path": "accepted",
+              "issue": "not_met"
+            }
+          ]
+        },
+        "R10": {
+          "status": "available",
+          "reasons": [
+            "Field 'accepted' == True holds (observed True)"
+          ],
+          "availability_issues": [],
+          "tool": null,
+          "tool_version": null,
+          "tool_binding_digest": "b0a486dadabba1a6d4745a8ae134607214bf97b44e2978af9b8a52227dd0235e",
+          "run_id": "23d77f7c-9860-49aa-b468-ee7d79cba1b0"
+        },
+        "R12": {
+          "status": "unavailable",
+          "reasons": [
+            "Dependency requirement_523132_scoped_review is unavailable, stale or invalid"
+          ],
+          "availability_issues": [
+            "dependency_unavailable"
+          ]
+        }
+      },
+      "control": "Only operator binding/labelled review-copy data changes; source, code, frozen tests and predicates unchanged."
+    }
+  },
+  "historical_source_note": "package/native-artifacts/host_record.json and its embedded copy retain the pre-qualification baseline, including its unavailable review errors. R6 selects that baseline actual audit record as provenance; positive/collection.json top-level records are all ok. Static build pending_reviews describes requests, not their current fulfillment.",
+  "freshness": "Historical clocks are immutable. The original one-hour acquisition/review limits remain; rerunning after expiry can correctly be unsupported. Obtain fresh native artifacts and actual scoped assessments for a new investigation; never retime these records.",
+  "files_sha256": {
+    "README.md": "104a5838468c42f343c76f1b7d6be7c5a875aa0d21b411a6ebdee303d96a4376",
+    "audit.json": "e6284038e0f8770881794b23679f1dd8a920893e7275b79e00b645c54906f4c3",
+    "missing-review-binding/assessment.json": "6a9a00ab79525a73f1600570e9d5b737c3a94427dbae05a3cd348f3127f0e7a0",
+    "missing-review-binding/collection.json": "fd25434c9e6f97aa9caaa229b727cac26ec81f74542dfe28683d034e9099543e",
+    "missing-review-binding/tools.toml": "9977825c42dd421bdd0a6467ea3e26be52ef8e54f0d60e898f4434bddefa7d54",
+    "package/build.json": "ef04be16635a3b088c0fb66c773f7f62d7640fb03dd29a5d09d1f66cd838896e",
+    "package/case.eal": "9fdbdc29e4b35e01c329ea6095a573d9fcb27d2e384fdda2897b845113f4871b",
+    "package/native-artifacts/candidate.json": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+    "package/native-artifacts/contract.json": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+    "package/native-artifacts/host_record.json": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+    "package/native-artifacts/operator_profile.json": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+    "package/native-artifacts/package_manifest.json": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+    "package/native-artifacts/profile.json": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+    "package/native-artifacts/tool_binding.toml": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+    "package/native-artifacts/verification.json": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+    "package/native-artifacts.envelope.json": "341b7cc5b9cfc997f2a7b8720468723743754af22267f2b8b67fab7b8c0c3ee8",
+    "package/review-inputs.json": "82780a5d3ceba7f77d3090d44424eb6e7720e8c629b72e6d82ad4c261b7f38f9",
+    "package/tools/generated/dependency_audit/input.schema.json": "0b6803c30a8605552c64c80a3fb43343ecdc7e40281981eca9878b3607bd4a7c",
+    "package/tools/generated/dependency_audit/output.schema.json": "47e8f1c47ebf8d219f77cd83816662413280168bd0f83ba6fad74766c4721ae1",
+    "package/tools/generated/dependency_audit/source/collector.py": "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46",
+    "package/tools/generated/dependency_audit/tool.toml": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+    "package/tools/generated/dependency_audit/verification.json": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+    "package/tools.toml": "1603067ed5e9cdc36138b265ac14d22f9438066b85b9bc257553f4b4039080c2",
+    "positive/assessment.json": "2684b51cbc5e7204802a23994fdacd31336a206c05d8e89205235f0cbede2ec3",
+    "positive/collection.json": "eaf7e56324b5974422932430f2a29bb7dde2fac671edd656835d03fae2ca0fc0",
+    "reviews/implementation-reviews.json": "0df2168bed5143cacd796312208f6b40b469bd25f69ae0e4d65756b9e9959383",
+    "reviews/independent-formalisation-review.json": "0e59623a5a306e3b38171e4c387fd8fcb298cbc9d0200c69fd8cc7c0eba0fabe",
+    "revision/argument.json": "e0151486759b26c402982ee64c6b92db10f64ecd71b62a005f39d949f5239781",
+    "revision/history.json": "e075033d5f4d66dffda00cc568636f334d19734ecdb07adf2817d05ed7eb9541",
+    "revision/preview.json": "d08182a07a50a8d65e06887b872905cb4926badbcf4b93342870cacea0dc8e83",
+    "revision/strict-source-preview.json": "76dda2d49abfcd89c1a0aec5f79ce0d5df06caaa74d189575c52d0f5d9dbf0dc",
+    "revision/support.json": "80fc47f45a71e1cb6bb59d2d2bf8745a8a1bc988b201810444c6885e13d29815",
+    "source-review/strict-reader.json": "348b1744c40935656d4d9fa787190ef7f7e87f007dcaca3b622715dfae994050",
+    "source-review/superseded-reader.json": "a7cb9538082eea256b5f9b3b50f7813078fa094a8cc9472485deea5587ba7dd9",
+    "toolchain.json": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+    "wrong-review-scope/altered-review-inputs.json": "81972f107e103e8d4f8fb41a1670eeb43276b8f4c5bd1b62ef4c124bdfd10166",
+    "wrong-review-scope/assessment.json": "26197ac0d8b6e540b7da7f90ecfbc810dc0f094a68d448353e3ca4f6b8d351f5",
+    "wrong-review-scope/collection.json": "f80c9db8f7d0c48bd298b39a5f8c3f274174c778288fa1a3c7b12e36ec40dd0d",
+    "wrong-review-scope/tools.toml": "e2fab25ff08b768311f7bb2c057ae81ca605a902b6edc1198c295d561ec223ae"
+  }
+}

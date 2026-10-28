@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "image_id": {
+      "description": "Operator scope label only, not process attestation.",
+      "type": "string",
+      "x-engarg-unit": "1"
+    },
+    "metadata_directory": {
+      "description": "Explicit readable metadata directory inside the bound container.",
+      "type": "string",
+      "x-engarg-unit": "1"
+    },
+    "roots": {
+      "description": "Explicit PEP508 root constraints including any requested root extras.",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array",
+      "x-engarg-unit": "1"
+    }
+  },
+  "required": [
+    "image_id",
+    "metadata_directory",
+    "roots"
+  ],
+  "type": "object"
+}

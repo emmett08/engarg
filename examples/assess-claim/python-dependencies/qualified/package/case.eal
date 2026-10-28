@@ -1,0 +1,652 @@
+language "EAL/4"
+
+// Authored EngArg projection. Review contracts are not observations.
+// Keep the JSON export bundle for the complete canonical source and source map.
+
+environment engarg_case {
+  require engarg_export_digest == "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+}
+
+tool engarg_review_contract {
+  version "1"
+}
+
+tool source_646570656e64656e63795f6175646974 {
+  version "1"
+}
+
+evidence acquisition_646570656e64656e63795f6175646974 {
+  tool source_646570656e64656e63795f6175646974
+  kind observation
+  environment engarg_case
+  max_age 3600
+  input {"image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","roots":["dowhy==0.14","causal-learn==0.1.4.8"]}
+  require true
+}
+
+tool source_6e61746976655f617274696661637473 {
+  version "1"
+}
+
+evidence acquisition_6e61746976655f617274696661637473 {
+  tool source_6e61746976655f617274696661637473
+  kind observation
+  environment engarg_case
+  max_age 3600
+  input {"artifact_subject":"4b80eac7bfa1fc0f333a54a0d50af08b5c55304d8abf6364823df4106d2e5714"}
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f70726f66696c65 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_profile"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_profile"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f726563656970745f736368656d61 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_receipt_schema"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_receipt_schema"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f726563656970745f6c616e6775616765 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_receipt_language"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_receipt_language"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f726563656970745f636f6e7472616374 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_receipt_contract"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_receipt_contract"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f726563656970745f63616e646964617465 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_receipt_candidate"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_receipt_candidate"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f726563656970745f736f75726365 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_receipt_source"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_receipt_source"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f726563656970745f6669787475726573 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_receipt_fixtures"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_receipt_fixtures"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f726563656970745f70726f66696c65 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_receipt_profile"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_receipt_profile"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f726563656970745f696d616765 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_receipt_image"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_receipt_image"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f6d616e69666573745f70726f66696c65 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_manifest_profile"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_manifest_profile"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f6d616e69666573745f636f6e7472616374 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_manifest_contract"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_manifest_contract"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f6d616e69666573745f63616e646964617465 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_manifest_candidate"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_manifest_candidate"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f6d616e69666573745f736f75726365 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_manifest_source"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_manifest_source"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f6d616e69666573745f6669787475726573 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_manifest_fixtures"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_manifest_fixtures"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f6d616e69666573745f72656365697074 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_manifest_receipt"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_manifest_receipt"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f6d616e69666573745f72756e6e6572 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_manifest_runner"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_manifest_runner"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f686f73745f737461747573 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_host_status"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_host_status"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f686f73745f72657475726e636f6465 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_host_returncode"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_host_returncode"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f686f73745f696e707574 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_host_input"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_host_input"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f686f73745f746f6f6c {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_host_tool"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_host_tool"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f686f73745f76657273696f6e {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_host_version"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_host_version"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence derivation_6e61746976655f657175616c5f686f73745f62696e64696e67 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":[null,null]}
+  bind "/values/0" from acquisition_6e61746976655f617274696661637473 "/actual_host_binding"
+  bind "/values/1" from acquisition_6e61746976655f617274696661637473 "/expected_host_binding"
+  derive object("value", equal(at(values, 0), at(values, 1)))
+  require true
+}
+
+evidence requirement_5231 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/satisfied"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (equal(values.v0, true)) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5232 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (equal(values.v0, true)) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5233 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/violations_count"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (exact_compare(values.v0, 0, "==", "1")) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5234 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/checked_distributions"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (exact_compare(values.v0, 2, ">=", "1")) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5235 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/checked_requirements"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (exact_compare(values.v0, 2, ">=", "1")) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5236 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"truth_values":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null],"values":{}}
+  bind "/truth_values/0" from derivation_6e61746976655f657175616c5f70726f66696c65 "/value"
+  bind "/truth_values/1" from derivation_6e61746976655f657175616c5f726563656970745f736368656d61 "/value"
+  bind "/truth_values/2" from derivation_6e61746976655f657175616c5f726563656970745f6c616e6775616765 "/value"
+  bind "/truth_values/3" from derivation_6e61746976655f657175616c5f726563656970745f636f6e7472616374 "/value"
+  bind "/truth_values/4" from derivation_6e61746976655f657175616c5f726563656970745f63616e646964617465 "/value"
+  bind "/truth_values/5" from derivation_6e61746976655f657175616c5f726563656970745f736f75726365 "/value"
+  bind "/truth_values/6" from derivation_6e61746976655f657175616c5f726563656970745f6669787475726573 "/value"
+  bind "/truth_values/7" from derivation_6e61746976655f657175616c5f726563656970745f70726f66696c65 "/value"
+  bind "/truth_values/8" from derivation_6e61746976655f657175616c5f726563656970745f696d616765 "/value"
+  bind "/truth_values/9" from derivation_6e61746976655f657175616c5f6d616e69666573745f70726f66696c65 "/value"
+  bind "/truth_values/10" from derivation_6e61746976655f657175616c5f6d616e69666573745f636f6e7472616374 "/value"
+  bind "/truth_values/11" from derivation_6e61746976655f657175616c5f6d616e69666573745f63616e646964617465 "/value"
+  bind "/truth_values/12" from derivation_6e61746976655f657175616c5f6d616e69666573745f736f75726365 "/value"
+  bind "/truth_values/13" from derivation_6e61746976655f657175616c5f6d616e69666573745f6669787475726573 "/value"
+  bind "/truth_values/14" from derivation_6e61746976655f657175616c5f6d616e69666573745f72656365697074 "/value"
+  bind "/truth_values/15" from derivation_6e61746976655f657175616c5f6d616e69666573745f72756e6e6572 "/value"
+  bind "/truth_values/16" from derivation_6e61746976655f657175616c5f686f73745f737461747573 "/value"
+  bind "/truth_values/17" from derivation_6e61746976655f657175616c5f686f73745f72657475726e636f6465 "/value"
+  bind "/truth_values/18" from derivation_6e61746976655f657175616c5f686f73745f696e707574 "/value"
+  bind "/truth_values/19" from derivation_6e61746976655f657175616c5f686f73745f746f6f6c "/value"
+  bind "/truth_values/20" from derivation_6e61746976655f657175616c5f686f73745f76657273696f6e "/value"
+  bind "/truth_values/21" from derivation_6e61746976655f657175616c5f686f73745f62696e64696e67 "/value"
+  bind "/truth_values/22" from acquisition_6e61746976655f617274696661637473 "/receipt_passed"
+  derive object("accepted", (all_values(truth_values)))
+  require accepted == true
+}
+
+evidence requirement_5237_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 3600
+  input {"acceptance":{"criterion":"A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.","kind":"judgement","scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"}},"criterion":"A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.","requirement":"R7","role":"support","scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"},"target":"G3"}
+  require true
+}
+
+evidence requirement_5237_scoped_review {
+  kind scoped_review
+  environment engarg_case
+  max_age 3600
+  input {"criterion":"A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.","review":null,"scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"},"target":"G3"}
+  bind "/review" from requirement_5237_review ""
+  derive review
+  require verdict == "supported"
+}
+
+evidence requirement_5237 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"review":null}
+  bind "/review" from requirement_5237_scoped_review ""
+  derive object("accepted", review.verdict == "supported" and review.criterion == "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification." and equal(review.scope, {"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"}) and review.target == "G3" and review.reviewer != "" and review.reviewed_at != "" and count(review.reasons) > 0)
+  require accepted == true
+}
+
+evidence requirement_5238_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"kind":"unavailable","reason":"The runtime workload, authorised runtime operation and actual runtime results are unavailable."},"criterion":"Metadata cannot substitute for runtime observations.","requirement":"R8","role":"support","scope":null,"target":"G2"}
+  require true
+}
+
+evidence requirement_5238 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_5238_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_5239_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 3600
+  input {"acceptance":{"criterion":"A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.","kind":"judgement","scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"}},"criterion":"A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.","requirement":"R9","role":"challenge_activation","scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"},"target":"D1"}
+  require true
+}
+
+evidence requirement_5239_scoped_review {
+  kind scoped_review
+  environment engarg_case
+  max_age 3600
+  input {"criterion":"A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.","review":null,"scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"},"target":"D1"}
+  bind "/review" from requirement_5239_review ""
+  derive review
+  require verdict == "supported"
+}
+
+evidence requirement_5239 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"review":null}
+  bind "/review" from requirement_5239_scoped_review ""
+  derive object("accepted", review.verdict == "supported" and review.criterion == "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra." and equal(review.scope, {"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"}) and review.target == "D1" and review.reviewer != "" and review.reviewed_at != "" and count(review.reasons) > 0)
+  require accepted == true
+}
+
+evidence requirement_523130_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 3600
+  input {"acceptance":{"criterion":"Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.","kind":"judgement","scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"}},"criterion":"Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.","requirement":"R10","role":"challenge_resolution","scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"},"target":"D1"}
+  require true
+}
+
+evidence requirement_523130_scoped_review {
+  kind scoped_review
+  environment engarg_case
+  max_age 3600
+  input {"criterion":"Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.","review":null,"scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"},"target":"D1"}
+  bind "/review" from requirement_523130_review ""
+  derive review
+  require verdict == "supported"
+}
+
+evidence requirement_523130 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"review":null}
+  bind "/review" from requirement_523130_scoped_review ""
+  derive object("accepted", review.verdict == "supported" and review.criterion == "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample." and equal(review.scope, {"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"},"subject":"Exact native generated dependency audit and its frozen contract and verification"}) and review.target == "D1" and review.reviewer != "" and review.reviewed_at != "" and count(review.reasons) > 0)
+  require accepted == true
+}
+
+evidence requirement_523131_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.","kind":"judgement"},"criterion":"A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.","requirement":"R11","role":"support","scope":null,"target":"W2"}
+  require true
+}
+
+evidence requirement_523131 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_523131_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_523132_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 3600
+  input {"acceptance":{"criterion":"A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations.","kind":"judgement","scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256","warrant_sha256","operation_spec_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operation_spec_sha256":"aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d","warrant_sha256":"654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"},"subject":"Exact native generated dependency audit and its frozen contract and verification"}},"criterion":"A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations.","requirement":"R12","role":"support","scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256","warrant_sha256","operation_spec_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operation_spec_sha256":"aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d","warrant_sha256":"654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"},"subject":"Exact native generated dependency audit and its frozen contract and verification"},"target":"W1"}
+  require true
+}
+
+evidence requirement_523132_scoped_review {
+  kind scoped_review
+  environment engarg_case
+  max_age 3600
+  input {"criterion":"A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations.","review":null,"scope":{"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256","warrant_sha256","operation_spec_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operation_spec_sha256":"aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d","warrant_sha256":"654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"},"subject":"Exact native generated dependency audit and its frozen contract and verification"},"target":"W1"}
+  bind "/review" from requirement_523132_review ""
+  derive review
+  require verdict == "supported"
+}
+
+evidence requirement_523132 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"review":null}
+  bind "/review" from requirement_523132_scoped_review ""
+  derive object("accepted", review.verdict == "supported" and review.criterion == "A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations." and equal(review.scope, {"identity_dimensions":["image_id","metadata_directory","roots","python","root_extras","candidate_sha256","contract_sha256","host_record_sha256","operator_profile_sha256","package_manifest_sha256","profile_sha256","tool_binding_sha256","verification_sha256","warrant_sha256","operation_spec_sha256"],"kind":"installed_distribution_metadata","selectors":{"candidate_sha256":"5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667","contract_sha256":"ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a","host_record_sha256":"84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d","image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/usr/local/lib/python3.13/site-packages","operation_spec_sha256":"aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b","operator_profile_sha256":"f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff","package_manifest_sha256":"ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678","profile_sha256":"d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c","python":"3.13","review_boundary":"separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions","root_extras":[],"root_extras_json":"[]","roots":["dowhy==0.14","causal-learn==0.1.4.8"],"roots_json":"[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]","tool_binding_sha256":"f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d","verification_sha256":"fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d","warrant_sha256":"654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"},"subject":"Exact native generated dependency audit and its frozen contract and verification"}) and review.target == "W1" and review.reviewer != "" and review.reviewed_at != "" and count(review.reasons) > 0)
+  require accepted == true
+}
+
+evidence target_support_4731 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":{"r0":null,"r1":null,"r2":null,"r3":null,"r4":null}}
+  bind "/values/r0" from requirement_5231 "/accepted"
+  bind "/values/r1" from requirement_5232 "/accepted"
+  bind "/values/r2" from requirement_5233 "/accepted"
+  bind "/values/r3" from requirement_5234 "/accepted"
+  bind "/values/r4" from requirement_5235 "/accepted"
+  derive object("accepted", values.r0 == true and values.r1 == true and values.r2 == true and values.r3 == true and values.r4 == true)
+  require accepted == true
+}
+
+assumption assumption_4131 {
+  statement "The host binds the audit to the selected image running Python 3.13 with packaging 26.3 and confines metadata reads to the selected directory."
+  environment engarg_case
+  validate requirement_5236
+}
+
+claim claim_63757272656e745f636c61696d {
+  statement "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras.\nQualifier: Conditional on the unchanged complete audit predicate, exact native host correspondence, actual scoped implementation and method assessments, and separate D1 resolution, all within the original one-hour observation limit.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+claim claim_7374726f6e6765725f746172676574 {
+  statement "The selected image satisfies the metadata predicate and both roots import and pass every API assertion in an operator-defined runtime smoke-test workload.\nQualifier: Conditional on the metadata predicate and separately defined, collected and assessed runtime smoke-test evidence.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+claim ground_4731 {
+  statement "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_4731 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_4731 = [evidence target_support_4731] via ground_reasoning_4731 => ground_4731
+
+claim ground_4732 {
+  statement "Both root packages import and pass every assertion in an operator-defined API smoke-test workload in the selected image.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_4732 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_4732 = [evidence requirement_5238] via ground_reasoning_4732 => ground_4732
+
+claim ground_4733 {
+  statement "For the exact pinned implementation, frozen contract, runtime assumptions and selected-directory scope, acceptance of the complete audit predicate in G1 implies the claimed installed-metadata predicate.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_4733 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_4733 = [evidence requirement_5237] via ground_reasoning_4733 => ground_4733
+
+claim route_5731 {
+  statement "Candidate support for: The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras.\nQualifier: Conditional on the unchanged complete audit predicate, exact native host correspondence, actual scoped implementation and method assessments, and separate D1 resolution, all within the original one-hour observation limit.\nRule: A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate.\nOriginal inference: Deductive.\nApplicability: The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+  proposition {
+    subject "Installed metadata in the selected immutable Python image and directory for the exact roots"
+    quantity "proposition"
+    unit "1"
+    scope "engarg.scope:3aee4af6c0672758544c2fb9121b1e7a8543ff1fa6aa494d1bb56963618a961f"
+    valid_from "2026-10-28T12:05:45.234085Z"
+    valid_until "2026-10-28T13:05:45.234085Z"
+    query {"conclusion":"metadata_predicate","premises":["audit_accepted",{"implies":["audit_accepted","metadata_predicate"]}]}
+    result entailed == true
+  }
+}
+
+reasoning warrant_5731 {
+  method "deductive/1"
+  rationale "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate.\nThe declared bounded method tests only the typed formal result. Prose correspondence and scientific applicability remain authored obligations.\nApplicability: The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras."
+  require consistent_premises == true
+}
+
+argument route_argument_5731 = [evidence requirement_523130, requirement_523132, assumptions assumption_4131, premises ground_4731, ground_4733] via warrant_5731 => route_5731
+
+claim route_5732 {
+  statement "Candidate support for: The selected image satisfies the metadata predicate and both roots import and pass every API assertion in an operator-defined runtime smoke-test workload.\nQualifier: Conditional on the metadata predicate and separately defined, collected and assessed runtime smoke-test evidence.\nRule: Accept the limited runtime target only when the metadata inference is adequate and actual runtime evidence passes every assertion in the assessed operator-defined smoke-test workload.\nOriginal inference: Practical.\nApplicability: The workload is defined before testing and its adequacy is assessed only for the limited smoke-test target in the same image.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+reasoning warrant_5732 {
+  method "structured/1"
+  rationale "Accept the limited runtime target only when the metadata inference is adequate and actual runtime evidence passes every assertion in the assessed operator-defined smoke-test workload.\nOriginal inference: Practical; retained as authored structured/1, not a computational certificate.\nApplicability: The workload is defined before testing and its adequacy is assessed only for the limited smoke-test target in the same image."
+  backing [requirement_523131]
+}
+
+argument route_argument_5732 = [evidence requirement_523131, premises ground_4731, ground_4732] via warrant_5732 => route_5732
+
+reasoning composition_reasoning_63757272656e745f636c61696d {
+  method "structured/1"
+  rationale "Declared JointlyRequired relationship. The single route requires the complete audit ground under the selected image and directory scope. Its adequacy depends on faithful audit semantics and host execution identity, neither of which is established by this authored plan.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review."
+}
+
+argument composition_argument_63757272656e745f636c61696d = [premises route_5731] via composition_reasoning_63757272656e745f636c61696d => claim_63757272656e745f636c61696d
+
+reasoning composition_reasoning_7374726f6e6765725f746172676574 {
+  method "structured/1"
+  rationale "Declared JointlyRequired relationship. The broader target jointly requires metadata consistency and separate runtime evidence for an operator-defined smoke-test workload in the same image. Metadata evidence is shared rather than counted as independent runtime confirmation.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review."
+}
+
+argument composition_argument_7374726f6e6765725f746172676574 = [premises route_5732] via composition_reasoning_7374726f6e6765725f746172676574 => claim_7374726f6e6765725f746172676574
+
+claim assumption_condition_4131 {
+  statement "A usable native EAL validation supports this assumption: The host binds the audit to the selected image running Python 3.13 with packaging 26.3 and confines metadata reads to the selected directory.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}\nOther authored conditions remain attached to the original applications."
+  environment engarg_case
+}
+
+reasoning assumption_condition_reasoning_4131 {
+  method "structured/1"
+  rationale "The explicit canonical validation and the native EAL assumption are jointly required. This bridge retains assumption attacks when an objection relies on the assumption; it does not establish truth independently."
+}
+
+argument assumption_condition_argument_4131 = [evidence requirement_5236, assumptions assumption_4131] via assumption_condition_reasoning_4131 => assumption_condition_4131
+
+objection objection_4431 = [evidence requirement_5239] -x> reasoning warrant_5731
+

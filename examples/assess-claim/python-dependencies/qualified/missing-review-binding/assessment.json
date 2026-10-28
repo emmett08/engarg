@@ -1,0 +1,1366 @@
+{
+  "language": "EAL/4",
+  "source_digest": "9fdbdc29e4b35e01c329ea6095a573d9fcb27d2e384fdda2897b845113f4871b",
+  "assessed_at": "2026-10-28T12:31:37.425812Z",
+  "context_fingerprint": "6942c761199203b2ca0c1347e206b79814d48fcbb06ba51196645c33781fa920",
+  "method_registry_fingerprint": "ee5ddaa655c6f5fe57101334bd724ce9c0a08d85718c0de50086e805f9228724",
+  "valid": true,
+  "complete": true,
+  "diagnostics": [],
+  "environments": {
+    "engarg_case": {
+      "status": "matched",
+      "reasons": [
+        "Field 'engarg_export_digest' == '216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c' holds (observed '216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c')"
+      ]
+    }
+  },
+  "evidence": {
+    "acquisition_646570656e64656e63795f6175646974": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": "source_646570656e64656e63795f6175646974",
+      "tool_version": "1",
+      "tool_binding_digest": "1b50c0a1851d3cb56d4cae5dc1697ab754f1517ef2405caeeace486f2a8eafc5",
+      "run_id": "bc8af5b7-6f19-445e-8738-c1a0fae15bf4"
+    },
+    "acquisition_6e61746976655f617274696661637473": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": "source_6e61746976655f617274696661637473",
+      "tool_version": "1",
+      "tool_binding_digest": "b66b3a16f6e3110c577471553602a6da2ac5d10d9672ddaef9201633d2ac8c58",
+      "run_id": "83392714-4ad2-40b3-b536-aec533d2c481"
+    },
+    "derivation_6e61746976655f657175616c5f686f73745f62696e64696e67": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "f5f659da-4cc4-44be-ae72-fecdec60457d"
+    },
+    "derivation_6e61746976655f657175616c5f686f73745f696e707574": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "00e490ce-45c5-461d-84e5-51ae3547bd3b"
+    },
+    "derivation_6e61746976655f657175616c5f686f73745f72657475726e636f6465": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "ff640571-adbf-43e2-bb33-fd2416cfb8c1"
+    },
+    "derivation_6e61746976655f657175616c5f686f73745f737461747573": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "7e207c52-e947-4e09-816c-981ec7c990c9"
+    },
+    "derivation_6e61746976655f657175616c5f686f73745f746f6f6c": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "9b1b1eac-d97e-432d-a9f7-e31982a18d0f"
+    },
+    "derivation_6e61746976655f657175616c5f686f73745f76657273696f6e": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "cdc174ca-5472-481c-9efb-9e8de5caea6a"
+    },
+    "derivation_6e61746976655f657175616c5f6d616e69666573745f63616e646964617465": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "cc0abf38-45b2-4e03-a4a2-729a1d8daf4f"
+    },
+    "derivation_6e61746976655f657175616c5f6d616e69666573745f636f6e7472616374": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "b7ac169a-026e-4c35-9a5e-ca5bab80d895"
+    },
+    "derivation_6e61746976655f657175616c5f6d616e69666573745f6669787475726573": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "4f5e09e9-d42b-4b34-b6c3-bcb889bf37ae"
+    },
+    "derivation_6e61746976655f657175616c5f6d616e69666573745f70726f66696c65": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "27a0d95e-247b-470d-b0db-115ecd2330ed"
+    },
+    "derivation_6e61746976655f657175616c5f6d616e69666573745f72656365697074": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "63c897a0-a271-485f-b974-ea9e0fe4622c"
+    },
+    "derivation_6e61746976655f657175616c5f6d616e69666573745f72756e6e6572": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "83972c24-5d02-4159-8c03-3f1c5b1fa7d1"
+    },
+    "derivation_6e61746976655f657175616c5f6d616e69666573745f736f75726365": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "b534b994-5e2c-4050-af7d-80b38b67c8e9"
+    },
+    "derivation_6e61746976655f657175616c5f70726f66696c65": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "5d1d7a81-8700-426e-8849-a42f64452e9e"
+    },
+    "derivation_6e61746976655f657175616c5f726563656970745f63616e646964617465": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "a5b56ce4-f7cb-40c8-a4bd-2001cc49d9f0"
+    },
+    "derivation_6e61746976655f657175616c5f726563656970745f636f6e7472616374": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "4564728b-445a-4ba2-b06a-612cb3b5552a"
+    },
+    "derivation_6e61746976655f657175616c5f726563656970745f6669787475726573": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "40f2805d-5773-4843-866d-1fac68919b7a"
+    },
+    "derivation_6e61746976655f657175616c5f726563656970745f696d616765": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "726e2d78-6ba4-4dd2-b5dc-f6cc513598d3"
+    },
+    "derivation_6e61746976655f657175616c5f726563656970745f6c616e6775616765": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "bb36fc62-6c4c-41ea-ada7-b3f80a0413af"
+    },
+    "derivation_6e61746976655f657175616c5f726563656970745f70726f66696c65": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "54771562-27d9-497d-854b-aacbf0f4d3ae"
+    },
+    "derivation_6e61746976655f657175616c5f726563656970745f736368656d61": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "fca88f02-47cf-4270-89aa-9d74837b167d"
+    },
+    "derivation_6e61746976655f657175616c5f726563656970745f736f75726365": {
+      "status": "available",
+      "reasons": [
+        "true holds"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "1ab384678173ab23e501dffa053388e03b840a6c1021697cac730bc10acb7310",
+      "run_id": "bc8f3e16-a41b-4ff9-a5d6-1ddd01f64329"
+    },
+    "requirement_5231": {
+      "status": "available",
+      "reasons": [
+        "Field 'accepted' == True holds (observed True)"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "b518502690a738e725d5c793345ebf676f10ebf6e86568f36348db0b545744d8",
+      "run_id": "0980a6ec-03f4-4ae1-9501-f9fdde4680ed"
+    },
+    "requirement_523130": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_523130_scoped_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_523130_review": {
+      "status": "unavailable",
+      "reasons": [
+        "Recorded execution failure: {'type': 'ValueError', 'message': \"Tool 'engarg_review_contract' is not in the operator registry\"}",
+        "Record requires a tool binding configuration digest",
+        "Tool execution did not produce an ok observation",
+        "Invalid observation value: Record has no JSON value"
+      ],
+      "availability_issues": [
+        "invalid_observation",
+        "tool_error"
+      ],
+      "tool": "engarg_review_contract",
+      "tool_version": "1",
+      "tool_binding_digest": null,
+      "run_id": "ea5ed056-4428-4d93-9e6d-06a121e10080"
+    },
+    "requirement_523130_scoped_review": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_523130_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_523131": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_523131_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_523131_review": {
+      "status": "unavailable",
+      "reasons": [
+        "No evidence record is available"
+      ],
+      "availability_issues": [
+        "missing_observation"
+      ]
+    },
+    "requirement_523132": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_523132_scoped_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_523132_review": {
+      "status": "unavailable",
+      "reasons": [
+        "Recorded execution failure: {'type': 'ValueError', 'message': \"Tool 'engarg_review_contract' is not in the operator registry\"}",
+        "Record requires a tool binding configuration digest",
+        "Tool execution did not produce an ok observation",
+        "Invalid observation value: Record has no JSON value"
+      ],
+      "availability_issues": [
+        "invalid_observation",
+        "tool_error"
+      ],
+      "tool": "engarg_review_contract",
+      "tool_version": "1",
+      "tool_binding_digest": null,
+      "run_id": "3d4ab732-40e4-4410-b1d7-4303ea59f1fd"
+    },
+    "requirement_523132_scoped_review": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_523132_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_5232": {
+      "status": "available",
+      "reasons": [
+        "Field 'accepted' == True holds (observed True)"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "b518502690a738e725d5c793345ebf676f10ebf6e86568f36348db0b545744d8",
+      "run_id": "fe880a21-13c0-43a4-a373-bdb89128761a"
+    },
+    "requirement_5233": {
+      "status": "available",
+      "reasons": [
+        "Field 'accepted' == True holds (observed True)"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "6a6d36b44f7e1d119cbbbaf71aebfbaf6ee7a4faabfd5c5ef4d21d5ded3e73af",
+      "run_id": "86dc8032-a62f-4d62-b50e-32d3a2be2473"
+    },
+    "requirement_5234": {
+      "status": "available",
+      "reasons": [
+        "Field 'accepted' == True holds (observed True)"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "c5862a96a9ce05080425a1951a218999d7ea56b79746f05c1aae0b1f236a6653",
+      "run_id": "1af2a244-2fa4-4888-aa91-2848059865b6"
+    },
+    "requirement_5235": {
+      "status": "available",
+      "reasons": [
+        "Field 'accepted' == True holds (observed True)"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "c5862a96a9ce05080425a1951a218999d7ea56b79746f05c1aae0b1f236a6653",
+      "run_id": "8272881b-cdd2-44af-8d61-575fa129666d"
+    },
+    "requirement_5236": {
+      "status": "available",
+      "reasons": [
+        "Field 'accepted' == True holds (observed True)"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "ecaac34b49216f4a40081e059e49959828cd9963016b6bce03c28b6385989c24",
+      "run_id": "6f53dbe6-f563-42e6-ace3-10430b769e7d"
+    },
+    "requirement_5237": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_5237_scoped_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_5237_review": {
+      "status": "unavailable",
+      "reasons": [
+        "Recorded execution failure: {'type': 'ValueError', 'message': \"Tool 'engarg_review_contract' is not in the operator registry\"}",
+        "Record requires a tool binding configuration digest",
+        "Tool execution did not produce an ok observation",
+        "Invalid observation value: Record has no JSON value"
+      ],
+      "availability_issues": [
+        "invalid_observation",
+        "tool_error"
+      ],
+      "tool": "engarg_review_contract",
+      "tool_version": "1",
+      "tool_binding_digest": null,
+      "run_id": "96090631-165e-4509-a30b-5f0760eed1d2"
+    },
+    "requirement_5237_scoped_review": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_5237_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_5238": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_5238_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_5238_review": {
+      "status": "unavailable",
+      "reasons": [
+        "No evidence record is available"
+      ],
+      "availability_issues": [
+        "missing_observation"
+      ]
+    },
+    "requirement_5239": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_5239_scoped_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "requirement_5239_review": {
+      "status": "unavailable",
+      "reasons": [
+        "Recorded execution failure: {'type': 'ValueError', 'message': \"Tool 'engarg_review_contract' is not in the operator registry\"}",
+        "Record requires a tool binding configuration digest",
+        "Tool execution did not produce an ok observation",
+        "Invalid observation value: Record has no JSON value"
+      ],
+      "availability_issues": [
+        "invalid_observation",
+        "tool_error"
+      ],
+      "tool": "engarg_review_contract",
+      "tool_version": "1",
+      "tool_binding_digest": null,
+      "run_id": "c92eeccd-f5ff-4759-af24-117e86c0fc80"
+    },
+    "requirement_5239_scoped_review": {
+      "status": "unavailable",
+      "reasons": [
+        "Dependency requirement_5239_review is unavailable, stale or invalid"
+      ],
+      "availability_issues": [
+        "dependency_unavailable"
+      ]
+    },
+    "target_support_4731": {
+      "status": "available",
+      "reasons": [
+        "Field 'accepted' == True holds (observed True)"
+      ],
+      "availability_issues": [],
+      "tool": null,
+      "tool_version": null,
+      "tool_binding_digest": "e423847b3b83844c06d970ba2a64aab84a664539693eb77a963856ae94c3d07f",
+      "run_id": "eee502d6-cfe8-4458-9076-f619b2cff7dc"
+    }
+  },
+  "assumptions": {
+    "assumption_4131": {
+      "status": "supported",
+      "reasons": [
+        "Validation evidence 'requirement_5236' holds within the declared interval"
+      ],
+      "validation": "requirement_5236",
+      "time_status": "within_interval",
+      "valid_from": null,
+      "valid_until": null,
+      "objection_statuses": {}
+    }
+  },
+  "reasoning": {
+    "ground_reasoning_4731": {
+      "status": "supported",
+      "reasons": [
+        "Method structured/1 and backing are locally available; acceptance is assessed per application"
+      ],
+      "rationale": "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved.",
+      "backing": [],
+      "method": "structured/1",
+      "objection_statuses": {}
+    },
+    "ground_reasoning_4732": {
+      "status": "supported",
+      "reasons": [
+        "Method structured/1 and backing are locally available; acceptance is assessed per application"
+      ],
+      "rationale": "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved.",
+      "backing": [],
+      "method": "structured/1",
+      "objection_statuses": {}
+    },
+    "ground_reasoning_4733": {
+      "status": "supported",
+      "reasons": [
+        "Method structured/1 and backing are locally available; acceptance is assessed per application"
+      ],
+      "rationale": "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved.",
+      "backing": [],
+      "method": "structured/1",
+      "objection_statuses": {}
+    },
+    "warrant_5731": {
+      "status": "supported",
+      "reasons": [
+        "Method deductive/1 and backing are locally available; acceptance is assessed per application"
+      ],
+      "rationale": "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate.\nThe declared bounded method tests only the typed formal result. Prose correspondence and scientific applicability remain authored obligations.\nApplicability: The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.",
+      "backing": [],
+      "method": "deductive/1",
+      "objection_statuses": {
+        "objection_4431": "inactive"
+      }
+    },
+    "warrant_5732": {
+      "status": "unsupported",
+      "reasons": [
+        "Method structured/1: backing evidence 'requirement_523131' is unavailable"
+      ],
+      "rationale": "Accept the limited runtime target only when the metadata inference is adequate and actual runtime evidence passes every assertion in the assessed operator-defined smoke-test workload.\nOriginal inference: Practical; retained as authored structured/1, not a computational certificate.\nApplicability: The workload is defined before testing and its adequacy is assessed only for the limited smoke-test target in the same image.",
+      "backing": [
+        "requirement_523131"
+      ],
+      "method": "structured/1",
+      "objection_statuses": {}
+    },
+    "composition_reasoning_63757272656e745f636c61696d": {
+      "status": "supported",
+      "reasons": [
+        "Method structured/1 and backing are locally available; acceptance is assessed per application"
+      ],
+      "rationale": "Declared JointlyRequired relationship. The single route requires the complete audit ground under the selected image and directory scope. Its adequacy depends on faithful audit semantics and host execution identity, neither of which is established by this authored plan.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review.",
+      "backing": [],
+      "method": "structured/1",
+      "objection_statuses": {}
+    },
+    "composition_reasoning_7374726f6e6765725f746172676574": {
+      "status": "supported",
+      "reasons": [
+        "Method structured/1 and backing are locally available; acceptance is assessed per application"
+      ],
+      "rationale": "Declared JointlyRequired relationship. The broader target jointly requires metadata consistency and separate runtime evidence for an operator-defined smoke-test workload in the same image. Metadata evidence is shared rather than counted as independent runtime confirmation.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review.",
+      "backing": [],
+      "method": "structured/1",
+      "objection_statuses": {}
+    },
+    "assumption_condition_reasoning_4131": {
+      "status": "supported",
+      "reasons": [
+        "Method structured/1 and backing are locally available; acceptance is assessed per application"
+      ],
+      "rationale": "The explicit canonical validation and the native EAL assumption are jointly required. This bridge retains assumption attacks when an objection relies on the assumption; it does not establish truth independently.",
+      "backing": [],
+      "method": "structured/1",
+      "objection_statuses": {}
+    }
+  },
+  "objections": {
+    "objection_4431": {
+      "status": "inactive",
+      "reasons": [
+        "Objection evidence 'requirement_5239' is unavailable",
+        "Least-information acceptability label: rejected"
+      ],
+      "target_kind": "reasoning",
+      "target": "warrant_5731",
+      "environment": "engarg_case",
+      "evidence": [
+        "requirement_5239"
+      ],
+      "premises": [],
+      "source_usable": false,
+      "grounded_label": "rejected",
+      "attackers": [],
+      "premise_labels": {}
+    }
+  },
+  "arguments": {
+    "ground_argument_4731": {
+      "status": "supported",
+      "reasons": [
+        "Evidence 'target_support_4731' is available",
+        "Method structured/1: Authored support is available; prose sufficiency is not mechanically established",
+        "Least-information acceptability label: accepted"
+      ],
+      "conclusion": "ground_4731",
+      "dependencies": {
+        "evidence": [
+          "target_support_4731"
+        ],
+        "assumptions": [],
+        "premises": [],
+        "reasoning": "ground_reasoning_4731"
+      },
+      "reasoning_result": {
+        "status": "supported",
+        "reasons": [
+          "Method structured/1: Authored support is available; prose sufficiency is not mechanically established"
+        ],
+        "details": {
+          "authored": true,
+          "mechanically_proved": false
+        },
+        "method": "structured/1",
+        "predicates": [],
+        "premise_acceptance": "deferred_to_composed_solver"
+      },
+      "source_usable": true,
+      "locally_usable": true,
+      "origin": null,
+      "grounded_label": "accepted",
+      "attackers": [],
+      "premise_labels": {}
+    },
+    "ground_argument_4733": {
+      "status": "unsupported",
+      "reasons": [
+        "Evidence 'requirement_5237' is unavailable",
+        "Least-information acceptability label: rejected"
+      ],
+      "conclusion": "ground_4733",
+      "dependencies": {
+        "evidence": [
+          "requirement_5237"
+        ],
+        "assumptions": [],
+        "premises": [],
+        "reasoning": "ground_reasoning_4733"
+      },
+      "reasoning_result": {
+        "status": "not_run",
+        "method": "structured/1",
+        "reasons": [
+          "Required sources are unavailable or out of scope"
+        ],
+        "details": {}
+      },
+      "source_usable": false,
+      "locally_usable": false,
+      "origin": null,
+      "grounded_label": "rejected",
+      "attackers": [],
+      "premise_labels": {}
+    },
+    "route_argument_5731": {
+      "status": "unsupported",
+      "reasons": [
+        "Evidence 'requirement_523130' is unavailable",
+        "Evidence 'requirement_523132' is unavailable",
+        "Assumption 'assumption_4131' is locally supported",
+        "Premise claim 'ground_4731' has a source-usable derivation",
+        "Premise claim 'ground_4733' lacks a source-usable derivation",
+        "Least-information acceptability label: rejected"
+      ],
+      "conclusion": "route_5731",
+      "dependencies": {
+        "evidence": [
+          "requirement_523130",
+          "requirement_523132"
+        ],
+        "assumptions": [
+          "assumption_4131"
+        ],
+        "premises": [
+          "ground_4731",
+          "ground_4733"
+        ],
+        "reasoning": "warrant_5731"
+      },
+      "reasoning_result": {
+        "status": "not_run",
+        "method": "deductive/1",
+        "reasons": [
+          "Required sources are unavailable or out of scope"
+        ],
+        "details": {}
+      },
+      "source_usable": false,
+      "locally_usable": false,
+      "origin": null,
+      "grounded_label": "rejected",
+      "attackers": [
+        "objection:objection_4431"
+      ],
+      "premise_labels": {
+        "ground_4731": "accepted",
+        "ground_4733": "rejected"
+      }
+    },
+    "composition_argument_63757272656e745f636c61696d": {
+      "status": "unsupported",
+      "reasons": [
+        "Premise claim 'route_5731' lacks a source-usable derivation",
+        "Method structured/1: Authored support is available; prose sufficiency is not mechanically established",
+        "Least-information acceptability label: rejected"
+      ],
+      "conclusion": "claim_63757272656e745f636c61696d",
+      "dependencies": {
+        "evidence": [],
+        "assumptions": [],
+        "premises": [
+          "route_5731"
+        ],
+        "reasoning": "composition_reasoning_63757272656e745f636c61696d"
+      },
+      "reasoning_result": {
+        "status": "supported",
+        "reasons": [
+          "Method structured/1: Authored support is available; prose sufficiency is not mechanically established"
+        ],
+        "details": {
+          "authored": true,
+          "mechanically_proved": false
+        },
+        "method": "structured/1",
+        "predicates": [],
+        "premise_acceptance": "deferred_to_composed_solver"
+      },
+      "source_usable": false,
+      "locally_usable": true,
+      "origin": null,
+      "grounded_label": "rejected",
+      "attackers": [],
+      "premise_labels": {
+        "route_5731": "rejected"
+      }
+    },
+    "ground_argument_4732": {
+      "status": "unsupported",
+      "reasons": [
+        "Evidence 'requirement_5238' is unavailable",
+        "Least-information acceptability label: rejected"
+      ],
+      "conclusion": "ground_4732",
+      "dependencies": {
+        "evidence": [
+          "requirement_5238"
+        ],
+        "assumptions": [],
+        "premises": [],
+        "reasoning": "ground_reasoning_4732"
+      },
+      "reasoning_result": {
+        "status": "not_run",
+        "method": "structured/1",
+        "reasons": [
+          "Required sources are unavailable or out of scope"
+        ],
+        "details": {}
+      },
+      "source_usable": false,
+      "locally_usable": false,
+      "origin": null,
+      "grounded_label": "rejected",
+      "attackers": [],
+      "premise_labels": {}
+    },
+    "route_argument_5732": {
+      "status": "unsupported",
+      "reasons": [
+        "Evidence 'requirement_523131' is unavailable",
+        "Premise claim 'ground_4731' has a source-usable derivation",
+        "Premise claim 'ground_4732' lacks a source-usable derivation",
+        "Least-information acceptability label: rejected"
+      ],
+      "conclusion": "route_5732",
+      "dependencies": {
+        "evidence": [
+          "requirement_523131"
+        ],
+        "assumptions": [],
+        "premises": [
+          "ground_4731",
+          "ground_4732"
+        ],
+        "reasoning": "warrant_5732"
+      },
+      "reasoning_result": {
+        "status": "not_run",
+        "method": "structured/1",
+        "reasons": [
+          "Required sources are unavailable or out of scope"
+        ],
+        "details": {}
+      },
+      "source_usable": false,
+      "locally_usable": false,
+      "origin": null,
+      "grounded_label": "rejected",
+      "attackers": [],
+      "premise_labels": {
+        "ground_4731": "accepted",
+        "ground_4732": "rejected"
+      }
+    },
+    "composition_argument_7374726f6e6765725f746172676574": {
+      "status": "unsupported",
+      "reasons": [
+        "Premise claim 'route_5732' lacks a source-usable derivation",
+        "Method structured/1: Authored support is available; prose sufficiency is not mechanically established",
+        "Least-information acceptability label: rejected"
+      ],
+      "conclusion": "claim_7374726f6e6765725f746172676574",
+      "dependencies": {
+        "evidence": [],
+        "assumptions": [],
+        "premises": [
+          "route_5732"
+        ],
+        "reasoning": "composition_reasoning_7374726f6e6765725f746172676574"
+      },
+      "reasoning_result": {
+        "status": "supported",
+        "reasons": [
+          "Method structured/1: Authored support is available; prose sufficiency is not mechanically established"
+        ],
+        "details": {
+          "authored": true,
+          "mechanically_proved": false
+        },
+        "method": "structured/1",
+        "predicates": [],
+        "premise_acceptance": "deferred_to_composed_solver"
+      },
+      "source_usable": false,
+      "locally_usable": true,
+      "origin": null,
+      "grounded_label": "rejected",
+      "attackers": [],
+      "premise_labels": {
+        "route_5732": "rejected"
+      }
+    },
+    "assumption_condition_argument_4131": {
+      "status": "supported",
+      "reasons": [
+        "Evidence 'requirement_5236' is available",
+        "Assumption 'assumption_4131' is locally supported",
+        "Method structured/1: Authored support is available; prose sufficiency is not mechanically established",
+        "Least-information acceptability label: accepted"
+      ],
+      "conclusion": "assumption_condition_4131",
+      "dependencies": {
+        "evidence": [
+          "requirement_5236"
+        ],
+        "assumptions": [
+          "assumption_4131"
+        ],
+        "premises": [],
+        "reasoning": "assumption_condition_reasoning_4131"
+      },
+      "reasoning_result": {
+        "status": "supported",
+        "reasons": [
+          "Method structured/1: Authored support is available; prose sufficiency is not mechanically established"
+        ],
+        "details": {
+          "authored": true,
+          "mechanically_proved": false
+        },
+        "method": "structured/1",
+        "predicates": [],
+        "premise_acceptance": "deferred_to_composed_solver"
+      },
+      "source_usable": true,
+      "locally_usable": true,
+      "origin": null,
+      "grounded_label": "accepted",
+      "attackers": [],
+      "premise_labels": {}
+    }
+  },
+  "claims": {
+    "claim_63757272656e745f636c61696d": {
+      "status": "unsupported",
+      "reasons": [
+        "No source-usable derivation supplies support; this does not establish falsity",
+        "Least-information acceptability label: rejected; rejection does not establish claim falsity"
+      ],
+      "grounded_label": "rejected",
+      "statement": "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras.\nQualifier: Conditional on the unchanged complete audit predicate, exact native host correspondence, actual scoped implementation and method assessments, and separate D1 resolution, all within the original one-hour observation limit.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}",
+      "environment": "engarg_case",
+      "supporting_arguments": [],
+      "contested_arguments": [],
+      "objections": [],
+      "undecided_objections": [],
+      "objection_statuses": {},
+      "source_usable": false,
+      "proposition": null,
+      "prose_verified": false
+    },
+    "claim_7374726f6e6765725f746172676574": {
+      "status": "unsupported",
+      "reasons": [
+        "No source-usable derivation supplies support; this does not establish falsity",
+        "Least-information acceptability label: rejected; rejection does not establish claim falsity"
+      ],
+      "grounded_label": "rejected",
+      "statement": "The selected image satisfies the metadata predicate and both roots import and pass every API assertion in an operator-defined runtime smoke-test workload.\nQualifier: Conditional on the metadata predicate and separately defined, collected and assessed runtime smoke-test evidence.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}",
+      "environment": "engarg_case",
+      "supporting_arguments": [],
+      "contested_arguments": [],
+      "objections": [],
+      "undecided_objections": [],
+      "objection_statuses": {},
+      "source_usable": false,
+      "proposition": null,
+      "prose_verified": false
+    },
+    "ground_4731": {
+      "status": "supported",
+      "reasons": [
+        "Accepted derivations: ground_argument_4731",
+        "Least-information acceptability label: accepted; rejection does not establish claim falsity"
+      ],
+      "grounded_label": "accepted",
+      "statement": "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}",
+      "environment": "engarg_case",
+      "supporting_arguments": [
+        "ground_argument_4731"
+      ],
+      "contested_arguments": [],
+      "objections": [],
+      "undecided_objections": [],
+      "objection_statuses": {},
+      "source_usable": true,
+      "proposition": null,
+      "prose_verified": false
+    },
+    "ground_4732": {
+      "status": "unsupported",
+      "reasons": [
+        "No source-usable derivation supplies support; this does not establish falsity",
+        "Least-information acceptability label: rejected; rejection does not establish claim falsity"
+      ],
+      "grounded_label": "rejected",
+      "statement": "Both root packages import and pass every assertion in an operator-defined API smoke-test workload in the selected image.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}",
+      "environment": "engarg_case",
+      "supporting_arguments": [],
+      "contested_arguments": [],
+      "objections": [],
+      "undecided_objections": [],
+      "objection_statuses": {},
+      "source_usable": false,
+      "proposition": null,
+      "prose_verified": false
+    },
+    "ground_4733": {
+      "status": "unsupported",
+      "reasons": [
+        "No source-usable derivation supplies support; this does not establish falsity",
+        "Least-information acceptability label: rejected; rejection does not establish claim falsity"
+      ],
+      "grounded_label": "rejected",
+      "statement": "For the exact pinned implementation, frozen contract, runtime assumptions and selected-directory scope, acceptance of the complete audit predicate in G1 implies the claimed installed-metadata predicate.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}",
+      "environment": "engarg_case",
+      "supporting_arguments": [],
+      "contested_arguments": [],
+      "objections": [],
+      "undecided_objections": [],
+      "objection_statuses": {},
+      "source_usable": false,
+      "proposition": null,
+      "prose_verified": false
+    },
+    "route_5731": {
+      "status": "unsupported",
+      "reasons": [
+        "No source-usable derivation supplies support; this does not establish falsity",
+        "Least-information acceptability label: rejected; rejection does not establish claim falsity"
+      ],
+      "grounded_label": "rejected",
+      "statement": "Candidate support for: The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras.\nQualifier: Conditional on the unchanged complete audit predicate, exact native host correspondence, actual scoped implementation and method assessments, and separate D1 resolution, all within the original one-hour observation limit.\nRule: A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate.\nOriginal inference: Deductive.\nApplicability: The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}",
+      "environment": "engarg_case",
+      "supporting_arguments": [],
+      "contested_arguments": [],
+      "objections": [],
+      "undecided_objections": [],
+      "objection_statuses": {},
+      "source_usable": false,
+      "proposition": {
+        "subject": "Installed metadata in the selected immutable Python image and directory for the exact roots",
+        "quantity": "proposition",
+        "unit": "1",
+        "scope": "engarg.scope:3aee4af6c0672758544c2fb9121b1e7a8543ff1fa6aa494d1bb56963618a961f",
+        "valid_from": "2026-10-28T12:05:45.234085Z",
+        "valid_until": "2026-10-28T13:05:45.234085Z",
+        "result": {
+          "path": "entailed",
+          "operator": "==",
+          "expected": true,
+          "expression": null
+        },
+        "query": {
+          "conclusion": "metadata_predicate",
+          "premises": [
+            "audit_accepted",
+            {
+              "implies": [
+                "audit_accepted",
+                "metadata_predicate"
+              ]
+            }
+          ]
+        }
+      },
+      "prose_verified": false
+    },
+    "route_5732": {
+      "status": "unsupported",
+      "reasons": [
+        "No source-usable derivation supplies support; this does not establish falsity",
+        "Least-information acceptability label: rejected; rejection does not establish claim falsity"
+      ],
+      "grounded_label": "rejected",
+      "statement": "Candidate support for: The selected image satisfies the metadata predicate and both roots import and pass every API assertion in an operator-defined runtime smoke-test workload.\nQualifier: Conditional on the metadata predicate and separately defined, collected and assessed runtime smoke-test evidence.\nRule: Accept the limited runtime target only when the metadata inference is adequate and actual runtime evidence passes every assertion in the assessed operator-defined smoke-test workload.\nOriginal inference: Practical.\nApplicability: The workload is defined before testing and its adequacy is assessed only for the limited smoke-test target in the same image.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}",
+      "environment": "engarg_case",
+      "supporting_arguments": [],
+      "contested_arguments": [],
+      "objections": [],
+      "undecided_objections": [],
+      "objection_statuses": {},
+      "source_usable": false,
+      "proposition": null,
+      "prose_verified": false
+    },
+    "assumption_condition_4131": {
+      "status": "supported",
+      "reasons": [
+        "Accepted derivations: assumption_condition_argument_4131",
+        "Least-information acceptability label: accepted; rejection does not establish claim falsity"
+      ],
+      "grounded_label": "accepted",
+      "statement": "A usable native EAL validation supports this assumption: The host binds the audit to the selected image running Python 3.13 with packaging 26.3 and confines metadata reads to the selected directory.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}\nOther authored conditions remain attached to the original applications.",
+      "environment": "engarg_case",
+      "supporting_arguments": [
+        "assumption_condition_argument_4131"
+      ],
+      "contested_arguments": [],
+      "objections": [],
+      "undecided_objections": [],
+      "objection_statuses": {},
+      "source_usable": true,
+      "proposition": null,
+      "prose_verified": false
+    }
+  },
+  "dialectic": {
+    "semantics": "grounded_with_support",
+    "nodes": {
+      "argument:assumption_condition_argument_4131": "accepted",
+      "argument:composition_argument_63757272656e745f636c61696d": "rejected",
+      "argument:composition_argument_7374726f6e6765725f746172676574": "rejected",
+      "argument:ground_argument_4731": "accepted",
+      "argument:ground_argument_4732": "rejected",
+      "argument:ground_argument_4733": "rejected",
+      "argument:route_argument_5731": "rejected",
+      "argument:route_argument_5732": "rejected",
+      "objection:objection_4431": "rejected"
+    },
+    "claims": {
+      "assumption_condition_4131": "accepted",
+      "claim_63757272656e745f636c61696d": "rejected",
+      "claim_7374726f6e6765725f746172676574": "rejected",
+      "ground_4731": "accepted",
+      "ground_4732": "rejected",
+      "ground_4733": "rejected",
+      "route_5731": "rejected",
+      "route_5732": "rejected"
+    },
+    "trace": [
+      {
+        "round": 1,
+        "nodes": [
+          {
+            "id": "argument:assumption_condition_argument_4131",
+            "status": "accepted",
+            "reasons": [
+              {
+                "kind": "local",
+                "usable": true
+              }
+            ]
+          },
+          {
+            "id": "argument:ground_argument_4731",
+            "status": "accepted",
+            "reasons": [
+              {
+                "kind": "local",
+                "usable": true
+              }
+            ]
+          },
+          {
+            "id": "argument:ground_argument_4732",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "local",
+                "usable": false
+              }
+            ]
+          },
+          {
+            "id": "argument:ground_argument_4733",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "local",
+                "usable": false
+              }
+            ]
+          },
+          {
+            "id": "argument:route_argument_5731",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "local",
+                "usable": false
+              }
+            ]
+          },
+          {
+            "id": "argument:route_argument_5732",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "local",
+                "usable": false
+              }
+            ]
+          },
+          {
+            "id": "objection:objection_4431",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "local",
+                "usable": false
+              }
+            ]
+          }
+        ],
+        "claims": []
+      },
+      {
+        "round": 2,
+        "nodes": [],
+        "claims": [
+          {
+            "id": "assumption_condition_4131",
+            "status": "accepted",
+            "reasons": [
+              {
+                "kind": "derivation",
+                "id": "argument:assumption_condition_argument_4131",
+                "status": "accepted"
+              }
+            ]
+          },
+          {
+            "id": "ground_4731",
+            "status": "accepted",
+            "reasons": [
+              {
+                "kind": "derivation",
+                "id": "argument:ground_argument_4731",
+                "status": "accepted"
+              }
+            ]
+          },
+          {
+            "id": "ground_4732",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "derivation",
+                "id": "argument:ground_argument_4732",
+                "status": "rejected"
+              }
+            ]
+          },
+          {
+            "id": "ground_4733",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "derivation",
+                "id": "argument:ground_argument_4733",
+                "status": "rejected"
+              }
+            ]
+          },
+          {
+            "id": "route_5731",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "derivation",
+                "id": "argument:route_argument_5731",
+                "status": "rejected"
+              }
+            ]
+          },
+          {
+            "id": "route_5732",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "derivation",
+                "id": "argument:route_argument_5732",
+                "status": "rejected"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "round": 3,
+        "nodes": [
+          {
+            "id": "argument:composition_argument_63757272656e745f636c61696d",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "premise",
+                "id": "route_5731",
+                "status": "rejected"
+              }
+            ]
+          },
+          {
+            "id": "argument:composition_argument_7374726f6e6765725f746172676574",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "premise",
+                "id": "route_5732",
+                "status": "rejected"
+              }
+            ]
+          }
+        ],
+        "claims": []
+      },
+      {
+        "round": 4,
+        "nodes": [],
+        "claims": [
+          {
+            "id": "claim_63757272656e745f636c61696d",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "derivation",
+                "id": "argument:composition_argument_63757272656e745f636c61696d",
+                "status": "rejected"
+              }
+            ]
+          },
+          {
+            "id": "claim_7374726f6e6765725f746172676574",
+            "status": "rejected",
+            "reasons": [
+              {
+                "kind": "derivation",
+                "id": "argument:composition_argument_7374726f6e6765725f746172676574",
+                "status": "rejected"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "attacks": [
+      [
+        "objection:objection_4431",
+        "argument:route_argument_5731"
+      ]
+    ],
+    "construction": "EAL/4 scoped applications with conjunctive claim support"
+  },
+  "collection_id": "6b3345e6-158d-4c4c-a0db-bcdc6f8470a8",
+  "assessment_id": "74840749-9be7-4277-846f-80e8534e4896"
+}

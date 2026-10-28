@@ -445,6 +445,20 @@ A request with missing scope or an unavailable measurement needs its stated
 observation or an explicit support-contract revision. An affirmative review alone
 cannot resolve that gap.
 
+The [completed Python qualification example](../examples/assess-claim/python-dependencies/qualified/README.md)
+shows that handoff: explicit prior-digest revisions, actual native artifact checks,
+scoped implementation and challenge assessments, and a bound native deduction.
+It records a supported metadata claim and adverse controls without changing its
+original empirical predicates. AI review identity and independence limits remain
+explicit. A source can still be unsupported after successful tool generation.
+
+When an observation fails, inspect its retained primary execution error before
+the secondary digest, status and JSON-value diagnostics. For example, a missing
+`engarg_review_contract` binding produces no usable review observation. Adding
+that binding alone cannot discharge requirements still authored as `unavailable`
+or a warrant with an unresolved reasoning method; revise those contracts
+explicitly, then obtain the exact evidence and scoped assessments.
+
 Once the records are complete, add the importer binding to the selected manifest
 and build a new package. Copy the manifest beside the original first, preserving
 relative paths and the original tool-generation receipt:

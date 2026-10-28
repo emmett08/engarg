@@ -1,0 +1,104 @@
+{
+  "schema": "engarg.ai-implementation-assessment-analysis/1",
+  "status": "strict_v3_qualified_analysis_pending_formal_scope",
+  "formal_verdict": null,
+  "reviewed_at": "2026-10-28T12:13:04.662559Z",
+  "reviewer": {
+    "identity": "Codex AI review agent /root/real_claim_audit",
+    "model": "GPT-6 family; exact deployment variant not independently exposed",
+    "review_type": "AI source/artifact assessment, separate from native generation, not human or organisational approval",
+    "independence_limits": "Shares orchestration/context with parent task; no collector authored or edited by reviewer."
+  },
+  "artifact_sha256": {
+    "source/collector.py": "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46",
+    "contract.json": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+    "candidate.json": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+    "profile.json": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+    "test-results.json": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+    "manifest.json": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678"
+  },
+  "native_identity": {
+    "contract_canonical_sha256": "ae14c19be3d6afb14d192449ad87dc7706496a09a627cb56d8405411f80e36f6",
+    "candidate_canonical_sha256": "2ba199cc1849a53720a37319b142bec47aebd0faf143e2b0c49c99f592af6c1b",
+    "source_bundle_canonical_sha256": "2449d17ef362807d622e3b6550fe5360c7354d85594a2d9bbe5127a9a59216e4",
+    "fixtures_canonical_sha256": "7ddfa5e3a4c1affc543c9a5e944dc65922ab1244c03986405081954b3d5bd4da",
+    "receipt_canonical_sha256": "9e5080beb4d11eb2fadcec952af8b71b1a0bddc805ec20cabcc075564ca5e623",
+    "runner": {
+      "profile_sha256": "61b8ce4f103ffa8ef54fa60392a0d9099e875fbbb7381c887356e0be40f8c3d2",
+      "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+      "docker_sha256": "27f239f97492c434e091a70b41b8796c698f0aa2b6052c6f9c28da4ee7ae888b",
+      "runner_sha256": "69a58c9b33f911f62accd13003c332286199fca9dd486a9bcabdf4539c707a91",
+      "supervisor_sha256": "2d4a3ebe2bbb354a46c38973eccbd9f969c9421f4599ce6bc36c45eef9862f30"
+    }
+  },
+  "qualification": {
+    "function_cases": 8,
+    "mandatory_protocol_cases": 3,
+    "all11_passed": true,
+    "wrong_frozen_expectation_identified": false,
+    "strict_boundary_case_present_and_passed": true,
+    "native_constructor_oracle_not_edited": true
+  },
+  "strict_source_fix": {
+    "source_lines": "143-161",
+    "assessment": "METADATA is tested withlstat. OnlyFileNotFoundError selectsPKG-INFO; PermissionError, directory/wrong type, broken symlink, decoding and other read failures propagate. Resolved paths must remain within the resolved selected directory. The source has noDistribution.read_text() calls. The earlier suppressed-error fallback concern is resolved in these new bytes, and the frozen directory-METADATA plus benignPKG-INFO case confirms the error branch.",
+    "remaining_scope": "The implementation accepts normal PathDistribution metadata directories; legacy standalone egg-info files and third-party non-Path/zip distributions are rejected as unsupported acquisition sources, rather than silently yielding a positive audit."
+  },
+  "algorithm_argument": [
+    {
+      "step": "Inventory",
+      "source_lines": "183-215",
+      "reason": "Resolve and exhaust the selected directory, then iterate explicit-pathimportlib.metadata.distributions. Validate every enumerated distribution with strict file I/O, canonical identity, Version parsing and everyRequires-Dist Requirement, including unreachable ones, before graph traversal. Duplicate canonical names and directURLs fail. Inventory output includes all enumerated validated records."
+    },
+    {
+      "step": "Least fixed point",
+      "source_lines": "217-250",
+      "reason": "Every root seeds base plus normalized requested extras. A scheduledstate is inserted at most once. Each popped state evaluates every indexed requirement in that context; first activation enables the fixed target/base/extra set. Induction from roots over activation steps gives coverage of every state and occurrence in the specified least closure. Late extras generate new states, cycles terminate, and active occurrence caching does not lose new extras because each immutable occurrence has fixed extras."
+    },
+    {
+      "step": "Conflicts and missing targets",
+      "source_lines": "223-250,256-301",
+      "reason": "Activation and target seeding precede version checking, so conflicts never prune reachable metadata. A missing target has no outgoing installed metadata and is still a final measured violation. Repeated identical fields retain distinct(name,index)occurrence identities."
+    },
+    {
+      "step": "Termination and budget",
+      "source_lines": "117-132,202-215,223-250,256-301",
+      "reason": "Finite parsed inventory/roots yield finitely many target identities and declared extra names. Each state is popped once; the guard raises before the20001st defined processing unit, and a513th distribution fails. Errors exit without a successful logical value. This establishes finite bounded graph work under the authored processing-unit definition, plus runtime/memory/output limits."
+    },
+    {
+      "step": "Final check correspondence",
+      "source_lines": "256-325",
+      "reason": "After the queue empties, every root and active reachable indexed requirement is checked once using Packaging26.3 contains(Version,prereleases=None). Missing/incompatible targets append violations; inactive markers remain in skipped_requirements; complete=true and satisfied=true occur only after full enumeration, closure and final checks with zero violations."
+    }
+  ],
+  "oracle_checks": {
+    "prerelease": "Explicitrootmarker does not suppress root and>=1 admits2.0rc1 under the pinned default API; positive expectedtrue is correct.",
+    "conflict": "Demo>=2 rejectsDemo1.9.",
+    "extras": "A[Feature_X] enablesA/feature-x->B[y]->A[z]->two indexedC>=1 occurrences. Root+four dependencies=5. Absent/never stays skipped.",
+    "empty": "Two root occurrences retain input order, null observed versions,2 checks and2 missing violations.",
+    "strict_error": "METADATA/child plus benignPKG-INFO is an acquisition error.",
+    "whole_inventory": "MissingName and unreachable directURL are errors before closure.",
+    "budget": {
+      "occurrences": 110,
+      "extra_contexts_including_base": 201,
+      "potential_marker_evaluations": 22110,
+      "expectation": "acquisition error from total>20000"
+    }
+  },
+  "R9_analysis": {
+    "retained_omission_witness": null,
+    "concrete_false_positive_found_in_strict_v3": false,
+    "positive_activation_established": false,
+    "qualification": "Source review and finite tests do not prove there is no possible counterexample. No positive activation is supplied by this analysis."
+  },
+  "confidence": "High conditional confidence in strict inventory reads and least-fixed-point/final-check coverage for the specified immutable directory and trusted CPython3.13/Packaging26.3 operation. Formal verdict awaits the exact case/revision/request scope.",
+  "limits": [
+    "No actual strict-v3 real-image execution was supplied to this reviewer at analysis time; native cases are synthetic qualification inputs, not engineering observations.",
+    "Trusted CPython3.13 discovery/PathDistribution and Packaging26.3 semantics remain dependencies; this is a code-correspondence argument, not a mechanical proof of those libraries or arbitrary filesystems.",
+    "A stable immutable readable source and independent host-pinned binding are separateR6conditions; read-only resolved-path checks do not themselves attest imageidentity.",
+    "Finite cases do not exhaust every malformed metadata representation, marker/specifier, distribution bound, alternate layout or runtime failure.",
+    "Native normalized result schema uses requiredcollected=true as the adapter convention; assessment is scoped to inventory and dependency processing rather than unqualified prose/protocol equivalence.",
+    "No human approval, organisational independence, binary/API behavior or causal/scientific validity is inferred.",
+    "Reviewer executed no collector, Docker or build, and edited none of the native source, fixtures, schemas or receipts."
+  ]
+}

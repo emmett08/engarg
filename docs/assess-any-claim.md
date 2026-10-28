@@ -52,6 +52,12 @@ generated package, frozen verification cases and actual positive/negative EAL
 collections. It distinguishes successful empirical checks from unresolved
 argument qualification.
 
+Its [completed qualification revision](../examples/assess-claim/python-dependencies/qualified/README.md)
+connects actual native provenance and verification artifacts, exact scoped AI
+assessments and a bound native query. The current metadata claim is supported;
+missing-binding and wrong-scope controls remain unsupported under the same source
+and criteria. The records preserve their original one-hour freshness limits.
+
 For a short text input, replace `--input` with `--claim "..." --context "..."`.
 Select an installed EngArg binary with `--engarg PATH` or `ENGARG_BIN`.
 `--eal-host PATH` defaults to `EAL_HOST`, then `eal-host` on `PATH`; its companion
