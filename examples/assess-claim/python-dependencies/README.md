@@ -5,12 +5,17 @@ causal-learn 0.1.4.8, and their reachable applicable runtime requirements, is
 consistent in the selected immutable image. It concerns real installed metadata.
 Binary/API correctness and scientific adequacy require their own evidence.
 
+The [completed qualification investigation](qualified/README.md) now records a
+supported current metadata claim, explicit source/support revisions, actual
+scoped AI assessments and adverse controls. The earlier `recorded/` investigation
+below remains unchanged as the historical unsupported result.
+
 The request specifies a missing acquisition operation; it contains no collector
 implementation or accepted observations. The generic runner asks EngArg to author
 the argument, generate and verify that operation, export concrete bindings, build
 EAL and execute it. The generated collector uses `importlib.metadata` and
-`packaging` in the prepared image. No review instrument supplies affirmative
-judgements.
+`packaging` in the prepared image. The initial request supplies no affirmative
+reviews. The qualification continuation imports separate actual assessments.
 
 From the repository root, build the trusted image as described in
 [Library selection](../../../docs/library-selection.md#prepare-the-dependencies).

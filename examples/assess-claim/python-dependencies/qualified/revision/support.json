@@ -1,0 +1,2521 @@
+{
+  "acquisition_revisions": [
+    {
+      "disposition": "repaired",
+      "previous_step_id": "dependency_audit",
+      "previous_step_sha256": "12aee48204b21b7465d7933a0ed5a354a18cc80ac25a4ed0a0436aa40c83bd14",
+      "reason": "Retain the admitted immediate-parent operation specification, including the authored packaging26.3 API clarification, and add scalar JSON root selectors for native formal-scope correspondence. Original array selectors, identity dimensions and logical inputs stay exact. This source-design anchor names the typed retained transcript proposal; the immediate-parent source identity is retained separately in preparation provenance.",
+      "replacement_ids": [
+        "dependency_audit"
+      ]
+    }
+  ],
+  "acquisitions": [
+    {
+      "arguments": {
+        "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+        "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+        "roots": [
+          "dowhy==0.14",
+          "causal-learn==0.1.4.8"
+        ]
+      },
+      "bindings": [],
+      "contract": {
+        "acceptable_methods": [
+          "dependency_audit/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "complete_enumeration",
+        "population": "Every distribution in the selected metadata directory and every applicable requirement occurrence reachable from the two roots after package-extra fixed-point closure.",
+        "provenance": {
+          "required_authorities": [
+            "host-pinned selected-image execution provenance"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "satisfied",
+            "unit": "boolean"
+          },
+          {
+            "name": "inventory_complete",
+            "unit": "boolean"
+          },
+          {
+            "name": "violations_count",
+            "unit": "1"
+          },
+          {
+            "name": "checked_distributions",
+            "unit": "1"
+          },
+          {
+            "name": "checked_requirements",
+            "unit": "1"
+          },
+          {
+            "name": "details",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "python": "3.13",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+          },
+          "subject": "selected immutable Python evidence image"
+        },
+        "support_type": "observation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "for_each": null,
+      "id": "dependency_audit",
+      "operation_spec": {
+        "definition": "dependency_audit/1 is a reusable read-only finite installed-metadata audit. Validate the input object and the existence and readability of metadata_directory as a directory inside the bound container. Use Python importlib.metadata.distributions(path=[metadata_directory]) to exhaustively enumerate that directory, without consulting default search paths, package imports or network sources. Read each distribution's Name, Version and all Requires-Dist fields. Require exactly one nonempty valid Name and Version per distribution, canonicalise names with packaging.utils.canonicalize_name, validate names as distribution identifiers, and parse every version with packaging.version.Version and every root and Requires-Dist string with packaging.requirements.Requirement. Use packaging 26.3 for parsing, marker evaluation, specifier membership and name handling. Reject direct-URL requirements anywhere, including unreachable inventory entries. Reject unreadable or malformed metadata, ambiguous duplicate canonical names, missing fields, invalid versions or requirements and directory errors as acquisition errors. Do not turn these errors into logical audit values. More than 512 distributions or more than 20000 processing units is an acquisition error. A processing unit is a parsed root or inventory requirement occurrence, a marker evaluation for an occurrence and extra context, or a final root or active dependency constraint check. Maintain one total counter for these units and stop with an acquisition error before exceeding 20000. Enumerate and validate the entire inventory before dependency traversal. Explicit roots always impose their installed-version constraints and seed their requested extras. A root marker does not suppress an explicitly selected root constraint. Construct a finite monotone closure of canonical package identities and enabled extra names. Seed reachable identities and enabled extras from every root. For each reachable installed package evaluate each metadata requirement's marker against packaging.markers.default_environment with extra set first to the base empty string and then to each currently enabled extra. An absent marker is active. A requirement is active if any such evaluation is true. Active requirements add their target identities and requested extras to the closure even when the target version conflicts. Missing targets produce violations and have no outgoing installed metadata to traverse. Repeat until no reachable identity or enabled extra set changes, processing only new package-extra states and caching marker evaluations. Use packaging extra normalisation consistently with its marker semantics. Cycles terminate through visited package-extra states and the bounds. After closure stabilises, check each root occurrence and each active reachable metadata requirement occurrence exactly once against the observed target version using packaging specifier membership, including packaging's default prerelease behaviour. A missing target or failed specifier is a measured violation, never an acquisition error. A dependency occurrence is identified by the requiring canonical name and original Requires-Dist field index. Repeated identical fields remain distinct occurrences. checked_requirements is the number of root occurrences plus active reachable dependency occurrences finally checked, rather than marker evaluations or queue visits. checked_distributions is the total fully enumerated inventory size. Preserve every finally inactive reachable marker requirement in skipped_requirements. Set inventory_complete=true only after the full directory enumeration, validation and bounded closure processing finish successfully. Set violations_count to the exact length of violations and satisfied to inventory_complete AND violations_count==0. An empty successfully enumerated directory produces a complete measured negative when roots are missing. Preserve root input order in roots and root_versions. In inventory sort by canonical_name and retain original Name and Version strings and original Requires-Dist field order. Sort violations by requiring_package, requirement_index, constraint and target. Sort skipped_requirements by requiring_package and requirement_index. The original constraint strings must remain unchanged. Use null for an absent observed version. For root records use requiring_package='<root>' and requirement_index equal to the root input index. The logical result contains no digest, clock, environment dump or transport-reserved collected property. Preserve the complete request identity, opaque context and original JSON precision in the external protocol envelope without adding them to the logical value. A fresh collection records its actual query observation time in envelope observed_at using ASCII UTC YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Retained records preserve their original observation time. image_id is copied only as request scope and never used as self-attestation. The host separately pins the execution image and retains runtime provenance. This operation is unbound pending native generation, qualification and host binding. Normative packaging26.3 rule: use SpecifierSet.contains(Version(installed), prereleases=None) unchanged. Since26.0, >=1 accepts 2.0rc1 (TRUE); >=2 rejects1.9. Never coerce None toFalse or impose historical prerelease exclusion/pip candidate-selection policy. These source- and API-confirmed examples govern frozen expectations. Read METADATA strictly; use PKG-INFO only if METADATA is absent. PermissionError, IsADirectoryError or malformed present METADATA must fail acquisition, never trigger fallback. Distribution.read_text suppresses these failures and must not be used. A directory METADATA with a child file and valid PKG-INFO is an error.",
+        "input_conditions": [
+          "The host authorises a read-only execution inside the selected container and independently pins its image identity.",
+          "The bound runtime provides Python 3.13 and packaging 26.3 for this claim, while the reusable algorithm evaluates the actual packaging default marker environment of its bound runtime.",
+          "The only metadata source is the explicit metadata_directory and no package code is imported for audit purposes.",
+          "No network, package installation, credentials, host filesystem access or shell execution is permitted.",
+          "Future verification may select explicitly synthetic fixture directories, but actual collection uses the supplied installed directory without fixture detection or hardcoded outcomes.",
+          "Before coding, native generation must freeze independently specified positive, missing-or-conflicting measured-negative, conditional-extra and acquisition-error cases, including cycles, repeated extra propagation, empty inventories, malformed metadata and exhausted bounds.",
+          "The transport preserves opaque envelope fields and JSON numeric precision independently of the three logical input arguments."
+        ],
+        "input_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "image_id": {
+              "description": "Operator scope label only, not process attestation.",
+              "type": "string",
+              "x-engarg-unit": "1"
+            },
+            "metadata_directory": {
+              "description": "Explicit readable metadata directory inside the bound container.",
+              "type": "string",
+              "x-engarg-unit": "1"
+            },
+            "roots": {
+              "description": "Explicit PEP508 root constraints including any requested root extras.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 32,
+              "minItems": 1,
+              "type": "array",
+              "x-engarg-unit": "1"
+            }
+          },
+          "required": [
+            "image_id",
+            "metadata_directory",
+            "roots"
+          ],
+          "type": "object"
+        },
+        "output_guarantees": [
+          "A successful logical value reports observed metadata rather than a proposed outcome.",
+          "Source and bound-exhaustion errors use the acquisition error channel and never emit a successful logical value.",
+          "inventory_complete certifies completed enumeration and closure according to the implemented protocol, whose faithfulness remains subject to qualification.",
+          "satisfied is true exactly when coverage is complete and there are no measured violations.",
+          "Details retain all canonical inventory records and original requirement strings with deterministic ordering.",
+          "Original observation time and host provenance remain in the external envelope rather than the logical output.",
+          "The operation does not attest its process image or establish runtime imports, API behaviour or scientific validity."
+        ],
+        "output_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "checked_distributions": {
+              "minimum": 0,
+              "type": "integer",
+              "x-engarg-unit": "1"
+            },
+            "checked_requirements": {
+              "minimum": 0,
+              "type": "integer",
+              "x-engarg-unit": "1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "inventory": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "Name": {
+                        "type": "string"
+                      },
+                      "Requires-Dist": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 20000,
+                        "type": "array"
+                      },
+                      "Version": {
+                        "type": "string"
+                      },
+                      "canonical_name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "canonical_name",
+                      "Name",
+                      "Version",
+                      "Requires-Dist"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 512,
+                  "type": "array"
+                },
+                "root_versions": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "canonical_name": {
+                        "type": "string"
+                      },
+                      "observed_version": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "requirement": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "requirement",
+                      "canonical_name",
+                      "observed_version"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 32,
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "roots": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 32,
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "skipped_requirements": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "requirement": {
+                        "type": "string"
+                      },
+                      "requirement_index": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "requiring_package": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "requiring_package",
+                      "requirement_index",
+                      "requirement"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 20000,
+                  "type": "array"
+                },
+                "violations": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "constraint": {
+                        "type": "string"
+                      },
+                      "observed_version": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "reason": {
+                        "enum": [
+                          "missing",
+                          "incompatible_version"
+                        ],
+                        "type": "string"
+                      },
+                      "requirement_index": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "requiring_package": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "requiring_package",
+                      "requirement_index",
+                      "constraint",
+                      "target",
+                      "observed_version",
+                      "reason"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 20000,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "roots",
+                "root_versions",
+                "violations",
+                "skipped_requirements",
+                "inventory"
+              ],
+              "type": "object",
+              "x-engarg-unit": "1"
+            },
+            "inventory_complete": {
+              "type": "boolean",
+              "x-engarg-unit": "boolean"
+            },
+            "satisfied": {
+              "type": "boolean",
+              "x-engarg-unit": "boolean"
+            },
+            "violations_count": {
+              "minimum": 0,
+              "type": "integer",
+              "x-engarg-unit": "1"
+            }
+          },
+          "required": [
+            "satisfied",
+            "inventory_complete",
+            "violations_count",
+            "checked_distributions",
+            "checked_requirements",
+            "details"
+          ],
+          "type": "object"
+        },
+        "schema": "engarg.operation-specification/1"
+      }
+    },
+    {
+      "arguments": {
+        "artifact_subject": "4b80eac7bfa1fc0f333a54a0d50af08b5c55304d8abf6364823df4106d2e5714"
+      },
+      "bindings": [],
+      "contract": {
+        "acceptable_methods": [
+          "native_artifact_projection/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "existential_witness",
+        "population": null,
+        "provenance": {
+          "required_authorities": [
+            "operator-pinned native EngArg/EAL artifacts under the trusted host boundary"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "packet",
+            "unit": "1"
+          },
+          {
+            "name": "actual_profile",
+            "unit": "1"
+          },
+          {
+            "name": "expected_profile",
+            "unit": "1"
+          },
+          {
+            "name": "actual_receipt_schema",
+            "unit": "1"
+          },
+          {
+            "name": "expected_receipt_schema",
+            "unit": "1"
+          },
+          {
+            "name": "actual_receipt_language",
+            "unit": "1"
+          },
+          {
+            "name": "expected_receipt_language",
+            "unit": "1"
+          },
+          {
+            "name": "actual_receipt_contract",
+            "unit": "1"
+          },
+          {
+            "name": "expected_receipt_contract",
+            "unit": "1"
+          },
+          {
+            "name": "actual_receipt_candidate",
+            "unit": "1"
+          },
+          {
+            "name": "expected_receipt_candidate",
+            "unit": "1"
+          },
+          {
+            "name": "actual_receipt_source",
+            "unit": "1"
+          },
+          {
+            "name": "expected_receipt_source",
+            "unit": "1"
+          },
+          {
+            "name": "actual_receipt_fixtures",
+            "unit": "1"
+          },
+          {
+            "name": "expected_receipt_fixtures",
+            "unit": "1"
+          },
+          {
+            "name": "actual_receipt_profile",
+            "unit": "1"
+          },
+          {
+            "name": "expected_receipt_profile",
+            "unit": "1"
+          },
+          {
+            "name": "actual_receipt_image",
+            "unit": "1"
+          },
+          {
+            "name": "expected_receipt_image",
+            "unit": "1"
+          },
+          {
+            "name": "actual_manifest_profile",
+            "unit": "1"
+          },
+          {
+            "name": "expected_manifest_profile",
+            "unit": "1"
+          },
+          {
+            "name": "actual_manifest_contract",
+            "unit": "1"
+          },
+          {
+            "name": "expected_manifest_contract",
+            "unit": "1"
+          },
+          {
+            "name": "actual_manifest_candidate",
+            "unit": "1"
+          },
+          {
+            "name": "expected_manifest_candidate",
+            "unit": "1"
+          },
+          {
+            "name": "actual_manifest_source",
+            "unit": "1"
+          },
+          {
+            "name": "expected_manifest_source",
+            "unit": "1"
+          },
+          {
+            "name": "actual_manifest_fixtures",
+            "unit": "1"
+          },
+          {
+            "name": "expected_manifest_fixtures",
+            "unit": "1"
+          },
+          {
+            "name": "actual_manifest_receipt",
+            "unit": "1"
+          },
+          {
+            "name": "expected_manifest_receipt",
+            "unit": "1"
+          },
+          {
+            "name": "actual_manifest_runner",
+            "unit": "1"
+          },
+          {
+            "name": "expected_manifest_runner",
+            "unit": "1"
+          },
+          {
+            "name": "actual_host_status",
+            "unit": "1"
+          },
+          {
+            "name": "expected_host_status",
+            "unit": "1"
+          },
+          {
+            "name": "actual_host_returncode",
+            "unit": "1"
+          },
+          {
+            "name": "expected_host_returncode",
+            "unit": "1"
+          },
+          {
+            "name": "actual_host_input",
+            "unit": "1"
+          },
+          {
+            "name": "expected_host_input",
+            "unit": "1"
+          },
+          {
+            "name": "actual_host_tool",
+            "unit": "1"
+          },
+          {
+            "name": "expected_host_tool",
+            "unit": "1"
+          },
+          {
+            "name": "actual_host_version",
+            "unit": "1"
+          },
+          {
+            "name": "expected_host_version",
+            "unit": "1"
+          },
+          {
+            "name": "actual_host_binding",
+            "unit": "1"
+          },
+          {
+            "name": "expected_host_binding",
+            "unit": "1"
+          },
+          {
+            "name": "receipt_passed",
+            "unit": "boolean"
+          },
+          {
+            "name": "projection_provenance",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "native_execution_artifacts",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact retained native implementation, verification and actual host record"
+        },
+        "support_type": "observation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "for_each": null,
+      "id": "native_artifacts"
+    }
+  ],
+  "derivations": [
+    {
+      "id": "native_equal_profile",
+      "inputs": [
+        {
+          "pointer": "/actual_profile",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_profile",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_receipt_schema",
+      "inputs": [
+        {
+          "pointer": "/actual_receipt_schema",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_receipt_schema",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_receipt_language",
+      "inputs": [
+        {
+          "pointer": "/actual_receipt_language",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_receipt_language",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_receipt_contract",
+      "inputs": [
+        {
+          "pointer": "/actual_receipt_contract",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_receipt_contract",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_receipt_candidate",
+      "inputs": [
+        {
+          "pointer": "/actual_receipt_candidate",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_receipt_candidate",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_receipt_source",
+      "inputs": [
+        {
+          "pointer": "/actual_receipt_source",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_receipt_source",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_receipt_fixtures",
+      "inputs": [
+        {
+          "pointer": "/actual_receipt_fixtures",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_receipt_fixtures",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_receipt_profile",
+      "inputs": [
+        {
+          "pointer": "/actual_receipt_profile",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_receipt_profile",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_receipt_image",
+      "inputs": [
+        {
+          "pointer": "/actual_receipt_image",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_receipt_image",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_manifest_profile",
+      "inputs": [
+        {
+          "pointer": "/actual_manifest_profile",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_manifest_profile",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_manifest_contract",
+      "inputs": [
+        {
+          "pointer": "/actual_manifest_contract",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_manifest_contract",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_manifest_candidate",
+      "inputs": [
+        {
+          "pointer": "/actual_manifest_candidate",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_manifest_candidate",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_manifest_source",
+      "inputs": [
+        {
+          "pointer": "/actual_manifest_source",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_manifest_source",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_manifest_fixtures",
+      "inputs": [
+        {
+          "pointer": "/actual_manifest_fixtures",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_manifest_fixtures",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_manifest_receipt",
+      "inputs": [
+        {
+          "pointer": "/actual_manifest_receipt",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_manifest_receipt",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_manifest_runner",
+      "inputs": [
+        {
+          "pointer": "/actual_manifest_runner",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_manifest_runner",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_host_status",
+      "inputs": [
+        {
+          "pointer": "/actual_host_status",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_host_status",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_host_returncode",
+      "inputs": [
+        {
+          "pointer": "/actual_host_returncode",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_host_returncode",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_host_input",
+      "inputs": [
+        {
+          "pointer": "/actual_host_input",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_host_input",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_host_tool",
+      "inputs": [
+        {
+          "pointer": "/actual_host_tool",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_host_tool",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_host_version",
+      "inputs": [
+        {
+          "pointer": "/actual_host_version",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_host_version",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    },
+    {
+      "id": "native_equal_host_binding",
+      "inputs": [
+        {
+          "pointer": "/actual_host_binding",
+          "step_id": "native_artifacts"
+        },
+        {
+          "pointer": "/expected_host_binding",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "operation": {
+        "kind": "identity_equal"
+      }
+    }
+  ],
+  "evaluations": [
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [
+        {
+          "pointer": "/inventory_complete",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "criterion": {
+        "expected": true,
+        "kind": "equals"
+      },
+      "id": "E1",
+      "inputs": [
+        {
+          "pointer": "/satisfied",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "max_age_seconds": 3600,
+      "required_coverage": "complete_enumeration",
+      "requirement_id": "R1"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [
+        {
+          "pointer": "/inventory_complete",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "criterion": {
+        "expected": true,
+        "kind": "equals"
+      },
+      "id": "E2",
+      "inputs": [
+        {
+          "pointer": "/inventory_complete",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "max_age_seconds": 3600,
+      "required_coverage": "complete_enumeration",
+      "requirement_id": "R2"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [
+        {
+          "pointer": "/inventory_complete",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "criterion": {
+        "comparison": "equal",
+        "kind": "numeric",
+        "threshold": 0,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "id": "E3",
+      "inputs": [
+        {
+          "pointer": "/violations_count",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "max_age_seconds": 3600,
+      "required_coverage": "complete_enumeration",
+      "requirement_id": "R3"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [
+        {
+          "pointer": "/inventory_complete",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "criterion": {
+        "comparison": "at_least",
+        "kind": "numeric",
+        "threshold": 2,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "id": "E4",
+      "inputs": [
+        {
+          "pointer": "/checked_distributions",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "max_age_seconds": 3600,
+      "required_coverage": "complete_enumeration",
+      "requirement_id": "R4"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [
+        {
+          "pointer": "/inventory_complete",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "criterion": {
+        "comparison": "at_least",
+        "kind": "numeric",
+        "threshold": 2,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "id": "E5",
+      "inputs": [
+        {
+          "pointer": "/checked_requirements",
+          "step_id": "dependency_audit"
+        }
+      ],
+      "max_age_seconds": 3600,
+      "required_coverage": "complete_enumeration",
+      "requirement_id": "R5"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "kind": "all_true"
+      },
+      "id": "E6",
+      "inputs": [
+        {
+          "pointer": "",
+          "step_id": "native_equal_profile"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_receipt_schema"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_receipt_language"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_receipt_contract"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_receipt_candidate"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_receipt_source"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_receipt_fixtures"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_receipt_profile"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_receipt_image"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_manifest_profile"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_manifest_contract"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_manifest_candidate"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_manifest_source"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_manifest_fixtures"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_manifest_receipt"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_manifest_runner"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_host_status"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_host_returncode"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_host_input"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_host_tool"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_host_version"
+        },
+        {
+          "pointer": "",
+          "step_id": "native_equal_host_binding"
+        },
+        {
+          "pointer": "/receipt_passed",
+          "step_id": "native_artifacts"
+        }
+      ],
+      "max_age_seconds": 3600,
+      "required_coverage": "unspecified",
+      "requirement_id": "R6"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.",
+        "kind": "judgement",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        }
+      },
+      "id": "E7",
+      "inputs": [],
+      "max_age_seconds": 3600,
+      "required_coverage": "unspecified",
+      "requirement_id": "R7"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "kind": "unavailable",
+        "reason": "The runtime workload, authorised runtime operation and actual runtime results are unavailable."
+      },
+      "id": "E8",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R8"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.",
+        "kind": "judgement",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        }
+      },
+      "id": "E9",
+      "inputs": [],
+      "max_age_seconds": 3600,
+      "required_coverage": "unspecified",
+      "requirement_id": "R9"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.",
+        "kind": "judgement",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        }
+      },
+      "id": "E10",
+      "inputs": [],
+      "max_age_seconds": 3600,
+      "required_coverage": "unspecified",
+      "requirement_id": "R10"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.",
+        "kind": "judgement"
+      },
+      "id": "E11",
+      "inputs": [],
+      "max_age_seconds": null,
+      "required_coverage": "unspecified",
+      "requirement_id": "R11"
+    },
+    {
+      "applicability": [],
+      "challenges": [],
+      "coverage": [],
+      "criterion": {
+        "criterion": "A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations.",
+        "kind": "judgement",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256",
+            "warrant_sha256",
+            "operation_spec_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operation_spec_sha256": "aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+            "warrant_sha256": "654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        }
+      },
+      "id": "E12",
+      "inputs": [],
+      "max_age_seconds": 3600,
+      "required_coverage": "unspecified",
+      "requirement_id": "R12"
+    }
+  ],
+  "requirements": [
+    {
+      "acceptance": {
+        "expected": true,
+        "kind": "equals"
+      },
+      "acceptance_rationale": "The satisfied flag is necessary but is accepted only jointly with R2 through R5 and the separate scope and qualification obligations.",
+      "contract": {
+        "acceptable_methods": [
+          "dependency_audit/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "complete_enumeration",
+        "population": "Every distribution in the selected metadata directory and every applicable requirement occurrence reachable from the two roots after package-extra fixed-point closure.",
+        "provenance": {
+          "required_authorities": [
+            "host-pinned selected-image execution provenance"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "satisfied",
+            "unit": "boolean"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "python": "3.13",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+          },
+          "subject": "selected immutable Python evidence image"
+        },
+        "support_type": "observation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N1"
+      ],
+      "gaps": [
+        {
+          "description": "dependency_audit/1 names the proposed protocol specified below, not an already qualified implementation or registered operation. Native generation must freeze verification cases before coding and establish qualification before collection.",
+          "kind": "source_availability_unverified"
+        }
+      ],
+      "id": "R1",
+      "original_acceptance_criteria": [
+        "satisfied==true AND inventory_complete==true AND violations_count==0 AND checked_distributions>=2 AND checked_requirements>=2."
+      ],
+      "role": "support",
+      "target_id": "G1"
+    },
+    {
+      "acceptance": {
+        "expected": true,
+        "kind": "equals"
+      },
+      "acceptance_rationale": "Full inventory and completed closure coverage are explicit prerequisites rather than implications of the operation name.",
+      "contract": {
+        "acceptable_methods": [
+          "dependency_audit/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "complete_enumeration",
+        "population": "Every distribution in the selected metadata directory and every applicable requirement occurrence reachable from the two roots after package-extra fixed-point closure.",
+        "provenance": {
+          "required_authorities": [
+            "host-pinned selected-image execution provenance"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "inventory_complete",
+            "unit": "boolean"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "python": "3.13",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+          },
+          "subject": "selected immutable Python evidence image"
+        },
+        "support_type": "observation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N1"
+      ],
+      "gaps": [
+        {
+          "description": "No actual coverage observation or qualified audit implementation exists in the supplied material. R7 and R10 separately assess whether this coverage flag is trustworthy.",
+          "kind": "source_availability_unverified"
+        }
+      ],
+      "id": "R2",
+      "original_acceptance_criteria": [
+        "satisfied==true AND inventory_complete==true AND violations_count==0 AND checked_distributions>=2 AND checked_requirements>=2."
+      ],
+      "role": "support",
+      "target_id": "G1"
+    },
+    {
+      "acceptance": {
+        "comparison": "equal",
+        "kind": "numeric",
+        "threshold": 0,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "acceptance_rationale": "No root or active reachable dependency violation is permitted.",
+      "contract": {
+        "acceptable_methods": [
+          "dependency_audit/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "complete_enumeration",
+        "population": "Every distribution in the selected metadata directory and every applicable requirement occurrence reachable from the two roots after package-extra fixed-point closure.",
+        "provenance": {
+          "required_authorities": [
+            "host-pinned selected-image execution provenance"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "violations_count",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "python": "3.13",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+          },
+          "subject": "selected immutable Python evidence image"
+        },
+        "support_type": "observation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N1"
+      ],
+      "gaps": [
+        {
+          "description": "The proposed audit has not been implemented, qualified or run.",
+          "kind": "source_availability_unverified"
+        }
+      ],
+      "id": "R3",
+      "original_acceptance_criteria": [
+        "satisfied==true AND inventory_complete==true AND violations_count==0 AND checked_distributions>=2 AND checked_requirements>=2."
+      ],
+      "role": "support",
+      "target_id": "G1"
+    },
+    {
+      "acceptance": {
+        "comparison": "at_least",
+        "kind": "numeric",
+        "threshold": 2,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "acceptance_rationale": "The accepted inventory must contain at least the two distinct requested roots.",
+      "contract": {
+        "acceptable_methods": [
+          "dependency_audit/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "complete_enumeration",
+        "population": "Every distribution in the selected metadata directory and every applicable requirement occurrence reachable from the two roots after package-extra fixed-point closure.",
+        "provenance": {
+          "required_authorities": [
+            "host-pinned selected-image execution provenance"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "checked_distributions",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "python": "3.13",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+          },
+          "subject": "selected immutable Python evidence image"
+        },
+        "support_type": "observation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N1"
+      ],
+      "gaps": [
+        {
+          "description": "No inventory has been observed.",
+          "kind": "source_availability_unverified"
+        }
+      ],
+      "id": "R4",
+      "original_acceptance_criteria": [
+        "satisfied==true AND inventory_complete==true AND violations_count==0 AND checked_distributions>=2 AND checked_requirements>=2."
+      ],
+      "role": "support",
+      "target_id": "G1"
+    },
+    {
+      "acceptance": {
+        "comparison": "at_least",
+        "kind": "numeric",
+        "threshold": 2,
+        "threshold_unit": "1",
+        "value_unit": "1"
+      },
+      "acceptance_rationale": "At least the two root checks must occur and all active reachable checks remain mandatory regardless of this lower bound.",
+      "contract": {
+        "acceptable_methods": [
+          "dependency_audit/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "complete_enumeration",
+        "population": "Every distribution in the selected metadata directory and every applicable requirement occurrence reachable from the two roots after package-extra fixed-point closure.",
+        "provenance": {
+          "required_authorities": [
+            "host-pinned selected-image execution provenance"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "checked_requirements",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "python": "3.13",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+          },
+          "subject": "selected immutable Python evidence image"
+        },
+        "support_type": "observation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N1"
+      ],
+      "gaps": [
+        {
+          "description": "No requirement checks have been observed.",
+          "kind": "source_availability_unverified"
+        }
+      ],
+      "id": "R5",
+      "original_acceptance_criteria": [
+        "satisfied==true AND inventory_complete==true AND violations_count==0 AND checked_distributions>=2 AND checked_requirements>=2."
+      ],
+      "role": "support",
+      "target_id": "G1"
+    },
+    {
+      "acceptance": {
+        "kind": "all_true"
+      },
+      "acceptance_rationale": "Compare actual native profile and receipt/manifest correspondence with the pinned operator runtime, including the exact build guard for Python 3.13 and packaging 26.3; check the actual successful host record's tool/binding and unchanged directory/root inputs. Copy verification.passed directly. The retained host boundary is trusted; a caller image_id label alone is not attestation. Equality does not establish algorithm fidelity.",
+      "contract": {
+        "acceptable_methods": [
+          "engarg.identity-equal/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "exact_calculation",
+        "population": null,
+        "provenance": {
+          "required_authorities": [
+            "operator-pinned native EngArg/EAL artifacts under the trusted host boundary"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "identity_equal",
+            "unit": "boolean"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "operands",
+            "operand_times"
+          ],
+          "kind": "identity_relation",
+          "selectors": {
+            "operand_times": {
+              "native_artifacts": {
+                "historical_interval": null,
+                "max_age_seconds": 3600,
+                "max_uncertainty_seconds": null,
+                "require_original_observation_time": true
+              }
+            },
+            "operands": {
+              "native_artifacts": {
+                "identity_dimensions": [
+                  "candidate_sha256",
+                  "contract_sha256",
+                  "host_record_sha256",
+                  "operator_profile_sha256",
+                  "package_manifest_sha256",
+                  "profile_sha256",
+                  "tool_binding_sha256",
+                  "verification_sha256"
+                ],
+                "kind": "native_execution_artifacts",
+                "selectors": {
+                  "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+                  "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+                  "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+                  "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+                  "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+                  "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+                  "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+                  "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+                },
+                "subject": "Exact retained native implementation, verification and actual host record"
+              }
+            }
+          },
+          "subject": "Exact native artifact and operator scope correspondence"
+        },
+        "support_type": "calculation",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N2"
+      ],
+      "gaps": [],
+      "id": "R6",
+      "original_acceptance_criteria": [
+        "Retained execution provenance confirms the exact selected image, Python 3.13, packaging 26.3 and the selected metadata directory without relying on image_id as attestation."
+      ],
+      "role": "support",
+      "target_id": "A1"
+    },
+    {
+      "acceptance": {
+        "criterion": "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.",
+        "kind": "judgement",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        }
+      },
+      "acceptance_rationale": "The specification provides an algorithmic candidate but does not prove implementation fidelity.",
+      "contract": {
+        "acceptable_methods": [
+          "scoped_implementation_review/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "judgement",
+        "population": null,
+        "provenance": {
+          "required_authorities": [
+            "operator-pinned native EngArg/EAL artifacts under the trusted host boundary"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "review",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "support_type": "judgement",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N3"
+      ],
+      "gaps": [
+        {
+          "description": "Await the actual identified reviewer's exact scoped assessment; no verdict is supplied by preparation.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R7",
+      "original_acceptance_criteria": [
+        "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification."
+      ],
+      "role": "support",
+      "target_id": "G3"
+    },
+    {
+      "acceptance": {
+        "kind": "unavailable",
+        "reason": "The runtime workload, authorised runtime operation and actual runtime results are unavailable."
+      },
+      "acceptance_rationale": "Metadata cannot substitute for runtime observations.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N4"
+      ],
+      "gaps": [
+        {
+          "description": "Define the smoke-test workload and its acceptance rules before planning a separate runtime acquisition.",
+          "kind": "clarification"
+        }
+      ],
+      "id": "R8",
+      "original_acceptance_criteria": [
+        "The operator defines the runtime smoke-test workload and acceptance rules before execution, and retained tests in the same selected image demonstrate both root imports and every API assertion in that workload."
+      ],
+      "role": "support",
+      "target_id": "G2"
+    },
+    {
+      "acceptance": {
+        "criterion": "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.",
+        "kind": "judgement",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        }
+      },
+      "acceptance_rationale": "Positive activation requires a concrete false positive and cannot be inferred from missing qualification.",
+      "contract": {
+        "acceptable_methods": [
+          "scoped_implementation_review/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "judgement",
+        "population": null,
+        "provenance": {
+          "required_authorities": [
+            "operator-pinned native EngArg/EAL artifacts under the trusted host boundary"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "review",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "support_type": "judgement",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N6"
+      ],
+      "gaps": [
+        {
+          "description": "Await the actual identified reviewer's exact scoped assessment; no verdict is supplied by preparation.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R9",
+      "original_acceptance_criteria": [
+        "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra."
+      ],
+      "role": "challenge_activation",
+      "target_id": "D1"
+    },
+    {
+      "acceptance": {
+        "criterion": "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.",
+        "kind": "judgement",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        }
+      },
+      "acceptance_rationale": "Resolution needs a coverage argument and implementation correspondence rather than merely the absence of a known counterexample.",
+      "contract": {
+        "acceptable_methods": [
+          "scoped_implementation_review/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "judgement",
+        "population": null,
+        "provenance": {
+          "required_authorities": [
+            "operator-pinned native EngArg/EAL artifacts under the trusted host boundary"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "review",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "support_type": "judgement",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N5"
+      ],
+      "gaps": [
+        {
+          "description": "Await the actual identified reviewer's exact scoped assessment; no verdict is supplied by preparation.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R10",
+      "original_acceptance_criteria": [
+        "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample."
+      ],
+      "role": "challenge_resolution",
+      "target_id": "D1"
+    },
+    {
+      "acceptance": {
+        "criterion": "A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.",
+        "kind": "judgement"
+      },
+      "acceptance_rationale": "The workload must support the limited target rather than an unrestricted runtime or scientific claim.",
+      "contract": null,
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N7"
+      ],
+      "gaps": [
+        {
+          "description": "The workload and an independently authored scoped assessment do not exist in the supplied material.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R11",
+      "original_acceptance_criteria": [
+        "A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image."
+      ],
+      "role": "support",
+      "target_id": "W2"
+    },
+    {
+      "acceptance": {
+        "criterion": "A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations.",
+        "kind": "judgement",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256",
+            "warrant_sha256",
+            "operation_spec_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operation_spec_sha256": "aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+            "warrant_sha256": "654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        }
+      },
+      "acceptance_rationale": "The SAT result proves conditional entailment; the actual scoped review assesses correspondence and leaves empirical and challenge gates intact.",
+      "contract": {
+        "acceptable_methods": [
+          "scoped_method_adequacy_review/1"
+        ],
+        "expected_output_schema_sha256": null,
+        "logical_strength": "judgement",
+        "population": null,
+        "provenance": {
+          "required_authorities": [
+            "operator-pinned native EngArg/EAL artifacts under the trusted host boundary"
+          ],
+          "transformation_history": true
+        },
+        "quantities": [
+          {
+            "name": "review",
+            "unit": "1"
+          }
+        ],
+        "schema": "eal.support-contract/1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256",
+            "warrant_sha256",
+            "operation_spec_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operation_spec_sha256": "aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+            "warrant_sha256": "654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "support_type": "judgement",
+        "time": {
+          "historical_interval": null,
+          "max_age_seconds": 3600,
+          "max_uncertainty_seconds": null,
+          "require_original_observation_time": true
+        }
+      },
+      "discriminating_evidence": [],
+      "evidence_need_ids": [
+        "N12"
+      ],
+      "gaps": [
+        {
+          "description": "Actual exact-scope review required; no verdict is generated here.",
+          "kind": "judgement"
+        }
+      ],
+      "id": "R12",
+      "original_acceptance_criteria": [
+        "A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations."
+      ],
+      "role": "support",
+      "target_id": "W1"
+    }
+  ],
+  "revisions": [
+    {
+      "previous_requirement_sha256": "d3479f813876de280161f3d56cfc9eba9abede873d3e672a092067f74882774d",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R1"
+    },
+    {
+      "previous_requirement_sha256": "b5f83a3a5cab0d636ea807c6c92b20c5786466c71b2dc906307860b07e3e1be6",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R2"
+    },
+    {
+      "previous_requirement_sha256": "f47de6ecaeff50c23a3018951119defd20d94491299802572cb740394b364644",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R3"
+    },
+    {
+      "previous_requirement_sha256": "2ba5c82af38ffc574566f0a3e4c96c417a993eab5d853e27e9625f56f4902b43",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R4"
+    },
+    {
+      "previous_requirement_sha256": "7660d5d483f35449f9f145e6b75bce5a744c8bf803a534f0cd33a93e0e87330d",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R5"
+    },
+    {
+      "previous_requirement_sha256": "283f5efcc72fb449dc28254801657f955c3a625f269f05f62434c5e72d96ace6",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R6"
+    },
+    {
+      "previous_requirement_sha256": "571e3c9728431fb823a628f85bd15763da004c1554b85239b8245abe82606083",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R7"
+    },
+    {
+      "previous_requirement_sha256": "b83db2a97fc3cd6faca01a3bbb7991a976fd450455b08ce190760361d2a68922",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R9"
+    },
+    {
+      "previous_requirement_sha256": "ca99cee7a18b10bd35804db5dacbf79d414e7a0c164940bfbb0105be26e0dc7f",
+      "reason": "Explicitly bind the unchanged empirical/qualification clause to actual native artifacts or exact scoped assessment; retain original criteria and challenge roles. R1–R5 gain only redundant scalar root selectors; R7 moves the same qualification clause to explicit conditional premise G3.",
+      "requirement_id": "R10"
+    }
+  ],
+  "schema": "engarg.support-elaboration/2"
+}

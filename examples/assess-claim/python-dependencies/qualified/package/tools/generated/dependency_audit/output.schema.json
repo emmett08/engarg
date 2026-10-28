@@ -1,0 +1,216 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "checked_distributions": {
+      "minimum": 0,
+      "type": "integer",
+      "x-engarg-quantity": {
+        "name": "checked_distributions",
+        "unit": "1"
+      },
+      "x-engarg-unit": "1"
+    },
+    "checked_requirements": {
+      "minimum": 0,
+      "type": "integer",
+      "x-engarg-quantity": {
+        "name": "checked_requirements",
+        "unit": "1"
+      },
+      "x-engarg-unit": "1"
+    },
+    "collected": {
+      "type": "boolean"
+    },
+    "details": {
+      "additionalProperties": false,
+      "properties": {
+        "inventory": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "Name": {
+                "type": "string"
+              },
+              "Requires-Dist": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20000,
+                "type": "array"
+              },
+              "Version": {
+                "type": "string"
+              },
+              "canonical_name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "canonical_name",
+              "Name",
+              "Version",
+              "Requires-Dist"
+            ],
+            "type": "object"
+          },
+          "maxItems": 512,
+          "type": "array"
+        },
+        "root_versions": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "canonical_name": {
+                "type": "string"
+              },
+              "observed_version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "requirement": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "requirement",
+              "canonical_name",
+              "observed_version"
+            ],
+            "type": "object"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "type": "array"
+        },
+        "roots": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "type": "array"
+        },
+        "skipped_requirements": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "requirement": {
+                "type": "string"
+              },
+              "requirement_index": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "requiring_package": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "requiring_package",
+              "requirement_index",
+              "requirement"
+            ],
+            "type": "object"
+          },
+          "maxItems": 20000,
+          "type": "array"
+        },
+        "violations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "constraint": {
+                "type": "string"
+              },
+              "observed_version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "enum": [
+                  "missing",
+                  "incompatible_version"
+                ],
+                "type": "string"
+              },
+              "requirement_index": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "requiring_package": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "requiring_package",
+              "requirement_index",
+              "constraint",
+              "target",
+              "observed_version",
+              "reason"
+            ],
+            "type": "object"
+          },
+          "maxItems": 20000,
+          "type": "array"
+        }
+      },
+      "required": [
+        "roots",
+        "root_versions",
+        "violations",
+        "skipped_requirements",
+        "inventory"
+      ],
+      "type": "object",
+      "x-engarg-quantity": {
+        "name": "details",
+        "unit": "1"
+      },
+      "x-engarg-unit": "1"
+    },
+    "inventory_complete": {
+      "type": "boolean",
+      "x-engarg-quantity": {
+        "name": "inventory_complete",
+        "unit": "boolean"
+      },
+      "x-engarg-unit": "boolean"
+    },
+    "satisfied": {
+      "type": "boolean",
+      "x-engarg-quantity": {
+        "name": "satisfied",
+        "unit": "boolean"
+      },
+      "x-engarg-unit": "boolean"
+    },
+    "violations_count": {
+      "minimum": 0,
+      "type": "integer",
+      "x-engarg-quantity": {
+        "name": "violations_count",
+        "unit": "1"
+      },
+      "x-engarg-unit": "1"
+    }
+  },
+  "required": [
+    "satisfied",
+    "inventory_complete",
+    "violations_count",
+    "checked_distributions",
+    "checked_requirements",
+    "details",
+    "collected"
+  ],
+  "type": "object"
+}

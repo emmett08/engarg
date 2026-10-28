@@ -1,0 +1,380 @@
+{
+  "dissent_revision_candidates": [
+    {
+      "changes": [
+        {
+          "after": [
+            "G1",
+            "G3"
+          ],
+          "after_present": true,
+          "before": [
+            "G1"
+          ],
+          "before_present": true,
+          "path": "/target/premise_ids"
+        },
+        {
+          "after": [
+            "A1"
+          ],
+          "after_present": true,
+          "before": null,
+          "before_present": false,
+          "path": "/target/reasoning_method/assumption_ids"
+        },
+        {
+          "after": {
+            "claim_id": "current_claim",
+            "quantity": "proposition",
+            "result": {
+              "expected": true,
+              "operator": "==",
+              "path": "entailed"
+            },
+            "scope": {
+              "identity_dimensions": [
+                "image_id",
+                "metadata_directory",
+                "python"
+              ],
+              "kind": "installed_distribution_metadata",
+              "selectors": [
+                {
+                  "name": "image_id",
+                  "value": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2"
+                },
+                {
+                  "name": "metadata_directory",
+                  "value": "/usr/local/lib/python3.13/site-packages"
+                },
+                {
+                  "name": "python",
+                  "value": "3.13"
+                },
+                {
+                  "name": "roots_json",
+                  "value": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+                },
+                {
+                  "name": "root_extras_json",
+                  "value": "[]"
+                }
+              ]
+            },
+            "subject": "Installed metadata in the selected immutable Python image and directory for the exact roots",
+            "unit": "1",
+            "valid_from": "2026-10-28T12:05:45.234085Z",
+            "valid_until": "2026-10-28T13:05:45.234085Z"
+          },
+          "after_present": true,
+          "before": null,
+          "before_present": false,
+          "path": "/target/reasoning_method/conclusion"
+        },
+        {
+          "after": null,
+          "after_present": false,
+          "before": [
+            "N1",
+            "N2",
+            "N3",
+            "N5"
+          ],
+          "before_present": true,
+          "path": "/target/reasoning_method/evidence_need_ids"
+        },
+        {
+          "after": [
+            {
+              "evidence_need_id": "N1",
+              "requirement": "All five unchanged audit criteria must be satisfied.",
+              "role": "premise_observation"
+            },
+            {
+              "evidence_need_id": "N3",
+              "requirement": "The exact scoped implementation assessment must establish G3.",
+              "role": "premise_observation"
+            },
+            {
+              "evidence_need_id": "N2",
+              "requirement": "Actual pinned host provenance must establish A1.",
+              "role": "applicability"
+            }
+          ],
+          "after_present": true,
+          "before": null,
+          "before_present": false,
+          "path": "/target/reasoning_method/evidence_requirements"
+        },
+        {
+          "after": [
+            {
+              "correspondence": {
+                "kind": "accepted_premise"
+              },
+              "evidence_need_id": "N1",
+              "input_pointer": "/premises/0",
+              "interpretation": "The complete audit predicate is accepted only if all unchanged R1 through R5 hold.",
+              "premise_id": "G1"
+            },
+            {
+              "correspondence": {
+                "kind": "accepted_premise"
+              },
+              "evidence_need_id": "N3",
+              "input_pointer": "/premises/1",
+              "interpretation": "Actual scoped implementation qualification licenses the conditional audit_accepted implies metadata_predicate.",
+              "premise_id": "G3"
+            }
+          ],
+          "after_present": true,
+          "before": null,
+          "before_present": false,
+          "path": "/target/reasoning_method/formal_premises"
+        },
+        {
+          "after": {
+            "identifier": "deductive/1",
+            "query": {
+              "conclusion": "metadata_predicate",
+              "premises": [
+                "audit_accepted",
+                {
+                  "implies": [
+                    "audit_accepted",
+                    "metadata_predicate"
+                  ]
+                }
+              ]
+            }
+          },
+          "after_present": true,
+          "before": "deductive",
+          "before_present": true,
+          "path": "/target/reasoning_method/method"
+        },
+        {
+          "after": null,
+          "after_present": false,
+          "before": [
+            "The needed coverage argument concerns finite metadata enumeration and a package-extra fixed-point algorithm rather than bounded propositional entailment alone.",
+            "No implementation assessment establishes correspondence between the proposed audit outputs and the claimed universal predicate."
+          ],
+          "before_present": true,
+          "path": "/target/reasoning_method/reasons"
+        },
+        {
+          "after": "bound",
+          "after_present": true,
+          "before": "unresolved",
+          "before_present": true,
+          "path": "/target/reasoning_method/status"
+        },
+        {
+          "after": {
+            "id": "G3",
+            "statement": "For the exact pinned implementation, frozen contract, runtime assumptions and selected-directory scope, acceptance of the complete audit predicate in G1 implies the claimed installed-metadata predicate."
+          },
+          "after_present": true,
+          "before": null,
+          "before_present": false,
+          "path": "/related_targets/G3"
+        },
+        {
+          "after": "Conditional on the unchanged complete audit predicate, exact native host correspondence, actual scoped implementation and method assessments, and separate D1 resolution, all within the original one-hour observation limit.",
+          "after_present": true,
+          "before": "Unsupported pending an actual complete audit, host binding confirmation and implementation qualification.",
+          "before_present": true,
+          "path": "/related_targets/current_claim/qualifier"
+        }
+      ],
+      "current_context": {
+        "related_targets": {
+          "G1": {
+            "id": "G1",
+            "statement": "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2."
+          },
+          "G3": {
+            "id": "G3",
+            "statement": "For the exact pinned implementation, frozen contract, runtime assumptions and selected-directory scope, acceptance of the complete audit predicate in G1 implies the claimed installed-metadata predicate."
+          },
+          "current_claim": {
+            "qualifier": "Conditional on the unchanged complete audit predicate, exact native host correspondence, actual scoped implementation and method assessments, and separate D1 resolution, all within the original one-hour observation limit.",
+            "text": "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras."
+          }
+        },
+        "scope": {
+          "configuration": "Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\"dowhy==0.14\",\"causal-learn==0.1.4.8\"] and no explicitly requested root extras.",
+          "consequences": "A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.",
+          "operating_conditions": "Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.",
+          "system_boundary": "Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.",
+          "time_horizon": "One actual audit observation accepted for at most 3600 seconds from its original observation time.",
+          "units": "Boolean predicates and dimensionless counts."
+        },
+        "target": {
+          "applicability": "The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.",
+          "conclusion_id": "current_claim",
+          "id": "W1",
+          "inference": "deductive",
+          "premise_ids": [
+            "G1",
+            "G3"
+          ],
+          "reasoning_method": {
+            "assumption_ids": [
+              "A1"
+            ],
+            "conclusion": {
+              "claim_id": "current_claim",
+              "quantity": "proposition",
+              "result": {
+                "expected": true,
+                "operator": "==",
+                "path": "entailed"
+              },
+              "scope": {
+                "identity_dimensions": [
+                  "image_id",
+                  "metadata_directory",
+                  "python"
+                ],
+                "kind": "installed_distribution_metadata",
+                "selectors": [
+                  {
+                    "name": "image_id",
+                    "value": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2"
+                  },
+                  {
+                    "name": "metadata_directory",
+                    "value": "/usr/local/lib/python3.13/site-packages"
+                  },
+                  {
+                    "name": "python",
+                    "value": "3.13"
+                  },
+                  {
+                    "name": "roots_json",
+                    "value": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+                  },
+                  {
+                    "name": "root_extras_json",
+                    "value": "[]"
+                  }
+                ]
+              },
+              "subject": "Installed metadata in the selected immutable Python image and directory for the exact roots",
+              "unit": "1",
+              "valid_from": "2026-10-28T12:05:45.234085Z",
+              "valid_until": "2026-10-28T13:05:45.234085Z"
+            },
+            "evidence_requirements": [
+              {
+                "evidence_need_id": "N1",
+                "requirement": "All five unchanged audit criteria must be satisfied.",
+                "role": "premise_observation"
+              },
+              {
+                "evidence_need_id": "N3",
+                "requirement": "The exact scoped implementation assessment must establish G3.",
+                "role": "premise_observation"
+              },
+              {
+                "evidence_need_id": "N2",
+                "requirement": "Actual pinned host provenance must establish A1.",
+                "role": "applicability"
+              }
+            ],
+            "formal_premises": [
+              {
+                "correspondence": {
+                  "kind": "accepted_premise"
+                },
+                "evidence_need_id": "N1",
+                "input_pointer": "/premises/0",
+                "interpretation": "The complete audit predicate is accepted only if all unchanged R1 through R5 hold.",
+                "premise_id": "G1"
+              },
+              {
+                "correspondence": {
+                  "kind": "accepted_premise"
+                },
+                "evidence_need_id": "N3",
+                "input_pointer": "/premises/1",
+                "interpretation": "Actual scoped implementation qualification licenses the conditional audit_accepted implies metadata_predicate.",
+                "premise_id": "G3"
+              }
+            ],
+            "method": {
+              "identifier": "deductive/1",
+              "query": {
+                "conclusion": "metadata_predicate",
+                "premises": [
+                  "audit_accepted",
+                  {
+                    "implies": [
+                      "audit_accepted",
+                      "metadata_predicate"
+                    ]
+                  }
+                ]
+              }
+            },
+            "status": "bound"
+          },
+          "rule": "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate."
+        }
+      },
+      "current_context_sha256": "547a9636d1d65cfde899ac7a3cbe6feb43c66b45fc27f8199063db4d35785f5c",
+      "objection_id": "D1",
+      "original_context": {
+        "related_targets": {
+          "G1": {
+            "id": "G1",
+            "statement": "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2."
+          },
+          "current_claim": {
+            "qualifier": "Unsupported pending an actual complete audit, host binding confirmation and implementation qualification.",
+            "text": "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras."
+          }
+        },
+        "scope": {
+          "configuration": "Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\"dowhy==0.14\",\"causal-learn==0.1.4.8\"] and no explicitly requested root extras.",
+          "consequences": "A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.",
+          "operating_conditions": "Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.",
+          "system_boundary": "Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.",
+          "time_horizon": "One actual audit observation accepted for at most 3600 seconds from its original observation time.",
+          "units": "Boolean predicates and dimensionless counts."
+        },
+        "target": {
+          "applicability": "The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.",
+          "conclusion_id": "current_claim",
+          "id": "W1",
+          "inference": "deductive",
+          "premise_ids": [
+            "G1"
+          ],
+          "reasoning_method": {
+            "evidence_need_ids": [
+              "N1",
+              "N2",
+              "N3",
+              "N5"
+            ],
+            "method": "deductive",
+            "reasons": [
+              "The needed coverage argument concerns finite metadata enumeration and a package-extra fixed-point algorithm rather than bounded propositional entailment alone.",
+              "No implementation assessment establishes correspondence between the proposed audit outputs and the claimed universal predicate."
+            ],
+            "status": "unresolved"
+          },
+          "rule": "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate."
+        }
+      },
+      "original_context_sha256": "cfaf51a3285112cc70df51972da11cbabc2aa492b658e22de192e936de6714fd",
+      "target_id": "W1"
+    }
+  ],
+  "parent_report_sha256": "ab5265df7015967ad68edc2a3637d615c3eb2b679d95cf591121b77c0bd4cdfd",
+  "support_elaboration_required": true
+}

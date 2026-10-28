@@ -1,0 +1,657 @@
+{
+  "schema": "eal.review-inputs/2",
+  "reviews": [
+    {
+      "request": {
+        "tool": "engarg_review_contract",
+        "tool_version": "1",
+        "input": {
+          "acceptance": {
+            "criterion": "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.",
+            "kind": "judgement",
+            "scope": {
+              "identity_dimensions": [
+                "image_id",
+                "metadata_directory",
+                "roots",
+                "python",
+                "root_extras",
+                "candidate_sha256",
+                "contract_sha256",
+                "host_record_sha256",
+                "operator_profile_sha256",
+                "package_manifest_sha256",
+                "profile_sha256",
+                "tool_binding_sha256",
+                "verification_sha256"
+              ],
+              "kind": "installed_distribution_metadata",
+              "selectors": {
+                "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+                "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+                "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+                "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+                "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+                "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+                "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+                "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+                "python": "3.13",
+                "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+                "root_extras": [],
+                "root_extras_json": "[]",
+                "roots": [
+                  "dowhy==0.14",
+                  "causal-learn==0.1.4.8"
+                ],
+                "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+                "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+                "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+              },
+              "subject": "Exact native generated dependency audit and its frozen contract and verification"
+            }
+          },
+          "criterion": "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.",
+          "requirement": "R7",
+          "role": "support",
+          "scope": {
+            "identity_dimensions": [
+              "image_id",
+              "metadata_directory",
+              "roots",
+              "python",
+              "root_extras",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256"
+            ],
+            "kind": "installed_distribution_metadata",
+            "selectors": {
+              "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+              "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+              "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+              "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+              "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+              "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+              "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+              "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+              "python": "3.13",
+              "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+              "root_extras": [],
+              "root_extras_json": "[]",
+              "roots": [
+                "dowhy==0.14",
+                "causal-learn==0.1.4.8"
+              ],
+              "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+              "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+              "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+            },
+            "subject": "Exact native generated dependency audit and its frozen contract and verification"
+          },
+          "target": "G3"
+        },
+        "context": {
+          "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+        }
+      },
+      "value": {
+        "criterion": "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.",
+        "target": "G3",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+        "verdict": "supported",
+        "reasons": [
+          "For the exact candidate, contract, verification, profiles, binding and host record named by this scope, the implementation supports G3 as a conditional coverage premise. This is an AI engineering assessment under the declared trusted-host, stable-directory and trusted-library assumptions; it supplies no host self-attestation and does not replace the separate A1/R6 or D1/R10 obligations.",
+          "Inventory correspondence: source lines183-215 exhaust a real selected-directory read and explicitly enumerate importlib.metadata.distributions(path=[selected_directory]). Every enumerated entry is read, validated and stored before graph traversal, including unreachable entries. Name canonicalisation, exactly one nonempty Name/Version, Version parsing, every Requires-Dist occurrence, duplicate canonical-name rejection and direct-URL rejection correspond to the specification.",
+          "Strict source errors: lines143-161 inspect METADATA with lstat and select PKG-INFO only when METADATA is absent. Existing unreadable, directory-valued, invalidly encoded or escaping metadata does not trigger a permissive fallback. Resolved metadata paths are confined to the resolved selected directory. Errors propagate to the nonzero acquisition-error channel before any successful logical value.",
+          "Coverage invariant: lines223-250 seed every explicit root with its base context and normalized requested extras. Each new canonical(package,extra) state is queued once. Popping a state evaluates every original indexed requirement in that context. Any true context activates the occurrence and seeds its target base and requested extras. Induction over these activation steps covers the specified least fixed point, including late extras, cycles and explicit-root marker override.",
+          "Occurrence and version correspondence: activated requirements are identified by requiring canonical name and original field index, so repeated identical fields remain distinct. Activation occurs before final version checks, so conflicts do not prune outgoing installed metadata. After queue exhaustion, lines256-301 check every root and every active reachable occurrence once, using Packaging 26.3 contains(Version(installed),prereleases=None); missing or incompatible targets become measured violations.",
+          "Termination and bounds: finite parsed roots/inventory provide finitely many target identities and declared extras, and each queued state is processed once. The shared guard raises before the 20001st defined parse/marker/check unit; the 513th distribution raises. Runtime, memory and output limits may withhold acquisition but do not license a truncated successful result. Complete=true is returned only after enumeration, closure and final checks finish.",
+          "All 11 native cases pass with contract/candidate/source-bundle/fixture/receipt identities verified. Independently checking the frozen expectations gives one root plus four active indexed dependencies= 5 checks in the normalized-extra/late-cycle/repeated-field case. Packaging 26.3 accepts 2.0rc1 under >=1 and rejects 1.9 under >=2. The marker-budget fixture exceeds20000 units, and malformed-source and unreachable-URL cases correctly require acquisition errors.",
+          "The actual pinned-image host observation at 2026-10-28T12:11:25.591036Z reports complete=true, satisfied=true, 50 distributions, 93 checked constraints and 0 violations, with exact scoped roots/directory and retained data/input/request digests. It corroborates actual binding and execution rather than proving arbitrary-input correctness. The supplied full host-response artifact and its selected-record projection agree exactly.",
+          "The prior source 83198654 suppressed METADATA I/O failures through read_text fallback. The exact source now reviewed is bf4c260b; it performs strict reads, and the independently frozen present_directory_metadata_must_not_fall_back case passed with an observed acquisition error. The old-source finding is not silently transferred or treated as a positive witness against these new bytes.",
+          "Limits: this is a code-correspondence and invariant argument plus finite cases, not a mechanical proof of CPython and Packaging, all filesystem layouts or every metadata representation. The implementation rejects unsupported non-Path/zip/standalone egg-info sources as acquisition errors. Native collected=true is a transport-adapter convention; the conclusion here concerns inventory and dependency processing. No binary/API correctness, causal assumptions, scientific validity, human approval or organisational independence is established."
+        ],
+        "reviewed_at": "2026-10-28T12:22:54.420771Z",
+        "provenance": {
+          "kind": "actual AI source and artifact assessment",
+          "agent": "/root/real_claim_audit",
+          "model": "GPT-6 family; exact deployment variant not independently exposed",
+          "review_requirement": "R7",
+          "generated_code_author": false,
+          "new_collector_execution_by_reviewer": false,
+          "source_or_oracle_edits_by_reviewer": false,
+          "shares_parent_task_context": true,
+          "human_approval": false,
+          "external_institutional_approval": false,
+          "review_method": "Direct source review, explicit invariant/induction and bounds argument, independent frozen-expectation inspection, native identity/pin verification, and retained actual host-record comparison.",
+          "confidence": "High conditional engineering confidence for the bounded inventory/closure scope; not universal or mechanically proved correctness.",
+          "original_host_observed_at": "2026-10-28T12:11:25.591036Z",
+          "original_host_run_id": "3e4ab72b-dc69-4447-baf7-cec378f8d410",
+          "hash_convention": "Scope artifact hashes identify raw file bytes; native receipt/manifests additionally use verified canonical JSON digests.",
+          "clock_policy": "reviewed_at is the actual original review time; later import must preserve it.",
+          "independence_limits": "Separate review activity from native constructor/coding calls, with shared orchestration/context and no claim of human or organisational independence."
+        },
+        "evidence_refs": [
+          {
+            "artifact": "native-artifacts/candidate.json",
+            "sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "pointer": "/files/0/content",
+            "source_file_sha256": "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46"
+          },
+          {
+            "artifact": "native-artifacts/contract.json",
+            "sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "pointer": "/draft/fixtures"
+          },
+          {
+            "artifact": "native-artifacts/host_record.json",
+            "sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "pointer": "/result/collection/records/acquisition_646570656e64656e63795f6175646974"
+          },
+          {
+            "artifact": "native-artifacts/operator_profile.json",
+            "sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/package_manifest.json",
+            "sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/profile.json",
+            "sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/tool_binding.toml",
+            "sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/verification.json",
+            "sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+            "pointer": ""
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "tool": "engarg_review_contract",
+        "tool_version": "1",
+        "input": {
+          "acceptance": {
+            "criterion": "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.",
+            "kind": "judgement",
+            "scope": {
+              "identity_dimensions": [
+                "image_id",
+                "metadata_directory",
+                "roots",
+                "python",
+                "root_extras",
+                "candidate_sha256",
+                "contract_sha256",
+                "host_record_sha256",
+                "operator_profile_sha256",
+                "package_manifest_sha256",
+                "profile_sha256",
+                "tool_binding_sha256",
+                "verification_sha256"
+              ],
+              "kind": "installed_distribution_metadata",
+              "selectors": {
+                "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+                "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+                "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+                "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+                "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+                "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+                "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+                "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+                "python": "3.13",
+                "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+                "root_extras": [],
+                "root_extras_json": "[]",
+                "roots": [
+                  "dowhy==0.14",
+                  "causal-learn==0.1.4.8"
+                ],
+                "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+                "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+                "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+              },
+              "subject": "Exact native generated dependency audit and its frozen contract and verification"
+            }
+          },
+          "criterion": "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.",
+          "requirement": "R9",
+          "role": "challenge_activation",
+          "scope": {
+            "identity_dimensions": [
+              "image_id",
+              "metadata_directory",
+              "roots",
+              "python",
+              "root_extras",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256"
+            ],
+            "kind": "installed_distribution_metadata",
+            "selectors": {
+              "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+              "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+              "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+              "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+              "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+              "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+              "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+              "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+              "python": "3.13",
+              "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+              "root_extras": [],
+              "root_extras_json": "[]",
+              "roots": [
+                "dowhy==0.14",
+                "causal-learn==0.1.4.8"
+              ],
+              "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+              "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+              "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+            },
+            "subject": "Exact native generated dependency audit and its frozen contract and verification"
+          },
+          "target": "D1"
+        },
+        "context": {
+          "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+        }
+      },
+      "value": {
+        "criterion": "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.",
+        "target": "D1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+        "verdict": "rejected",
+        "reasons": [
+          "The positive-activation criterion requires a retained output from this exact implementation that reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra. No such paired observed counterexample is present in the scoped supplied artifacts or was produced during this review. I therefore reject support for this positive activation criterion on this evidence packet.",
+          "The frozen extra/late-cycle/repeated-occurrence case has a correct positive expectation and passed. The actual 50-distribution/93-check observation is a positive audit result, not an independently established false positive. Neither missing qualification nor an unsupported earlier overall claim supplies an omission witness.",
+          "The earlier83198654 read_text fallback concern was a source-level candidate error-policy counterexample, not a retained observed omission witness. It concerns different source bytes, and the strict-read repair plus the new frozen boundary case address that mechanism in bf4c260b. It cannot be relabelled as positive activation evidence for this scope.",
+          "This rejected activation review does not prove that no possible counterexample exists and does not resolve D1 by itself. Review was limited to the exact source/artifacts, the declared trusted-runtime/stable-directory assumptions, and finite retained cases; no exhaustive fuzzing or new collector execution was performed. The independent positive coverage assessment and separate R10 resolution remain necessary."
+        ],
+        "reviewed_at": "2026-10-28T12:22:54.421263Z",
+        "provenance": {
+          "kind": "actual AI source and artifact assessment",
+          "agent": "/root/real_claim_audit",
+          "model": "GPT-6 family; exact deployment variant not independently exposed",
+          "review_requirement": "R9",
+          "generated_code_author": false,
+          "new_collector_execution_by_reviewer": false,
+          "source_or_oracle_edits_by_reviewer": false,
+          "shares_parent_task_context": true,
+          "human_approval": false,
+          "external_institutional_approval": false,
+          "review_method": "Direct source review, explicit invariant/induction and bounds argument, independent frozen-expectation inspection, native identity/pin verification, and retained actual host-record comparison.",
+          "confidence": "High conditional engineering confidence for the bounded inventory/closure scope; not universal or mechanically proved correctness.",
+          "original_host_observed_at": "2026-10-28T12:11:25.591036Z",
+          "original_host_run_id": "3e4ab72b-dc69-4447-baf7-cec378f8d410",
+          "hash_convention": "Scope artifact hashes identify raw file bytes; native receipt/manifests additionally use verified canonical JSON digests.",
+          "clock_policy": "reviewed_at is the actual original review time; later import must preserve it.",
+          "independence_limits": "Separate review activity from native constructor/coding calls, with shared orchestration/context and no claim of human or organisational independence."
+        },
+        "evidence_refs": [
+          {
+            "artifact": "native-artifacts/candidate.json",
+            "sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "pointer": "/files/0/content",
+            "source_file_sha256": "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46"
+          },
+          {
+            "artifact": "native-artifacts/contract.json",
+            "sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "pointer": "/draft/fixtures"
+          },
+          {
+            "artifact": "native-artifacts/host_record.json",
+            "sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "pointer": "/result/collection/records/acquisition_646570656e64656e63795f6175646974"
+          },
+          {
+            "artifact": "native-artifacts/operator_profile.json",
+            "sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/package_manifest.json",
+            "sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/profile.json",
+            "sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/tool_binding.toml",
+            "sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/verification.json",
+            "sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+            "pointer": ""
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "tool": "engarg_review_contract",
+        "tool_version": "1",
+        "input": {
+          "acceptance": {
+            "criterion": "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.",
+            "kind": "judgement",
+            "scope": {
+              "identity_dimensions": [
+                "image_id",
+                "metadata_directory",
+                "roots",
+                "python",
+                "root_extras",
+                "candidate_sha256",
+                "contract_sha256",
+                "host_record_sha256",
+                "operator_profile_sha256",
+                "package_manifest_sha256",
+                "profile_sha256",
+                "tool_binding_sha256",
+                "verification_sha256"
+              ],
+              "kind": "installed_distribution_metadata",
+              "selectors": {
+                "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+                "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+                "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+                "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+                "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+                "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+                "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+                "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+                "python": "3.13",
+                "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+                "root_extras": [],
+                "root_extras_json": "[]",
+                "roots": [
+                  "dowhy==0.14",
+                  "causal-learn==0.1.4.8"
+                ],
+                "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+                "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+                "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+              },
+              "subject": "Exact native generated dependency audit and its frozen contract and verification"
+            }
+          },
+          "criterion": "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.",
+          "requirement": "R10",
+          "role": "challenge_resolution",
+          "scope": {
+            "identity_dimensions": [
+              "image_id",
+              "metadata_directory",
+              "roots",
+              "python",
+              "root_extras",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256"
+            ],
+            "kind": "installed_distribution_metadata",
+            "selectors": {
+              "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+              "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+              "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+              "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+              "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+              "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+              "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+              "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+              "python": "3.13",
+              "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+              "root_extras": [],
+              "root_extras_json": "[]",
+              "roots": [
+                "dowhy==0.14",
+                "causal-learn==0.1.4.8"
+              ],
+              "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+              "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+              "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+            },
+            "subject": "Exact native generated dependency audit and its frozen contract and verification"
+          },
+          "target": "D1"
+        },
+        "context": {
+          "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+        }
+      },
+      "value": {
+        "criterion": "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.",
+        "target": "D1",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "reviewer": "Codex AI reviewer /root/real_claim_audit (GPT-6 family; exact deployment variant not independently exposed)",
+        "verdict": "supported",
+        "reasons": [
+          "For the exact scope and trusted-runtime/stable-directory assumptions, implementation correspondence and the frozen results support resolution of the specific D1 omission mechanism. This conclusion rests on the positive coverage and termination argument below, rather than merely the absence of a found counterexample or rejection of R9 activation.",
+          "Every explicit root seeds base and requested-extra states. A finite monotone scheduled set ensures each canonical(package,extra) state is visited once. Each state tests every original requirement occurrence; any true marker context activates that indexed occurrence and enables its target base and fixed requested extras. This induction establishes complete reachable-requirement and transitive-extra coverage for the specified algorithm, including extra contexts introduced after a package was first visited.",
+          "Cycles cannot cause premature completion because newly enabled extras are separate states; already-active occurrence caching does not lose additional target extras because each parsed occurrence has an immutable extras set. Repeated identical Requires-Dist fields retain their distinct original indexes. Target versions are checked only after closure, so an incompatible target cannot conceal its outgoing dependencies, and missing targets remain explicit violations.",
+          "Full inventory validation precedes closure. Strict direct metadata reads and resolved-path checks now prevent the earlier suppressed-error fallback from returning a successful incomplete observation. The boundary fixture with METADATA as a directory plus a benign PKG-INFO passed with an observed nonzero acquisition error. No unresolved concrete omission counterexample was identified for these exact new bytes.",
+          "The exact frozen conditional_extras_cycle_late_propagation_and_repeated_occurrences case exercises normalized root extras, an A->B->A cycle, late A[z], two distinct C requirements and an inactive missing target. Its independently checked expectation is 5 total checks, and it passed. The prerelease, conflict, empty-inventory, malformed-source, unreachable-URL and shared-budget cases also passed; all 11 native receipt entries and canonical identities match the reviewed artifacts.",
+          "The finite state argument establishes termination of the specified graph work. Shared parse/marker/final-check charges stop before exceeding 20000 and the inventory stops at 512 distributions; exhaustion raises acquisition error rather than setting complete=true on a truncated graph. Final processing checks every root and active indexed occurrence exactly once with the pinned Packaging 26.3 semantics.",
+          "The actual host record identifies the reviewed binding and image and shows a successful 50/93/0 acquisition at its original 12:11:25Z observation time. It corroborates execution on the selected directory; it does not substitute for the source proof, independently attest its own image, or widen this resolution to runtime APIs or scientific causal claims.",
+          "Confidence is high for this explicitly bounded algorithm/correspondence judgement under the authored assumptions. It is not a machine-checked theorem or exhaustive test of libraries, malformed metadata or alternate filesystems. Unsupported metadata providers/layouts may fail acquisition. This record is a separate AI source/artifact assessment with shared task context, not external human or institutional approval; A1/R6, formal-method interpretation and other obligations remain separate."
+        ],
+        "reviewed_at": "2026-10-28T12:22:54.421454Z",
+        "provenance": {
+          "kind": "actual AI source and artifact assessment",
+          "agent": "/root/real_claim_audit",
+          "model": "GPT-6 family; exact deployment variant not independently exposed",
+          "review_requirement": "R10",
+          "generated_code_author": false,
+          "new_collector_execution_by_reviewer": false,
+          "source_or_oracle_edits_by_reviewer": false,
+          "shares_parent_task_context": true,
+          "human_approval": false,
+          "external_institutional_approval": false,
+          "review_method": "Direct source review, explicit invariant/induction and bounds argument, independent frozen-expectation inspection, native identity/pin verification, and retained actual host-record comparison.",
+          "confidence": "High conditional engineering confidence for the bounded inventory/closure scope; not universal or mechanically proved correctness.",
+          "original_host_observed_at": "2026-10-28T12:11:25.591036Z",
+          "original_host_run_id": "3e4ab72b-dc69-4447-baf7-cec378f8d410",
+          "hash_convention": "Scope artifact hashes identify raw file bytes; native receipt/manifests additionally use verified canonical JSON digests.",
+          "clock_policy": "reviewed_at is the actual original review time; later import must preserve it.",
+          "independence_limits": "Separate review activity from native constructor/coding calls, with shared orchestration/context and no claim of human or organisational independence."
+        },
+        "evidence_refs": [
+          {
+            "artifact": "native-artifacts/candidate.json",
+            "sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "pointer": "/files/0/content",
+            "source_file_sha256": "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46"
+          },
+          {
+            "artifact": "native-artifacts/contract.json",
+            "sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "pointer": "/draft/fixtures"
+          },
+          {
+            "artifact": "native-artifacts/host_record.json",
+            "sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "pointer": "/result/collection/records/acquisition_646570656e64656e63795f6175646974"
+          },
+          {
+            "artifact": "native-artifacts/operator_profile.json",
+            "sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/package_manifest.json",
+            "sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/profile.json",
+            "sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/tool_binding.toml",
+            "sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "pointer": ""
+          },
+          {
+            "artifact": "native-artifacts/verification.json",
+            "sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+            "pointer": ""
+          }
+        ]
+      }
+    }
+  ]
+}

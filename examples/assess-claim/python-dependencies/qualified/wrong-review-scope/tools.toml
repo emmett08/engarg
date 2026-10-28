@@ -1,0 +1,120 @@
+[context]
+engarg_export_digest = "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+
+[tools.engarg_review_contract]
+kind = "command"
+version = "1"
+argv = [
+    "eal-collector",
+    "review-json",
+    "--inputs",
+    "review-inputs.json",
+]
+timeout_seconds = 30.0
+max_output_bytes = 1048576
+parallel_safe = true
+inherit_env = ["PATH"]
+
+[tools.engarg_review_contract.env]
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts.envelope.json"
+sha256 = "341b7cc5b9cfc997f2a7b8720468723743754af22267f2b8b67fab7b8c0c3ee8"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts/candidate.json"
+sha256 = "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts/contract.json"
+sha256 = "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts/host_record.json"
+sha256 = "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts/operator_profile.json"
+sha256 = "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts/package_manifest.json"
+sha256 = "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts/profile.json"
+sha256 = "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts/tool_binding.toml"
+sha256 = "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "native-artifacts/verification.json"
+sha256 = "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+
+[[tools.engarg_review_contract.pinned_files]]
+path = "review-inputs.json"
+sha256 = "81972f107e103e8d4f8fb41a1670eeb43276b8f4c5bd1b62ef4c124bdfd10166"
+
+[tools.source_646570656e64656e63795f6175646974]
+kind = "command"
+version = "1"
+argv = [
+    "eal-tool-run",
+    "--package",
+    "tools/generated/dependency_audit/tool.toml",
+]
+timeout_seconds = 180.0
+max_output_bytes = 1048576
+parallel_safe = true
+inherit_env = [
+    "PATH",
+    "HOME",
+    "DOCKER_HOST",
+    "DOCKER_CONTEXT",
+    "DOCKER_CONFIG",
+    "DOCKER_CERT_PATH",
+    "DOCKER_TLS_VERIFY",
+    "DOCKER_API_VERSION",
+    "SSH_AUTH_SOCK",
+    "XDG_RUNTIME_DIR",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
+    "USER",
+]
+
+[tools.source_646570656e64656e63795f6175646974.env]
+
+[[tools.source_646570656e64656e63795f6175646974.pinned_files]]
+path = "tools/generated/dependency_audit/input.schema.json"
+sha256 = "0b6803c30a8605552c64c80a3fb43343ecdc7e40281981eca9878b3607bd4a7c"
+
+[[tools.source_646570656e64656e63795f6175646974.pinned_files]]
+path = "tools/generated/dependency_audit/output.schema.json"
+sha256 = "47e8f1c47ebf8d219f77cd83816662413280168bd0f83ba6fad74766c4721ae1"
+
+[[tools.source_646570656e64656e63795f6175646974.pinned_files]]
+path = "tools/generated/dependency_audit/source/collector.py"
+sha256 = "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46"
+
+[[tools.source_646570656e64656e63795f6175646974.pinned_files]]
+path = "tools/generated/dependency_audit/tool.toml"
+sha256 = "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d"
+
+[[tools.source_646570656e64656e63795f6175646974.pinned_files]]
+path = "tools/generated/dependency_audit/verification.json"
+sha256 = "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+
+[tools.source_6e61746976655f617274696661637473]
+kind = "json_file"
+version = "1"
+argv = []
+path = "native-artifacts.envelope.json"
+timeout_seconds = 30.0
+max_output_bytes = 1048576
+pinned_files = []
+parallel_safe = false
+
+[tools.source_6e61746976655f617274696661637473.env]

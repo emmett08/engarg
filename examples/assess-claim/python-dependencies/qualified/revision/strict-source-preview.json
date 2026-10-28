@@ -1,0 +1,101 @@
+{
+  "dissent_revision_candidates": [
+    {
+      "changes": [],
+      "current_context": {
+        "related_targets": {
+          "G1": {
+            "id": "G1",
+            "statement": "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2."
+          },
+          "current_claim": {
+            "qualifier": "Unsupported pending an actual complete audit, host binding confirmation and implementation qualification.",
+            "text": "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras."
+          }
+        },
+        "scope": {
+          "configuration": "Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\"dowhy==0.14\",\"causal-learn==0.1.4.8\"] and no explicitly requested root extras.",
+          "consequences": "A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.",
+          "operating_conditions": "Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.",
+          "system_boundary": "Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.",
+          "time_horizon": "One actual audit observation accepted for at most 3600 seconds from its original observation time.",
+          "units": "Boolean predicates and dimensionless counts."
+        },
+        "target": {
+          "applicability": "The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.",
+          "conclusion_id": "current_claim",
+          "id": "W1",
+          "inference": "deductive",
+          "premise_ids": [
+            "G1"
+          ],
+          "reasoning_method": {
+            "evidence_need_ids": [
+              "N1",
+              "N2",
+              "N3",
+              "N5"
+            ],
+            "method": "deductive",
+            "reasons": [
+              "The needed coverage argument concerns finite metadata enumeration and a package-extra fixed-point algorithm rather than bounded propositional entailment alone.",
+              "No implementation assessment establishes correspondence between the proposed audit outputs and the claimed universal predicate."
+            ],
+            "status": "unresolved"
+          },
+          "rule": "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate."
+        }
+      },
+      "current_context_sha256": "cfaf51a3285112cc70df51972da11cbabc2aa492b658e22de192e936de6714fd",
+      "objection_id": "D1",
+      "original_context": {
+        "related_targets": {
+          "G1": {
+            "id": "G1",
+            "statement": "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2."
+          },
+          "current_claim": {
+            "qualifier": "Unsupported pending an actual complete audit, host binding confirmation and implementation qualification.",
+            "text": "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras."
+          }
+        },
+        "scope": {
+          "configuration": "Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\"dowhy==0.14\",\"causal-learn==0.1.4.8\"] and no explicitly requested root extras.",
+          "consequences": "A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.",
+          "operating_conditions": "Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.",
+          "system_boundary": "Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.",
+          "time_horizon": "One actual audit observation accepted for at most 3600 seconds from its original observation time.",
+          "units": "Boolean predicates and dimensionless counts."
+        },
+        "target": {
+          "applicability": "The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.",
+          "conclusion_id": "current_claim",
+          "id": "W1",
+          "inference": "deductive",
+          "premise_ids": [
+            "G1"
+          ],
+          "reasoning_method": {
+            "evidence_need_ids": [
+              "N1",
+              "N2",
+              "N3",
+              "N5"
+            ],
+            "method": "deductive",
+            "reasons": [
+              "The needed coverage argument concerns finite metadata enumeration and a package-extra fixed-point algorithm rather than bounded propositional entailment alone.",
+              "No implementation assessment establishes correspondence between the proposed audit outputs and the claimed universal predicate."
+            ],
+            "status": "unresolved"
+          },
+          "rule": "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate."
+        }
+      },
+      "original_context_sha256": "cfaf51a3285112cc70df51972da11cbabc2aa492b658e22de192e936de6714fd",
+      "target_id": "W1"
+    }
+  ],
+  "parent_report_sha256": "8389fa2bc8f123f46cce2eb67ed4311c00dedb9cf92fc3bfc1a111a1eea93862",
+  "support_elaboration_required": false
+}

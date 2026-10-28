@@ -1,0 +1,634 @@
+{
+  "adjudication": "This explicit revision connects retained native artifact correspondence and actual scoped qualification to the metadata route. Native deduction establishes modus ponens only after G1 and G3 are accepted. D1 remains material and open, with separate activation and resolution assessments; preparation supplies no reviewer verdict. The runtime smoke-test target remains separately unsupported.",
+  "alternatives": [],
+  "assumptions": [
+    {
+      "applies_to": [
+        "W1"
+      ],
+      "critical": true,
+      "evidence_ids": [],
+      "id": "A1",
+      "statement": "The host binds the audit to the selected image running Python 3.13 with packaging 26.3 and confines metadata reads to the selected directory.",
+      "status": "untested",
+      "validation": "Inspect the actual native binding and retained execution provenance against the requested image and directory before accepting an audit result."
+    }
+  ],
+  "compositions": [
+    {
+      "conclusion_id": "current_claim",
+      "rationale": "The single route requires the complete audit ground under the selected image and directory scope. Its adequacy depends on faithful audit semantics and host execution identity, neither of which is established by this authored plan.",
+      "relationship": "jointly_required",
+      "selected_warrant_ids": [
+        "W1"
+      ]
+    },
+    {
+      "conclusion_id": "stronger_target",
+      "rationale": "The broader target jointly requires metadata consistency and separate runtime evidence for an operator-defined smoke-test workload in the same image. Metadata evidence is shared rather than counted as independent runtime confirmation.",
+      "relationship": "jointly_required",
+      "selected_warrant_ids": [
+        "W2"
+      ]
+    }
+  ],
+  "current_claim": {
+    "qualifier": "Conditional on the unchanged complete audit predicate, exact native host correspondence, actual scoped implementation and method assessments, and separate D1 resolution, all within the original one-hour observation limit.",
+    "text": "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras."
+  },
+  "decision_limits": [
+    "Use this argument to specify and assess the finite metadata audit rather than to approve the image before collection.",
+    "Accept an observation only when its original observation age is at most 3600 seconds.",
+    "Treat source errors and exhausted bounds as acquisition failures rather than measured compatibility.",
+    "Metadata consistency does not establish import success or binary compatibility.",
+    "The argument establishes no scientific causal validity or dependency consistency in other environments.",
+    "The image_id input is a scope label rather than process attestation."
+  ],
+  "defeaters": [
+    {
+      "basis": "hypothetical",
+      "challenge": "An implementation that omits reachable requirements or enabled transitive extras could report a false positive despite returning inventory_complete.",
+      "evidence_ids": [],
+      "id": "D1",
+      "kind": "undercutting",
+      "material": true,
+      "response": "The omission concern still applies to the exact implementation. Require the actual scoped N3 assessment and N5 resolution; a rejected or inconclusive N6 activation judgement is not proof of resolution. The propositional method does not establish algorithm coverage.",
+      "status": "open",
+      "target_id": "W1"
+    }
+  ],
+  "dissent_revisions": {
+    "applications": [
+      {
+        "changes": [
+          {
+            "after": [
+              "G1",
+              "G3"
+            ],
+            "after_present": true,
+            "before": [
+              "G1"
+            ],
+            "before_present": true,
+            "path": "/target/premise_ids"
+          },
+          {
+            "after": [
+              "A1"
+            ],
+            "after_present": true,
+            "before": null,
+            "before_present": false,
+            "path": "/target/reasoning_method/assumption_ids"
+          },
+          {
+            "after": {
+              "claim_id": "current_claim",
+              "quantity": "proposition",
+              "result": {
+                "expected": true,
+                "operator": "==",
+                "path": "entailed"
+              },
+              "scope": {
+                "identity_dimensions": [
+                  "image_id",
+                  "metadata_directory",
+                  "python"
+                ],
+                "kind": "installed_distribution_metadata",
+                "selectors": [
+                  {
+                    "name": "image_id",
+                    "value": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2"
+                  },
+                  {
+                    "name": "metadata_directory",
+                    "value": "/usr/local/lib/python3.13/site-packages"
+                  },
+                  {
+                    "name": "python",
+                    "value": "3.13"
+                  },
+                  {
+                    "name": "roots_json",
+                    "value": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+                  },
+                  {
+                    "name": "root_extras_json",
+                    "value": "[]"
+                  }
+                ]
+              },
+              "subject": "Installed metadata in the selected immutable Python image and directory for the exact roots",
+              "unit": "1",
+              "valid_from": "2026-10-28T12:05:45.234085Z",
+              "valid_until": "2026-10-28T13:05:45.234085Z"
+            },
+            "after_present": true,
+            "before": null,
+            "before_present": false,
+            "path": "/target/reasoning_method/conclusion"
+          },
+          {
+            "after": null,
+            "after_present": false,
+            "before": [
+              "N1",
+              "N2",
+              "N3",
+              "N5"
+            ],
+            "before_present": true,
+            "path": "/target/reasoning_method/evidence_need_ids"
+          },
+          {
+            "after": [
+              {
+                "evidence_need_id": "N1",
+                "requirement": "All five unchanged audit criteria must be satisfied.",
+                "role": "premise_observation"
+              },
+              {
+                "evidence_need_id": "N3",
+                "requirement": "The exact scoped implementation assessment must establish G3.",
+                "role": "premise_observation"
+              },
+              {
+                "evidence_need_id": "N2",
+                "requirement": "Actual pinned host provenance must establish A1.",
+                "role": "applicability"
+              }
+            ],
+            "after_present": true,
+            "before": null,
+            "before_present": false,
+            "path": "/target/reasoning_method/evidence_requirements"
+          },
+          {
+            "after": [
+              {
+                "correspondence": {
+                  "kind": "accepted_premise"
+                },
+                "evidence_need_id": "N1",
+                "input_pointer": "/premises/0",
+                "interpretation": "The complete audit predicate is accepted only if all unchanged R1 through R5 hold.",
+                "premise_id": "G1"
+              },
+              {
+                "correspondence": {
+                  "kind": "accepted_premise"
+                },
+                "evidence_need_id": "N3",
+                "input_pointer": "/premises/1",
+                "interpretation": "Actual scoped implementation qualification licenses the conditional audit_accepted implies metadata_predicate.",
+                "premise_id": "G3"
+              }
+            ],
+            "after_present": true,
+            "before": null,
+            "before_present": false,
+            "path": "/target/reasoning_method/formal_premises"
+          },
+          {
+            "after": {
+              "identifier": "deductive/1",
+              "query": {
+                "conclusion": "metadata_predicate",
+                "premises": [
+                  "audit_accepted",
+                  {
+                    "implies": [
+                      "audit_accepted",
+                      "metadata_predicate"
+                    ]
+                  }
+                ]
+              }
+            },
+            "after_present": true,
+            "before": "deductive",
+            "before_present": true,
+            "path": "/target/reasoning_method/method"
+          },
+          {
+            "after": null,
+            "after_present": false,
+            "before": [
+              "The needed coverage argument concerns finite metadata enumeration and a package-extra fixed-point algorithm rather than bounded propositional entailment alone.",
+              "No implementation assessment establishes correspondence between the proposed audit outputs and the claimed universal predicate."
+            ],
+            "before_present": true,
+            "path": "/target/reasoning_method/reasons"
+          },
+          {
+            "after": "bound",
+            "after_present": true,
+            "before": "unresolved",
+            "before_present": true,
+            "path": "/target/reasoning_method/status"
+          },
+          {
+            "after": {
+              "id": "G3",
+              "statement": "For the exact pinned implementation, frozen contract, runtime assumptions and selected-directory scope, acceptance of the complete audit predicate in G1 implies the claimed installed-metadata predicate."
+            },
+            "after_present": true,
+            "before": null,
+            "before_present": false,
+            "path": "/related_targets/G3"
+          },
+          {
+            "after": "Conditional on the unchanged complete audit predicate, exact native host correspondence, actual scoped implementation and method assessments, and separate D1 resolution, all within the original one-hour observation limit.",
+            "after_present": true,
+            "before": "Unsupported pending an actual complete audit, host binding confirmation and implementation qualification.",
+            "before_present": true,
+            "path": "/related_targets/current_claim/qualifier"
+          }
+        ],
+        "current_context_sha256": "547a9636d1d65cfde899ac7a3cbe6feb43c66b45fc27f8199063db4d35785f5c",
+        "effect": "still_applies",
+        "objection_id": "D1",
+        "origin_context_sha256": "cfaf51a3285112cc70df51972da11cbabc2aa492b658e22de192e936de6714fd",
+        "rationale": "G3 exposes rather than assumes away the implementation conditional. The original omission challenge remains material and open, with unchanged N5/N6 clauses and a separate mandatory resolution assessment."
+      }
+    ],
+    "origins": [
+      {
+        "basis": "hypothetical",
+        "challenge": "An implementation that omits reachable requirements or enabled transitive extras could report a false positive despite returning inventory_complete.",
+        "context_sha256": "cfaf51a3285112cc70df51972da11cbabc2aa492b658e22de192e936de6714fd",
+        "kind": "undercutting",
+        "must_remain_material": true,
+        "objection_id": "D1",
+        "source_role": "single",
+        "target_context": {
+          "related_targets": {
+            "G1": {
+              "id": "G1",
+              "statement": "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2."
+            },
+            "current_claim": {
+              "qualifier": "Unsupported pending an actual complete audit, host binding confirmation and implementation qualification.",
+              "text": "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras."
+            }
+          },
+          "scope": {
+            "configuration": "Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\"dowhy==0.14\",\"causal-learn==0.1.4.8\"] and no explicitly requested root extras.",
+            "consequences": "A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.",
+            "operating_conditions": "Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.",
+            "system_boundary": "Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.",
+            "time_horizon": "One actual audit observation accepted for at most 3600 seconds from its original observation time.",
+            "units": "Boolean predicates and dimensionless counts."
+          },
+          "target": {
+            "applicability": "The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.",
+            "conclusion_id": "current_claim",
+            "id": "W1",
+            "inference": "deductive",
+            "premise_ids": [
+              "G1"
+            ],
+            "reasoning_method": {
+              "evidence_need_ids": [
+                "N1",
+                "N2",
+                "N3",
+                "N5"
+              ],
+              "method": "deductive",
+              "reasons": [
+                "The needed coverage argument concerns finite metadata enumeration and a package-extra fixed-point algorithm rather than bounded propositional entailment alone.",
+                "No implementation assessment establishes correspondence between the proposed audit outputs and the claimed universal predicate."
+              ],
+              "status": "unresolved"
+            },
+            "rule": "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate."
+          }
+        },
+        "target_id": "W1"
+      }
+    ],
+    "schema": "engarg.dissent-revisions/1"
+  },
+  "evidence_plan": [
+    {
+      "acceptance_criterion": "satisfied==true AND inventory_complete==true AND violations_count==0 AND checked_distributions>=2 AND checked_requirements>=2.",
+      "comparator": "The two exact root constraints and every applicable reachable PEP508 requirement under the selected environment.",
+      "cost": "One bounded read-only audit in the selected image.",
+      "enables_claim": "current_claim",
+      "id": "N1",
+      "if_failed": "A measured violation defeats the metadata proposition for that observation, while an acquisition error leaves it unresolved.",
+      "measurement": "Two Boolean predicates and three dimensionless counts, with a complete inventory and requirement details.",
+      "method": "Run the specified dependency_audit operation against the actual installed directory after qualification and host binding.",
+      "priority": 1,
+      "question": "Does the complete installed metadata audit satisfy the requested finite predicate?",
+      "target_id": "G1"
+    },
+    {
+      "acceptance_criterion": "Retained execution provenance confirms the exact selected image, Python 3.13, packaging 26.3 and the selected metadata directory without relying on image_id as attestation.",
+      "comparator": "The operator-selected immutable image and authorised execution restrictions.",
+      "cost": "Host binding inspection before the audit.",
+      "enables_claim": "current_claim",
+      "id": "N2",
+      "if_failed": "An audit from another execution scope cannot support this claim.",
+      "measurement": "Exact identity and execution-policy correspondence, dimensionless.",
+      "method": "Inspect the actual host binding and its original execution provenance when these exist.",
+      "priority": 1,
+      "question": "Does the host actually bind the audit to the required execution scope?",
+      "target_id": "A1"
+    },
+    {
+      "acceptance_criterion": "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.",
+      "comparator": "The reusable operation specification and independently frozen expected outcomes.",
+      "cost": "Finite derivation review and implementation qualification.",
+      "enables_claim": "current_claim",
+      "id": "N3",
+      "if_failed": "The audit result cannot establish universal dependency coverage.",
+      "measurement": "Coverage and algorithm correspondence, dimensionless.",
+      "method": "Derive fixed-point termination and coverage, then assess the generated implementation against positive, measured-negative, conditional-extra and acquisition-error cases frozen before coding.",
+      "priority": 1,
+      "question": "Does the audit implementation justify the inference from its output to the finite metadata predicate?",
+      "target_id": "G3"
+    },
+    {
+      "acceptance_criterion": "The operator defines the runtime smoke-test workload and acceptance rules before execution, and retained tests in the same selected image demonstrate both root imports and every API assertion in that workload.",
+      "comparator": "The operator-defined runtime workload rather than the metadata predicate.",
+      "cost": "Separate runtime work outside this acquisition plan.",
+      "enables_claim": "stronger_target",
+      "id": "N4",
+      "if_failed": "Retain the metadata result separately and withhold the runtime target.",
+      "measurement": "Import outcomes and workload assertion outcomes, Boolean.",
+      "method": "First define the workload and then collect actual runtime test results through a separately authorised operation.",
+      "priority": 4,
+      "question": "Do both roots import and satisfy the operator-defined API smoke-test workload?",
+      "target_id": "G2"
+    },
+    {
+      "acceptance_criterion": "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.",
+      "comparator": "The omission mechanism stated in D1.",
+      "cost": "Shared qualification work with N3, with a separate disposition.",
+      "enables_claim": "current_claim",
+      "id": "N5",
+      "if_failed": "Keep D1 open and reject a positive audit as sufficient support.",
+      "measurement": "Algorithm coverage and verification outcomes, dimensionless.",
+      "method": "Assess the actual implementation against the fixed-point derivation and frozen cases that require repeated transitive-extra propagation.",
+      "priority": 1,
+      "question": "Has the omission mechanism in D1 been excluded for the implemented audit?",
+      "target_id": "D1"
+    },
+    {
+      "acceptance_criterion": "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.",
+      "comparator": "An independently specified finite metadata case and its exact reachable requirements.",
+      "cost": "Counterexample inspection if an implementation becomes available.",
+      "enables_claim": "current_claim",
+      "id": "N6",
+      "if_failed": "Absence of an observed counterexample does not resolve D1.",
+      "measurement": "Existence of a concrete false-positive counterexample, Boolean.",
+      "method": "Compare actual audit output with independently frozen metadata-case expectations.",
+      "priority": 2,
+      "question": "Is there positive evidence that the omission challenge is active?",
+      "target_id": "D1"
+    },
+    {
+      "acceptance_criterion": "A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.",
+      "comparator": "The limited runtime target and the consequences of an inadequate smoke-test workload.",
+      "cost": "Separate scoped engineering assessment.",
+      "enables_claim": "stronger_target",
+      "id": "N7",
+      "if_failed": "Narrow or withhold the runtime target without changing the metadata predicate.",
+      "measurement": "Workload adequacy judgement, dimensionless.",
+      "method": "Assess the defined workload and its assertions before relying on G2.",
+      "priority": 4,
+      "question": "Is the runtime evidence adequate for the limited stronger target?",
+      "target_id": "W2"
+    },
+    {
+      "acceptance_criterion": "A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations.",
+      "comparator": "The unchanged metadata proposition, G1/N1 and scoped conditional G3/N3, not a proof of the collector by SAT.",
+      "cost": "Separate bounded AI formalisation review.",
+      "enables_claim": "current_claim",
+      "id": "N12",
+      "if_failed": "Withhold W1 support; revise the formal mapping without weakening N1, N2, N3 or N5.",
+      "measurement": "Formal/prose correspondence and method adequacy judgement, dimensionless.",
+      "method": "Review the final authored W1 formal bindings, exact native query and mandatory evidence dependencies.",
+      "priority": 1,
+      "question": "Does the bound native method faithfully express this bounded inference?",
+      "target_id": "W1"
+    }
+  ],
+  "grounds": [
+    {
+      "evidence_ids": [],
+      "id": "G1",
+      "statement": "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2.",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "id": "G2",
+      "statement": "Both root packages import and pass every assertion in an operator-defined API smoke-test workload in the selected image.",
+      "status": "missing"
+    },
+    {
+      "evidence_ids": [],
+      "id": "G3",
+      "statement": "For the exact pinned implementation, frozen contract, runtime assumptions and selected-directory scope, acceptance of the complete audit predicate in G1 implies the claimed installed-metadata predicate.",
+      "status": "missing"
+    }
+  ],
+  "original_claim": "In the operator-selected immutable Python evidence image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2, the installed distribution metadata in /usr/local/lib/python3.13/site-packages contains DoWhy 0.14 and causal-learn 0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from those roots under the selected Python3.13 environment, with no explicitly requested root extras.",
+  "reading": [
+    {
+      "claim_id": "current_claim",
+      "paragraphs": [
+        {
+          "purpose": "answer",
+          "reference_ids": [
+            "current_claim",
+            "G1",
+            "G3",
+            "W1",
+            "A1",
+            "D1",
+            "N1",
+            "N2",
+            "N3",
+            "N5",
+            "N6",
+            "N12"
+          ],
+          "text": "A complete successful audit supports only the bounded metadata proposition when actual native provenance matches the selected image and directory, the exact implementation is qualified, and the omission challenge is separately resolved. G3 states the implementation conditional. Native deduction then checks modus ponens, while a separate scoped review assesses formal correspondence. D1 remains open at authoring and requires actual challenge assessments. No preparation record constitutes an accepted review or establishes runtime API behaviour."
+        }
+      ],
+      "title": "A complete metadata audit can support the claim"
+    },
+    {
+      "claim_id": "stronger_target",
+      "paragraphs": [
+        {
+          "purpose": "answer",
+          "reference_ids": [
+            "stronger_target",
+            "current_claim",
+            "G2",
+            "W2",
+            "N4",
+            "N7"
+          ],
+          "text": "The broader runtime target remains conditional on separate runtime evidence because metadata consistency does not demonstrate successful imports or API behaviour. It requires the metadata predicate together with successful execution of an operator-defined smoke-test workload in the same image and an assessment that the workload supports only that limited target. Neither the workload nor its results are available, and scientific causal validity remains outside both claims."
+        }
+      ],
+      "title": "Runtime behaviour needs separate evidence"
+    }
+  ],
+  "residual_risks": [
+    "Malformed metadata or exhausted bounds can prevent an audit result even when the installed packages happen to work.",
+    "A qualified audit still depends on accurate runtime provenance and faithful reading of the selected directory.",
+    "Declared metadata can omit dependencies that application execution actually needs.",
+    "The fixed selected environment does not cover other interpreters or explicitly enabled root extras."
+  ],
+  "scope": {
+    "configuration": "Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\"dowhy==0.14\",\"causal-learn==0.1.4.8\"] and no explicitly requested root extras.",
+    "consequences": "A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.",
+    "operating_conditions": "Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.",
+    "system_boundary": "Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.",
+    "time_horizon": "One actual audit observation accepted for at most 3600 seconds from its original observation time.",
+    "units": "Boolean predicates and dimensionless counts."
+  },
+  "status": "unsupported",
+  "stronger_target": {
+    "qualifier": "Conditional on the metadata predicate and separately defined, collected and assessed runtime smoke-test evidence.",
+    "text": "The selected image satisfies the metadata predicate and both roots import and pass every API assertion in an operator-defined runtime smoke-test workload."
+  },
+  "subclaims": [],
+  "warrants": [
+    {
+      "applicability": "The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.",
+      "backing_evidence_ids": [],
+      "conclusion_id": "current_claim",
+      "id": "W1",
+      "inference": "deductive",
+      "premise_ids": [
+        "G1",
+        "G3"
+      ],
+      "reasoning_method": {
+        "assumption_ids": [
+          "A1"
+        ],
+        "conclusion": {
+          "claim_id": "current_claim",
+          "quantity": "proposition",
+          "result": {
+            "expected": true,
+            "operator": "==",
+            "path": "entailed"
+          },
+          "scope": {
+            "identity_dimensions": [
+              "image_id",
+              "metadata_directory",
+              "python"
+            ],
+            "kind": "installed_distribution_metadata",
+            "selectors": [
+              {
+                "name": "image_id",
+                "value": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2"
+              },
+              {
+                "name": "metadata_directory",
+                "value": "/usr/local/lib/python3.13/site-packages"
+              },
+              {
+                "name": "python",
+                "value": "3.13"
+              },
+              {
+                "name": "roots_json",
+                "value": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]"
+              },
+              {
+                "name": "root_extras_json",
+                "value": "[]"
+              }
+            ]
+          },
+          "subject": "Installed metadata in the selected immutable Python image and directory for the exact roots",
+          "unit": "1",
+          "valid_from": "2026-10-28T12:05:45.234085Z",
+          "valid_until": "2026-10-28T13:05:45.234085Z"
+        },
+        "evidence_requirements": [
+          {
+            "evidence_need_id": "N1",
+            "requirement": "All five unchanged audit criteria must be satisfied.",
+            "role": "premise_observation"
+          },
+          {
+            "evidence_need_id": "N3",
+            "requirement": "The exact scoped implementation assessment must establish G3.",
+            "role": "premise_observation"
+          },
+          {
+            "evidence_need_id": "N2",
+            "requirement": "Actual pinned host provenance must establish A1.",
+            "role": "applicability"
+          }
+        ],
+        "formal_premises": [
+          {
+            "correspondence": {
+              "kind": "accepted_premise"
+            },
+            "evidence_need_id": "N1",
+            "input_pointer": "/premises/0",
+            "interpretation": "The complete audit predicate is accepted only if all unchanged R1 through R5 hold.",
+            "premise_id": "G1"
+          },
+          {
+            "correspondence": {
+              "kind": "accepted_premise"
+            },
+            "evidence_need_id": "N3",
+            "input_pointer": "/premises/1",
+            "interpretation": "Actual scoped implementation qualification licenses the conditional audit_accepted implies metadata_predicate.",
+            "premise_id": "G3"
+          }
+        ],
+        "method": {
+          "identifier": "deductive/1",
+          "query": {
+            "conclusion": "metadata_predicate",
+            "premises": [
+              "audit_accepted",
+              {
+                "implies": [
+                  "audit_accepted",
+                  "metadata_predicate"
+                ]
+              }
+            ]
+          }
+        },
+        "status": "bound"
+      },
+      "rule": "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate."
+    },
+    {
+      "applicability": "The workload is defined before testing and its adequacy is assessed only for the limited smoke-test target in the same image.",
+      "backing_evidence_ids": [],
+      "conclusion_id": "stronger_target",
+      "id": "W2",
+      "inference": "practical",
+      "premise_ids": [
+        "G1",
+        "G2"
+      ],
+      "rule": "Accept the limited runtime target only when the metadata inference is adequate and actual runtime evidence passes every assertion in the assessed operator-defined smoke-test workload."
+    }
+  ]
+}

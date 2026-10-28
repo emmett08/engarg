@@ -1,0 +1,609 @@
+{
+  "schema": "engarg.tool-contract/1",
+  "language": "python",
+  "need": {
+    "id": "capability_6f6189dc1a4685b57738d1f03cbe9b11",
+    "target_id": "capability",
+    "question": "{\"definition\":\"dependency_audit/1 is a reusable read-only finite installed-metadata audit. Validate the input object and the existence and readability of metadata_directory as a directory inside the bound container. Use Python importlib.metadata.distributions(path=[metadata_directory]) to exhaustively enumerate that directory, without consulting default search paths, package imports or network sources. Read each distribution's Name, Version and all Requires-Dist fields. Require exactly one nonempty valid Name and Version per distribution, canonicalise names with packaging.utils.canonicalize_name, validate names as distribution identifiers, and parse every version with packaging.version.Version and every root and Requires-Dist string with packaging.requirements.Requirement. Use packaging 26.3 for parsing, marker evaluation, specifier membership and name handling. Reject direct-URL requirements anywhere, including unreachable inventory entries. Reject unreadable or malformed metadata, ambiguous duplicate canonical names, missing fields, invalid versions or requirements and directory errors as acquisition errors. Do not turn these errors into logical audit values. More than 512 distributions or more than 20000 processing units is an acquisition error. A processing unit is a parsed root or inventory requirement occurrence, a marker evaluation for an occurrence and extra context, or a final root or active dependency constraint check. Maintain one total counter for these units and stop with an acquisition error before exceeding 20000. Enumerate and validate the entire inventory before dependency traversal. Explicit roots always impose their installed-version constraints and seed their requested extras. A root marker does not suppress an explicitly selected root constraint. Construct a finite monotone closure of canonical package identities and enabled extra names. Seed reachable identities and enabled extras from every root. For each reachable installed package evaluate each metadata requirement's marker against packaging.markers.default_environment with extra set first to the base empty string and then to each currently enabled extra. An absent marker is active. A requirement is active if any such evaluation is true. Active requirements add their target identities and requested extras to the closure even when the target version conflicts. Missing targets produce violations and have no outgoing installed metadata to traverse. Repeat until no reachable identity or enabled extra set changes, processing only new package-extra states and caching marker evaluations. Use packaging extra normalisation consistently with its marker semantics. Cycles terminate through visited package-extra states and the bounds. After closure stabilises, check each root occurrence and each active reachable metadata requirement occurrence exactly once against the observed target version using packaging specifier membership, including packaging's default prerelease behaviour. A missing target or failed specifier is a measured violation, never an acquisition error. A dependency occurrence is identified by the requiring canonical name and original Requires-Dist field index. Repeated identical fields remain distinct occurrences. checked_requirements is the number of root occurrences plus active reachable dependency occurrences finally checked, rather than marker evaluations or queue visits. checked_distributions is the total fully enumerated inventory size. Preserve every finally inactive reachable marker requirement in skipped_requirements. Set inventory_complete=true only after the full directory enumeration, validation and bounded closure processing finish successfully. Set violations_count to the exact length of violations and satisfied to inventory_complete AND violations_count==0. An empty successfully enumerated directory produces a complete measured negative when roots are missing. Preserve root input order in roots and root_versions. In inventory sort by canonical_name and retain original Name and Version strings and original Requires-Dist field order. Sort violations by requiring_package, requirement_index, constraint and target. Sort skipped_requirements by requiring_package and requirement_index. The original constraint strings must remain unchanged. Use null for an absent observed version. For root records use requiring_package='<root>' and requirement_index equal to the root input index. The logical result contains no digest, clock, environment dump or transport-reserved collected property. Preserve the complete request identity, opaque context and original JSON precision in the external protocol envelope without adding them to the logical value. A fresh collection records its actual query observation time in envelope observed_at using ASCII UTC YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Retained records preserve their original observation time. image_id is copied only as request scope and never used as self-attestation. The host separately pins the execution image and retains runtime provenance. This operation is unbound pending native generation, qualification and host binding. Normative packaging26.3 rule: use SpecifierSet.contains(Version(installed), prereleases=None) unchanged. Since26.0, >=1 accepts 2.0rc1 (TRUE); >=2 rejects1.9. Never coerce None toFalse or impose historical prerelease exclusion/pip candidate-selection policy. These source- and API-confirmed examples govern frozen expectations. Read METADATA strictly; use PKG-INFO only if METADATA is absent. PermissionError, IsADirectoryError or malformed present METADATA must fail acquisition, never trigger fallback. Distribution.read_text suppresses these failures and must not be used. A directory METADATA with a child file and valid PKG-INFO is an error.\",\"input_conditions\":[\"The host authorises a read-only execution inside the selected container and independently pins its image identity.\",\"The bound runtime provides Python 3.13 and packaging 26.3 for this claim, while the reusable algorithm evaluates the actual packaging default marker environment of its bound runtime.\",\"The only metadata source is the explicit metadata_directory and no package code is imported for audit purposes.\",\"No network, package installation, credentials, host filesystem access or shell execution is permitted.\",\"Future verification may select explicitly synthetic fixture directories, but actual collection uses the supplied installed directory without fixture detection or hardcoded outcomes.\",\"Before coding, native generation must freeze independently specified positive, missing-or-conflicting measured-negative, conditional-extra and acquisition-error cases, including cycles, repeated extra propagation, empty inventories, malformed metadata and exhausted bounds.\",\"The transport preserves opaque envelope fields and JSON numeric precision independently of the three logical input arguments.\"],\"methods\":[\"dependency_audit/1\"],\"output_guarantees\":[\"A successful logical value reports observed metadata rather than a proposed outcome.\",\"Source and bound-exhaustion errors use the acquisition error channel and never emit a successful logical value.\",\"inventory_complete certifies completed enumeration and closure according to the implemented protocol, whose faithfulness remains subject to qualification.\",\"satisfied is true exactly when coverage is complete and there are no measured violations.\",\"Details retain all canonical inventory records and original requirement strings with deterministic ordering.\",\"Original observation time and host provenance remain in the external envelope rather than the logical output.\",\"The operation does not attest its process image or establish runtime imports, API behaviour or scientific validity.\"],\"provenance\":\"Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence.\",\"schema\":\"engarg.operation-specification/1\"}",
+    "method": "Implement the supplied parameterised operation contract",
+    "measurement": "Return the declared output for supplied operation parameters",
+    "comparator": "Frozen synthetic input/output examples",
+    "acceptance_criterion": "Conform to the declared function contract on retained test cases",
+    "if_failed": "Do not register the implementation",
+    "enables_claim": "capability",
+    "priority": 1,
+    "cost": "Bounded by the separately admitted implementation budget"
+  },
+  "request_context": "{\"declared_limits\":{},\"input_schema\":{\"additionalProperties\":false,\"properties\":{\"image_id\":{\"description\":\"Operator scope label only, not process attestation.\",\"type\":\"string\",\"x-engarg-unit\":\"1\"},\"metadata_directory\":{\"description\":\"Explicit readable metadata directory inside the bound container.\",\"type\":\"string\",\"x-engarg-unit\":\"1\"},\"roots\":{\"description\":\"Explicit PEP508 root constraints including any requested root extras.\",\"items\":{\"type\":\"string\"},\"maxItems\":32,\"minItems\":1,\"type\":\"array\",\"x-engarg-unit\":\"1\"}},\"required\":[\"image_id\",\"metadata_directory\",\"roots\"],\"type\":\"object\"},\"library_policy\":{\"fallback\":\"standard_library\",\"language\":\"python\",\"schema\":\"engarg.resolved-library-policy/1\",\"tasks\":{\"dependency_validation\":{\"choices\":[{\"guidance\":\"Use Requirement, Version, SpecifierSet, canonicalize_name and marker evaluation for actual installed distribution metadata; do not approximate PEP508 or PEP440.\",\"package\":\"packaging\",\"reference\":\"https://github.com/pypa/packaging\",\"version\":\"26.3\"}],\"source\":\"operator\"}}},\"operation_purpose\":\"{\\\"definition\\\":\\\"dependency_audit/1 is a reusable read-only finite installed-metadata audit. Validate the input object and the existence and readability of metadata_directory as a directory inside the bound container. Use Python importlib.metadata.distributions(path=[metadata_directory]) to exhaustively enumerate that directory, without consulting default search paths, package imports or network sources. Read each distribution's Name, Version and all Requires-Dist fields. Require exactly one nonempty valid Name and Version per distribution, canonicalise names with packaging.utils.canonicalize_name, validate names as distribution identifiers, and parse every version with packaging.version.Version and every root and Requires-Dist string with packaging.requirements.Requirement. Use packaging 26.3 for parsing, marker evaluation, specifier membership and name handling. Reject direct-URL requirements anywhere, including unreachable inventory entries. Reject unreadable or malformed metadata, ambiguous duplicate canonical names, missing fields, invalid versions or requirements and directory errors as acquisition errors. Do not turn these errors into logical audit values. More than 512 distributions or more than 20000 processing units is an acquisition error. A processing unit is a parsed root or inventory requirement occurrence, a marker evaluation for an occurrence and extra context, or a final root or active dependency constraint check. Maintain one total counter for these units and stop with an acquisition error before exceeding 20000. Enumerate and validate the entire inventory before dependency traversal. Explicit roots always impose their installed-version constraints and seed their requested extras. A root marker does not suppress an explicitly selected root constraint. Construct a finite monotone closure of canonical package identities and enabled extra names. Seed reachable identities and enabled extras from every root. For each reachable installed package evaluate each metadata requirement's marker against packaging.markers.default_environment with extra set first to the base empty string and then to each currently enabled extra. An absent marker is active. A requirement is active if any such evaluation is true. Active requirements add their target identities and requested extras to the closure even when the target version conflicts. Missing targets produce violations and have no outgoing installed metadata to traverse. Repeat until no reachable identity or enabled extra set changes, processing only new package-extra states and caching marker evaluations. Use packaging extra normalisation consistently with its marker semantics. Cycles terminate through visited package-extra states and the bounds. After closure stabilises, check each root occurrence and each active reachable metadata requirement occurrence exactly once against the observed target version using packaging specifier membership, including packaging's default prerelease behaviour. A missing target or failed specifier is a measured violation, never an acquisition error. A dependency occurrence is identified by the requiring canonical name and original Requires-Dist field index. Repeated identical fields remain distinct occurrences. checked_requirements is the number of root occurrences plus active reachable dependency occurrences finally checked, rather than marker evaluations or queue visits. checked_distributions is the total fully enumerated inventory size. Preserve every finally inactive reachable marker requirement in skipped_requirements. Set inventory_complete=true only after the full directory enumeration, validation and bounded closure processing finish successfully. Set violations_count to the exact length of violations and satisfied to inventory_complete AND violations_count==0. An empty successfully enumerated directory produces a complete measured negative when roots are missing. Preserve root input order in roots and root_versions. In inventory sort by canonical_name and retain original Name and Version strings and original Requires-Dist field order. Sort violations by requiring_package, requirement_index, constraint and target. Sort skipped_requirements by requiring_package and requirement_index. The original constraint strings must remain unchanged. Use null for an absent observed version. For root records use requiring_package='<root>' and requirement_index equal to the root input index. The logical result contains no digest, clock, environment dump or transport-reserved collected property. Preserve the complete request identity, opaque context and original JSON precision in the external protocol envelope without adding them to the logical value. A fresh collection records its actual query observation time in envelope observed_at using ASCII UTC YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Retained records preserve their original observation time. image_id is copied only as request scope and never used as self-attestation. The host separately pins the execution image and retains runtime provenance. This operation is unbound pending native generation, qualification and host binding. Normative packaging26.3 rule: use SpecifierSet.contains(Version(installed), prereleases=None) unchanged. Since26.0, >=1 accepts 2.0rc1 (TRUE); >=2 rejects1.9. Never coerce None toFalse or impose historical prerelease exclusion/pip candidate-selection policy. These source- and API-confirmed examples govern frozen expectations. Read METADATA strictly; use PKG-INFO only if METADATA is absent. PermissionError, IsADirectoryError or malformed present METADATA must fail acquisition, never trigger fallback. Distribution.read_text suppresses these failures and must not be used. A directory METADATA with a child file and valid PKG-INFO is an error.\\\",\\\"input_conditions\\\":[\\\"The host authorises a read-only execution inside the selected container and independently pins its image identity.\\\",\\\"The bound runtime provides Python 3.13 and packaging 26.3 for this claim, while the reusable algorithm evaluates the actual packaging default marker environment of its bound runtime.\\\",\\\"The only metadata source is the explicit metadata_directory and no package code is imported for audit purposes.\\\",\\\"No network, package installation, credentials, host filesystem access or shell execution is permitted.\\\",\\\"Future verification may select explicitly synthetic fixture directories, but actual collection uses the supplied installed directory without fixture detection or hardcoded outcomes.\\\",\\\"Before coding, native generation must freeze independently specified positive, missing-or-conflicting measured-negative, conditional-extra and acquisition-error cases, including cycles, repeated extra propagation, empty inventories, malformed metadata and exhausted bounds.\\\",\\\"The transport preserves opaque envelope fields and JSON numeric precision independently of the three logical input arguments.\\\"],\\\"methods\\\":[\\\"dependency_audit/1\\\"],\\\"output_guarantees\\\":[\\\"A successful logical value reports observed metadata rather than a proposed outcome.\\\",\\\"Source and bound-exhaustion errors use the acquisition error channel and never emit a successful logical value.\\\",\\\"inventory_complete certifies completed enumeration and closure according to the implemented protocol, whose faithfulness remains subject to qualification.\\\",\\\"satisfied is true exactly when coverage is complete and there are no measured violations.\\\",\\\"Details retain all canonical inventory records and original requirement strings with deterministic ordering.\\\",\\\"Original observation time and host provenance remain in the external envelope rather than the logical output.\\\",\\\"The operation does not attest its process image or establish runtime imports, API behaviour or scientific validity.\\\"],\\\"provenance\\\":\\\"Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence.\\\",\\\"schema\\\":\\\"engarg.operation-specification/1\\\"}\",\"output_schema\":{\"additionalProperties\":false,\"properties\":{\"checked_distributions\":{\"minimum\":0,\"type\":\"integer\",\"x-engarg-quantity\":{\"name\":\"checked_distributions\",\"unit\":\"1\"},\"x-engarg-unit\":\"1\"},\"checked_requirements\":{\"minimum\":0,\"type\":\"integer\",\"x-engarg-quantity\":{\"name\":\"checked_requirements\",\"unit\":\"1\"},\"x-engarg-unit\":\"1\"},\"collected\":{\"type\":\"boolean\"},\"details\":{\"additionalProperties\":false,\"properties\":{\"inventory\":{\"items\":{\"additionalProperties\":false,\"properties\":{\"Name\":{\"type\":\"string\"},\"Requires-Dist\":{\"items\":{\"type\":\"string\"},\"maxItems\":20000,\"type\":\"array\"},\"Version\":{\"type\":\"string\"},\"canonical_name\":{\"type\":\"string\"}},\"required\":[\"canonical_name\",\"Name\",\"Version\",\"Requires-Dist\"],\"type\":\"object\"},\"maxItems\":512,\"type\":\"array\"},\"root_versions\":{\"items\":{\"additionalProperties\":false,\"properties\":{\"canonical_name\":{\"type\":\"string\"},\"observed_version\":{\"type\":[\"string\",\"null\"]},\"requirement\":{\"type\":\"string\"}},\"required\":[\"requirement\",\"canonical_name\",\"observed_version\"],\"type\":\"object\"},\"maxItems\":32,\"minItems\":1,\"type\":\"array\"},\"roots\":{\"items\":{\"type\":\"string\"},\"maxItems\":32,\"minItems\":1,\"type\":\"array\"},\"skipped_requirements\":{\"items\":{\"additionalProperties\":false,\"properties\":{\"requirement\":{\"type\":\"string\"},\"requirement_index\":{\"minimum\":0,\"type\":\"integer\"},\"requiring_package\":{\"type\":\"string\"}},\"required\":[\"requiring_package\",\"requirement_index\",\"requirement\"],\"type\":\"object\"},\"maxItems\":20000,\"type\":\"array\"},\"violations\":{\"items\":{\"additionalProperties\":false,\"properties\":{\"constraint\":{\"type\":\"string\"},\"observed_version\":{\"type\":[\"string\",\"null\"]},\"reason\":{\"enum\":[\"missing\",\"incompatible_version\"],\"type\":\"string\"},\"requirement_index\":{\"minimum\":0,\"type\":\"integer\"},\"requiring_package\":{\"type\":\"string\"},\"target\":{\"type\":\"string\"}},\"required\":[\"requiring_package\",\"requirement_index\",\"constraint\",\"target\",\"observed_version\",\"reason\"],\"type\":\"object\"},\"maxItems\":20000,\"type\":\"array\"}},\"required\":[\"roots\",\"root_versions\",\"violations\",\"skipped_requirements\",\"inventory\"],\"type\":\"object\",\"x-engarg-quantity\":{\"name\":\"details\",\"unit\":\"1\"},\"x-engarg-unit\":\"1\"},\"inventory_complete\":{\"type\":\"boolean\",\"x-engarg-quantity\":{\"name\":\"inventory_complete\",\"unit\":\"boolean\"},\"x-engarg-unit\":\"boolean\"},\"satisfied\":{\"type\":\"boolean\",\"x-engarg-quantity\":{\"name\":\"satisfied\",\"unit\":\"boolean\"},\"x-engarg-unit\":\"boolean\"},\"violations_count\":{\"minimum\":0,\"type\":\"integer\",\"x-engarg-quantity\":{\"name\":\"violations_count\",\"unit\":\"1\"},\"x-engarg-unit\":\"1\"}},\"required\":[\"satisfied\",\"inventory_complete\",\"violations_count\",\"checked_distributions\",\"checked_requirements\",\"details\",\"collected\"],\"type\":\"object\"},\"support_contract\":{\"acceptable_methods\":[\"dependency_audit/1\"],\"expected_output_schema_sha256\":null,\"logical_strength\":\"complete_enumeration\",\"population\":\"Every distribution in the selected metadata directory and every applicable requirement occurrence reachable from the two roots after package-extra fixed-point closure.\",\"provenance\":{\"required_authorities\":[\"host-pinned selected-image execution provenance\"],\"transformation_history\":true},\"quantities\":[{\"name\":\"satisfied\",\"unit\":\"boolean\"},{\"name\":\"inventory_complete\",\"unit\":\"boolean\"},{\"name\":\"violations_count\",\"unit\":\"1\"},{\"name\":\"checked_distributions\",\"unit\":\"1\"},{\"name\":\"checked_requirements\",\"unit\":\"1\"},{\"name\":\"details\",\"unit\":\"1\"}],\"schema\":\"eal.support-contract/1\",\"scope\":{\"identity_dimensions\":[\"image_id\",\"metadata_directory\",\"roots\",\"python\",\"root_extras\"],\"kind\":\"installed_distribution_metadata\",\"selectors\":{},\"subject\":\"parameterised installed_distribution_metadata operation\"},\"support_type\":\"observation\",\"time\":{\"historical_interval\":null,\"max_age_seconds\":null,\"max_uncertainty_seconds\":null,\"require_original_observation_time\":true}}}",
+  "toolchain_description": "{\"build_argv\":[\"python3\",\"-I\",\"-B\",\"-c\",\"import ast, pathlib, sys, packaging, dowhy, causallearn; assert sys.version_info[:2] == (3, 13); assert packaging.__version__ == '26.3'; ast.parse(pathlib.Path('/src/collector.py').read_text())\"],\"build_directory\":\"/build\",\"fixture_directory\":\"/fixtures\",\"fixture_network\":\"none\",\"language\":\"python\",\"memory_mb\":1024,\"output_bytes\":1048576,\"run_argv\":[\"python3\",\"-I\",\"-B\",\"/src/collector.py\"],\"runtime_environment_names\":[],\"runtime_network\":\"none\",\"source_directory\":\"/src\",\"timeout_seconds\":120}",
+  "draft": {
+    "purpose": "{\"definition\":\"dependency_audit/1 is a reusable read-only finite installed-metadata audit. Validate the input object and the existence and readability of metadata_directory as a directory inside the bound container. Use Python importlib.metadata.distributions(path=[metadata_directory]) to exhaustively enumerate that directory, without consulting default search paths, package imports or network sources. Read each distribution's Name, Version and all Requires-Dist fields. Require exactly one nonempty valid Name and Version per distribution, canonicalise names with packaging.utils.canonicalize_name, validate names as distribution identifiers, and parse every version with packaging.version.Version and every root and Requires-Dist string with packaging.requirements.Requirement. Use packaging 26.3 for parsing, marker evaluation, specifier membership and name handling. Reject direct-URL requirements anywhere, including unreachable inventory entries. Reject unreadable or malformed metadata, ambiguous duplicate canonical names, missing fields, invalid versions or requirements and directory errors as acquisition errors. Do not turn these errors into logical audit values. More than 512 distributions or more than 20000 processing units is an acquisition error. A processing unit is a parsed root or inventory requirement occurrence, a marker evaluation for an occurrence and extra context, or a final root or active dependency constraint check. Maintain one total counter for these units and stop with an acquisition error before exceeding 20000. Enumerate and validate the entire inventory before dependency traversal. Explicit roots always impose their installed-version constraints and seed their requested extras. A root marker does not suppress an explicitly selected root constraint. Construct a finite monotone closure of canonical package identities and enabled extra names. Seed reachable identities and enabled extras from every root. For each reachable installed package evaluate each metadata requirement's marker against packaging.markers.default_environment with extra set first to the base empty string and then to each currently enabled extra. An absent marker is active. A requirement is active if any such evaluation is true. Active requirements add their target identities and requested extras to the closure even when the target version conflicts. Missing targets produce violations and have no outgoing installed metadata to traverse. Repeat until no reachable identity or enabled extra set changes, processing only new package-extra states and caching marker evaluations. Use packaging extra normalisation consistently with its marker semantics. Cycles terminate through visited package-extra states and the bounds. After closure stabilises, check each root occurrence and each active reachable metadata requirement occurrence exactly once against the observed target version using packaging specifier membership, including packaging's default prerelease behaviour. A missing target or failed specifier is a measured violation, never an acquisition error. A dependency occurrence is identified by the requiring canonical name and original Requires-Dist field index. Repeated identical fields remain distinct occurrences. checked_requirements is the number of root occurrences plus active reachable dependency occurrences finally checked, rather than marker evaluations or queue visits. checked_distributions is the total fully enumerated inventory size. Preserve every finally inactive reachable marker requirement in skipped_requirements. Set inventory_complete=true only after the full directory enumeration, validation and bounded closure processing finish successfully. Set violations_count to the exact length of violations and satisfied to inventory_complete AND violations_count==0. An empty successfully enumerated directory produces a complete measured negative when roots are missing. Preserve root input order in roots and root_versions. In inventory sort by canonical_name and retain original Name and Version strings and original Requires-Dist field order. Sort violations by requiring_package, requirement_index, constraint and target. Sort skipped_requirements by requiring_package and requirement_index. The original constraint strings must remain unchanged. Use null for an absent observed version. For root records use requiring_package='<root>' and requirement_index equal to the root input index. The logical result contains no digest, clock, environment dump or transport-reserved collected property. Preserve the complete request identity, opaque context and original JSON precision in the external protocol envelope without adding them to the logical value. A fresh collection records its actual query observation time in envelope observed_at using ASCII UTC YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Retained records preserve their original observation time. image_id is copied only as request scope and never used as self-attestation. The host separately pins the execution image and retains runtime provenance. This operation is unbound pending native generation, qualification and host binding. Normative packaging26.3 rule: use SpecifierSet.contains(Version(installed), prereleases=None) unchanged. Since26.0, >=1 accepts 2.0rc1 (TRUE); >=2 rejects1.9. Never coerce None toFalse or impose historical prerelease exclusion/pip candidate-selection policy. These source- and API-confirmed examples govern frozen expectations. Read METADATA strictly; use PKG-INFO only if METADATA is absent. PermissionError, IsADirectoryError or malformed present METADATA must fail acquisition, never trigger fallback. Distribution.read_text suppresses these failures and must not be used. A directory METADATA with a child file and valid PKG-INFO is an error.\",\"input_conditions\":[\"The host authorises a read-only execution inside the selected container and independently pins its image identity.\",\"The bound runtime provides Python 3.13 and packaging 26.3 for this claim, while the reusable algorithm evaluates the actual packaging default marker environment of its bound runtime.\",\"The only metadata source is the explicit metadata_directory and no package code is imported for audit purposes.\",\"No network, package installation, credentials, host filesystem access or shell execution is permitted.\",\"Future verification may select explicitly synthetic fixture directories, but actual collection uses the supplied installed directory without fixture detection or hardcoded outcomes.\",\"Before coding, native generation must freeze independently specified positive, missing-or-conflicting measured-negative, conditional-extra and acquisition-error cases, including cycles, repeated extra propagation, empty inventories, malformed metadata and exhausted bounds.\",\"The transport preserves opaque envelope fields and JSON numeric precision independently of the three logical input arguments.\"],\"methods\":[\"dependency_audit/1\"],\"output_guarantees\":[\"A successful logical value reports observed metadata rather than a proposed outcome.\",\"Source and bound-exhaustion errors use the acquisition error channel and never emit a successful logical value.\",\"inventory_complete certifies completed enumeration and closure according to the implemented protocol, whose faithfulness remains subject to qualification.\",\"satisfied is true exactly when coverage is complete and there are no measured violations.\",\"Details retain all canonical inventory records and original requirement strings with deterministic ordering.\",\"Original observation time and host provenance remain in the external envelope rather than the logical output.\",\"The operation does not attest its process image or establish runtime imports, API behaviour or scientific validity.\"],\"provenance\":\"Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence.\",\"schema\":\"engarg.operation-specification/1\"}",
+    "parameters": [
+      "image_id",
+      "metadata_directory",
+      "roots"
+    ],
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "image_id": {
+          "description": "Operator scope label only, not process attestation.",
+          "type": "string",
+          "x-engarg-unit": "1"
+        },
+        "metadata_directory": {
+          "description": "Explicit readable metadata directory inside the bound container.",
+          "type": "string",
+          "x-engarg-unit": "1"
+        },
+        "roots": {
+          "description": "Explicit PEP508 root constraints including any requested root extras.",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "type": "array",
+          "x-engarg-unit": "1"
+        }
+      },
+      "required": [
+        "image_id",
+        "metadata_directory",
+        "roots"
+      ],
+      "type": "object"
+    },
+    "result_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "checked_distributions": {
+          "minimum": 0,
+          "type": "integer",
+          "x-engarg-quantity": {
+            "name": "checked_distributions",
+            "unit": "1"
+          },
+          "x-engarg-unit": "1"
+        },
+        "checked_requirements": {
+          "minimum": 0,
+          "type": "integer",
+          "x-engarg-quantity": {
+            "name": "checked_requirements",
+            "unit": "1"
+          },
+          "x-engarg-unit": "1"
+        },
+        "collected": {
+          "type": "boolean"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "inventory": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "Name": {
+                    "type": "string"
+                  },
+                  "Requires-Dist": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 20000,
+                    "type": "array"
+                  },
+                  "Version": {
+                    "type": "string"
+                  },
+                  "canonical_name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "canonical_name",
+                  "Name",
+                  "Version",
+                  "Requires-Dist"
+                ],
+                "type": "object"
+              },
+              "maxItems": 512,
+              "type": "array"
+            },
+            "root_versions": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "canonical_name": {
+                    "type": "string"
+                  },
+                  "observed_version": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "requirement": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "requirement",
+                  "canonical_name",
+                  "observed_version"
+                ],
+                "type": "object"
+              },
+              "maxItems": 32,
+              "minItems": 1,
+              "type": "array"
+            },
+            "roots": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 32,
+              "minItems": 1,
+              "type": "array"
+            },
+            "skipped_requirements": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "requirement": {
+                    "type": "string"
+                  },
+                  "requirement_index": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "requiring_package": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "requiring_package",
+                  "requirement_index",
+                  "requirement"
+                ],
+                "type": "object"
+              },
+              "maxItems": 20000,
+              "type": "array"
+            },
+            "violations": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "constraint": {
+                    "type": "string"
+                  },
+                  "observed_version": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "enum": [
+                      "missing",
+                      "incompatible_version"
+                    ],
+                    "type": "string"
+                  },
+                  "requirement_index": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "requiring_package": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "requiring_package",
+                  "requirement_index",
+                  "constraint",
+                  "target",
+                  "observed_version",
+                  "reason"
+                ],
+                "type": "object"
+              },
+              "maxItems": 20000,
+              "type": "array"
+            }
+          },
+          "required": [
+            "roots",
+            "root_versions",
+            "violations",
+            "skipped_requirements",
+            "inventory"
+          ],
+          "type": "object",
+          "x-engarg-quantity": {
+            "name": "details",
+            "unit": "1"
+          },
+          "x-engarg-unit": "1"
+        },
+        "inventory_complete": {
+          "type": "boolean",
+          "x-engarg-quantity": {
+            "name": "inventory_complete",
+            "unit": "boolean"
+          },
+          "x-engarg-unit": "boolean"
+        },
+        "satisfied": {
+          "type": "boolean",
+          "x-engarg-quantity": {
+            "name": "satisfied",
+            "unit": "boolean"
+          },
+          "x-engarg-unit": "boolean"
+        },
+        "violations_count": {
+          "minimum": 0,
+          "type": "integer",
+          "x-engarg-quantity": {
+            "name": "violations_count",
+            "unit": "1"
+          },
+          "x-engarg-unit": "1"
+        }
+      },
+      "required": [
+        "satisfied",
+        "inventory_complete",
+        "violations_count",
+        "checked_distributions",
+        "checked_requirements",
+        "details",
+        "collected"
+      ],
+      "type": "object"
+    },
+    "arguments": [],
+    "unresolved_arguments": [
+      "image_id",
+      "metadata_directory",
+      "roots"
+    ],
+    "fixtures": [
+      {
+        "name": "prerelease_membership_and_explicit_root_marker",
+        "kind": "positive",
+        "input": {
+          "image_id": "synthetic-scope",
+          "metadata_directory": "prerelease",
+          "roots": [
+            "Demo>=1; extra == 'unused'"
+          ]
+        },
+        "expected_value": {
+          "checked_distributions": 1,
+          "checked_requirements": 1,
+          "collected": true,
+          "details": {
+            "inventory": [
+              {
+                "Name": "Demo",
+                "Requires-Dist": [],
+                "Version": "2.0rc1",
+                "canonical_name": "demo"
+              }
+            ],
+            "root_versions": [
+              {
+                "canonical_name": "demo",
+                "observed_version": "2.0rc1",
+                "requirement": "Demo>=1; extra == 'unused'"
+              }
+            ],
+            "roots": [
+              "Demo>=1; extra == 'unused'"
+            ],
+            "skipped_requirements": [],
+            "violations": []
+          },
+          "inventory_complete": true,
+          "satisfied": true,
+          "violations_count": 0
+        },
+        "files": [
+          {
+            "path": "prerelease/Demo-2.0rc1.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nName: Demo\nVersion: 2.0rc1\n\n"
+          }
+        ]
+      },
+      {
+        "name": "installed_root_version_conflict",
+        "kind": "negative",
+        "input": {
+          "image_id": "synthetic-scope",
+          "metadata_directory": "conflict",
+          "roots": [
+            "Demo>=2"
+          ]
+        },
+        "expected_value": {
+          "checked_distributions": 1,
+          "checked_requirements": 1,
+          "collected": true,
+          "details": {
+            "inventory": [
+              {
+                "Name": "Demo",
+                "Requires-Dist": [],
+                "Version": "1.9",
+                "canonical_name": "demo"
+              }
+            ],
+            "root_versions": [
+              {
+                "canonical_name": "demo",
+                "observed_version": "1.9",
+                "requirement": "Demo>=2"
+              }
+            ],
+            "roots": [
+              "Demo>=2"
+            ],
+            "skipped_requirements": [],
+            "violations": [
+              {
+                "constraint": "Demo>=2",
+                "observed_version": "1.9",
+                "reason": "incompatible_version",
+                "requirement_index": 0,
+                "requiring_package": "<root>",
+                "target": "demo"
+              }
+            ]
+          },
+          "inventory_complete": true,
+          "satisfied": false,
+          "violations_count": 1
+        },
+        "files": [
+          {
+            "path": "conflict/Demo-1.9.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nName: Demo\nVersion: 1.9\n\n"
+          }
+        ]
+      },
+      {
+        "name": "conditional_extras_cycle_late_propagation_and_repeated_occurrences",
+        "kind": "positive",
+        "input": {
+          "image_id": "synthetic-scope",
+          "metadata_directory": "closure",
+          "roots": [
+            "A[Feature_X]>=1"
+          ]
+        },
+        "expected_value": {
+          "checked_distributions": 3,
+          "checked_requirements": 5,
+          "collected": true,
+          "details": {
+            "inventory": [
+              {
+                "Name": "A",
+                "Requires-Dist": [
+                  "B[y]; extra == 'feature-x'",
+                  "C>=1; extra == 'z'",
+                  "C>=1; extra == 'z'",
+                  "Absent; extra == 'never'"
+                ],
+                "Version": "1",
+                "canonical_name": "a"
+              },
+              {
+                "Name": "B",
+                "Requires-Dist": [
+                  "A[z]; extra == 'y'"
+                ],
+                "Version": "1",
+                "canonical_name": "b"
+              },
+              {
+                "Name": "C",
+                "Requires-Dist": [],
+                "Version": "1",
+                "canonical_name": "c"
+              }
+            ],
+            "root_versions": [
+              {
+                "canonical_name": "a",
+                "observed_version": "1",
+                "requirement": "A[Feature_X]>=1"
+              }
+            ],
+            "roots": [
+              "A[Feature_X]>=1"
+            ],
+            "skipped_requirements": [
+              {
+                "requirement": "Absent; extra == 'never'",
+                "requirement_index": 3,
+                "requiring_package": "a"
+              }
+            ],
+            "violations": []
+          },
+          "inventory_complete": true,
+          "satisfied": true,
+          "violations_count": 0
+        },
+        "files": [
+          {
+            "path": "closure/A-1.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nName: A\nVersion: 1\nRequires-Dist: B[y]; extra == 'feature-x'\nRequires-Dist: C>=1; extra == 'z'\nRequires-Dist: C>=1; extra == 'z'\nRequires-Dist: Absent; extra == 'never'\n\n"
+          },
+          {
+            "path": "closure/B-1.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nName: B\nVersion: 1\nRequires-Dist: A[z]; extra == 'y'\n\n"
+          },
+          {
+            "path": "closure/C-1.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nName: C\nVersion: 1\n\n"
+          }
+        ]
+      },
+      {
+        "name": "empty_inventory_missing_roots_preserves_input_order",
+        "kind": "negative",
+        "input": {
+          "image_id": "synthetic-scope",
+          "metadata_directory": "empty",
+          "roots": [
+            "Zed>=1",
+            "Alpha"
+          ]
+        },
+        "expected_value": {
+          "checked_distributions": 0,
+          "checked_requirements": 2,
+          "collected": true,
+          "details": {
+            "inventory": [],
+            "root_versions": [
+              {
+                "canonical_name": "zed",
+                "observed_version": null,
+                "requirement": "Zed>=1"
+              },
+              {
+                "canonical_name": "alpha",
+                "observed_version": null,
+                "requirement": "Alpha"
+              }
+            ],
+            "roots": [
+              "Zed>=1",
+              "Alpha"
+            ],
+            "skipped_requirements": [],
+            "violations": [
+              {
+                "constraint": "Zed>=1",
+                "observed_version": null,
+                "reason": "missing",
+                "requirement_index": 0,
+                "requiring_package": "<root>",
+                "target": "zed"
+              },
+              {
+                "constraint": "Alpha",
+                "observed_version": null,
+                "reason": "missing",
+                "requirement_index": 1,
+                "requiring_package": "<root>",
+                "target": "alpha"
+              }
+            ]
+          },
+          "inventory_complete": true,
+          "satisfied": false,
+          "violations_count": 2
+        },
+        "files": [
+          {
+            "path": "empty/fixture.txt",
+            "content": "Synthetic directory-preservation file; not distribution metadata.\n"
+          }
+        ]
+      },
+      {
+        "name": "missing_required_name",
+        "kind": "acquisition_error",
+        "input": {
+          "image_id": "synthetic-scope",
+          "metadata_directory": "malformed",
+          "roots": [
+            "A"
+          ]
+        },
+        "expected_value": null,
+        "files": [
+          {
+            "path": "malformed/A-1.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nVersion: 1\n\n"
+          }
+        ]
+      },
+      {
+        "name": "present_directory_metadata_must_not_fall_back",
+        "kind": "acquisition_error",
+        "input": {
+          "image_id": "synthetic-scope",
+          "metadata_directory": "strict",
+          "roots": [
+            "A"
+          ]
+        },
+        "expected_value": null,
+        "files": [
+          {
+            "path": "strict/A-1.dist-info/METADATA/child.txt",
+            "content": "Synthetic child forcing METADATA to be a directory.\n"
+          },
+          {
+            "path": "strict/A-1.dist-info/PKG-INFO",
+            "content": "Metadata-Version: 2.1\nName: A\nVersion: 1\n\n"
+          }
+        ]
+      },
+      {
+        "name": "unreachable_direct_url_rejected_without_retrieval",
+        "kind": "acquisition_error",
+        "input": {
+          "image_id": "synthetic-scope",
+          "metadata_directory": "unreachable",
+          "roots": [
+            "A"
+          ]
+        },
+        "expected_value": null,
+        "files": [
+          {
+            "path": "unreachable/A-1.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nName: A\nVersion: 1\n\n"
+          },
+          {
+            "path": "unreachable/B-1.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nName: B\nVersion: 1\nRequires-Dist: C @ https://synthetic.invalid/c.whl\n\n"
+          }
+        ]
+      },
+      {
+        "name": "marker_context_processing_budget_exhaustion",
+        "kind": "acquisition_error",
+        "input": {
+          "image_id": "synthetic-scope",
+          "metadata_directory": "bounded",
+          "roots": [
+            "A[e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14,e15,e16,e17,e18,e19,e20,e21,e22,e23,e24,e25,e26,e27,e28,e29,e30,e31,e32,e33,e34,e35,e36,e37,e38,e39,e40,e41,e42,e43,e44,e45,e46,e47,e48,e49,e50,e51,e52,e53,e54,e55,e56,e57,e58,e59,e60,e61,e62,e63,e64,e65,e66,e67,e68,e69,e70,e71,e72,e73,e74,e75,e76,e77,e78,e79,e80,e81,e82,e83,e84,e85,e86,e87,e88,e89,e90,e91,e92,e93,e94,e95,e96,e97,e98,e99,e100,e101,e102,e103,e104,e105,e106,e107,e108,e109,e110,e111,e112,e113,e114,e115,e116,e117,e118,e119,e120,e121,e122,e123,e124,e125,e126,e127,e128,e129,e130,e131,e132,e133,e134,e135,e136,e137,e138,e139,e140,e141,e142,e143,e144,e145,e146,e147,e148,e149,e150,e151,e152,e153,e154,e155,e156,e157,e158,e159,e160,e161,e162,e163,e164,e165,e166,e167,e168,e169,e170,e171,e172,e173,e174,e175,e176,e177,e178,e179,e180,e181,e182,e183,e184,e185,e186,e187,e188,e189,e190,e191,e192,e193,e194,e195,e196,e197,e198,e199]"
+          ]
+        },
+        "expected_value": null,
+        "files": [
+          {
+            "path": "bounded/A-1.dist-info/METADATA",
+            "content": "Metadata-Version: 2.1\nName: A\nVersion: 1\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\nRequires-Dist: A; extra == 'never'\n\n"
+          }
+        ]
+      }
+    ]
+  }
+}

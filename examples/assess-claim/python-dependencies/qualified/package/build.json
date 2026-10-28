@@ -1,0 +1,487 @@
+{
+  "claims": {
+    "current_claim": "claim_63757272656e745f636c61696d",
+    "stronger_target": "claim_7374726f6e6765725f746172676574"
+  },
+  "executable_digest": "426ef8620c649bb271e4dacf8088b4fbcd3351b4b13c54e85ba12acce22dc56c",
+  "files": {
+    "case.eal": "9fdbdc29e4b35e01c329ea6095a573d9fcb27d2e384fdda2897b845113f4871b",
+    "native-artifacts.envelope.json": "341b7cc5b9cfc997f2a7b8720468723743754af22267f2b8b67fab7b8c0c3ee8",
+    "native-artifacts/candidate.json": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+    "native-artifacts/contract.json": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+    "native-artifacts/host_record.json": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+    "native-artifacts/operator_profile.json": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+    "native-artifacts/package_manifest.json": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+    "native-artifacts/profile.json": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+    "native-artifacts/tool_binding.toml": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+    "native-artifacts/verification.json": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+    "review-inputs.json": "82780a5d3ceba7f77d3090d44424eb6e7720e8c629b72e6d82ad4c261b7f38f9",
+    "tools.toml": "1603067ed5e9cdc36138b265ac14d22f9438066b85b9bc257553f4b4039080c2",
+    "tools/generated/dependency_audit/input.schema.json": "0b6803c30a8605552c64c80a3fb43343ecdc7e40281981eca9878b3607bd4a7c",
+    "tools/generated/dependency_audit/output.schema.json": "47e8f1c47ebf8d219f77cd83816662413280168bd0f83ba6fad74766c4721ae1",
+    "tools/generated/dependency_audit/source/collector.py": "bf4c260bdcd1f55c6037c800769f68bf4178d95781342a31999e95d77bc60e46",
+    "tools/generated/dependency_audit/tool.toml": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+    "tools/generated/dependency_audit/verification.json": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+  },
+  "language": "EAL/4",
+  "limitations": [
+    "The EAL/4 source contains all acquisition, derivation, acceptance and reasoning semantics. TOML selects actual tools; no execution-plan sidecar is needed.",
+    "Authored method queries are programme data. Empirical premise values and independent judgements are acquired observations; interpretation and scope remain explicit.",
+    "Shared source observations retain common provenance. An unsupported claim does not establish falsity.",
+    "R7: scoped judgement observation required at execution through engarg_review_contract; this static export obligation is not a runtime assessment",
+    "R8: The runtime workload, authorised runtime operation and actual runtime results are unavailable.",
+    "R9: scoped judgement observation required at execution through engarg_review_contract; this static export obligation is not a runtime assessment",
+    "R10: scoped judgement observation required at execution through engarg_review_contract; this static export obligation is not a runtime assessment",
+    "R11: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R12: scoped judgement observation required at execution through engarg_review_contract; this static export obligation is not a runtime assessment"
+  ],
+  "model_calls": 0,
+  "pending_reviews": [
+    {
+      "context": {
+        "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_5237_review",
+      "input": {
+        "acceptance": {
+          "criterion": "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.",
+          "kind": "judgement",
+          "scope": {
+            "identity_dimensions": [
+              "image_id",
+              "metadata_directory",
+              "roots",
+              "python",
+              "root_extras",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256"
+            ],
+            "kind": "installed_distribution_metadata",
+            "selectors": {
+              "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+              "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+              "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+              "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+              "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+              "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+              "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+              "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+              "python": "3.13",
+              "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+              "root_extras": [],
+              "root_extras_json": "[]",
+              "roots": [
+                "dowhy==0.14",
+                "causal-learn==0.1.4.8"
+              ],
+              "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+              "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+              "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+            },
+            "subject": "Exact native generated dependency audit and its frozen contract and verification"
+          }
+        },
+        "criterion": "A scoped implementation assessment establishes complete inventory enumeration and correct bounded fixed-point requirement processing against the operation specification.",
+        "requirement": "R7",
+        "role": "support",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "target": "G3"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_5238_review",
+      "input": {
+        "acceptance": {
+          "kind": "unavailable",
+          "reason": "The runtime workload, authorised runtime operation and actual runtime results are unavailable."
+        },
+        "criterion": "Metadata cannot substitute for runtime observations.",
+        "requirement": "R8",
+        "role": "support",
+        "scope": null,
+        "target": "G2"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_5239_review",
+      "input": {
+        "acceptance": {
+          "criterion": "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.",
+          "kind": "judgement",
+          "scope": {
+            "identity_dimensions": [
+              "image_id",
+              "metadata_directory",
+              "roots",
+              "python",
+              "root_extras",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256"
+            ],
+            "kind": "installed_distribution_metadata",
+            "selectors": {
+              "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+              "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+              "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+              "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+              "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+              "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+              "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+              "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+              "python": "3.13",
+              "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+              "root_extras": [],
+              "root_extras_json": "[]",
+              "roots": [
+                "dowhy==0.14",
+                "causal-learn==0.1.4.8"
+              ],
+              "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+              "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+              "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+            },
+            "subject": "Exact native generated dependency audit and its frozen contract and verification"
+          }
+        },
+        "criterion": "A retained counterexample shows that the implemented audit reports satisfied=true while omitting an applicable reachable requirement or enabled transitive extra.",
+        "requirement": "R9",
+        "role": "challenge_activation",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "target": "D1"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_523130_review",
+      "input": {
+        "acceptance": {
+          "criterion": "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.",
+          "kind": "judgement",
+          "scope": {
+            "identity_dimensions": [
+              "image_id",
+              "metadata_directory",
+              "roots",
+              "python",
+              "root_extras",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256"
+            ],
+            "kind": "installed_distribution_metadata",
+            "selectors": {
+              "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+              "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+              "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+              "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+              "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+              "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+              "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+              "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+              "python": "3.13",
+              "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+              "root_extras": [],
+              "root_extras_json": "[]",
+              "roots": [
+                "dowhy==0.14",
+                "causal-learn==0.1.4.8"
+              ],
+              "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+              "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+              "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+            },
+            "subject": "Exact native generated dependency audit and its frozen contract and verification"
+          }
+        },
+        "criterion": "Implementation assessment and frozen verification results establish complete extra propagation and reachable-requirement coverage for the specified algorithm without an unresolved counterexample.",
+        "requirement": "R10",
+        "role": "challenge_resolution",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "target": "D1"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_523131_review",
+      "input": {
+        "acceptance": {
+          "criterion": "A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.",
+          "kind": "judgement"
+        },
+        "criterion": "A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.",
+        "requirement": "R11",
+        "role": "support",
+        "scope": null,
+        "target": "W2"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "216f145cace367fb235729c08e9e0d6c78cadba7b2a9d798716371547e09879c"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_523132_review",
+      "input": {
+        "acceptance": {
+          "criterion": "A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations.",
+          "kind": "judgement",
+          "scope": {
+            "identity_dimensions": [
+              "image_id",
+              "metadata_directory",
+              "roots",
+              "python",
+              "root_extras",
+              "candidate_sha256",
+              "contract_sha256",
+              "host_record_sha256",
+              "operator_profile_sha256",
+              "package_manifest_sha256",
+              "profile_sha256",
+              "tool_binding_sha256",
+              "verification_sha256",
+              "warrant_sha256",
+              "operation_spec_sha256"
+            ],
+            "kind": "installed_distribution_metadata",
+            "selectors": {
+              "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+              "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+              "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+              "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+              "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+              "operation_spec_sha256": "aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b",
+              "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+              "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+              "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+              "python": "3.13",
+              "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+              "root_extras": [],
+              "root_extras_json": "[]",
+              "roots": [
+                "dowhy==0.14",
+                "causal-learn==0.1.4.8"
+              ],
+              "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+              "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+              "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+              "warrant_sha256": "654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"
+            },
+            "subject": "Exact native generated dependency audit and its frozen contract and verification"
+          }
+        },
+        "criterion": "A scoped assessment establishes that the two accepted formal premises faithfully represent G1 and G3, that native deductive/1 proves only their modus-ponens entailment to the exact selected-directory metadata predicate, and that host applicability, implementation qualification and D1 resolution remain separate mandatory obligations.",
+        "requirement": "R12",
+        "role": "support",
+        "scope": {
+          "identity_dimensions": [
+            "image_id",
+            "metadata_directory",
+            "roots",
+            "python",
+            "root_extras",
+            "candidate_sha256",
+            "contract_sha256",
+            "host_record_sha256",
+            "operator_profile_sha256",
+            "package_manifest_sha256",
+            "profile_sha256",
+            "tool_binding_sha256",
+            "verification_sha256",
+            "warrant_sha256",
+            "operation_spec_sha256"
+          ],
+          "kind": "installed_distribution_metadata",
+          "selectors": {
+            "candidate_sha256": "5fb002825dbc9c578e572fcffcf51aeeb3750bee479df32d6db98073ff46c667",
+            "contract_sha256": "ad1b47d8db63075393090b4c8843e82c0fcb4ec921f913a4d1daefec02df334a",
+            "host_record_sha256": "84ca1fb54df34c95e0c5f1d8c8135262976a2a9245fd802d901f627fc06da27d",
+            "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+            "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+            "operation_spec_sha256": "aca53ff5b056ad068211af1f2f3a9e69bd7a54d922e3779b7fc6b89397971d0b",
+            "operator_profile_sha256": "f4a31fcadc85542e27efd25f14044f378e178594c1f829d7edbfb6b835bd7eff",
+            "package_manifest_sha256": "ab56f186bb6eb671260ca09d524c92d92fceda0dca246e7d4233cc8aea17d678",
+            "profile_sha256": "d75e68ebae8359696157715275b116e1e90a369a3136de09c2ce2c986ba0665c",
+            "python": "3.13",
+            "review_boundary": "separate AI source and artifact assessment; no human or organisational approval; trusted host and stable directory assumptions",
+            "root_extras": [],
+            "root_extras_json": "[]",
+            "roots": [
+              "dowhy==0.14",
+              "causal-learn==0.1.4.8"
+            ],
+            "roots_json": "[\"dowhy==0.14\",\"causal-learn==0.1.4.8\"]",
+            "tool_binding_sha256": "f80edd49d1489c7f4fc3ca5fb63355ad333e03e5e978d706b305ddec0565f82d",
+            "verification_sha256": "fbfe1b1d00b71a3d60a1238530d292ff7eca1800120e09c11717bf95e1990f6d",
+            "warrant_sha256": "654a688c51ce21090baa4576eb67521d3862841e85472fcff5dee805e0207400"
+          },
+          "subject": "Exact native generated dependency audit and its frozen contract and verification"
+        },
+        "target": "W1"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    }
+  ],
+  "schema": "engarg.executable-package/1",
+  "source_digest": "9fdbdc29e4b35e01c329ea6095a573d9fcb27d2e384fdda2897b845113f4871b"
+}
