@@ -243,10 +243,11 @@ impl FixtureRunner for FakeRunner {
             context["mutated"] = json!(true);
         }
         if source[0].content == "opaque_number" {
-            context["precision"]["opaque_numeric_number"] = json!(123);
+            context["engarg_verification"]["precision"]["opaque_numeric_number"] = json!(123);
         }
         if source[0].content == "opaque_raw_value" {
-            context["precision"]["opaque_raw_value"] = json!({"literal":true});
+            context["engarg_verification"]["precision"]["opaque_raw_value"] =
+                json!({"literal":true});
         }
         let mut acquisition = request.acquisition();
         acquisition["context"] = context.clone();

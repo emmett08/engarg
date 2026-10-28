@@ -168,10 +168,16 @@ pub(super) fn compile(
                         requirement,
                         age,
                     )?;
-                    compiled.pending.push(format!(
-                        "{}: scoped judgement observation required",
-                        requirement.id
-                    ));
+                    let reason = if scope.is_none() {
+                        "unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it"
+                    } else if fields.is_empty() {
+                        "scoped judgement observation required at execution through engarg_review_contract; this static export obligation is not a runtime assessment"
+                    } else {
+                        "scoped judgement needs one acquired review input; multiple inputs do not identify a single review record, so engarg_review_contract remains required at execution"
+                    };
+                    compiled
+                        .pending
+                        .push(format!("{}: {reason}", requirement.id));
                     continue;
                 }
             }
@@ -480,5 +486,80 @@ mod tests {
             assert!(absent.value.is_none());
             assert_eq!(absent.issue.as_deref(), Some("missing_field"));
         }
+    }
+
+    #[test]
+    fn review_diagnostics_distinguish_static_collection_from_missing_scope() {
+        for scoped in [false, true] {
+            let scope = scoped.then(|| {
+                serde_json::from_value(json!({
+                    "kind":"synthetic_review","subject":"Exact fixture judgement",
+                    "selectors":{"revision":"fixture-v1"},"identity_dimensions":["revision"]
+                }))
+                .unwrap()
+            });
+            let criterion = EvaluationCriterion::Judgement {
+                criterion: "Assess the frozen fixture criterion".into(),
+                scope,
+            };
+            let elaboration = elaboration(criterion.clone());
+            let mut evaluation = evaluation(criterion);
+            evaluation.inputs.clear();
+            let compiled = lower(&elaboration, evaluation);
+            assert_eq!(compiled.review_requests.len(), 1);
+            let diagnostic = &compiled.pending[0];
+            if scoped {
+                assert!(diagnostic.contains("scoped judgement observation required at execution"));
+                assert!(diagnostic.contains("static export obligation"));
+            } else {
+                assert!(diagnostic.contains("unscoped judgement remains unresolved"));
+                assert!(!diagnostic.contains("scoped judgement observation required"));
+            }
+            let request = &compiled.review_requests[0].input;
+            for verdict in ["supported", "rejected", "inconclusive"] {
+                let review = json!({"verdict":verdict,"criterion":request["criterion"],
+                    "scope":request["scope"],"target":request["target"],
+                    "reviewer":"Synthetic fixture reviewer",
+                    "reasons":["Software diagnostic control only"],
+                    "reviewed_at":"2026-10-28T08:00:00Z"});
+                let accepted = result(&compiled, json!({"review":review}));
+                if scoped {
+                    assert_eq!(
+                        accepted.value,
+                        Some(json!({"accepted":verdict=="supported"}))
+                    );
+                } else {
+                    assert!(accepted.value.is_none());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn multiple_review_inputs_leave_an_explicit_runtime_collection_obligation() {
+        let criterion = EvaluationCriterion::Judgement {
+            criterion: "Assess the frozen fixture criterion".into(),
+            scope: Some(
+                serde_json::from_value(json!({
+                    "kind":"synthetic_review","subject":"Exact fixture judgement",
+                    "selectors":{"revision":"fixture-v1"},"identity_dimensions":["revision"]
+                }))
+                .unwrap(),
+            ),
+        };
+        let elaboration = elaboration(criterion.clone());
+        let mut evaluation = evaluation(criterion);
+        evaluation.inputs.push(OutputReference {
+            step_id: "another_review".into(),
+            pointer: "/value".into(),
+        });
+        let compiled = lower(&elaboration, evaluation);
+        assert_eq!(compiled.review_requests.len(), 1);
+        assert!(
+            compiled.pending[0].contains("multiple inputs do not identify a single review record")
+        );
+        assert!(
+            compiled.pending[0].contains("engarg_review_contract remains required at execution")
+        );
     }
 }

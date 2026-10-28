@@ -18,7 +18,7 @@ use super::{
 };
 use crate::Error;
 
-pub use super::protocol::{TEST_SCHEMA, protocol_precision_context};
+pub use super::protocol::{TEST_SCHEMA, protocol_fixture_context, protocol_precision_context};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -143,7 +143,6 @@ pub fn verify<R: FixtureRunner + ?Sized>(
         passed: false,
         results: Vec::new(),
     };
-    let precision = protocol_precision_context()?;
     for fixture in &contract.draft.fixtures {
         if cancellation.is_cancelled() {
             receipt.results.push(failed_run(&fixture.name, "cancelled"));
@@ -155,7 +154,7 @@ pub fn verify<R: FixtureRunner + ?Sized>(
             tool: "engarg_generated_fixture".into(),
             tool_version: "1".into(),
             input: fixture.input.clone(),
-            context: json!({"precision":precision,"fixture":fixture.name}),
+            context: protocol_fixture_context(&fixture.name)?,
         };
         let input = serde_json::to_vec(&request)?;
         let outcome = runner.execute(
@@ -194,7 +193,7 @@ pub fn verify<R: FixtureRunner + ?Sized>(
     let valid_request = json!({
         "evidence_id":contract.need.id,"environment":"engarg_tool_fixture",
         "tool":"engarg_generated_fixture","tool_version":"1",
-        "input":first.input,"context":{"precision":precision}
+        "input":first.input,"context":protocol_fixture_context(&first.name)?
     });
     for probe in REJECTION_CASES {
         let name = probe.name();
@@ -329,6 +328,7 @@ pub(crate) mod tests {
         Context,
         OpaqueNumber,
         OpaqueRawValue,
+        CheckFixtureIdentity,
         AcceptInvalidInput,
         Timeout,
     }
@@ -367,6 +367,14 @@ pub(crate) mod tests {
             let Some(request) = parsed.filter(|request| request.validate().is_ok()) else {
                 return Ok(fail(None));
             };
+            if matches!(self.fault, Fault::CheckFixtureIdentity)
+                && request
+                    .context
+                    .get("fixture")
+                    .is_some_and(|selector| Some(selector) != request.input.get("fixture"))
+            {
+                return Ok(fail(None));
+            }
             let mode = request
                 .input
                 .get("mode")
@@ -377,13 +385,14 @@ pub(crate) mod tests {
             }
             let mut context = request.context.clone();
             if matches!(self.fault, Fault::Context) {
-                context["precision"]["integer"] = json!(1);
+                context["engarg_verification"]["precision"]["integer"] = json!(1);
             }
             if matches!(self.fault, Fault::OpaqueNumber) {
-                context["precision"]["opaque_numeric_number"] = json!(123);
+                context["engarg_verification"]["precision"]["opaque_numeric_number"] = json!(123);
             }
             if matches!(self.fault, Fault::OpaqueRawValue) {
-                context["precision"]["opaque_raw_value"] = json!({"literal":true});
+                context["engarg_verification"]["precision"]["opaque_raw_value"] =
+                    json!({"literal":true});
             }
             let envelope = json!({
                 "value":{"collected":true,"present":mode == "positive" || matches!(self.fault, Fault::Negative)},
@@ -483,6 +492,41 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn verification_case_names_do_not_replace_operation_fixture_selectors() {
+        let context = protocol_fixture_context("verification-case-name").unwrap();
+        assert!(context.get("fixture").is_none());
+        assert_eq!(
+            context["engarg_verification"]["fixture"],
+            "verification-case-name"
+        );
+        assert_eq!(
+            context["engarg_verification"]["precision"],
+            protocol_precision_context().unwrap()
+        );
+        let directory = tempfile::tempdir().unwrap();
+        let mut contract = contract();
+        contract.draft.parameters.push("fixture".into());
+        contract.draft.unresolved_arguments.push("fixture".into());
+        contract.draft.input_schema["properties"]["fixture"] = json!({"type":"string"});
+        contract.draft.input_schema["required"] = json!(["mode", "fixture"]);
+        for fixture in &mut contract.draft.fixtures {
+            fixture.input["fixture"] = json!("operator-snapshot-v1");
+        }
+        let receipt = verify(
+            &FakeRunner {
+                identity: identity(),
+                fault: Fault::CheckFixtureIdentity,
+            },
+            &contract,
+            &candidate(),
+            directory.path(),
+            &CancellationToken::default(),
+        )
+        .unwrap();
+        assert!(receipt.passed, "{:#?}", receipt.results);
+    }
+
+    #[test]
     fn opaque_reserved_keys_are_objects_and_cannot_be_reinterpreted() {
         let precision = protocol_precision_context().unwrap();
         assert_eq!(
@@ -495,7 +539,7 @@ pub(crate) mod tests {
         );
         for fault in [Fault::OpaqueNumber, Fault::OpaqueRawValue] {
             let receipt = tested(fault);
-            assert_eq!(receipt.schema, "engarg.tool-tests/2");
+            assert_eq!(receipt.schema, "engarg.tool-tests/3");
             assert!(!receipt.passed);
             assert!(!receipt.results[0].passed);
         }
