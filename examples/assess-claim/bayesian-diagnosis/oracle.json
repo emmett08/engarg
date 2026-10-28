@@ -1,0 +1,35 @@
+{
+  "schema": "work.controlled-finite-bayes-oracle/1",
+  "derived_at": "2026-10-28T13:27:31.266884Z",
+  "status": "a priori mathematical reference, not an acquired engineering observation or reviewer verdict",
+  "method": "Exact rational Bayes over the declared two Fault states; no pgmpy or collector execution",
+  "absolute_tolerance": 1e-12,
+  "cases": {
+    "positive": {
+      "faulty_joint_weight": "19/1250",
+      "healthy_joint_weight": "49/10000",
+      "evidence_normalizer": "201/10000",
+      "posterior_fault": "152/201",
+      "posterior_fault_float": 0.7562189054726368,
+      "threshold": "3/4",
+      "threshold_passed": true,
+      "evidence": {
+        "alarm": true,
+        "heartbeat_lost": true
+      }
+    },
+    "negative-heartbeat": {
+      "faulty_joint_weight": "19/5000",
+      "healthy_joint_weight": "441/10000",
+      "evidence_normalizer": "479/10000",
+      "posterior_fault": "38/479",
+      "posterior_fault_float": 0.07933194154488518,
+      "threshold": "3/4",
+      "threshold_passed": false,
+      "evidence": {
+        "alarm": true,
+        "heartbeat_lost": false
+      }
+    }
+  }
+}

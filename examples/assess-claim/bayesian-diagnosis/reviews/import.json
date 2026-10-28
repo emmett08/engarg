@@ -1,0 +1,21 @@
+{
+  "actual_reviews": 14,
+  "verdicts": {
+    "R_model": "supported",
+    "R_math": "supported",
+    "R_analytic": "supported",
+    "R_math_conditional": "supported",
+    "R_correspondence": "supported",
+    "R_qualification": "supported",
+    "R_mapping_activation": "rejected",
+    "R_mapping_resolution": "supported",
+    "R_substitution_activation": "rejected",
+    "R_substitution_resolution": "supported",
+    "R_binding": "supported",
+    "R_current": "supported",
+    "R_stronger": "supported",
+    "R_stronger_conditional": "supported"
+  },
+  "review_file_sha256": "eabbb3a98c44c1d60fbca38d64768d5a8779eb28207fff9c29962b0176542611",
+  "original_clocks_preserved": true
+}

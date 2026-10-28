@@ -114,9 +114,13 @@ engarg eal implement --input analysis.json --tools tools.toml \
 
 | Language | Entry source | Available dependencies | Build and runtime |
 |---|---|---|---|
-| Rust | `main.rs` | Rust standard library, pinned `serde`, `serde_json`, `reqwest` | Fixed `rustc` wrapper. Runs `/build/collector` |
-| Go | `main.go` | Precompiled pure-Go standard library | Fixed `go tool compile`/`link` wrapper. Runs `/build/collector` |
-| TypeScript | `collector.ts` | TypeScript 5.9.3, Node 24 API declarations | Strict `tsc` compile. Node executes `/build/collector.js` |
+| Rust | `main.rs` | Pinned transport and evidence crates; exact prepared dependency archives | Fixed `rustc` wrapper. Runs `/build/collector` |
+| Go | `main.go` | Precompiled pure-Go standard library, Gonum, Gophersat and CausalGo | Fixed `go tool compile`/`link` wrapper. Runs `/build/collector` |
+| JavaScript | `collector.mjs` | Locked numerical, statistical, SAT, LP, distance and graph packages | Node checks and executes the fixed source entry offline |
+| TypeScript | `collector.ts` | The same evidence packages, TypeScript 5.9.3 and checked API declarations | Strict `tsc` compile. Node executes `/build/collector.js` |
+
+The prepared packages and their build commands are listed in
+[Library selection](library-selection.md#prepare-the-dependencies).
 
 The Go wrapper does not load Go modules or compile cgo. The TypeScript image
 installs the checked-in npm lockfile during its trusted build. Generated source

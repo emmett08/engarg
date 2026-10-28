@@ -207,55 +207,71 @@ optional scientific image below pins its own complete dependency set.
 
 ## Prepare the dependencies
 
-The base language profiles remain small: Python and JavaScript have their
-standard libraries; Rust adds its declared transport dependencies; Go exposes a
-precompiled standard library; TypeScript adds the compiler and Node declarations.
-Enabling recommendations does not assert that third-party packages are installed.
+The prepared images supply the package families in the bundled catalogue before
+generation or execution. This is a bounded, pinned set: adding an arbitrary
+operator override still requires preparing its dependencies. The plain Python
+and model-selected Python profiles remain available for standard-library work.
+Library preferences alone never install a package.
 
-An operator prepares another trusted image when an operation needs those
-packages. Pin dependency versions and lockfiles during that build. Rust needs the
-prepared archives and explicit `--extern` arguments used by its fixed wrapper;
-Go's wrapper needs precompiled modules and its import configuration. TypeScript
-needs both declarations and working runtime module resolution. A package name in
-the policy does not extend any of those interfaces. For example, `good_lp` needs
-an explicitly selected prepared solver backend; its default backend requires CBC.
+The [prepared-toolchain verification record](prepared-toolchain-verification.md)
+lists the built image identities, tested APIs and limits of those checks.
 
-The optional [Python evidence image](../examples/toolchains/python-evidence/Dockerfile)
-uses a digest-pinned Python base and hash-pinned direct and transitive wheels for
-CPython 3.13 on Linux x86_64. It includes DoWhy 0.14, causal-learn 0.1.4.8, SciPy,
-statsmodels, scikit-learn and SymPy. Build it before generation:
+| Prepared profile | Included evidence packages |
+|---|---|
+| `python-evidence.json` | DoWhy, causal-learn, pgmpy (NumPy backend), SciPy, statsmodels, scikit-learn, SymPy and Z3 |
+| `rust.json` | why_rs, Polars, Statrs, Nalgebra, Varisat, linfa-nn, ndarray and good_lp with the pure Rust microlp backend; serde/serde_json/reqwest remain available |
+| `go.json` | Gonum statistics, distributions, matrices, nearest neighbours and optimisation; Gophersat and CausalGo's public inference packages |
+| `javascript.json`, `typescript.json` | Math.js, Simple Statistics, Logic Solver, ml-distance, javascript-lp-solver and the pinned libdagitty source |
+
+Build the image for the language you need from the repository root:
 
 ```sh
-docker build --platform linux/amd64 --tag engarg-python-evidence:0.14 \
+docker build --platform linux/amd64 --tag engarg-python-evidence:0.14-prepared \
   examples/toolchains/python-evidence
+docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
+docker build --tag engarg-go-tools:1.25.14 examples/toolchains/go
+docker build --target javascript --tag engarg-javascript-tools:24 \
+  examples/toolchains/typescript
+docker build --tag engarg-typescript-tools:5.9.3 examples/toolchains/typescript
 
 engarg eal toolchain-check --toolchain examples/toolchains/python-evidence.json \
   --output python-evidence-check.json
-
-docker run --rm --network none --memory 1g \
-  --mount type=bind,src="$PWD/examples/toolchains/python-evidence/smoke.py",dst=/smoke.py,readonly \
-  engarg-python-evidence:0.14 python3 -I -B /smoke.py
 ```
 
-A managed proxy environment can pass its public CA with
-`--secret id=proxy_ca,src="$CODEX_PROXY_CERT"` during the trusted build. The CA
-mount is temporary and TLS verification stays enabled. Generated tools install
-nothing, have no fixture network access, and retain the selected immutable image
-identity. Inspect the local image ID and use it in the investigation's operator
-profile when reproducing that exact environment.
+A managed HTTPS proxy can pass its public CA with
+`--secret id=proxy_ca,src="$CODEX_PROXY_CERT"` during the trusted image build.
+The temporary secret does not enter image layers and TLS verification stays
+enabled. Runtime profiles use no network and inherit no credentials. The runner
+requires a local image, resolves its immutable identity and uses `--pull never`.
+It executes the configured build check before the generated tool; it performs no
+automatic dependency installation. A new image identity is a new execution
+environment, so archived investigations retain their original image pins.
 
-The smoke check fits a supplied synthetic causal model, identifies and estimates
-its effect, runs a refutation, and invokes causal-learn's PC operation. It checks
-software availability and API execution only. Its synthetic data and known
-construction do not qualify a method for an external population.
+Rust's trusted build freezes exact direct-dependency archives for the fixed
+`rustc` wrapper; this also disambiguates different Nalgebra versions in the
+transitive closure. Go prepares module archives and an immutable import map.
+JavaScript and TypeScript share a locked package closure and immutable module
+resolution from the read-only source mount. TypeScript compiles strictly with
+checked declarations for the untyped solver/graph interfaces. Preparation covers
+usable imports and linkage, not merely downloaded files.
 
-The prepared profile also demonstrates explicit `abductive`, `inductive` and
-`counterfactual` overrides with pinned versions. It uses SciPy for bounded
-finite-hypothesis likelihood/normalisation calculations because pgmpy is not
-installed in that image; it does not claim a general Bayesian-network API.
-Inductive operations can use SciPy or the prepared scikit-learn APIs according
-to their role. Counterfactual operations use DoWhy. The image dependency lock
-and archived real-claim package are unchanged by these authoring preferences.
+The Rust profile explicitly selects good_lp 1.14.2 with microlp: the newer
+microlp dependency conflicts with the sparse-matrix version required by the
+prepared causal stack. No system CBC backend is required. Python preserves the
+existing scientific pins and adds pgmpy 1.1.2 and Z3 5.3.2.0; pgmpy's optional
+Torch/Pyro/GPU stack is unnecessary for the supplied finite Bayesian queries.
+The Python wheel lock targets CPython 3.13 on Linux x86_64. Node packages and the
+libdagitty source archive have lockfile integrity checks; each language recipe
+retains its full dependency lock.
+
+Each image has API smoke sources with positive and adverse mathematical controls.
+`tests/prepared_toolchains.rs` runs those sources through the actual isolated
+runner with the canonical profile, including compilation, read-only source
+mounts, runtime resource limits and network isolation. CI builds each language
+family separately and also runs the existing generated-tool protocol,
+verification, export, execution and reuse tests. These checks establish software
+availability and tested API behaviour; they do not establish external model
+adequacy, causal assumptions or independent judgement.
 
 Use the prepared profile with the ordinary implementation CLI:
 

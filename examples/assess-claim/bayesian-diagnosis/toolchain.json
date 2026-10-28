@@ -1,0 +1,160 @@
+{
+  "schema": "engarg.toolchain/2",
+  "language": "python",
+  "docker": "docker",
+  "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+  "build_argv": [
+    "python3",
+    "-I",
+    "-B",
+    "-c",
+    "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+  ],
+  "run_argv": [
+    "python3",
+    "-I",
+    "-B",
+    "/src/collector.py"
+  ],
+  "inherit_env": [],
+  "runtime_network": "none",
+  "timeout_seconds": 120,
+  "memory_mb": 1024,
+  "output_bytes": 1048576,
+  "generation": {
+    "libraries": {
+      "use_defaults": false,
+      "fallback": "model",
+      "tasks": {
+        "causal_discovery": [
+          {
+            "package": "causal-learn",
+            "reference": "https://github.com/py-why/causal-learn",
+            "guidance": "Discovery and independence tests under explicit assumptions; retain equivalence classes and orientation uncertainty.",
+            "version": "0.1.4.8"
+          },
+          {
+            "package": "dowhy",
+            "reference": "https://github.com/py-why/dowhy",
+            "guidance": "Model and test the discovered or supplied assumptions; DoWhy is not a general causal discovery algorithm.",
+            "version": "0.14"
+          }
+        ],
+        "causal_modelling": [
+          {
+            "package": "dowhy",
+            "reference": "https://github.com/py-why/dowhy",
+            "guidance": "Represent explicit causal graphs and mechanisms; model adequacy and assumptions need separate evidence.",
+            "version": "0.14"
+          }
+        ],
+        "causal_identification": [
+          {
+            "package": "dowhy",
+            "reference": "https://github.com/py-why/dowhy",
+            "guidance": "Identify effects from an explicit graph and estimand; preserve unidentifiable results and assumptions.",
+            "version": "0.14"
+          }
+        ],
+        "causal_estimation": [
+          {
+            "package": "dowhy",
+            "reference": "https://github.com/py-why/dowhy",
+            "guidance": "Estimate only an identified estimand with declared treatment, population, confounding assumptions and uncertainty.",
+            "version": "0.14"
+          }
+        ],
+        "causal_testing": [
+          {
+            "package": "dowhy",
+            "reference": "https://github.com/py-why/dowhy",
+            "guidance": "Use refutation or graph falsification for the stated assumptions; passing a test does not prove causal validity.",
+            "version": "0.14"
+          }
+        ],
+        "abductive": [
+          {
+            "package": "pgmpy",
+            "version": "1.1.2",
+            "reference": "https://github.com/pgmpy/pgmpy",
+            "guidance": "Use the prepared NumPy backend for conditional posterior or MAP queries over an explicitly supplied Bayesian network. Reject zero or nonfinite evidence mass before conditioning; retain candidate-set, prior and observation-model adequacy obligations. Torch/Pyro are not installed; hosted-model access is not required and runtime networking stays disabled."
+          }
+        ],
+        "inductive": [
+          {
+            "package": "scipy",
+            "reference": "https://github.com/scipy/scipy",
+            "guidance": "Statistical inference under the authored sampling design; preserve actual trial identities, exclusions, population and uncertainty. Use the authored Wilson method when that interval is required, rather than substituting another interval.",
+            "version": "1.18.1"
+          },
+          {
+            "package": "scikit-learn",
+            "reference": "https://github.com/scikit-learn/scikit-learn",
+            "guidance": "Predictive fitting or validation only when required; preserve split identities, preprocessing isolation, leakage controls and actual held-out observations. Training fit does not establish generalisation or causality.",
+            "version": "1.9.1"
+          }
+        ],
+        "counterfactual": [
+          {
+            "package": "dowhy",
+            "reference": "https://github.com/py-why/dowhy",
+            "guidance": "Use gcm.counterfactual_samples with supplied structural mechanisms, interventions and the same factual exogenous context. Noise reconstruction from observed data requires invertible mechanisms; otherwise supply justified noise data. Interventional samples and feature recourse are not individual counterfactual evidence.",
+            "version": "0.14"
+          }
+        ],
+        "statistical_inference": [
+          {
+            "package": "scipy",
+            "reference": "https://github.com/scipy/scipy",
+            "guidance": "Statistical estimators and tests with explicit sampling design, units, uncertainty and numerical limits.",
+            "version": "1.18.1"
+          },
+          {
+            "package": "statsmodels",
+            "reference": "https://github.com/statsmodels/statsmodels",
+            "guidance": "Statistical model fitting and diagnostics; retain model/design assumptions and uncertainty.",
+            "version": "0.15.0"
+          }
+        ],
+        "formal_verification": [
+          {
+            "package": "z3-solver",
+            "version": "5.3.2.0",
+            "reference": "https://github.com/Z3Prover/z3",
+            "guidance": "Check explicitly authored SMT encodings and preserve sat, unsat and unknown separately. Retain domains, assumptions and model interpretation; satisfiability does not validate the external model."
+          },
+          {
+            "package": "sympy",
+            "reference": "https://github.com/sympy/sympy",
+            "guidance": "Symbolic calculations under explicit domains and assumptions; symbolic output alone is not a proof certificate.",
+            "version": "1.14.0"
+          }
+        ],
+        "similarity": [
+          {
+            "package": "scikit-learn",
+            "reference": "https://github.com/scikit-learn/scikit-learn",
+            "guidance": "Authored feature distances or nearest neighbours; retain feature scaling and separate transfer/applicability review.",
+            "version": "1.9.1"
+          }
+        ],
+        "optimisation": [
+          {
+            "package": "scipy",
+            "reference": "https://github.com/scipy/scipy",
+            "guidance": "Use scipy.optimize for an authored objective and constraints; retain solver status, tolerances and exhausted computation.",
+            "version": "1.18.1"
+          }
+        ],
+        "probabilistic_inference": [
+          {
+            "package": "pgmpy",
+            "version": "1.1.2",
+            "reference": "https://github.com/pgmpy/pgmpy",
+            "guidance": "Use the prepared NumPy backend for conditional posterior or MAP queries over an explicitly supplied Bayesian network. Reject zero or nonfinite evidence mass before conditioning; retain candidate-set, prior and observation-model adequacy obligations. Torch/Pyro are not installed; hosted-model access is not required and runtime networking stays disabled."
+          }
+        ]
+      }
+    }
+  }
+}

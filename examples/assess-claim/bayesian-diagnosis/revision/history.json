@@ -1,0 +1,46 @@
+{
+  "format": "native revision metadata extract; embedded previous reports omitted",
+  "admitted_report_file_sha256": "369eed01e5a64302b803262bd7afd0b5051e8ad7f587cfce52927fc32ce539b5",
+  "revisions": [
+    {
+      "argument_sha256": "8fd24a9041a623b0064f3e282255e1ac25fe2ae94997738180b2d733190ebd18",
+      "invalidated": [
+        "direct_bindings",
+        "tooling",
+        "eal_export",
+        "collection",
+        "assessment"
+      ],
+      "parent_report_sha256": "4c34ae3a99ddb0aac072b885430b7caa10bd03a885a6780427d9a2228e1f11ac",
+      "schema": "engarg.argument-revision/2",
+      "support_elaboration_sha256": "167daff994afc3ebc9e94bcc2bb8e2f2f3b0e5c53be0de1601cb115279039824"
+    },
+    {
+      "argument_sha256": "8fd24a9041a623b0064f3e282255e1ac25fe2ae94997738180b2d733190ebd18",
+      "invalidated": [
+        "direct_bindings",
+        "tooling",
+        "eal_export",
+        "collection",
+        "assessment"
+      ],
+      "parent_report_sha256": "e9f335e6051922197a53a54241a64efa5c81d8e0967025076baf16b6fd9514d9",
+      "schema": "engarg.argument-revision/2",
+      "support_elaboration_sha256": "ab9a6fa3a26badce841b9b7e9175e61f7dfcec26c3ea2d05292f97244a5a0f09"
+    },
+    {
+      "argument_sha256": "1df8188cf2b93398a7306d2fd21edc720d8044f9dbb151c4f3d0120e860b764d",
+      "invalidated": [
+        "direct_bindings",
+        "tooling",
+        "eal_export",
+        "collection",
+        "assessment"
+      ],
+      "parent_report_sha256": "1c38f6c5530e76a53a75f22cf816f7ab4b1f03bcc0c26795f46f636c4ee72378",
+      "schema": "engarg.argument-revision/2",
+      "support_elaboration_sha256": "50c6b8d1c9591c384f9216863cd9c615d82a1b0ccf3911de80b2aea31192e341"
+    }
+  ],
+  "preserved_comparison": "pre-qualification-argument.json and pre-qualification-support.json"
+}

@@ -70,15 +70,82 @@ jobs:
             "$engarg_runtime_root/bin/eal-collector" "$engarg_runtime_host" >> "$GITHUB_ENV"
       - name: Execute installed EAL packages and reasoning modes
         run: cargo test --locked --test executable_package --test executable_modes --test support_cli -- --ignored
-      - name: Exercise generated collectors in isolated language toolchains
-        if: runner.os == 'Linux'
+
+  prepared-toolchains:
+    name: Prepared evidence APIs (${{ matrix.family }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [python, rust, go, node]
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal
+      - uses: ./.github/actions/cargo-cache
+        with:
+          scope: prepared-${{ matrix.family }}
+          toolchains: 1.99.1
+          targets: |
+            target
+            ${{ runner.temp }}/engarg-eal-runtime/bin
+            ${{ runner.temp }}/engarg-eal-runtime/.engarg-eal-runtime-owner.json
+            ${{ runner.temp }}/engarg-eal-runtime/.engarg-eal-runtime.json
+      - name: Prepare the selected dependency image
+        env:
+          FAMILY: ${{ matrix.family }}
         run: |
-          docker pull python:3.13-slim
-          docker pull node:24-slim
-          docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust
-          docker build --tag engarg-go-tools:1.25.14 examples/toolchains/go
-          docker build --tag engarg-typescript-tools:5.9.3 examples/toolchains/typescript
-          cargo test --locked --test tooling_docker -- --ignored
+          case "$FAMILY" in
+            python)
+              docker pull python:3.13-slim
+              docker build --tag engarg-python-evidence:0.14-prepared examples/toolchains/python-evidence
+              ;;
+            rust) docker build --tag engarg-rust-tools:1.99.1 examples/toolchains/rust ;;
+            go) docker build --tag engarg-go-tools:1.25.14 examples/toolchains/go ;;
+            node)
+              docker build --target javascript --tag engarg-javascript-tools:24 examples/toolchains/typescript
+              docker build --tag engarg-typescript-tools:5.9.3 examples/toolchains/typescript
+              ;;
+          esac
+      - name: Install matching execution runtime
+        run: |
+          runtime_host=$(bash scripts/install-eal-runtime.sh --root "$RUNNER_TEMP/engarg-eal-runtime")
+          printf 'ENGARG_EAL_HOST=%s\nEAL_COLLECTOR=%s/eal-collector\n' \
+            "$runtime_host" "$(dirname "$runtime_host")" >> "$GITHUB_ENV"
+      - name: Verify offline APIs and the generated-tool protocol
+        env:
+          FAMILY: ${{ matrix.family }}
+        run: |
+          case "$FAMILY" in
+            python)
+              cargo test --locked --test prepared_toolchains python_ -- --ignored
+              cargo test --locked --test tooling_docker generated_interface_native_preflight -- --ignored
+              for test in python_combined model_free_preflight coding_failure coding_cancellation; do
+                cargo test --locked --test tooling_docker "$test" -- --ignored
+              done
+              ;;
+            rust)
+              cargo test --locked --test prepared_toolchains rust_ -- --ignored
+              cargo test --locked --test tooling_docker rust_direct -- --ignored
+              cargo test --locked --test tooling_docker capability_contract -- --ignored
+              ;;
+            go)
+              cargo test --locked --test prepared_toolchains go_ -- --ignored
+              cargo test --locked --test tooling_docker go_direct -- --ignored
+              ;;
+            node)
+              cargo test --locked --test prepared_toolchains -- --ignored --skip python_ --skip rust_ --skip go_
+              cargo test --locked --test tooling_docker javascript_ -- --ignored
+              cargo test --locked --test tooling_docker typescript_ -- --ignored
+              ;;
+          esac
 
   eal-compatibility:
     name: EAL producer and consumer contracts
@@ -86,7 +153,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: 18f2870be09523255c2c6161248e998cf049e03f
+      EAL_REVISION: 030d4514e9c5e01c95690e0d921a5da2cf6525af
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'

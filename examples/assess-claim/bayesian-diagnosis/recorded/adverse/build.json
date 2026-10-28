@@ -1,0 +1,280 @@
+{
+  "claims": {
+    "S_analytic": "claim_535f616e616c79746963",
+    "current_claim": "claim_63757272656e745f636c61696d",
+    "stronger_target": "claim_7374726f6e6765725f746172676574"
+  },
+  "executable_digest": "60175c5deb2ea77c491cdbcac3a579505d6309d57945a749326bbb0e77f88de3",
+  "files": {
+    "case.eal": "29d240cc1e3f1fb1dea83ee2ef42e3902d7972d677d3793ced2ae0846a2da45a",
+    "tools.toml": "43a57dd035e309809a6d61e0dbb22766c7f61aa76b688d232bd66c1369316336",
+    "tools/generated/acquire_selected/input.schema.json": "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670",
+    "tools/generated/acquire_selected/output.schema.json": "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2",
+    "tools/generated/acquire_selected/source/collector.py": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+    "tools/generated/acquire_selected/tool.toml": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+    "tools/generated/acquire_selected/verification.json": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"
+  },
+  "language": "EAL/4",
+  "limitations": [
+    "The EAL/4 source contains all acquisition, derivation, acceptance and reasoning semantics. TOML selects actual tools; no execution-plan sidecar is needed.",
+    "Authored method queries are programme data. Empirical premise values and independent judgements are acquired observations; interpretation and scope remain explicit.",
+    "Shared source observations retain common provenance. An unsupported claim does not establish falsity.",
+    "R_model: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_math: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_analytic: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_correspondence: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_binding: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_qualification: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_stronger: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_mapping_activation: No positive evidence of a state-order or evidence-mapping discrepancy is supplied.",
+    "R_mapping_resolution: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_substitution_activation: No positive evidence of constant-answer or handwritten-formula substitution is supplied.",
+    "R_substitution_resolution: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it",
+    "R_current: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it"
+  ],
+  "model_calls": 0,
+  "pending_reviews": [
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f6d6f64656c_review",
+      "input": {
+        "acceptance": {
+          "criterion": "The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.",
+          "kind": "judgement"
+        },
+        "criterion": "The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.",
+        "requirement": "R_model",
+        "role": "support",
+        "scope": null,
+        "target": "G_model"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f6d617468_review",
+      "input": {
+        "acceptance": {
+          "criterion": "A checked rational derivation obtains faulty weight 38/10000, healthy weight 441/10000, normalizer 479/10000, posterior 38/479 and shortfall below 3/4 of 1285/1916.",
+          "kind": "judgement"
+        },
+        "criterion": "A checked rational derivation obtains faulty weight 38/10000, healthy weight 441/10000, normalizer 479/10000, posterior 38/479 and shortfall below 3/4 of 1285/1916.",
+        "requirement": "R_math",
+        "role": "support",
+        "scope": null,
+        "target": "W_math"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f616e616c79746963_review",
+      "input": {
+        "acceptance": {
+          "criterion": "An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.",
+          "kind": "judgement"
+        },
+        "criterion": "An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.",
+        "requirement": "R_analytic",
+        "role": "support",
+        "scope": null,
+        "target": "S_analytic"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f636f72726573706f6e64656e6365_review",
+      "input": {
+        "acceptance": {
+          "criterion": "An actual scoped AI assessment accepts the implementation and formal correspondence for the exact selected model, evidence, public pgmpy API calls, positive-normalizer handling, complete finite coverage and output predicates, with reference and normalization errors at most 1e-12.",
+          "kind": "judgement"
+        },
+        "criterion": "An actual scoped AI assessment accepts the implementation and formal correspondence for the exact selected model, evidence, public pgmpy API calls, positive-normalizer handling, complete finite coverage and output predicates, with reference and normalization errors at most 1e-12.",
+        "requirement": "R_correspondence",
+        "role": "support",
+        "scope": null,
+        "target": "G_correspondence"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f62696e64696e67_review",
+      "input": {
+        "acceptance": {
+          "criterion": "Actual native provenance binds the assessed artifact and unchanged request context to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2 with original execution and review clocks retained and maximum accepted age 86400 seconds.",
+          "kind": "judgement"
+        },
+        "criterion": "Actual native provenance binds the assessed artifact and unchanged request context to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2 with original execution and review clocks retained and maximum accepted age 86400 seconds.",
+        "requirement": "R_binding",
+        "role": "support",
+        "scope": null,
+        "target": "A_binding"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f7175616c696669636174696f6e_review",
+      "input": {
+        "acceptance": {
+          "criterion": "An actual scoped AI assessment accepts the reusable implementation after independently frozen positive, changed-heartbeat negative, different-parameter, malformed-input and zero-normalizer cases have produced their specified successful values or acquisition errors.",
+          "kind": "judgement"
+        },
+        "criterion": "An actual scoped AI assessment accepts the reusable implementation after independently frozen positive, changed-heartbeat negative, different-parameter, malformed-input and zero-normalizer cases have produced their specified successful values or acquisition errors.",
+        "requirement": "R_qualification",
+        "role": "support",
+        "scope": null,
+        "target": "G_qualification"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f7374726f6e676572_review",
+      "input": {
+        "acceptance": {
+          "criterion": "A scoped reasoning assessment confirms that the selected-run obligations and actual reusable-operation qualification jointly establish stronger_target without treating finite tests as a proof of unrestricted algorithm correctness.",
+          "kind": "judgement"
+        },
+        "criterion": "A scoped reasoning assessment confirms that the selected-run obligations and actual reusable-operation qualification jointly establish stronger_target without treating finite tests as a proof of unrestricted algorithm correctness.",
+        "requirement": "R_stronger",
+        "role": "support",
+        "scope": null,
+        "target": "W_stronger"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f6d617070696e675f61637469766174696f6e_review",
+      "input": {
+        "acceptance": {
+          "kind": "unavailable",
+          "reason": "No positive evidence of a state-order or evidence-mapping discrepancy is supplied."
+        },
+        "criterion": "Hypothetical activity is not inferred from the existence of the objection or from its future resolution assessment.",
+        "requirement": "R_mapping_activation",
+        "role": "challenge_activation",
+        "scope": null,
+        "target": "D_mapping"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f6d617070696e675f7265736f6c7574696f6e_review",
+      "input": {
+        "acceptance": {
+          "criterion": "Actual source and case assessment establishes the declared state names, parent-column order and evidence mapping for both sensor settings without a mapping discrepancy.",
+          "kind": "judgement"
+        },
+        "criterion": "Actual source and case assessment establishes the declared state names, parent-column order and evidence mapping for both sensor settings without a mapping discrepancy.",
+        "requirement": "R_mapping_resolution",
+        "role": "challenge_resolution",
+        "scope": null,
+        "target": "D_mapping"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f737562737469747574696f6e5f61637469766174696f6e_review",
+      "input": {
+        "acceptance": {
+          "kind": "unavailable",
+          "reason": "No positive evidence of constant-answer or handwritten-formula substitution is supplied."
+        },
+        "criterion": "The concern remains hypothetical. A future resolution observation cannot also be treated as evidence that substitution occurred.",
+        "requirement": "R_substitution_activation",
+        "role": "challenge_activation",
+        "scope": null,
+        "target": "D_substitution"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_review",
+      "input": {
+        "acceptance": {
+          "criterion": "Actual source and frozen-case assessment establishes public pgmpy inference calls and reusable parameter dependence rather than constant or handwritten-formula substitution.",
+          "kind": "judgement"
+        },
+        "criterion": "Actual source and frozen-case assessment establishes public pgmpy inference calls and reusable parameter dependence rather than constant or handwritten-formula substitution.",
+        "requirement": "R_substitution_resolution",
+        "role": "challenge_resolution",
+        "scope": null,
+        "target": "D_substitution"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_525f63757272656e74_review",
+      "input": {
+        "acceptance": {
+          "criterion": "A scoped assessment accepts the W_current premise interpretation and composition under the exact selected-model scope, with each formal premise linked to its own accepted evidence requirement and any operational validity interval derived from original record times and the authorised 86400-second age bound.",
+          "kind": "judgement"
+        },
+        "criterion": "A scoped assessment accepts the W_current premise interpretation and composition under the exact selected-model scope, with each formal premise linked to its own accepted evidence requirement and any operational validity interval derived from original record times and the authorised 86400-second age bound.",
+        "requirement": "R_current",
+        "role": "support",
+        "scope": null,
+        "target": "W_current"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    }
+  ],
+  "schema": "engarg.executable-package/1",
+  "source_digest": "29d240cc1e3f1fb1dea83ee2ef42e3902d7972d677d3793ced2ae0846a2da45a"
+}

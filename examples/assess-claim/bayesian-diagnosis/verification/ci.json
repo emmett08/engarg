@@ -1,0 +1,265 @@
+{
+  "source_commit": "6fcb124fdf78f8d8c9b35b7753945a8525790832",
+  "repository": "emmett08/engarg",
+  "run_id": 40715473935,
+  "run_url": "https://github.com/emmett08/engarg/actions/runs/40715473935",
+  "retrieved_at": "2026-10-28 15:43:40 UTC",
+  "provenance": [
+    "GitHub fetch_workflow_run_jobs",
+    "GitHub fetch_workflow_job_logs for all4family jobs",
+    "GitHub fetch_commit_workflow_runs filtered to exact source commit"
+  ],
+  "workflow_status_at_read": "completed",
+  "scope": "All5canonical prepared API tests and all10ignored protocol tests actually passed in the4family CI jobs; this does not relabel the local VFS Rust failure as a pass.",
+  "prepared_passed": 5,
+  "protocol_passed": 10,
+  "jobs": [
+    {
+      "family": "python",
+      "id": 122911835187,
+      "name": "Prepared evidence APIs (python)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835187",
+      "source_commit_found_in_checkout_log": [
+        "6fcb124fdf78f8d8c9b35b7753945a8525790832"
+      ],
+      "prepared_tests": [
+        "python_evidence_apis_execute_offline"
+      ],
+      "protocol_tests": [
+        "generated_interface_native_preflight_requires_original_time_then_executes_and_reuses_one_observation",
+        "python_combined_authoring_implements_revises_builds_executes_and_reuses",
+        "model_free_preflight_uploads_real_snapshots_and_removes_its_anonymous_volumes",
+        "coding_failure_preserves_the_original_analysis_output",
+        "coding_cancellation_removes_the_running_container_without_registering"
+      ],
+      "test_result_excerpt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/ci-python-test-results.log"
+    },
+    {
+      "family": "node",
+      "id": 122911835230,
+      "name": "Prepared evidence APIs (node)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835230",
+      "source_commit_found_in_checkout_log": [
+        "6fcb124fdf78f8d8c9b35b7753945a8525790832"
+      ],
+      "prepared_tests": [
+        "javascript_evidence_apis_execute_offline",
+        "typescript_evidence_apis_execute_offline"
+      ],
+      "protocol_tests": [
+        "javascript_collector_preserves_exact_protocol_identity_and_reuses_verified_code",
+        "typescript_direct_operation_is_compiled_executed_and_reused_with_exact_protocol_identity"
+      ],
+      "test_result_excerpt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/ci-node-test-results.log"
+    },
+    {
+      "family": "rust",
+      "id": 122911835387,
+      "name": "Prepared evidence APIs (rust)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835387",
+      "source_commit_found_in_checkout_log": [
+        "6fcb124fdf78f8d8c9b35b7753945a8525790832"
+      ],
+      "prepared_tests": [
+        "rust_evidence_apis_execute_offline"
+      ],
+      "protocol_tests": [
+        "rust_direct_operation_is_compiled_executed_and_reused_with_exact_protocol_identity",
+        "capability_contract_generates_rust_and_reuses_it_for_different_claims"
+      ],
+      "test_result_excerpt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/ci-rust-test-results.log"
+    },
+    {
+      "family": "go",
+      "id": 122911835617,
+      "name": "Prepared evidence APIs (go)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835617",
+      "source_commit_found_in_checkout_log": [
+        "6fcb124fdf78f8d8c9b35b7753945a8525790832"
+      ],
+      "prepared_tests": [
+        "go_evidence_apis_execute_offline"
+      ],
+      "protocol_tests": [
+        "go_direct_operation_is_compiled_executed_and_reused_with_exact_protocol_identity"
+      ],
+      "test_result_excerpt": "/workspace/work/prepared-evidence-images/checks/ignored-integration/ci-go-test-results.log"
+    }
+  ],
+  "status_observations": [
+    {
+      "retrieved_at": "2026-10-28 15:43:40 UTC",
+      "workflow_status": "in_progress"
+    },
+    {
+      "retrieved_at": "2026-10-28 15:45:48 UTC",
+      "workflow_status": "completed",
+      "workflow_conclusion": "success"
+    }
+  ],
+  "workflow_conclusion_at_read": "success",
+  "latest_retrieved_at": "2026-10-28 15:45:48 UTC",
+  "all_jobs": [
+    {
+      "id": 122911834657,
+      "name": "checks (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911834657"
+    },
+    {
+      "id": 122911835086,
+      "name": "checks (macos-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835086"
+    },
+    {
+      "id": 122911835187,
+      "name": "Prepared evidence APIs (python)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835187"
+    },
+    {
+      "id": 122911835230,
+      "name": "Prepared evidence APIs (node)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835230"
+    },
+    {
+      "id": 122911835263,
+      "name": "EAL producer and consumer contracts",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835263"
+    },
+    {
+      "id": 122911835387,
+      "name": "Prepared evidence APIs (rust)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835387"
+    },
+    {
+      "id": 122911835617,
+      "name": "Prepared evidence APIs (go)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/emmett08/engarg/actions/runs/40715473935/job/122911835617"
+    }
+  ],
+  "workflow_source": {
+    "repository_path": ".github/workflows/ci.yml",
+    "commit": "6fcb124fdf78f8d8c9b35b7753945a8525790832",
+    "sha256": "9bd86de001885178109f5ef939f9750a204757e8ac6f8e81491661c1f4d873e3",
+    "retained_file": "/workspace/work/prepared-evidence-images/checks/ignored-integration/ci-workflow-source.yml"
+  },
+  "exact_selections": {
+    "python": [
+      {
+        "target": "prepared_toolchains",
+        "selector": "python_",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "generated_interface_native_preflight",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "python_combined",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "model_free_preflight",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "coding_failure",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "coding_cancellation",
+        "ignored": true,
+        "passed": 1
+      }
+    ],
+    "rust": [
+      {
+        "target": "prepared_toolchains",
+        "selector": "rust_",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "rust_direct",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "capability_contract",
+        "ignored": true,
+        "passed": 1
+      }
+    ],
+    "go": [
+      {
+        "target": "prepared_toolchains",
+        "selector": "go_",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "go_direct",
+        "ignored": true,
+        "passed": 1
+      }
+    ],
+    "node": [
+      {
+        "target": "prepared_toolchains",
+        "ignored": true,
+        "skip": [
+          "python_",
+          "rust_",
+          "go_"
+        ],
+        "passed": 2
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "javascript_",
+        "ignored": true,
+        "passed": 1
+      },
+      {
+        "target": "tooling_docker",
+        "selector": "typescript_",
+        "ignored": true,
+        "passed": 1
+      }
+    ]
+  }
+}

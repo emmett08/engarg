@@ -1,0 +1,24 @@
+{
+  "schema": "engarg.toolchain/1",
+  "language": "python",
+  "docker": "docker",
+  "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+  "build_argv": [
+    "python3",
+    "-I",
+    "-B",
+    "-c",
+    "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+  ],
+  "run_argv": [
+    "python3",
+    "-I",
+    "-B",
+    "/src/collector.py"
+  ],
+  "inherit_env": [],
+  "runtime_network": "none",
+  "timeout_seconds": 120,
+  "memory_mb": 1024,
+  "output_bytes": 1048576
+}

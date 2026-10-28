@@ -1,0 +1,1379 @@
+{
+  "schema": "local.scoped-binding-checks/1",
+  "review_request_sha256": "3c02d818972a9f764166c7ddbbd95e581d54ce26438d52d4e4c0509019121b6a",
+  "checks": [
+    {
+      "check": "raw candidate.json",
+      "passed": true,
+      "actual": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+      "expected": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55"
+    },
+    {
+      "check": "raw contract.json",
+      "passed": true,
+      "actual": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+      "expected": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93"
+    },
+    {
+      "check": "raw host_record.json",
+      "passed": true,
+      "actual": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+      "expected": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5"
+    },
+    {
+      "check": "raw operator_profile.json",
+      "passed": true,
+      "actual": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+      "expected": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0"
+    },
+    {
+      "check": "raw package_manifest.json",
+      "passed": true,
+      "actual": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+      "expected": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273"
+    },
+    {
+      "check": "raw profile.json",
+      "passed": true,
+      "actual": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+      "expected": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e"
+    },
+    {
+      "check": "raw tool_binding.toml",
+      "passed": true,
+      "actual": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+      "expected": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61"
+    },
+    {
+      "check": "raw verification.json",
+      "passed": true,
+      "actual": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+      "expected": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"
+    },
+    {
+      "check": "manifest canonical contract",
+      "passed": true,
+      "actual": "07809fc6fa33dd54df4a47e0d3fcd0a4f354d0c30c00557085474543a8c6ac23",
+      "expected": "07809fc6fa33dd54df4a47e0d3fcd0a4f354d0c30c00557085474543a8c6ac23"
+    },
+    {
+      "check": "manifest canonical candidate",
+      "passed": true,
+      "actual": "0d35b2132978b1b83646b71043948427506fe746637a76d0491c91d6a8c3fe03",
+      "expected": "0d35b2132978b1b83646b71043948427506fe746637a76d0491c91d6a8c3fe03"
+    },
+    {
+      "check": "manifest canonical profile",
+      "passed": true,
+      "actual": "9eecf3b45f8d0c1254b4b08f5d4d9d4bacf3a9c141e00f035425364eca96dc59",
+      "expected": "9eecf3b45f8d0c1254b4b08f5d4d9d4bacf3a9c141e00f035425364eca96dc59"
+    },
+    {
+      "check": "manifest canonical source",
+      "passed": true,
+      "actual": "33b416ba945f6380166ba6904bf9b39b40abf7f4b40e16e7ba4db2ed9b0bcabe",
+      "expected": "33b416ba945f6380166ba6904bf9b39b40abf7f4b40e16e7ba4db2ed9b0bcabe"
+    },
+    {
+      "check": "manifest canonical fixtures",
+      "passed": true,
+      "actual": "9fe730a6ae59dc1a39f5070b7ba364c6f5d194cf47939aa4a1ef0bbd8bd6100b",
+      "expected": "9fe730a6ae59dc1a39f5070b7ba364c6f5d194cf47939aa4a1ef0bbd8bd6100b"
+    },
+    {
+      "check": "manifest canonical receipt",
+      "passed": true,
+      "actual": "b25956fa7ec34b01cbe38c6e981c8c23bb3b7ef2392bb8a0a07e60773ea6ce91",
+      "expected": "b25956fa7ec34b01cbe38c6e981c8c23bb3b7ef2392bb8a0a07e60773ea6ce91"
+    },
+    {
+      "check": "receipt canonical contract",
+      "passed": true,
+      "actual": "07809fc6fa33dd54df4a47e0d3fcd0a4f354d0c30c00557085474543a8c6ac23",
+      "expected": "07809fc6fa33dd54df4a47e0d3fcd0a4f354d0c30c00557085474543a8c6ac23"
+    },
+    {
+      "check": "receipt canonical candidate",
+      "passed": true,
+      "actual": "0d35b2132978b1b83646b71043948427506fe746637a76d0491c91d6a8c3fe03",
+      "expected": "0d35b2132978b1b83646b71043948427506fe746637a76d0491c91d6a8c3fe03"
+    },
+    {
+      "check": "receipt canonical source",
+      "passed": true,
+      "actual": "33b416ba945f6380166ba6904bf9b39b40abf7f4b40e16e7ba4db2ed9b0bcabe",
+      "expected": "33b416ba945f6380166ba6904bf9b39b40abf7f4b40e16e7ba4db2ed9b0bcabe"
+    },
+    {
+      "check": "receipt canonical fixtures",
+      "passed": true,
+      "actual": "9fe730a6ae59dc1a39f5070b7ba364c6f5d194cf47939aa4a1ef0bbd8bd6100b",
+      "expected": "9fe730a6ae59dc1a39f5070b7ba364c6f5d194cf47939aa4a1ef0bbd8bd6100b"
+    },
+    {
+      "check": "manifest runner",
+      "passed": true,
+      "actual": {
+        "profile_sha256": "9eecf3b45f8d0c1254b4b08f5d4d9d4bacf3a9c141e00f035425364eca96dc59",
+        "image_id": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "docker_sha256": "27f239f97492c434e091a70b41b8796c698f0aa2b6052c6f9c28da4ee7ae888b",
+        "runner_sha256": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813",
+        "supervisor_sha256": "4b16dce50723a1325198670c228ab4a653862020c17d70eaf9167ad0b0e63613"
+      },
+      "expected": {
+        "profile_sha256": "9eecf3b45f8d0c1254b4b08f5d4d9d4bacf3a9c141e00f035425364eca96dc59",
+        "image_id": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "docker_sha256": "27f239f97492c434e091a70b41b8796c698f0aa2b6052c6f9c28da4ee7ae888b",
+        "runner_sha256": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813",
+        "supervisor_sha256": "4b16dce50723a1325198670c228ab4a653862020c17d70eaf9167ad0b0e63613"
+      }
+    },
+    {
+      "check": "manifest key",
+      "passed": true,
+      "actual": "1a54d3724c1cb6fdf0989f42b1ba209bef67de7cd9bb0d8a3f29df7b5f886b8b",
+      "expected": "1a54d3724c1cb6fdf0989f42b1ba209bef67de7cd9bb0d8a3f29df7b5f886b8b"
+    },
+    {
+      "check": "v2 operation specification",
+      "passed": true,
+      "actual": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+      "expected": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c"
+    },
+    {
+      "check": "v2 warrants",
+      "passed": true,
+      "actual": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1",
+      "expected": "fb9439f57717cf50b78ddbd57ea52a65d2d07427622bc4ebfa7e07e0d75279a1"
+    },
+    {
+      "check": "contract purpose follows public operation translation",
+      "passed": true,
+      "actual": {
+        "definition": "Implement reusable protocol finite_bayes_diagnosis/1 in the operator-prepared Python environment using pgmpy 1.1.2 public DiscreteBayesianNetwork, TabularCPD and VariableElimination.query APIs. For parameters p,a1,a0,h1,h0 construct exactly the graph Fault->Alarm and Fault->HeartbeatLost. Set every variable's state_names to [0,1]. Build Fault CPD rows [[1-p],[p]]. Build Alarm CPD rows [[1-a0,1-a1],[a0,a1]] with evidence=['Fault'], evidence_card=[2] and explicit state_names for Alarm and Fault. Build HeartbeatLost CPD rows [[1-h0,1-h1],[h0,h1]] with the same parent order and explicit state_names. Add all CPDs and require check_model() to succeed. Instantiate VariableElimination. Obtain the unconditional joint sensor factor using query(variables=['Alarm','HeartbeatLost'], joint=True, show_progress=False) without conditioning evidence. Read its selected joint entry using get_value(Alarm=int(alarm), HeartbeatLost=int(heartbeat_lost)). Reject zero or nonfinite evidence mass before conditional inference. Obtain the Fault posterior using query(variables=['Fault'], evidence={'Alarm':int(alarm),'HeartbeatLost':int(heartbeat_lost)}, joint=True, show_progress=False). Read Fault=0 and Fault=1 by explicit state names. Require both entries finite and within [0,1] and their sum within absolute tolerance 1e-12 of one. Return Fault=1 as posterior_fault and the selected unconditional joint entry as evidence_normalizer. Set calculation_complete=true only after all fixed finite library computations and validations finish. Never implement the collected quantities using a handwritten Bayes formula or reference constants. Before coding, freeze independent model-derived expectations for the qualification cases described in input_conditions. Actual qualification must inspect generated source, state and parameter correspondence, normalizer handling, actual public API calls and frozen execution results. The native adapter supplies actual UTC query time and provenance outside the three-field logical result, preserving opaque external request identity/context and JSON precision. This logical blueprint selects no provider or execution authority. After ALL raw pgmpy validations, canonicalize BOTH successful probability outputs uniformly as float(format(raw_value, '.15g')): 15 significant decimal digits, never decimal places. Recheck canonical values as finite probabilities, posterior in [0,1] and normalizer in (0,1]; unexpected nonfinite, out-of-range or zero canonical mass is an acquisition error. Set completion only after these checks. This parameter-independent representation preserves tiny positive scales. No answer-specific branch, fixture detection, reference substitution, handwritten Bayes replacement or fixed-place rounding is allowed. The declared-case 1e-12 reference bound remains; arbitrary near-0.75 decision stability and ill-conditioned-input accuracy are not established.",
+        "input_conditions": [
+          "Accept exactly the declared object shape and required keys with no extras. Require each probability to be a finite JSON number that is not a boolean and lies in [0,1]. Require the two evidence fields to be booleans.",
+          "Use only the fixed three-node graph with two states per variable. Permit no data fitting, stochastic sampling, network access, installation, shell invocation, arbitrary graph execution or Torch dependency.",
+          "Freeze expectations before implementation. For p=1/50,a1=19/20,a0=1/20,h1=4/5,h0=1/10 and both flags true, expect posterior 152/201 and mass 201/10000 with completion true. With only heartbeat_lost changed to false, expect posterior 38/479 and mass 479/10000 with completion true. This is a measured-negative threshold case rather than an acquisition error.",
+          "Freeze a genuinely different valid case with p=1/2,a1=4/5,a0=1/5,h1=3/5,h0=2/5 and both flags true. Its joint weights are 6/25 and 1/25, so expect mass 7/25 and posterior 6/7 with completion true.",
+          "Freeze malformed and out-of-range cases including a boolean probability slot, a missing required field, an extra field and a probability outside [0,1]. Reject nonfinite numbers if presented at the runtime boundary. Each must produce an acquisition error rather than successful values.",
+          "Freeze impossible evidence using p=1/2,a1=0,a0=0,h1=1/2,h0=1/2 with alarm=true and heartbeat_lost=true. The evidence mass is zero and the operation must produce an acquisition error.",
+          "Use absolute tolerance 1e-12 for independent numerical reference comparisons and posterior normalization. Expected qualification outcomes are derived from the declared finite model rather than assumed software outputs.",
+          "Execution authority must come from the separately admitted native binding to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2. Do not accept an input label as attestation.",
+          "Normative new frozen successful representations from the unchanged a priori rational references, using 15 significant digits: selected posterior=0.756218905472637, mass=0.0201; heartbeat-not-lost posterior=0.0793319415448852, mass=0.0479; different-parameter posterior=0.857142857142857, mass=0.28. Every other valid case uses the same uniform rule on its independently derived reference. Freeze a new constructor-owned contract; never edit an earlier collector, oracle or receipt."
+        ],
+        "methods": [
+          "finite_bayes_diagnosis/1"
+        ],
+        "output_guarantees": [
+          "A successful result contains exactly posterior_fault, evidence_normalizer and calculation_complete. No threshold, expected answer or logical collected property is an operation argument or authored result.",
+          "Reject invalid models, failed API calls, zero or nonfinite normalizers, out-of-range successful masses or posteriors and posterior normalization error above 1e-12 as acquisition errors.",
+          "Successful quantities come from the specified pgmpy factors and conditional inference with complete finite factor coverage. Completion is set only after those computations and validations finish.",
+          "Native EAL independently evaluates the posterior threshold, normalizer positivity and completion. A returned completion flag does not replace separate actual implementation qualification.",
+          "The native envelope records the actual UTC query time as observed_at using ASCII YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Preserve source/input/context/binding hashes and execution provenance. Do not invent an earlier model observation time or refresh a later supplied source or review clock.",
+          "Preserve opaque external identity/context unchanged and retain JSON numeric precision. The adapter may add only its reserved collection-status metadata outside the logical result.",
+          "Successful outputs use the uniform 15-significant-digit rule only after raw validation, followed by canonical-value guards. Original 1e-12 bounds remain for declared cases. No universal near-threshold or ill-conditioning guarantee is supplied."
+        ],
+        "provenance": "Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence.",
+        "schema": "engarg.operation-specification/1"
+      },
+      "expected": {
+        "schema": "engarg.operation-specification/1",
+        "definition": "Implement reusable protocol finite_bayes_diagnosis/1 in the operator-prepared Python environment using pgmpy 1.1.2 public DiscreteBayesianNetwork, TabularCPD and VariableElimination.query APIs. For parameters p,a1,a0,h1,h0 construct exactly the graph Fault->Alarm and Fault->HeartbeatLost. Set every variable's state_names to [0,1]. Build Fault CPD rows [[1-p],[p]]. Build Alarm CPD rows [[1-a0,1-a1],[a0,a1]] with evidence=['Fault'], evidence_card=[2] and explicit state_names for Alarm and Fault. Build HeartbeatLost CPD rows [[1-h0,1-h1],[h0,h1]] with the same parent order and explicit state_names. Add all CPDs and require check_model() to succeed. Instantiate VariableElimination. Obtain the unconditional joint sensor factor using query(variables=['Alarm','HeartbeatLost'], joint=True, show_progress=False) without conditioning evidence. Read its selected joint entry using get_value(Alarm=int(alarm), HeartbeatLost=int(heartbeat_lost)). Reject zero or nonfinite evidence mass before conditional inference. Obtain the Fault posterior using query(variables=['Fault'], evidence={'Alarm':int(alarm),'HeartbeatLost':int(heartbeat_lost)}, joint=True, show_progress=False). Read Fault=0 and Fault=1 by explicit state names. Require both entries finite and within [0,1] and their sum within absolute tolerance 1e-12 of one. Return Fault=1 as posterior_fault and the selected unconditional joint entry as evidence_normalizer. Set calculation_complete=true only after all fixed finite library computations and validations finish. Never implement the collected quantities using a handwritten Bayes formula or reference constants. Before coding, freeze independent model-derived expectations for the qualification cases described in input_conditions. Actual qualification must inspect generated source, state and parameter correspondence, normalizer handling, actual public API calls and frozen execution results. The native adapter supplies actual UTC query time and provenance outside the three-field logical result, preserving opaque external request identity/context and JSON precision. This logical blueprint selects no provider or execution authority. After ALL raw pgmpy validations, canonicalize BOTH successful probability outputs uniformly as float(format(raw_value, '.15g')): 15 significant decimal digits, never decimal places. Recheck canonical values as finite probabilities, posterior in [0,1] and normalizer in (0,1]; unexpected nonfinite, out-of-range or zero canonical mass is an acquisition error. Set completion only after these checks. This parameter-independent representation preserves tiny positive scales. No answer-specific branch, fixture detection, reference substitution, handwritten Bayes replacement or fixed-place rounding is allowed. The declared-case 1e-12 reference bound remains; arbitrary near-0.75 decision stability and ill-conditioned-input accuracy are not established.",
+        "input_conditions": [
+          "Accept exactly the declared object shape and required keys with no extras. Require each probability to be a finite JSON number that is not a boolean and lies in [0,1]. Require the two evidence fields to be booleans.",
+          "Use only the fixed three-node graph with two states per variable. Permit no data fitting, stochastic sampling, network access, installation, shell invocation, arbitrary graph execution or Torch dependency.",
+          "Freeze expectations before implementation. For p=1/50,a1=19/20,a0=1/20,h1=4/5,h0=1/10 and both flags true, expect posterior 152/201 and mass 201/10000 with completion true. With only heartbeat_lost changed to false, expect posterior 38/479 and mass 479/10000 with completion true. This is a measured-negative threshold case rather than an acquisition error.",
+          "Freeze a genuinely different valid case with p=1/2,a1=4/5,a0=1/5,h1=3/5,h0=2/5 and both flags true. Its joint weights are 6/25 and 1/25, so expect mass 7/25 and posterior 6/7 with completion true.",
+          "Freeze malformed and out-of-range cases including a boolean probability slot, a missing required field, an extra field and a probability outside [0,1]. Reject nonfinite numbers if presented at the runtime boundary. Each must produce an acquisition error rather than successful values.",
+          "Freeze impossible evidence using p=1/2,a1=0,a0=0,h1=1/2,h0=1/2 with alarm=true and heartbeat_lost=true. The evidence mass is zero and the operation must produce an acquisition error.",
+          "Use absolute tolerance 1e-12 for independent numerical reference comparisons and posterior normalization. Expected qualification outcomes are derived from the declared finite model rather than assumed software outputs.",
+          "Execution authority must come from the separately admitted native binding to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2. Do not accept an input label as attestation.",
+          "Normative new frozen successful representations from the unchanged a priori rational references, using 15 significant digits: selected posterior=0.756218905472637, mass=0.0201; heartbeat-not-lost posterior=0.0793319415448852, mass=0.0479; different-parameter posterior=0.857142857142857, mass=0.28. Every other valid case uses the same uniform rule on its independently derived reference. Freeze a new constructor-owned contract; never edit an earlier collector, oracle or receipt."
+        ],
+        "output_guarantees": [
+          "A successful result contains exactly posterior_fault, evidence_normalizer and calculation_complete. No threshold, expected answer or logical collected property is an operation argument or authored result.",
+          "Reject invalid models, failed API calls, zero or nonfinite normalizers, out-of-range successful masses or posteriors and posterior normalization error above 1e-12 as acquisition errors.",
+          "Successful quantities come from the specified pgmpy factors and conditional inference with complete finite factor coverage. Completion is set only after those computations and validations finish.",
+          "Native EAL independently evaluates the posterior threshold, normalizer positivity and completion. A returned completion flag does not replace separate actual implementation qualification.",
+          "The native envelope records the actual UTC query time as observed_at using ASCII YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Preserve source/input/context/binding hashes and execution provenance. Do not invent an earlier model observation time or refresh a later supplied source or review clock.",
+          "Preserve opaque external identity/context unchanged and retain JSON numeric precision. The adapter may add only its reserved collection-status metadata outside the logical result.",
+          "Successful outputs use the uniform 15-significant-digit rule only after raw validation, followed by canonical-value guards. Original 1e-12 bounds remain for declared cases. No universal near-threshold or ill-conditioning guarantee is supplied."
+        ],
+        "methods": [
+          "finite_bayes_diagnosis/1"
+        ],
+        "provenance": "Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence."
+      }
+    },
+    {
+      "check": "frozen context purpose follows public operation translation",
+      "passed": true,
+      "actual": {
+        "definition": "Implement reusable protocol finite_bayes_diagnosis/1 in the operator-prepared Python environment using pgmpy 1.1.2 public DiscreteBayesianNetwork, TabularCPD and VariableElimination.query APIs. For parameters p,a1,a0,h1,h0 construct exactly the graph Fault->Alarm and Fault->HeartbeatLost. Set every variable's state_names to [0,1]. Build Fault CPD rows [[1-p],[p]]. Build Alarm CPD rows [[1-a0,1-a1],[a0,a1]] with evidence=['Fault'], evidence_card=[2] and explicit state_names for Alarm and Fault. Build HeartbeatLost CPD rows [[1-h0,1-h1],[h0,h1]] with the same parent order and explicit state_names. Add all CPDs and require check_model() to succeed. Instantiate VariableElimination. Obtain the unconditional joint sensor factor using query(variables=['Alarm','HeartbeatLost'], joint=True, show_progress=False) without conditioning evidence. Read its selected joint entry using get_value(Alarm=int(alarm), HeartbeatLost=int(heartbeat_lost)). Reject zero or nonfinite evidence mass before conditional inference. Obtain the Fault posterior using query(variables=['Fault'], evidence={'Alarm':int(alarm),'HeartbeatLost':int(heartbeat_lost)}, joint=True, show_progress=False). Read Fault=0 and Fault=1 by explicit state names. Require both entries finite and within [0,1] and their sum within absolute tolerance 1e-12 of one. Return Fault=1 as posterior_fault and the selected unconditional joint entry as evidence_normalizer. Set calculation_complete=true only after all fixed finite library computations and validations finish. Never implement the collected quantities using a handwritten Bayes formula or reference constants. Before coding, freeze independent model-derived expectations for the qualification cases described in input_conditions. Actual qualification must inspect generated source, state and parameter correspondence, normalizer handling, actual public API calls and frozen execution results. The native adapter supplies actual UTC query time and provenance outside the three-field logical result, preserving opaque external request identity/context and JSON precision. This logical blueprint selects no provider or execution authority. After ALL raw pgmpy validations, canonicalize BOTH successful probability outputs uniformly as float(format(raw_value, '.15g')): 15 significant decimal digits, never decimal places. Recheck canonical values as finite probabilities, posterior in [0,1] and normalizer in (0,1]; unexpected nonfinite, out-of-range or zero canonical mass is an acquisition error. Set completion only after these checks. This parameter-independent representation preserves tiny positive scales. No answer-specific branch, fixture detection, reference substitution, handwritten Bayes replacement or fixed-place rounding is allowed. The declared-case 1e-12 reference bound remains; arbitrary near-0.75 decision stability and ill-conditioned-input accuracy are not established.",
+        "input_conditions": [
+          "Accept exactly the declared object shape and required keys with no extras. Require each probability to be a finite JSON number that is not a boolean and lies in [0,1]. Require the two evidence fields to be booleans.",
+          "Use only the fixed three-node graph with two states per variable. Permit no data fitting, stochastic sampling, network access, installation, shell invocation, arbitrary graph execution or Torch dependency.",
+          "Freeze expectations before implementation. For p=1/50,a1=19/20,a0=1/20,h1=4/5,h0=1/10 and both flags true, expect posterior 152/201 and mass 201/10000 with completion true. With only heartbeat_lost changed to false, expect posterior 38/479 and mass 479/10000 with completion true. This is a measured-negative threshold case rather than an acquisition error.",
+          "Freeze a genuinely different valid case with p=1/2,a1=4/5,a0=1/5,h1=3/5,h0=2/5 and both flags true. Its joint weights are 6/25 and 1/25, so expect mass 7/25 and posterior 6/7 with completion true.",
+          "Freeze malformed and out-of-range cases including a boolean probability slot, a missing required field, an extra field and a probability outside [0,1]. Reject nonfinite numbers if presented at the runtime boundary. Each must produce an acquisition error rather than successful values.",
+          "Freeze impossible evidence using p=1/2,a1=0,a0=0,h1=1/2,h0=1/2 with alarm=true and heartbeat_lost=true. The evidence mass is zero and the operation must produce an acquisition error.",
+          "Use absolute tolerance 1e-12 for independent numerical reference comparisons and posterior normalization. Expected qualification outcomes are derived from the declared finite model rather than assumed software outputs.",
+          "Execution authority must come from the separately admitted native binding to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2. Do not accept an input label as attestation.",
+          "Normative new frozen successful representations from the unchanged a priori rational references, using 15 significant digits: selected posterior=0.756218905472637, mass=0.0201; heartbeat-not-lost posterior=0.0793319415448852, mass=0.0479; different-parameter posterior=0.857142857142857, mass=0.28. Every other valid case uses the same uniform rule on its independently derived reference. Freeze a new constructor-owned contract; never edit an earlier collector, oracle or receipt."
+        ],
+        "methods": [
+          "finite_bayes_diagnosis/1"
+        ],
+        "output_guarantees": [
+          "A successful result contains exactly posterior_fault, evidence_normalizer and calculation_complete. No threshold, expected answer or logical collected property is an operation argument or authored result.",
+          "Reject invalid models, failed API calls, zero or nonfinite normalizers, out-of-range successful masses or posteriors and posterior normalization error above 1e-12 as acquisition errors.",
+          "Successful quantities come from the specified pgmpy factors and conditional inference with complete finite factor coverage. Completion is set only after those computations and validations finish.",
+          "Native EAL independently evaluates the posterior threshold, normalizer positivity and completion. A returned completion flag does not replace separate actual implementation qualification.",
+          "The native envelope records the actual UTC query time as observed_at using ASCII YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Preserve source/input/context/binding hashes and execution provenance. Do not invent an earlier model observation time or refresh a later supplied source or review clock.",
+          "Preserve opaque external identity/context unchanged and retain JSON numeric precision. The adapter may add only its reserved collection-status metadata outside the logical result.",
+          "Successful outputs use the uniform 15-significant-digit rule only after raw validation, followed by canonical-value guards. Original 1e-12 bounds remain for declared cases. No universal near-threshold or ill-conditioning guarantee is supplied."
+        ],
+        "provenance": "Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence.",
+        "schema": "engarg.operation-specification/1"
+      },
+      "expected": {
+        "schema": "engarg.operation-specification/1",
+        "definition": "Implement reusable protocol finite_bayes_diagnosis/1 in the operator-prepared Python environment using pgmpy 1.1.2 public DiscreteBayesianNetwork, TabularCPD and VariableElimination.query APIs. For parameters p,a1,a0,h1,h0 construct exactly the graph Fault->Alarm and Fault->HeartbeatLost. Set every variable's state_names to [0,1]. Build Fault CPD rows [[1-p],[p]]. Build Alarm CPD rows [[1-a0,1-a1],[a0,a1]] with evidence=['Fault'], evidence_card=[2] and explicit state_names for Alarm and Fault. Build HeartbeatLost CPD rows [[1-h0,1-h1],[h0,h1]] with the same parent order and explicit state_names. Add all CPDs and require check_model() to succeed. Instantiate VariableElimination. Obtain the unconditional joint sensor factor using query(variables=['Alarm','HeartbeatLost'], joint=True, show_progress=False) without conditioning evidence. Read its selected joint entry using get_value(Alarm=int(alarm), HeartbeatLost=int(heartbeat_lost)). Reject zero or nonfinite evidence mass before conditional inference. Obtain the Fault posterior using query(variables=['Fault'], evidence={'Alarm':int(alarm),'HeartbeatLost':int(heartbeat_lost)}, joint=True, show_progress=False). Read Fault=0 and Fault=1 by explicit state names. Require both entries finite and within [0,1] and their sum within absolute tolerance 1e-12 of one. Return Fault=1 as posterior_fault and the selected unconditional joint entry as evidence_normalizer. Set calculation_complete=true only after all fixed finite library computations and validations finish. Never implement the collected quantities using a handwritten Bayes formula or reference constants. Before coding, freeze independent model-derived expectations for the qualification cases described in input_conditions. Actual qualification must inspect generated source, state and parameter correspondence, normalizer handling, actual public API calls and frozen execution results. The native adapter supplies actual UTC query time and provenance outside the three-field logical result, preserving opaque external request identity/context and JSON precision. This logical blueprint selects no provider or execution authority. After ALL raw pgmpy validations, canonicalize BOTH successful probability outputs uniformly as float(format(raw_value, '.15g')): 15 significant decimal digits, never decimal places. Recheck canonical values as finite probabilities, posterior in [0,1] and normalizer in (0,1]; unexpected nonfinite, out-of-range or zero canonical mass is an acquisition error. Set completion only after these checks. This parameter-independent representation preserves tiny positive scales. No answer-specific branch, fixture detection, reference substitution, handwritten Bayes replacement or fixed-place rounding is allowed. The declared-case 1e-12 reference bound remains; arbitrary near-0.75 decision stability and ill-conditioned-input accuracy are not established.",
+        "input_conditions": [
+          "Accept exactly the declared object shape and required keys with no extras. Require each probability to be a finite JSON number that is not a boolean and lies in [0,1]. Require the two evidence fields to be booleans.",
+          "Use only the fixed three-node graph with two states per variable. Permit no data fitting, stochastic sampling, network access, installation, shell invocation, arbitrary graph execution or Torch dependency.",
+          "Freeze expectations before implementation. For p=1/50,a1=19/20,a0=1/20,h1=4/5,h0=1/10 and both flags true, expect posterior 152/201 and mass 201/10000 with completion true. With only heartbeat_lost changed to false, expect posterior 38/479 and mass 479/10000 with completion true. This is a measured-negative threshold case rather than an acquisition error.",
+          "Freeze a genuinely different valid case with p=1/2,a1=4/5,a0=1/5,h1=3/5,h0=2/5 and both flags true. Its joint weights are 6/25 and 1/25, so expect mass 7/25 and posterior 6/7 with completion true.",
+          "Freeze malformed and out-of-range cases including a boolean probability slot, a missing required field, an extra field and a probability outside [0,1]. Reject nonfinite numbers if presented at the runtime boundary. Each must produce an acquisition error rather than successful values.",
+          "Freeze impossible evidence using p=1/2,a1=0,a0=0,h1=1/2,h0=1/2 with alarm=true and heartbeat_lost=true. The evidence mass is zero and the operation must produce an acquisition error.",
+          "Use absolute tolerance 1e-12 for independent numerical reference comparisons and posterior normalization. Expected qualification outcomes are derived from the declared finite model rather than assumed software outputs.",
+          "Execution authority must come from the separately admitted native binding to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2. Do not accept an input label as attestation.",
+          "Normative new frozen successful representations from the unchanged a priori rational references, using 15 significant digits: selected posterior=0.756218905472637, mass=0.0201; heartbeat-not-lost posterior=0.0793319415448852, mass=0.0479; different-parameter posterior=0.857142857142857, mass=0.28. Every other valid case uses the same uniform rule on its independently derived reference. Freeze a new constructor-owned contract; never edit an earlier collector, oracle or receipt."
+        ],
+        "output_guarantees": [
+          "A successful result contains exactly posterior_fault, evidence_normalizer and calculation_complete. No threshold, expected answer or logical collected property is an operation argument or authored result.",
+          "Reject invalid models, failed API calls, zero or nonfinite normalizers, out-of-range successful masses or posteriors and posterior normalization error above 1e-12 as acquisition errors.",
+          "Successful quantities come from the specified pgmpy factors and conditional inference with complete finite factor coverage. Completion is set only after those computations and validations finish.",
+          "Native EAL independently evaluates the posterior threshold, normalizer positivity and completion. A returned completion flag does not replace separate actual implementation qualification.",
+          "The native envelope records the actual UTC query time as observed_at using ASCII YYYY-MM-DDTHH:MM:SS[.digits]Z with uppercase T and Z and at most 64 characters. Preserve source/input/context/binding hashes and execution provenance. Do not invent an earlier model observation time or refresh a later supplied source or review clock.",
+          "Preserve opaque external identity/context unchanged and retain JSON numeric precision. The adapter may add only its reserved collection-status metadata outside the logical result.",
+          "Successful outputs use the uniform 15-significant-digit rule only after raw validation, followed by canonical-value guards. Original 1e-12 bounds remain for declared cases. No universal near-threshold or ill-conditioning guarantee is supplied."
+        ],
+        "methods": [
+          "finite_bayes_diagnosis/1"
+        ],
+        "provenance": "Original graph dependency provenance remains attached by the executor; implementations must not invent, replace or independently certify source evidence."
+      }
+    },
+    {
+      "check": "frozen input schema",
+      "passed": true,
+      "actual": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "additionalProperties": false,
+            "properties": {
+              "alarm": {
+                "type": "boolean",
+                "x-engarg-unit": "boolean"
+              },
+              "heartbeat_lost": {
+                "type": "boolean",
+                "x-engarg-unit": "boolean"
+              }
+            },
+            "required": [
+              "alarm",
+              "heartbeat_lost"
+            ],
+            "type": "object"
+          },
+          "model": {
+            "additionalProperties": false,
+            "properties": {
+              "p_alarm_given_fault": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              },
+              "p_alarm_given_healthy": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              },
+              "p_fault": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              },
+              "p_loss_given_fault": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              },
+              "p_loss_given_healthy": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              }
+            },
+            "required": [
+              "p_fault",
+              "p_alarm_given_fault",
+              "p_alarm_given_healthy",
+              "p_loss_given_fault",
+              "p_loss_given_healthy"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "model",
+          "evidence"
+        ],
+        "type": "object"
+      },
+      "expected": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "additionalProperties": false,
+            "properties": {
+              "alarm": {
+                "type": "boolean",
+                "x-engarg-unit": "boolean"
+              },
+              "heartbeat_lost": {
+                "type": "boolean",
+                "x-engarg-unit": "boolean"
+              }
+            },
+            "required": [
+              "alarm",
+              "heartbeat_lost"
+            ],
+            "type": "object"
+          },
+          "model": {
+            "additionalProperties": false,
+            "properties": {
+              "p_alarm_given_fault": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              },
+              "p_alarm_given_healthy": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              },
+              "p_fault": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              },
+              "p_loss_given_fault": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              },
+              "p_loss_given_healthy": {
+                "maximum": "1",
+                "minimum": "0",
+                "type": "number",
+                "x-engarg-unit": "1"
+              }
+            },
+            "required": [
+              "p_fault",
+              "p_alarm_given_fault",
+              "p_alarm_given_healthy",
+              "p_loss_given_fault",
+              "p_loss_given_healthy"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "model",
+          "evidence"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "check": "frozen result schema follows public carrier translation",
+      "passed": true,
+      "actual": {
+        "additionalProperties": false,
+        "properties": {
+          "calculation_complete": {
+            "type": "boolean",
+            "x-engarg-quantity": {
+              "name": "calculation_complete",
+              "unit": "boolean"
+            },
+            "x-engarg-unit": "boolean"
+          },
+          "collected": {
+            "type": "boolean"
+          },
+          "evidence_normalizer": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number",
+            "x-engarg-quantity": {
+              "name": "evidence_normalizer",
+              "unit": "1"
+            },
+            "x-engarg-unit": "1"
+          },
+          "posterior_fault": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number",
+            "x-engarg-quantity": {
+              "name": "posterior_fault",
+              "unit": "1"
+            },
+            "x-engarg-unit": "1"
+          }
+        },
+        "required": [
+          "posterior_fault",
+          "evidence_normalizer",
+          "calculation_complete",
+          "collected"
+        ],
+        "type": "object"
+      },
+      "expected": {
+        "additionalProperties": false,
+        "properties": {
+          "calculation_complete": {
+            "type": "boolean",
+            "x-engarg-unit": "boolean",
+            "x-engarg-quantity": {
+              "name": "calculation_complete",
+              "unit": "boolean"
+            }
+          },
+          "evidence_normalizer": {
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "type": "number",
+            "x-engarg-unit": "1",
+            "x-engarg-quantity": {
+              "name": "evidence_normalizer",
+              "unit": "1"
+            }
+          },
+          "posterior_fault": {
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number",
+            "x-engarg-unit": "1",
+            "x-engarg-quantity": {
+              "name": "posterior_fault",
+              "unit": "1"
+            }
+          },
+          "collected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "posterior_fault",
+          "evidence_normalizer",
+          "calculation_complete",
+          "collected"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "check": "image profile vs selector",
+      "passed": true,
+      "actual": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+      "expected": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+    },
+    {
+      "check": "runner image vs selector",
+      "passed": true,
+      "actual": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+      "expected": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+    },
+    {
+      "check": "operator profile schema2 migrates to exact runtime schema1",
+      "passed": true,
+      "actual": {
+        "schema": "engarg.toolchain/1",
+        "language": "python",
+        "docker": "docker",
+        "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "build_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "-c",
+          "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+        ],
+        "run_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "/src/collector.py"
+        ],
+        "inherit_env": [],
+        "runtime_network": "none",
+        "timeout_seconds": "120",
+        "memory_mb": "1024",
+        "output_bytes": "1048576"
+      },
+      "expected": {
+        "schema": "engarg.toolchain/1",
+        "language": "python",
+        "docker": "docker",
+        "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "build_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "-c",
+          "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+        ],
+        "run_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "/src/collector.py"
+        ],
+        "inherit_env": [],
+        "runtime_network": "none",
+        "timeout_seconds": "120",
+        "memory_mb": "1024",
+        "output_bytes": "1048576"
+      }
+    },
+    {
+      "check": "source bytes operator/tools/generated/acquire_selected/source/collector.py",
+      "passed": true,
+      "actual": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+      "expected": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+    },
+    {
+      "check": "source bytes baseline/investigation/tools/generated/acquire_selected/source/collector.py",
+      "passed": true,
+      "actual": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+      "expected": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+    },
+    {
+      "check": "source bytes request-package-v2/tools/generated/acquire_selected/source/collector.py",
+      "passed": true,
+      "actual": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+      "expected": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+    },
+    {
+      "check": "pinned operator/tools/generated/acquire_selected/input.schema.json",
+      "passed": true,
+      "actual": "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670",
+      "expected": "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670"
+    },
+    {
+      "check": "pinned operator/tools/generated/acquire_selected/output.schema.json",
+      "passed": true,
+      "actual": "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2",
+      "expected": "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2"
+    },
+    {
+      "check": "pinned operator/tools/generated/acquire_selected/source/collector.py",
+      "passed": true,
+      "actual": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+      "expected": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+    },
+    {
+      "check": "pinned operator/tools/generated/acquire_selected/tool.toml",
+      "passed": true,
+      "actual": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+      "expected": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61"
+    },
+    {
+      "check": "pinned operator/tools/generated/acquire_selected/verification.json",
+      "passed": true,
+      "actual": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+      "expected": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"
+    },
+    {
+      "check": "package image operator",
+      "passed": true,
+      "actual": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+      "expected": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+    },
+    {
+      "check": "package profile operator",
+      "passed": true,
+      "actual": {
+        "schema": "engarg.toolchain/1",
+        "language": "python",
+        "docker": "docker",
+        "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "build_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "-c",
+          "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+        ],
+        "run_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "/src/collector.py"
+        ],
+        "inherit_env": [],
+        "runtime_network": "none",
+        "timeout_seconds": 120,
+        "memory_mb": 1024,
+        "output_bytes": 1048576
+      },
+      "expected": {
+        "build_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "-c",
+          "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+        ],
+        "docker": "docker",
+        "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "inherit_env": [],
+        "language": "python",
+        "memory_mb": 1024,
+        "output_bytes": 1048576,
+        "run_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "/src/collector.py"
+        ],
+        "runtime_network": "none",
+        "schema": "engarg.toolchain/1",
+        "timeout_seconds": 120
+      }
+    },
+    {
+      "check": "pinned baseline/investigation/tools/generated/acquire_selected/input.schema.json",
+      "passed": true,
+      "actual": "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670",
+      "expected": "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670"
+    },
+    {
+      "check": "pinned baseline/investigation/tools/generated/acquire_selected/output.schema.json",
+      "passed": true,
+      "actual": "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2",
+      "expected": "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2"
+    },
+    {
+      "check": "pinned baseline/investigation/tools/generated/acquire_selected/source/collector.py",
+      "passed": true,
+      "actual": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+      "expected": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+    },
+    {
+      "check": "pinned baseline/investigation/tools/generated/acquire_selected/tool.toml",
+      "passed": true,
+      "actual": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+      "expected": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61"
+    },
+    {
+      "check": "pinned baseline/investigation/tools/generated/acquire_selected/verification.json",
+      "passed": true,
+      "actual": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+      "expected": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"
+    },
+    {
+      "check": "package image baseline/investigation",
+      "passed": true,
+      "actual": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+      "expected": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+    },
+    {
+      "check": "package profile baseline/investigation",
+      "passed": true,
+      "actual": {
+        "schema": "engarg.toolchain/1",
+        "language": "python",
+        "docker": "docker",
+        "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "build_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "-c",
+          "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+        ],
+        "run_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "/src/collector.py"
+        ],
+        "inherit_env": [],
+        "runtime_network": "none",
+        "timeout_seconds": 120,
+        "memory_mb": 1024,
+        "output_bytes": 1048576
+      },
+      "expected": {
+        "build_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "-c",
+          "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+        ],
+        "docker": "docker",
+        "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "inherit_env": [],
+        "language": "python",
+        "memory_mb": 1024,
+        "output_bytes": 1048576,
+        "run_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "/src/collector.py"
+        ],
+        "runtime_network": "none",
+        "schema": "engarg.toolchain/1",
+        "timeout_seconds": 120
+      }
+    },
+    {
+      "check": "pinned request-package-v2/tools/generated/acquire_selected/input.schema.json",
+      "passed": true,
+      "actual": "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670",
+      "expected": "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670"
+    },
+    {
+      "check": "pinned request-package-v2/tools/generated/acquire_selected/output.schema.json",
+      "passed": true,
+      "actual": "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2",
+      "expected": "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2"
+    },
+    {
+      "check": "pinned request-package-v2/tools/generated/acquire_selected/source/collector.py",
+      "passed": true,
+      "actual": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775",
+      "expected": "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+    },
+    {
+      "check": "pinned request-package-v2/tools/generated/acquire_selected/tool.toml",
+      "passed": true,
+      "actual": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61",
+      "expected": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61"
+    },
+    {
+      "check": "pinned request-package-v2/tools/generated/acquire_selected/verification.json",
+      "passed": true,
+      "actual": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+      "expected": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"
+    },
+    {
+      "check": "package image request-package-v2",
+      "passed": true,
+      "actual": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+      "expected": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+    },
+    {
+      "check": "package profile request-package-v2",
+      "passed": true,
+      "actual": {
+        "schema": "engarg.toolchain/1",
+        "language": "python",
+        "docker": "docker",
+        "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "build_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "-c",
+          "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+        ],
+        "run_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "/src/collector.py"
+        ],
+        "inherit_env": [],
+        "runtime_network": "none",
+        "timeout_seconds": 120,
+        "memory_mb": 1024,
+        "output_bytes": 1048576
+      },
+      "expected": {
+        "build_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "-c",
+          "import ast, pathlib, dowhy, causallearn, pgmpy, z3; ast.parse(pathlib.Path('/src/collector.py').read_text())"
+        ],
+        "docker": "docker",
+        "image": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+        "inherit_env": [],
+        "language": "python",
+        "memory_mb": 1024,
+        "output_bytes": 1048576,
+        "run_argv": [
+          "python3",
+          "-I",
+          "-B",
+          "/src/collector.py"
+        ],
+        "runtime_network": "none",
+        "schema": "engarg.toolchain/1",
+        "timeout_seconds": 120
+      }
+    },
+    {
+      "check": "baseline host record raw",
+      "passed": true,
+      "actual": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5",
+      "expected": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5"
+    },
+    {
+      "check": "host input digest",
+      "passed": true,
+      "actual": "ee069ac3804553ef2cb0fd24dd9790fbf2d209d0106ddacd8161b53308c0cb6c",
+      "expected": "ee069ac3804553ef2cb0fd24dd9790fbf2d209d0106ddacd8161b53308c0cb6c"
+    },
+    {
+      "check": "host acquisition_request digest",
+      "passed": true,
+      "actual": "fec72247426ca0bcdc348c27a1122991e0e1597e72d75c2010b017b9fa0e407f",
+      "expected": "fec72247426ca0bcdc348c27a1122991e0e1597e72d75c2010b017b9fa0e407f"
+    },
+    {
+      "check": "host data digest",
+      "passed": true,
+      "actual": "eee4c200cda63027a3a0f8b0b642223f723a556a2c41943561167a6ccf6f803c",
+      "expected": "eee4c200cda63027a3a0f8b0b642223f723a556a2c41943561167a6ccf6f803c"
+    },
+    {
+      "check": "host full request digest",
+      "passed": true,
+      "actual": "6d11db69f081a62a8d3a69313f842d1184d180df5fb78c37ccd4de3cbf1e3ba1",
+      "expected": "6d11db69f081a62a8d3a69313f842d1184d180df5fb78c37ccd4de3cbf1e3ba1"
+    },
+    {
+      "check": "host request context preserved",
+      "passed": true,
+      "actual": {
+        "engarg_export_digest": "83fc7f7bab873f49e4fc73bc3f31b4b8f5a57d32a94c552d65a3847dd0d97631"
+      },
+      "expected": {
+        "engarg_export_digest": "83fc7f7bab873f49e4fc73bc3f31b4b8f5a57d32a94c552d65a3847dd0d97631"
+      }
+    },
+    {
+      "check": "host input unchanged",
+      "passed": true,
+      "actual": {
+        "evidence": {
+          "alarm": true,
+          "heartbeat_lost": true
+        },
+        "model": {
+          "p_alarm_given_fault": 0.95,
+          "p_alarm_given_healthy": 0.05,
+          "p_fault": 0.02,
+          "p_loss_given_fault": 0.8,
+          "p_loss_given_healthy": 0.1
+        }
+      },
+      "expected": {
+        "evidence": {
+          "alarm": true,
+          "heartbeat_lost": true
+        },
+        "model": {
+          "p_alarm_given_fault": 0.95,
+          "p_alarm_given_healthy": 0.05,
+          "p_fault": 0.02,
+          "p_loss_given_fault": 0.8,
+          "p_loss_given_healthy": 0.1
+        }
+      }
+    },
+    {
+      "check": "host export context matches baseline registry",
+      "passed": true,
+      "actual": {
+        "engarg_export_digest": "83fc7f7bab873f49e4fc73bc3f31b4b8f5a57d32a94c552d65a3847dd0d97631"
+      },
+      "expected": {
+        "engarg_export_digest": "83fc7f7bab873f49e4fc73bc3f31b4b8f5a57d32a94c552d65a3847dd0d97631"
+      }
+    },
+    {
+      "check": "native host keyed tool-binding digest",
+      "passed": true,
+      "actual": "da04a860afdaf4f615fa9c2392d7ebaf26ba982d9b3a505f16400af209b067ca",
+      "expected": "da04a860afdaf4f615fa9c2392d7ebaf26ba982d9b3a505f16400af209b067ca"
+    },
+    {
+      "check": "frozen EAL eal-host",
+      "passed": true,
+      "actual": "0c88669ed43bb3162d7fb69a1afe9259bb47d695085a4a8f80a50e88fbf63350",
+      "expected": "0c88669ed43bb3162d7fb69a1afe9259bb47d695085a4a8f80a50e88fbf63350"
+    },
+    {
+      "check": "frozen EAL eal-mcp",
+      "passed": true,
+      "actual": "4684032f1e002f01f8edac2f20e67e602e6cfc583c4f9150c8135ceaaaa0d362",
+      "expected": "4684032f1e002f01f8edac2f20e67e602e6cfc583c4f9150c8135ceaaaa0d362"
+    },
+    {
+      "check": "frozen EAL eal-method-worker",
+      "passed": true,
+      "actual": "faaef11cba5da64eab7be0fe9a0e92b96fc45eb74b0e4d1bf8103047c7f25edf",
+      "expected": "faaef11cba5da64eab7be0fe9a0e92b96fc45eb74b0e4d1bf8103047c7f25edf"
+    },
+    {
+      "check": "frozen EAL eal-process-supervisor",
+      "passed": true,
+      "actual": "c5878767c146b0a4f5def4dfb246e591e6f9471bcfd50bdd261597a19c531aa6",
+      "expected": "c5878767c146b0a4f5def4dfb246e591e6f9471bcfd50bdd261597a19c531aa6"
+    },
+    {
+      "check": "frozen EAL eal-tool-run",
+      "passed": true,
+      "actual": "64f90430f0eed728a13e3d4f194ad19a955106c7bca372e80cabee123eb283a6",
+      "expected": "64f90430f0eed728a13e3d4f194ad19a955106c7bca372e80cabee123eb283a6"
+    },
+    {
+      "check": "frozen EAL eal-collector",
+      "passed": true,
+      "actual": "a319dc7684335354a7b8d2edeb44961a03ecbb1f2af45550a52e1fe44954b395",
+      "expected": "a319dc7684335354a7b8d2edeb44961a03ecbb1f2af45550a52e1fe44954b395"
+    },
+    {
+      "check": "frozen EAL eal-coordinate",
+      "passed": true,
+      "actual": "baf8f775d4e348c735967264d398114bd65f291c1752dc60cf8b84a3e9cce4b5",
+      "expected": "baf8f775d4e348c735967264d398114bd65f291c1752dc60cf8b84a3e9cce4b5"
+    },
+    {
+      "check": "frozen EAL eal-mas-server",
+      "passed": true,
+      "actual": "b50648312bc5b66e1eb8176145316fb02c789d46ddf0ccd08e319b3ffb85fbec",
+      "expected": "b50648312bc5b66e1eb8176145316fb02c789d46ddf0ccd08e319b3ffb85fbec"
+    },
+    {
+      "check": "frozen EAL mas-protocol-codec",
+      "passed": true,
+      "actual": "2f81fcbe2251202b9427de2bc60afbecce1ae9498b41386c1b716299b301c992",
+      "expected": "2f81fcbe2251202b9427de2bc60afbecce1ae9498b41386c1b716299b301c992"
+    },
+    {
+      "check": "frozen EAL eal",
+      "passed": true,
+      "actual": "5a349d79bdfff77766a91306f688fd334c3607d57b17da4b3c66aa2aa23ab1f8",
+      "expected": "5a349d79bdfff77766a91306f688fd334c3607d57b17da4b3c66aa2aa23ab1f8"
+    },
+    {
+      "check": "frozen EAL eal-core",
+      "passed": true,
+      "actual": "4b69ab1d638f7a5a8e977cbf0211005a8276bc6e52e230fa35fada1624520174",
+      "expected": "4b69ab1d638f7a5a8e977cbf0211005a8276bc6e52e230fa35fada1624520174"
+    },
+    {
+      "check": "frozen EAL eal-syntax",
+      "passed": true,
+      "actual": "c9b42439ab9872b87f52bceb95e9f5a525c3df5d5f882394c4cd9bea732feec6",
+      "expected": "c9b42439ab9872b87f52bceb95e9f5a525c3df5d5f882394c4cd9bea732feec6"
+    },
+    {
+      "check": "frozen EAL eal-runtime",
+      "passed": true,
+      "actual": "de80a9609028ea51b65d07aaef0a482f5b5f7996fa0596f812d6d154cdd54e9b",
+      "expected": "de80a9609028ea51b65d07aaef0a482f5b5f7996fa0596f812d6d154cdd54e9b"
+    },
+    {
+      "check": "frozen EAL eal-aspic-solve",
+      "passed": true,
+      "actual": "7d5ab1baeb2f98b6c9b8a51d0b6cb19a0fe12c9474dac33295a071ca4fd78f99",
+      "expected": "7d5ab1baeb2f98b6c9b8a51d0b6cb19a0fe12c9474dac33295a071ca4fd78f99"
+    },
+    {
+      "check": "frozen EngArg engarg",
+      "passed": true,
+      "actual": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813",
+      "expected": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813"
+    },
+    {
+      "check": "frozen EngArg engarg-process-supervisor",
+      "passed": true,
+      "actual": "4b16dce50723a1325198670c228ab4a653862020c17d70eaf9167ad0b0e63613",
+      "expected": "4b16dce50723a1325198670c228ab4a653862020c17d70eaf9167ad0b0e63613"
+    },
+    {
+      "check": "native runner actual EngArg",
+      "passed": true,
+      "actual": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813",
+      "expected": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813"
+    },
+    {
+      "check": "native runner actual supervisor",
+      "passed": true,
+      "actual": "4b16dce50723a1325198670c228ab4a653862020c17d70eaf9167ad0b0e63613",
+      "expected": "4b16dce50723a1325198670c228ab4a653862020c17d70eaf9167ad0b0e63613"
+    },
+    {
+      "check": "all twelve native tests passed",
+      "passed": true,
+      "actual": true,
+      "expected": true
+    },
+    {
+      "check": "v2 intended host",
+      "passed": true,
+      "actual": "0c88669ed43bb3162d7fb69a1afe9259bb47d695085a4a8f80a50e88fbf63350",
+      "expected": "0c88669ed43bb3162d7fb69a1afe9259bb47d695085a4a8f80a50e88fbf63350"
+    },
+    {
+      "check": "recorded generation executable engarg",
+      "passed": true,
+      "actual": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813",
+      "expected": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813"
+    },
+    {
+      "check": "recorded generation executable eal-host",
+      "passed": true,
+      "actual": "0c88669ed43bb3162d7fb69a1afe9259bb47d695085a4a8f80a50e88fbf63350",
+      "expected": "0c88669ed43bb3162d7fb69a1afe9259bb47d695085a4a8f80a50e88fbf63350"
+    },
+    {
+      "check": "recorded generation executable eal-tool-run",
+      "passed": true,
+      "actual": "64f90430f0eed728a13e3d4f194ad19a955106c7bca372e80cabee123eb283a6",
+      "expected": "64f90430f0eed728a13e3d4f194ad19a955106c7bca372e80cabee123eb283a6"
+    },
+    {
+      "check": "recorded EAL runtime receipt",
+      "passed": true,
+      "actual": "a195f12bab2179702705daf1430aff417f9d495142b0ec4a878741c1a0316033",
+      "expected": "a195f12bab2179702705daf1430aff417f9d495142b0ec4a878741c1a0316033"
+    },
+    {
+      "check": "generation exit zero",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "check": "native constructor calls",
+      "passed": true,
+      "actual": 2,
+      "expected": 2
+    },
+    {
+      "check": "native manifest pinned by public implementation",
+      "passed": true,
+      "actual": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+      "expected": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273"
+    },
+    {
+      "check": "original configured operator profile",
+      "passed": true,
+      "actual": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0",
+      "expected": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0"
+    },
+    {
+      "check": "native original candidate.json",
+      "passed": true,
+      "actual": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55",
+      "expected": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55"
+    },
+    {
+      "check": "native original contract.json",
+      "passed": true,
+      "actual": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93",
+      "expected": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93"
+    },
+    {
+      "check": "native original profile.json",
+      "passed": true,
+      "actual": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e",
+      "expected": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e"
+    },
+    {
+      "check": "native original manifest.json",
+      "passed": true,
+      "actual": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273",
+      "expected": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273"
+    },
+    {
+      "check": "native original test-results.json",
+      "passed": true,
+      "actual": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8",
+      "expected": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"
+    },
+    {
+      "check": "prepared image inspect identity",
+      "passed": true,
+      "actual": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+      "expected": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+    },
+    {
+      "check": "prepared image receipt identity",
+      "passed": true,
+      "actual": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f",
+      "expected": "sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f"
+    },
+    {
+      "check": "prepared pgmpy distribution receipt",
+      "passed": true,
+      "actual": "1.1.2",
+      "expected": "1.1.2"
+    },
+    {
+      "check": "prepared actual API smoke pgmpy",
+      "passed": true,
+      "actual": "1.1.2",
+      "expected": "1.1.2"
+    },
+    {
+      "check": "prepared image actual smoke status",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "check": "prepared image recipe examples/toolchains/python-evidence/Dockerfile",
+      "passed": true,
+      "actual": "ae766e70e7a2fe13bee8576ca799f34289f08e3f74de67e3435e74050a0c315f",
+      "expected": "ae766e70e7a2fe13bee8576ca799f34289f08e3f74de67e3435e74050a0c315f"
+    },
+    {
+      "check": "prepared image recipe examples/toolchains/python-evidence/requirements.lock",
+      "passed": true,
+      "actual": "a408afd2e6d3551fb6c5f0f6b41006e8c536badf71c00dca23d1de9e6244ce32",
+      "expected": "a408afd2e6d3551fb6c5f0f6b41006e8c536badf71c00dca23d1de9e6244ce32"
+    },
+    {
+      "check": "prepared image recipe examples/toolchains/python-evidence/smoke.py",
+      "passed": true,
+      "actual": "7be2fdb3039a15967fe51a11682539d3b89a50f7f989790e0157d3833adafca5",
+      "expected": "7be2fdb3039a15967fe51a11682539d3b89a50f7f989790e0157d3833adafca5"
+    },
+    {
+      "check": "prepared image recipe examples/toolchains/python-evidence.json",
+      "passed": true,
+      "actual": "45d3e71631cb50e517c34fe1991fd855a92ba1e0b34a30fb29ea390ec1298aca",
+      "expected": "45d3e71631cb50e517c34fe1991fd855a92ba1e0b34a30fb29ea390ec1298aca"
+    },
+    {
+      "check": "original native SQLite observation",
+      "passed": true,
+      "actual": {
+        "acquisition_request": {
+          "context": {
+            "engarg_export_digest": "83fc7f7bab873f49e4fc73bc3f31b4b8f5a57d32a94c552d65a3847dd0d97631"
+          },
+          "input": {
+            "evidence": {
+              "alarm": true,
+              "heartbeat_lost": true
+            },
+            "model": {
+              "p_alarm_given_fault": 0.95,
+              "p_alarm_given_healthy": 0.05,
+              "p_fault": 0.02,
+              "p_loss_given_fault": 0.8,
+              "p_loss_given_healthy": 0.1
+            }
+          },
+          "tool": "source_616371756972655f73656c6563746564",
+          "tool_version": "1"
+        },
+        "acquisition_request_digest": "fec72247426ca0bcdc348c27a1122991e0e1597e72d75c2010b017b9fa0e407f",
+        "collected_at": "2026-10-28T15:39:22.773512Z",
+        "context": {
+          "engarg_export_digest": "83fc7f7bab873f49e4fc73bc3f31b4b8f5a57d32a94c552d65a3847dd0d97631"
+        },
+        "data_digest": "eee4c200cda63027a3a0f8b0b642223f723a556a2c41943561167a6ccf6f803c",
+        "environment": "engarg_case",
+        "environment_fingerprint": "b7fcd17fe3a4634fa38b12b04195c6ad4ed52f9a4cea9277cdb51e31d99afa0e",
+        "evidence_id": "acquisition_616371756972655f73656c6563746564",
+        "evidence_kind": "observation",
+        "ingested_at": "2026-10-28T15:39:25.258906Z",
+        "input": {
+          "evidence": {
+            "alarm": true,
+            "heartbeat_lost": true
+          },
+          "model": {
+            "p_alarm_given_fault": 0.95,
+            "p_alarm_given_healthy": 0.05,
+            "p_fault": 0.02,
+            "p_loss_given_fault": 0.8,
+            "p_loss_given_healthy": 0.1
+          }
+        },
+        "input_digest": "ee069ac3804553ef2cb0fd24dd9790fbf2d209d0106ddacd8161b53308c0cb6c",
+        "output_truncated": false,
+        "process_environment_digest": "af2e354484b9a32640dd0c50ec3d980d6be5f0b44af15a951b453f069fa0e94d",
+        "request_digest": "6d11db69f081a62a8d3a69313f842d1184d180df5fb78c37ccd4de3cbf1e3ba1",
+        "returncode": 0,
+        "run_id": "f16ac8ff-06c0-42b2-8fa8-9a6aa6fd2f2f",
+        "schema": "EAL/observation-record/1",
+        "source_digest": "9cee84aacf1ed496ad02389a282205532db0906b76f2c095335f7d142b84a455",
+        "started_at": "2026-10-28T15:38:50.156072Z",
+        "status": "ok",
+        "stderr_bytes": 0,
+        "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_bytes": 641,
+        "stdout_digest": "0f88dceeba3bdfd5dc83652c48bb9b7b0ce829da085c9c6517791e4a6c2469c9",
+        "tool": "source_616371756972655f73656c6563746564",
+        "tool_binding_digest": "da04a860afdaf4f615fa9c2392d7ebaf26ba982d9b3a505f16400af209b067ca",
+        "tool_version": "1",
+        "value": {
+          "calculation_complete": true,
+          "collected": true,
+          "evidence_normalizer": 0.0201,
+          "posterior_fault": 0.756218905472637
+        }
+      },
+      "expected": {
+        "schema": "EAL/observation-record/1",
+        "evidence_id": "acquisition_616371756972655f73656c6563746564",
+        "source_digest": "9cee84aacf1ed496ad02389a282205532db0906b76f2c095335f7d142b84a455",
+        "tool": "source_616371756972655f73656c6563746564",
+        "tool_version": "1",
+        "evidence_kind": "observation",
+        "environment": "engarg_case",
+        "environment_fingerprint": "b7fcd17fe3a4634fa38b12b04195c6ad4ed52f9a4cea9277cdb51e31d99afa0e",
+        "collected_at": "2026-10-28T15:39:22.773512Z",
+        "started_at": "2026-10-28T15:38:50.156072Z",
+        "run_id": "f16ac8ff-06c0-42b2-8fa8-9a6aa6fd2f2f",
+        "input_digest": "ee069ac3804553ef2cb0fd24dd9790fbf2d209d0106ddacd8161b53308c0cb6c",
+        "input": {
+          "evidence": {
+            "alarm": true,
+            "heartbeat_lost": true
+          },
+          "model": {
+            "p_alarm_given_fault": 0.95,
+            "p_alarm_given_healthy": 0.05,
+            "p_fault": 0.02,
+            "p_loss_given_fault": 0.8,
+            "p_loss_given_healthy": 0.1
+          }
+        },
+        "context": {
+          "engarg_export_digest": "83fc7f7bab873f49e4fc73bc3f31b4b8f5a57d32a94c552d65a3847dd0d97631"
+        },
+        "status": "ok",
+        "request_digest": "6d11db69f081a62a8d3a69313f842d1184d180df5fb78c37ccd4de3cbf1e3ba1",
+        "acquisition_request": {
+          "tool": "source_616371756972655f73656c6563746564",
+          "tool_version": "1",
+          "input": {
+            "evidence": {
+              "alarm": true,
+              "heartbeat_lost": true
+            },
+            "model": {
+              "p_alarm_given_fault": 0.95,
+              "p_alarm_given_healthy": 0.05,
+              "p_fault": 0.02,
+              "p_loss_given_fault": 0.8,
+              "p_loss_given_healthy": 0.1
+            }
+          },
+          "context": {
+            "engarg_export_digest": "83fc7f7bab873f49e4fc73bc3f31b4b8f5a57d32a94c552d65a3847dd0d97631"
+          }
+        },
+        "acquisition_request_digest": "fec72247426ca0bcdc348c27a1122991e0e1597e72d75c2010b017b9fa0e407f",
+        "tool_binding_digest": "da04a860afdaf4f615fa9c2392d7ebaf26ba982d9b3a505f16400af209b067ca",
+        "process_environment_digest": "af2e354484b9a32640dd0c50ec3d980d6be5f0b44af15a951b453f069fa0e94d",
+        "returncode": 0,
+        "output_truncated": false,
+        "value": {
+          "posterior_fault": 0.756218905472637,
+          "evidence_normalizer": 0.0201,
+          "calculation_complete": true,
+          "collected": true
+        },
+        "data_digest": "eee4c200cda63027a3a0f8b0b642223f723a556a2c41943561167a6ccf6f803c",
+        "ingested_at": "2026-10-28T15:39:25.258906Z",
+        "stdout_digest": "0f88dceeba3bdfd5dc83652c48bb9b7b0ce829da085c9c6517791e4a6c2469c9",
+        "stderr_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_bytes": 641,
+        "stderr_bytes": 0
+      }
+    },
+    {
+      "check": "host native stdout reconstructed envelope digest",
+      "passed": true,
+      "actual": "0f88dceeba3bdfd5dc83652c48bb9b7b0ce829da085c9c6517791e4a6c2469c9",
+      "expected": "0f88dceeba3bdfd5dc83652c48bb9b7b0ce829da085c9c6517791e4a6c2469c9"
+    },
+    {
+      "check": "host native stdout reconstructed envelope length",
+      "passed": true,
+      "actual": 641,
+      "expected": 641
+    },
+    {
+      "check": "original successful acquisition",
+      "passed": true,
+      "actual": "ok",
+      "expected": "ok"
+    },
+    {
+      "check": "original successful process exit",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "check": "untruncated original output",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "check": "freshness window in consumer contract",
+      "passed": true,
+      "actual": "86400",
+      "expected": "86400"
+    }
+  ],
+  "all_passed": true,
+  "host_original_collected_at": "2026-10-28T15:39:22.773512Z",
+  "host_status": "ok",
+  "host_returncode": 0,
+  "host_value": {
+    "posterior_fault": 0.756218905472637,
+    "evidence_normalizer": 0.0201,
+    "calculation_complete": true,
+    "collected": true
+  },
+  "secret_handling": "Read private local store key only in memory to reproduce binding HMAC; key neither printed nor retained."
+}

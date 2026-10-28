@@ -193,7 +193,7 @@ mod tests {
         let configuration = ToolchainConfiguration::load(&path).unwrap();
         let resolved = configuration.libraries.resolve("python").unwrap();
         assert!(!configuration.libraries.use_defaults);
-        assert_eq!(resolved.tasks["abductive"].choices[0].package, "scipy");
+        assert_eq!(resolved.tasks["abductive"].choices[0].package, "pgmpy");
         assert_eq!(
             resolved.tasks["inductive"].choices[1].package,
             "scikit-learn"

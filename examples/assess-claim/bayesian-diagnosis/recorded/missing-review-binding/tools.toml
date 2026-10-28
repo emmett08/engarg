@@ -1,0 +1,52 @@
+[context]
+engarg_export_digest = "11c47113ad188dba192f130e40b4cd9ca08fb59687b851e8b756de61e87d39b7"
+
+[tools.source_616371756972655f73656c6563746564]
+kind = "command"
+version = "1"
+argv = [
+    "eal-tool-run",
+    "--package",
+    "tools/generated/acquire_selected/tool.toml",
+]
+timeout_seconds = 180.0
+max_output_bytes = 1048576
+parallel_safe = true
+inherit_env = [
+    "PATH",
+    "HOME",
+    "DOCKER_HOST",
+    "DOCKER_CONTEXT",
+    "DOCKER_CONFIG",
+    "DOCKER_CERT_PATH",
+    "DOCKER_TLS_VERIFY",
+    "DOCKER_API_VERSION",
+    "SSH_AUTH_SOCK",
+    "XDG_RUNTIME_DIR",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
+    "USER",
+]
+
+[tools.source_616371756972655f73656c6563746564.env]
+
+[[tools.source_616371756972655f73656c6563746564.pinned_files]]
+path = "tools/generated/acquire_selected/input.schema.json"
+sha256 = "45bae6c64a668c41ce506c33f645a143124e79f7bad30d4b490fbbbf6a75d670"
+
+[[tools.source_616371756972655f73656c6563746564.pinned_files]]
+path = "tools/generated/acquire_selected/output.schema.json"
+sha256 = "f60e913748cf4666c29145fbc679d607bb810a3e47faa5f81ca155a1ceea70a2"
+
+[[tools.source_616371756972655f73656c6563746564.pinned_files]]
+path = "tools/generated/acquire_selected/source/collector.py"
+sha256 = "9e21aef378515309a3eb5b0e0265b6cefebe32194c4f20cca82f19be55504775"
+
+[[tools.source_616371756972655f73656c6563746564.pinned_files]]
+path = "tools/generated/acquire_selected/tool.toml"
+sha256 = "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61"
+
+[[tools.source_616371756972655f73656c6563746564.pinned_files]]
+path = "tools/generated/acquire_selected/verification.json"
+sha256 = "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"

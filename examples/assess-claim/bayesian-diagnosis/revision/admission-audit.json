@@ -1,0 +1,30 @@
+{
+  "schema": "work.finite-bayes-admission-audit/1",
+  "admitted_report": "/workspace/work/prepared-evidence-images/new-claim/completion/revision-proposed-v2/analysis.json",
+  "admitted_report_sha256": "369eed01e5a64302b803262bd7afd0b5051e8ad7f587cfce52927fc32ce539b5",
+  "requirements": 17,
+  "original_requirement_targets_and_clauses_preserved": true,
+  "native_predicates_evaluations_and_operation_preserved": true,
+  "stronger_alternatives_dissent_origins_preserved": true,
+  "material_challenges_open": true,
+  "all_three_reasoning_methods_bound": true,
+  "review_requests": 14,
+  "review_verdicts_generated": 0,
+  "static_build_model_calls": 0,
+  "request_ids": [
+    "R_model",
+    "R_math",
+    "R_analytic",
+    "R_correspondence",
+    "R_binding",
+    "R_qualification",
+    "R_stronger",
+    "R_mapping_activation",
+    "R_mapping_resolution",
+    "R_substitution_activation",
+    "R_substitution_resolution",
+    "R_current",
+    "R_math_conditional",
+    "R_stronger_conditional"
+  ]
+}

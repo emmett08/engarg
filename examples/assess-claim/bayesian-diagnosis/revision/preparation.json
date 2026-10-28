@@ -1,0 +1,58 @@
+{
+  "precision_revision_report_sha256": "5cc3edb75b774e8a295636eccc5c98965902791d46ee89f2dca5b0caa64ac65e",
+  "preserved_precision_operation_sha256": "2a3aa8dd303177de65e3da6b05c05253962ce72708b6dcd37056d8de4581b25c",
+  "schema": "work.finite-bayes-revision-preparation/1",
+  "parent_path": "/workspace/work/prepared-evidence-images/new-claim/implemented-lifecycle-fixed/analysis.with-tools.json",
+  "parent_sha256": "55a6349529dabcdb057d7502c678c754f8694d1911d445f3bb7ca148404bd940",
+  "artifact_files": {
+    "candidate": {
+      "path": "/workspace/work/prepared-evidence-images/new-claim/completion/operator/actual-artifacts/candidate.json",
+      "sha256": "7edc0a37fd843ab0127560dbc7e4f2305c5b54f5ca46d03edb3123a1810d7c55"
+    },
+    "contract": {
+      "path": "/workspace/work/prepared-evidence-images/new-claim/completion/operator/actual-artifacts/contract.json",
+      "sha256": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93"
+    },
+    "verification": {
+      "path": "/workspace/work/prepared-evidence-images/new-claim/completion/operator/actual-artifacts/verification.json",
+      "sha256": "6c95fc4125d71e349a76e8a2a45be3b66afdf00f2228a1ec1649f7286f123af8"
+    },
+    "profile": {
+      "path": "/workspace/work/prepared-evidence-images/new-claim/completion/operator/actual-artifacts/profile.json",
+      "sha256": "322555eb27ed8e241eef160783f01df5e317698a436f59d2a5a1dc68a6e8721e"
+    },
+    "package_manifest": {
+      "path": "/workspace/work/prepared-evidence-images/new-claim/completion/operator/actual-artifacts/package_manifest.json",
+      "sha256": "4bc681068d423e1fb2efee5adf0a05ab037ace5843e7a226064fab8e3b222273"
+    },
+    "operator_profile": {
+      "path": "/workspace/work/prepared-evidence-images/new-claim/completion/operator/actual-artifacts/operator_profile.json",
+      "sha256": "6f28be507cf1c1275db349d45574b2bc21ffd5d183edca7e4bf9fa4b887d4af0"
+    },
+    "tool_binding": {
+      "path": "/workspace/work/prepared-evidence-images/new-claim/completion/operator/actual-artifacts/tool_binding.toml",
+      "sha256": "7d680405511c9a64048bcff83ffa1881719c7403877fc6efed264aebf91d8a61"
+    },
+    "host_record": {
+      "path": "/workspace/work/prepared-evidence-images/new-claim/completion/operator/actual-artifacts/host_record.json",
+      "sha256": "bb28272351a64befc2169869245000809265c9f45d95952b84706bd60ef765c5"
+    }
+  },
+  "baseline_original_observed_at": "2026-10-28T15:39:22.773512Z",
+  "method_valid_until": "2026-10-29T15:39:22.773512Z",
+  "native_predicates_unchanged": true,
+  "original_requirement_targets_unchanged": true,
+  "new_review_requirement_ids": [
+    "R_math_conditional",
+    "R_stronger_conditional"
+  ],
+  "paired_judgements_independent_confirmation": false,
+  "operation_unchanged": true,
+  "stronger_and_alternatives_unchanged": true,
+  "new_ground_ids": [
+    "G_math_conditional",
+    "G_stronger_conditional"
+  ],
+  "new_acquisitions": 0,
+  "review_verdicts_generated": 0
+}

@@ -1,0 +1,250 @@
+{
+  "record_kind": "preliminary independent calculation notes, not an accepted review or execution verdict",
+  "scope": "stipulated PS-DIAG/1 factorization and rational/canonical references only",
+  "method": "Python standard-library Fraction exact products, sums and cross multiplication; Decimal70 precision for displayed expansions",
+  "source_sha256": {
+    "original_request": "1ede1939cc53a7536a1ab24bf6df179e26b2e327fec1c62526a1931c0da1bcfc",
+    "bounded_report": "5cc3edb75b774e8a295636eccc5c98965902791d46ee89f2dca5b0caa64ac65e",
+    "frozen_contract": "92c9b533c397743485c8f50aa45e01cf50ef69763ff294254336b036e7e91a93"
+  },
+  "cases": {
+    "selected_both_sensors": {
+      "evidence": {
+        "alarm": true,
+        "heartbeat_lost": true
+      },
+      "faulty_joint_weight": "19/1250",
+      "healthy_joint_weight": "49/10000",
+      "evidence_mass": {
+        "exact": "201/10000",
+        "decimal_70_digits": "0.0201",
+        "canonical_15_significant_digits": "0.0201",
+        "canonical_json_number": 0.0201,
+        "absolute_decimal_representation_error": "0/1",
+        "absolute_binary_float_error": "17/90071992547409920000",
+        "absolute_binary_float_error_decimal": "1.88737914186276611872017383575439453125E-19",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior": {
+        "exact": "152/201",
+        "decimal_70_digits": "0.7562189054726368159203980099502487562189054726368159203980099502487562",
+        "canonical_15_significant_digits": "0.756218905472637",
+        "canonical_json_number": 0.756218905472637,
+        "absolute_decimal_representation_error": "37/201000000000000000",
+        "absolute_binary_float_error": "401/1810447050202939392",
+        "absolute_binary_float_error_decimal": "2.214922551615362053282966661216014653296019900497512437810945273631841E-16",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior_minus_three_quarters": "5/804",
+      "meets_three_quarters": true,
+      "posterior_normalization": "1/1"
+    },
+    "heartbeat_not_lost": {
+      "evidence": {
+        "alarm": true,
+        "heartbeat_lost": false
+      },
+      "faulty_joint_weight": "19/5000",
+      "healthy_joint_weight": "441/10000",
+      "evidence_mass": {
+        "exact": "479/10000",
+        "decimal_70_digits": "0.0479",
+        "canonical_15_significant_digits": "0.0479",
+        "canonical_json_number": 0.0479,
+        "absolute_decimal_representation_error": "0/1",
+        "absolute_binary_float_error": "21/11258999068426240000",
+        "absolute_binary_float_error_decimal": "1.865174681370262987911701202392578125E-18",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior": {
+        "exact": "38/479",
+        "decimal_70_digits": "0.07933194154488517745302713987473903966597077244258872651356993736951983",
+        "canonical_15_significant_digits": "0.0793319415448852",
+        "canonical_json_number": 0.0793319415448852,
+        "absolute_decimal_representation_error": "27/1197500000000000000",
+        "absolute_binary_float_error": "625/34515587544167481344",
+        "absolute_binary_float_error_decimal": "1.810776070957001142392405512935184486723643006263048016701461377870564E-17",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior_minus_three_quarters": "-1285/1916",
+      "meets_three_quarters": false,
+      "posterior_normalization": "1/1"
+    },
+    "different_parameters": {
+      "evidence": {
+        "alarm": true,
+        "heartbeat_lost": true
+      },
+      "faulty_joint_weight": "6/25",
+      "healthy_joint_weight": "1/25",
+      "evidence_mass": {
+        "exact": "7/25",
+        "decimal_70_digits": "0.28",
+        "canonical_15_significant_digits": "0.28",
+        "canonical_json_number": 0.28,
+        "absolute_decimal_representation_error": "0/1",
+        "absolute_binary_float_error": "3/112589990684262400",
+        "absolute_binary_float_error_decimal": "2.66453525910037569701671600341796875E-17",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior": {
+        "exact": "6/7",
+        "decimal_70_digits": "0.8571428571428571428571428571428571428571428571428571428571428571428571",
+        "canonical_15_significant_digits": "0.857142857142857",
+        "canonical_json_number": 0.857142857142857,
+        "absolute_decimal_representation_error": "1/7000000000000000",
+        "absolute_binary_float_error": "5/31525197391593472",
+        "absolute_binary_float_error_decimal": "1.586032892321652200605188097272600446428571428571428571428571428571429E-16",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior_minus_three_quarters": "3/28",
+      "meets_three_quarters": true,
+      "posterior_normalization": "1/1"
+    },
+    "zero_evidence": {
+      "evidence": {
+        "alarm": true,
+        "heartbeat_lost": true
+      },
+      "faulty_joint_weight": "0/1",
+      "healthy_joint_weight": "0/1",
+      "evidence_mass": {
+        "exact": "0/1"
+      },
+      "mathematical_result": "conditioning undefined; acquisition error required"
+    }
+  },
+  "complete_sensor_partition": [
+    {
+      "evidence": {
+        "alarm": false,
+        "heartbeat_lost": false
+      },
+      "faulty_joint_weight": "1/5000",
+      "healthy_joint_weight": "8379/10000",
+      "evidence_mass": {
+        "exact": "8381/10000",
+        "decimal_70_digits": "0.8381",
+        "canonical_15_significant_digits": "0.8381",
+        "canonical_json_number": 0.8381,
+        "absolute_decimal_representation_error": "0/1",
+        "absolute_binary_float_error": "247/5629499534213120000",
+        "absolute_binary_float_error_decimal": "4.387601393318618647754192352294921875E-17",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior": {
+        "exact": "2/8381",
+        "decimal_70_digits": "0.0002386350077556377520582269418923756115022073738217396492065385992125045",
+        "canonical_15_significant_digits": "0.000238635007755638",
+        "canonical_json_number": 0.000238635007755638,
+        "absolute_decimal_representation_error": "1039/4190500000000000000000",
+        "absolute_binary_float_error": "9239/38650540520439938023424",
+        "absolute_binary_float_error_decimal": "2.390393478485520932059385855443835215812622114007874955255936045817921E-19",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior_minus_three_quarters": "-25135/33524",
+      "meets_three_quarters": false,
+      "posterior_normalization": "1/1"
+    },
+    {
+      "evidence": {
+        "alarm": false,
+        "heartbeat_lost": true
+      },
+      "faulty_joint_weight": "1/1250",
+      "healthy_joint_weight": "931/10000",
+      "evidence_mass": {
+        "exact": "939/10000",
+        "decimal_70_digits": "0.0939",
+        "canonical_15_significant_digits": "0.0939",
+        "canonical_json_number": 0.0939,
+        "absolute_decimal_representation_error": "0/1",
+        "absolute_binary_float_error": "119/45035996273704960000",
+        "absolute_binary_float_error_decimal": "2.64233079860787256620824337005615234375E-18",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior": {
+        "exact": "8/939",
+        "decimal_70_digits": "0.008519701810436634717784877529286474973375931842385516506922257720979766",
+        "canonical_15_significant_digits": "0.00851970181043663",
+        "canonical_json_number": 0.00851970181043663,
+        "absolute_decimal_representation_error": "443/93900000000000000000",
+        "absolute_binary_float_error": "2383/541296646412914655232",
+        "absolute_binary_float_error_decimal": "4.402391952345826736936758295161782489163172257720979765708200212992545E-18",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior_minus_three_quarters": "-2785/3756",
+      "meets_three_quarters": false,
+      "posterior_normalization": "1/1"
+    },
+    {
+      "evidence": {
+        "alarm": true,
+        "heartbeat_lost": false
+      },
+      "faulty_joint_weight": "19/5000",
+      "healthy_joint_weight": "441/10000",
+      "evidence_mass": {
+        "exact": "479/10000",
+        "decimal_70_digits": "0.0479",
+        "canonical_15_significant_digits": "0.0479",
+        "canonical_json_number": 0.0479,
+        "absolute_decimal_representation_error": "0/1",
+        "absolute_binary_float_error": "21/11258999068426240000",
+        "absolute_binary_float_error_decimal": "1.865174681370262987911701202392578125E-18",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior": {
+        "exact": "38/479",
+        "decimal_70_digits": "0.07933194154488517745302713987473903966597077244258872651356993736951983",
+        "canonical_15_significant_digits": "0.0793319415448852",
+        "canonical_json_number": 0.0793319415448852,
+        "absolute_decimal_representation_error": "27/1197500000000000000",
+        "absolute_binary_float_error": "625/34515587544167481344",
+        "absolute_binary_float_error_decimal": "1.810776070957001142392405512935184486723643006263048016701461377870564E-17",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior_minus_three_quarters": "-1285/1916",
+      "meets_three_quarters": false,
+      "posterior_normalization": "1/1"
+    },
+    {
+      "evidence": {
+        "alarm": true,
+        "heartbeat_lost": true
+      },
+      "faulty_joint_weight": "19/1250",
+      "healthy_joint_weight": "49/10000",
+      "evidence_mass": {
+        "exact": "201/10000",
+        "decimal_70_digits": "0.0201",
+        "canonical_15_significant_digits": "0.0201",
+        "canonical_json_number": 0.0201,
+        "absolute_decimal_representation_error": "0/1",
+        "absolute_binary_float_error": "17/90071992547409920000",
+        "absolute_binary_float_error_decimal": "1.88737914186276611872017383575439453125E-19",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior": {
+        "exact": "152/201",
+        "decimal_70_digits": "0.7562189054726368159203980099502487562189054726368159203980099502487562",
+        "canonical_15_significant_digits": "0.756218905472637",
+        "canonical_json_number": 0.756218905472637,
+        "absolute_decimal_representation_error": "37/201000000000000000",
+        "absolute_binary_float_error": "401/1810447050202939392",
+        "absolute_binary_float_error_decimal": "2.214922551615362053282966661216014653296019900497512437810945273631841E-16",
+        "within_declared_absolute_1e_minus_12": true
+      },
+      "posterior_minus_three_quarters": "5/804",
+      "meets_three_quarters": true,
+      "posterior_normalization": "1/1"
+    }
+  ],
+  "sensor_partition_total": "1/1",
+  "restrictions": [
+    "No Docker, provider, library-inference or collector invocation.",
+    "No collector, fixture, oracle, receipt or repository source modification.",
+    "No final source artifact or scoped pending review request inspected yet.",
+    "No uniform accuracy or decision stability claim for arbitrary near-threshold or ill-conditioned inputs."
+  ]
+}

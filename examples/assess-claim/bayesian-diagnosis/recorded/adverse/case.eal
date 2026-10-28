@@ -1,0 +1,484 @@
+language "EAL/4"
+
+// Authored EngArg projection. Review contracts are not observations.
+// Keep the JSON export bundle for the complete canonical source and source map.
+
+environment engarg_case {
+  require engarg_export_digest == "7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30"
+}
+
+tool engarg_review_contract {
+  version "1"
+}
+
+tool source_616371756972655f73656c6563746564 {
+  version "1"
+}
+
+evidence acquisition_616371756972655f73656c6563746564 {
+  tool source_616371756972655f73656c6563746564
+  kind observation
+  environment engarg_case
+  max_age 86400
+  input {"evidence":{"alarm":true,"heartbeat_lost":false},"model":{"p_alarm_given_fault":0.95,"p_alarm_given_healthy":0.05,"p_fault":0.02,"p_loss_given_fault":0.8,"p_loss_given_healthy":0.1}}
+  require true
+}
+
+evidence requirement_525f6d6f64656c_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.","kind":"judgement"},"criterion":"The transcribed fixed graph, binary state meanings, five probability parameters and selected evidence exactly match the supplied PS-DIAG/1 stipulations.","requirement":"R_model","role":"support","scope":null,"target":"G_model"}
+  require true
+}
+
+evidence requirement_525f6d6f64656c {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f6d6f64656c_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f6d617468_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"A checked rational derivation obtains faulty weight 38/10000, healthy weight 441/10000, normalizer 479/10000, posterior 38/479 and shortfall below 3/4 of 1285/1916.","kind":"judgement"},"criterion":"A checked rational derivation obtains faulty weight 38/10000, healthy weight 441/10000, normalizer 479/10000, posterior 38/479 and shortfall below 3/4 of 1285/1916.","requirement":"R_math","role":"support","scope":null,"target":"W_math"}
+  require true
+}
+
+evidence requirement_525f6d617468 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f6d617468_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f616e616c79746963_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.","kind":"judgement"},"criterion":"An actual scoped assessment accepts S_analytic as the exact consequence of the stipulated factorisation and selected evidence.","requirement":"R_analytic","role":"support","scope":null,"target":"S_analytic"}
+  require true
+}
+
+evidence requirement_525f616e616c79746963 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f616e616c79746963_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f706f73746572696f72 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":{"v0":null}}
+  bind "/values/v0" from acquisition_616371756972655f73656c6563746564 "/posterior_fault"
+  derive object("accepted", (exact_compare(values.v0, 0.75, ">=", "1")))
+  require accepted == true
+}
+
+evidence requirement_525f6e6f726d616c697a6572 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":{"v0":null}}
+  bind "/values/v0" from acquisition_616371756972655f73656c6563746564 "/evidence_normalizer"
+  derive object("accepted", (exact_compare(values.v0, 0, ">", "1")))
+  require accepted == true
+}
+
+evidence requirement_525f636f6d706c657465 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_616371756972655f73656c6563746564 "/calculation_complete"
+  bind "/values/coverage0" from acquisition_616371756972655f73656c6563746564 "/calculation_complete"
+  derive object("accepted", (equal(values.v0, true)) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_525f636f72726573706f6e64656e6365_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"An actual scoped AI assessment accepts the implementation and formal correspondence for the exact selected model, evidence, public pgmpy API calls, positive-normalizer handling, complete finite coverage and output predicates, with reference and normalization errors at most 1e-12.","kind":"judgement"},"criterion":"An actual scoped AI assessment accepts the implementation and formal correspondence for the exact selected model, evidence, public pgmpy API calls, positive-normalizer handling, complete finite coverage and output predicates, with reference and normalization errors at most 1e-12.","requirement":"R_correspondence","role":"support","scope":null,"target":"G_correspondence"}
+  require true
+}
+
+evidence requirement_525f636f72726573706f6e64656e6365 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f636f72726573706f6e64656e6365_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f62696e64696e67_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"Actual native provenance binds the assessed artifact and unchanged request context to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2 with original execution and review clocks retained and maximum accepted age 86400 seconds.","kind":"judgement"},"criterion":"Actual native provenance binds the assessed artifact and unchanged request context to image sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f and pgmpy 1.1.2 with original execution and review clocks retained and maximum accepted age 86400 seconds.","requirement":"R_binding","role":"support","scope":null,"target":"A_binding"}
+  require true
+}
+
+evidence requirement_525f62696e64696e67 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f62696e64696e67_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f7175616c696669636174696f6e_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"An actual scoped AI assessment accepts the reusable implementation after independently frozen positive, changed-heartbeat negative, different-parameter, malformed-input and zero-normalizer cases have produced their specified successful values or acquisition errors.","kind":"judgement"},"criterion":"An actual scoped AI assessment accepts the reusable implementation after independently frozen positive, changed-heartbeat negative, different-parameter, malformed-input and zero-normalizer cases have produced their specified successful values or acquisition errors.","requirement":"R_qualification","role":"support","scope":null,"target":"G_qualification"}
+  require true
+}
+
+evidence requirement_525f7175616c696669636174696f6e {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f7175616c696669636174696f6e_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f7374726f6e676572_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"A scoped reasoning assessment confirms that the selected-run obligations and actual reusable-operation qualification jointly establish stronger_target without treating finite tests as a proof of unrestricted algorithm correctness.","kind":"judgement"},"criterion":"A scoped reasoning assessment confirms that the selected-run obligations and actual reusable-operation qualification jointly establish stronger_target without treating finite tests as a proof of unrestricted algorithm correctness.","requirement":"R_stronger","role":"support","scope":null,"target":"W_stronger"}
+  require true
+}
+
+evidence requirement_525f7374726f6e676572 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f7374726f6e676572_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f6d617070696e675f61637469766174696f6e_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"kind":"unavailable","reason":"No positive evidence of a state-order or evidence-mapping discrepancy is supplied."},"criterion":"Hypothetical activity is not inferred from the existence of the objection or from its future resolution assessment.","requirement":"R_mapping_activation","role":"challenge_activation","scope":null,"target":"D_mapping"}
+  require true
+}
+
+evidence requirement_525f6d617070696e675f61637469766174696f6e {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f6d617070696e675f61637469766174696f6e_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f6d617070696e675f7265736f6c7574696f6e_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"Actual source and case assessment establishes the declared state names, parent-column order and evidence mapping for both sensor settings without a mapping discrepancy.","kind":"judgement"},"criterion":"Actual source and case assessment establishes the declared state names, parent-column order and evidence mapping for both sensor settings without a mapping discrepancy.","requirement":"R_mapping_resolution","role":"challenge_resolution","scope":null,"target":"D_mapping"}
+  require true
+}
+
+evidence requirement_525f6d617070696e675f7265736f6c7574696f6e {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f6d617070696e675f7265736f6c7574696f6e_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f737562737469747574696f6e5f61637469766174696f6e_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"kind":"unavailable","reason":"No positive evidence of constant-answer or handwritten-formula substitution is supplied."},"criterion":"The concern remains hypothetical. A future resolution observation cannot also be treated as evidence that substitution occurred.","requirement":"R_substitution_activation","role":"challenge_activation","scope":null,"target":"D_substitution"}
+  require true
+}
+
+evidence requirement_525f737562737469747574696f6e5f61637469766174696f6e {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f737562737469747574696f6e5f61637469766174696f6e_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"Actual source and frozen-case assessment establishes public pgmpy inference calls and reusable parameter dependence rather than constant or handwritten-formula substitution.","kind":"judgement"},"criterion":"Actual source and frozen-case assessment establishes public pgmpy inference calls and reusable parameter dependence rather than constant or handwritten-formula substitution.","requirement":"R_substitution_resolution","role":"challenge_resolution","scope":null,"target":"D_substitution"}
+  require true
+}
+
+evidence requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_525f63757272656e74_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"A scoped assessment accepts the W_current premise interpretation and composition under the exact selected-model scope, with each formal premise linked to its own accepted evidence requirement and any operational validity interval derived from original record times and the authorised 86400-second age bound.","kind":"judgement"},"criterion":"A scoped assessment accepts the W_current premise interpretation and composition under the exact selected-model scope, with each formal premise linked to its own accepted evidence requirement and any operational validity interval derived from original record times and the authorised 86400-second age bound.","requirement":"R_current","role":"support","scope":null,"target":"W_current"}
+  require true
+}
+
+evidence requirement_525f63757272656e74 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_525f63757272656e74_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+assumption assumption_415f62696e64696e67 {
+  statement "Native provenance binds the executed implementation and unchanged request context to the operator-prepared image and pgmpy 1.1.2."
+  environment engarg_case
+  validate requirement_525f62696e64696e67
+}
+
+claim claim_63757272656e745f636c61696d {
+  statement "For PS-DIAG/1 with Alarm=true and HeartbeatLost=false, a faithful complete computation in the pinned pgmpy 1.1.2 runtime yields a finite Fault=faulty posterior at least 0.75 with a positive evidence normalizer and calculation_complete=true.\nQualifier: Adverse threshold target: the independent finite-model reference is 38/479, below 0.75, with positive normalizer 479/10000. Actual acquisition remains required; qualification judgements and operational methods are unresolved for this new scope.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+claim claim_7374726f6e6765725f746172676574 {
+  statement "An actually executed and qualified reusable finite_bayes_diagnosis/1 implementation establishes the selected PS-DIAG/1 result and passes its independently frozen positive, changed-heartbeat negative, different-parameter and acquisition-error cases.\nQualifier: Conditional on actual execution, source assessment and successful frozen-case qualification.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+claim claim_535f616e616c79746963 {
+  statement "For Alarm=true and HeartbeatLost=false the faulty and healthy joint weights are 38/10000 and 441/10000, giving positive normalizer 479/10000 and posterior 38/479, below 3/4 by 1285/1916.\nQualifier: Exact consequence of the stipulated finite factorisation, with no claim of acquired execution.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+claim ground_475f6d6f64656c {
+  statement "PS-DIAG/1 stipulates the unchanged fixed Fault-to-sensors factorisation with binary states and five supplied probabilities under adverse selected evidence Alarm=1 and HeartbeatLost=0.\nOriginal ground status: Assumed.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_475f6d6f64656c {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_475f6d6f64656c = [evidence requirement_525f6d6f64656c] via ground_reasoning_475f6d6f64656c => ground_475f6d6f64656c
+
+claim ground_475f706f73746572696f72 {
+  statement "The actual selected-run posterior_fault is finite and at least 0.75.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_475f706f73746572696f72 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_475f706f73746572696f72 = [evidence requirement_525f706f73746572696f72] via ground_reasoning_475f706f73746572696f72 => ground_475f706f73746572696f72
+
+claim ground_475f6e6f726d616c697a6572 {
+  statement "The actual selected-run evidence_normalizer is finite and strictly positive.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_475f6e6f726d616c697a6572 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_475f6e6f726d616c697a6572 = [evidence requirement_525f6e6f726d616c697a6572] via ground_reasoning_475f6e6f726d616c697a6572 => ground_475f6e6f726d616c697a6572
+
+claim ground_475f636f6d706c657465 {
+  statement "The actual selected run returns calculation_complete=true under qualified complete finite coverage.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_475f636f6d706c657465 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_475f636f6d706c657465 = [evidence requirement_525f636f6d706c657465] via ground_reasoning_475f636f6d706c657465 => ground_475f636f6d706c657465
+
+claim ground_475f636f72726573706f6e64656e6365 {
+  statement "Under the qualified implementation and exact execution binding, the analytic consequence together with the three acquired output predicates implies the requested selected-model runtime result.\nOriginal ground status: Assumed.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_475f636f72726573706f6e64656e6365 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_475f636f72726573706f6e64656e6365 = [evidence requirement_525f636f72726573706f6e64656e6365, requirement_525f6d617070696e675f7265736f6c7574696f6e, requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e] via ground_reasoning_475f636f72726573706f6e64656e6365 => ground_475f636f72726573706f6e64656e6365
+
+claim ground_475f7175616c696669636174696f6e {
+  statement "Actual scoped assessment accepts the reusable implementation against the independently frozen successful and acquisition-error cases.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_475f7175616c696669636174696f6e {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_475f7175616c696669636174696f6e = [evidence requirement_525f7175616c696669636174696f6e] via ground_reasoning_475f7175616c696669636174696f6e => ground_475f7175616c696669636174696f6e
+
+claim route_575f6d617468 {
+  statement "Candidate support for: For Alarm=true and HeartbeatLost=false the faulty and healthy joint weights are 38/10000 and 441/10000, giving positive normalizer 479/10000 and posterior 38/479, below 3/4 by 1285/1916.\nQualifier: Exact consequence of the stipulated finite factorisation, with no claim of acquired execution.\nRule: Conditional independence gives each joint weight by multiplying its prior and two sensor likelihoods, after which summing and normalising yields the stated rational result.\nOriginal inference: Deductive.\nApplicability: The five parameters and conditional independence are model stipulations. This derivation establishes the mathematical reference but not execution of pgmpy.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning warrant_575f6d617468 {
+  method "structured/1"
+  rationale "Conditional independence gives each joint weight by multiplying its prior and two sensor likelihoods, after which summing and normalising yields the stated rational result.\nOriginal inference: Deductive; retained as authored structured/1, not a computational certificate.\nApplicability: The five parameters and conditional independence are model stipulations. This derivation establishes the mathematical reference but not execution of pgmpy."
+  backing [requirement_525f6d617468]
+}
+
+// Missing formal model or evidence keeps this route unavailable.
+evidence reasoning_unresolved_575f6d617468 {
+  kind unavailable_method
+  environment engarg_case
+  max_age 0
+  input {"binding":{"evidence_need_ids":["N_model","N_math","N_analytic"],"method":"deductive","reasons":["The required rational multiplication and comparison are outside deductive/1's bounded propositional formula language.","No arithmetic assessment has been supplied and the displayed derivation is not a mechanically checked proof."],"status":"unresolved"},"case_digest":"7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30","schema":"engarg.reasoning-unresolved/1","warrant_id":"W_math"}
+  derive object("method_available", pending.method_available)
+  require method_available == true
+}
+
+argument route_argument_575f6d617468 = [evidence reasoning_unresolved_575f6d617468, requirement_525f6d617468, premises ground_475f6d6f64656c] via warrant_575f6d617468 => route_575f6d617468
+
+claim route_575f63757272656e74 {
+  statement "Candidate support for: For PS-DIAG/1 with Alarm=true and HeartbeatLost=false, a faithful complete computation in the pinned pgmpy 1.1.2 runtime yields a finite Fault=faulty posterior at least 0.75 with a positive evidence normalizer and calculation_complete=true.\nQualifier: Adverse threshold target: the independent finite-model reference is 38/479, below 0.75, with positive normalizer 479/10000. Actual acquisition remains required; qualification judgements and operational methods are unresolved for this new scope.\nRule: The analytic premise and all three acquired output predicates establish the selected runtime result provided that their qualified implementation correspondence holds.\nOriginal inference: Deductive.\nApplicability: All acquired premises must retain finite_model_computation scope with PS-DIAG/1, the unchanged five parameters, evidence Alarm=1|HeartbeatLost=0, pgmpy1.1.2 and the same pinned image. The prior positive case's host-supplied scope identity is inapplicable. A new host-derived identity, accepted premise contracts and actual original clocks are required before any bound method or validity interval. The analytic reference predicts that the posterior premise will fail; no accepted positive review is carried into this control.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning warrant_575f63757272656e74 {
+  method "structured/1"
+  rationale "The analytic premise and all three acquired output predicates establish the selected runtime result provided that their qualified implementation correspondence holds.\nOriginal inference: Deductive; retained as authored structured/1, not a computational certificate.\nApplicability: All acquired premises must retain finite_model_computation scope with PS-DIAG/1, the unchanged five parameters, evidence Alarm=1|HeartbeatLost=0, pgmpy1.1.2 and the same pinned image. The prior positive case's host-supplied scope identity is inapplicable. A new host-derived identity, accepted premise contracts and actual original clocks are required before any bound method or validity interval. The analytic reference predicts that the posterior premise will fail; no accepted positive review is carried into this control."
+  backing [requirement_525f63757272656e74]
+}
+
+// Missing formal model or evidence keeps this route unavailable.
+evidence reasoning_unresolved_575f63757272656e74 {
+  kind unavailable_method
+  environment engarg_case
+  max_age 0
+  input {"binding":{"evidence_need_ids":["N_analytic","N_posterior","N_normalizer","N_complete","N_correspondence","N_binding","N_current"],"method":"deductive","reasons":["The proposed deductive/1 programme remains {\"conclusion\":\"C\",\"premises\":[\"A\",\"P\",\"Z\",\"K\",{\"implies\":[{\"and\":[\"A\",\"P\",\"Z\",\"K\"]},\"C\"]}]} and has not been executed.","A denotes S_analytic licensed by N_analytic, P denotes G_posterior licensed by N_posterior, Z denotes G_normalizer licensed by N_normalizer, and K denotes G_complete licensed by N_complete.","The implication denotes G_correspondence and requires its own premise-observation requirement N_correspondence rather than an applicability role standing in for that premise.","A_binding requires separate applicability evidence through N_binding under the exact host-supplied scope identity.","No actual execution or review times have been supplied from which to derive an honest ISO-8601 proposition validity interval.","N_current must assess premise consistency and interpretation before an operational binding can be asserted, while entailment alone cannot establish premise truth or implementation correctness."],"status":"unresolved"},"case_digest":"7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30","schema":"engarg.reasoning-unresolved/1","warrant_id":"W_current"}
+  derive object("method_available", pending.method_available)
+  require method_available == true
+}
+
+argument route_argument_575f63757272656e74 = [evidence reasoning_unresolved_575f63757272656e74, requirement_525f63757272656e74, assumptions assumption_415f62696e64696e67, premises claim_535f616e616c79746963, ground_475f636f6d706c657465, ground_475f636f72726573706f6e64656e6365, ground_475f6e6f726d616c697a6572, ground_475f706f73746572696f72] via warrant_575f63757272656e74 => route_575f63757272656e74
+
+claim route_575f7374726f6e676572 {
+  statement "Candidate support for: An actually executed and qualified reusable finite_bayes_diagnosis/1 implementation establishes the selected PS-DIAG/1 result and passes its independently frozen positive, changed-heartbeat negative, different-parameter and acquisition-error cases.\nQualifier: Conditional on actual execution, source assessment and successful frozen-case qualification.\nRule: The selected-run premises together with actual scoped reusable-operation qualification establish the stronger target within the declared qualification scope.\nOriginal inference: Deductive.\nApplicability: The stronger target covers actual qualification of the reusable operation within its fixed graph and declared input domain. Selected-run acceptance alone is insufficient.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}"
+  environment engarg_case
+}
+
+reasoning warrant_575f7374726f6e676572 {
+  method "structured/1"
+  rationale "The selected-run premises together with actual scoped reusable-operation qualification establish the stronger target within the declared qualification scope.\nOriginal inference: Deductive; retained as authored structured/1, not a computational certificate.\nApplicability: The stronger target covers actual qualification of the reusable operation within its fixed graph and declared input domain. Selected-run acceptance alone is insufficient."
+  backing [requirement_525f7374726f6e676572]
+}
+
+// Missing formal model or evidence keeps this route unavailable.
+evidence reasoning_unresolved_575f7374726f6e676572 {
+  kind unavailable_method
+  environment engarg_case
+  max_age 0
+  input {"binding":{"evidence_need_ids":["N_qualification","N_stronger","N_binding"],"method":"deductive","reasons":["The generated implementation and actual qualification record do not yet exist.","Source correspondence and qualification adequacy cannot be established by a propositional entailment result alone."],"status":"unresolved"},"case_digest":"7fa7ba6f5a5b4856976ba67c81177eda0790c45dc90349dc4932258723a4cd30","schema":"engarg.reasoning-unresolved/1","warrant_id":"W_stronger"}
+  derive object("method_available", pending.method_available)
+  require method_available == true
+}
+
+argument route_argument_575f7374726f6e676572 = [evidence reasoning_unresolved_575f7374726f6e676572, requirement_525f7374726f6e676572, assumptions assumption_415f62696e64696e67, premises claim_535f616e616c79746963, ground_475f636f6d706c657465, ground_475f636f72726573706f6e64656e6365, ground_475f6e6f726d616c697a6572, ground_475f706f73746572696f72, ground_475f7175616c696669636174696f6e] via warrant_575f7374726f6e676572 => route_575f7374726f6e676572
+
+reasoning composition_reasoning_535f616e616c79746963 {
+  method "structured/1"
+  rationale "Declared JointlyRequired relationship. The sole route derives the exact finite-model consequence under the stipulated factorisation. Its adequacy requires correct rational arithmetic and the stated evidence event, rather than empirical model validation.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review."
+}
+
+argument composition_argument_535f616e616c79746963 = [evidence requirement_525f616e616c79746963, premises route_575f6d617468] via composition_reasoning_535f616e616c79746963 => claim_535f616e616c79746963
+
+reasoning composition_reasoning_63757272656e745f636c61696d {
+  method "structured/1"
+  rationale "Declared JointlyRequired relationship. The sole route requires the analytic consequence together with all three acquired output predicates and a qualified interpretation of those outputs under the exact selected model and runtime. Propositional entailment checks their composition but cannot establish their truth or implementation correspondence. N_current retains the unresolved operational binding obligation.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review."
+}
+
+argument composition_argument_63757272656e745f636c61696d = [evidence requirement_525f6d617070696e675f7265736f6c7574696f6e, requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e, premises route_575f63757272656e74] via composition_reasoning_63757272656e745f636c61696d => claim_63757272656e745f636c61696d
+
+reasoning composition_reasoning_7374726f6e6765725f746172676574 {
+  method "structured/1"
+  rationale "Declared JointlyRequired relationship. The sole route uses the same selected computation and additionally requires actual qualification of the reusable implementation against the frozen cases. These are jointly necessary obligations rather than independent confirmations.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review."
+}
+
+argument composition_argument_7374726f6e6765725f746172676574 = [evidence requirement_525f6d617070696e675f7265736f6c7574696f6e, requirement_525f737562737469747574696f6e5f7265736f6c7574696f6e, premises route_575f7374726f6e676572] via composition_reasoning_7374726f6e6765725f746172676574 => claim_7374726f6e6765725f746172676574
+
+claim assumption_condition_415f62696e64696e67 {
+  statement "A usable native EAL validation supports this assumption: Native provenance binds the executed implementation and unchanged request context to the operator-prepared image and pgmpy 1.1.2.\nEngineering scope: {\"system_boundary\":\"The stipulated three-node model and one reusable finite_bayes_diagnosis/1 operation under the operator-authorised native binding.\",\"configuration\":\"PS-DIAG/1 uses Fault->Alarm and Fault->HeartbeatLost with binary state order [0,1] and healthy-before-faulty parent columns. Parameters are p_fault=0.02, p_alarm_given_fault=0.95, p_alarm_given_healthy=0.05, p_loss_given_fault=0.8 and p_loss_given_healthy=0.1. The prepared image is sha256:5d317440653dd5a188223baff22644397cc2a1bd071183a12e9c4cb2f3688f7f with pgmpy 1.1.2.\",\"operating_conditions\":\"This adverse selected run uses Alarm=true and HeartbeatLost=false with the unchanged CPDs, exact finite inference and no data fitting or sampling. The original positive input remains separately retained; its accepted review scopes are not imported here.\",\"units\":\"All masses and posterior probabilities have unit 1. Completion predicates are boolean and ages are seconds.\",\"time_horizon\":\"This immutable controlled-model investigation accepts executions and actual assessments at maximum age 86400 seconds while preserving their original clocks.\",\"consequences\":\"Acceptance establishes only the requested controlled-model computation. Incorrect acceptance would misstate the conditional probability or whether the prescribed library calculation was performed.\"}\nOther authored conditions remain attached to the original applications."
+  environment engarg_case
+}
+
+reasoning assumption_condition_reasoning_415f62696e64696e67 {
+  method "structured/1"
+  rationale "The explicit canonical validation and the native EAL assumption are jointly required. This bridge retains assumption attacks when an objection relies on the assumption; it does not establish truth independently."
+}
+
+argument assumption_condition_argument_415f62696e64696e67 = [evidence requirement_525f62696e64696e67, assumptions assumption_415f62696e64696e67] via assumption_condition_reasoning_415f62696e64696e67 => assumption_condition_415f62696e64696e67
+
+objection objection_445f6d617070696e67 = [evidence requirement_525f6d617070696e675f61637469766174696f6e] -x> claim ground_475f636f72726573706f6e64656e6365
+
+objection objection_445f737562737469747574696f6e = [evidence requirement_525f737562737469747574696f6e5f61637469766174696f6e] -x> claim ground_475f636f72726573706f6e64656e6365
+

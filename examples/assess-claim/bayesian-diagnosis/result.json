@@ -1,0 +1,33 @@
+{
+  "scope": "Stipulated PS-DIAG/1 model; exact generated implementation and declared trusted runtime",
+  "valid": true,
+  "complete": true,
+  "current_claim": "supported",
+  "stronger_target": "supported",
+  "assessed_at": "2026-10-28T15:58:14.098575Z",
+  "observation": {
+    "posterior_fault": 0.756218905472637,
+    "evidence_normalizer": 0.0201,
+    "calculation_complete": true,
+    "collected": true
+  },
+  "observation_time": "2026-10-28T15:58:11.819870Z",
+  "all_records_ok": 46,
+  "native_verification_cases": 12,
+  "final_implementation_model_calls": 2,
+  "actual_scoped_reviews": 14,
+  "original_requirements_retained": 15,
+  "total_requirements": 17,
+  "adverse": {
+    "posterior_threshold": false,
+    "qualification": "separate event; unresolved; non-isolated control"
+  },
+  "missing_review_binding": {
+    "current_claim": "unsupported",
+    "numeric_acquisition": "ok"
+  },
+  "source_revisions": {
+    "engarg": "6fcb124fdf78f8d8c9b35b7753945a8525790832",
+    "eal": "030d4514e9c5e01c95690e0d921a5da2cf6525af"
+  }
+}

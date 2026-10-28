@@ -1,0 +1,10 @@
+github.com/causalgo/causalgo
+github.com/causalgo/causalgo/scic
+github.com/causalgo/causalgo/surd
+github.com/causalgo/causalgo/varselect
+github.com/crillab/gophersat/solver
+gonum.org/v1/gonum/mat
+gonum.org/v1/gonum/optimize
+gonum.org/v1/gonum/spatial/kdtree
+gonum.org/v1/gonum/stat
+gonum.org/v1/gonum/stat/distuv

@@ -1,0 +1,28 @@
+{
+  "frozen_at": "2026-10-28T15:12:47.435286+00:00",
+  "git_head": "f6d34c5688ea34b007721130bf29b6f302c68098",
+  "eal_revision": "030d4514e9c5e01c95690e0d921a5da2cf6525af",
+  "source_hashes": "/workspace/work/prepared-evidence-images/checks/engarg/source-after.sha256",
+  "source_manifest_sha256": "e900edcb4e6e43da4d9017e0a63f2eb3062aaaf971a6b3a2d73bf63f72cf1b5e",
+  "checks": {
+    "debug-binaries": 0,
+    "diff": 0,
+    "python": 0,
+    "shell": 0,
+    "release": 0,
+    "tests": 0,
+    "clippy": 0,
+    "fmt": 0
+  },
+  "binaries": {
+    "engarg": "5dd35355fd10c1a1574822073d08790978709b4925fe4d2640a49492a448c813",
+    "engarg-process-supervisor": "4b16dce50723a1325198670c228ab4a653862020c17d70eaf9167ad0b0e63613"
+  },
+  "profile": {
+    "rust": "1.99.1",
+    "jobs": 2,
+    "dev_test_debug": "line-tables-only",
+    "incremental": false
+  },
+  "separate_checks": "Ignored Docker/native integration and fresh generated-tool investigation are root-owned."
+}
