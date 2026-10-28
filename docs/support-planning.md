@@ -35,6 +35,13 @@ bounds, provenance and challenges. Acquisitions specify inputs and exact
 source-to-input bindings. Derivations are deterministic expressions over those
 values. Evaluations declare the criteria that must hold.
 
+Challenge activity and resolution are separate roles. Every defeater needs a
+`challenge_activation` requirement; a material open or sustained defeater also
+needs a distinct `challenge_resolution` requirement. A resolution requirement
+alone covers the target for admission but leaves activation unavailable in the
+executable package. Unknown activity remains an explicit unavailable obligation,
+with its reason and gap. It does not justify inventing an acquisition or review.
+
 The provider receives a bounded operation and pinned interface view from `--tools`, never
 the manifest's command arguments, credential values or connection configuration.
 A missing direct binding is recorded under `direct_bindings.unbound_operations`.
@@ -71,6 +78,28 @@ failed, stale or altered inputs remain unavailable. Collection completion and
 structural validity do not by themselves establish a claim. Retained reviews
 must match the exact criterion and scope and include reviewer identity, verdict,
 reasons and the original review time.
+
+A scoped judgement can consume one acquired review record or, without an input,
+request a record through the operator-bound `engarg_review_contract`. An unscoped
+judgement stays unresolved even if that tool returns an affirmative review.
+Generated retrieval code cannot create a missing independent judgement, and a
+review cannot replace missing empirical evidence.
+
+The build receipt's limitations and pending review requests describe the static
+export. They remain in that receipt after execution. Inspect retained runtime
+records and the resulting requirement outcomes to determine whether a review was
+actually collected and accepted. A successful tool-generation report does not
+establish either result; only unbound acquisition blueprints with complete
+parameterised operation specifications are eligible for implementation.
+
+If an operation copies an input's original observation clock unchanged into the
+acquisition envelope, its input contract must use runtime-admitted syntax. EAL's
+`observed_at` requires a valid ASCII UTC timestamp with uppercase `T` and final
+`Z`, optional fractional seconds and at most 64 characters. Admitting `+00:00`
+and then rewriting it to `Z` violates a promise to preserve the input text.
+Define any authorised conversion explicitly, preserve the original instant and
+retain any separately required source representation. Retrieval time cannot
+replace the original observation time.
 
 ## Reasoning and revision
 

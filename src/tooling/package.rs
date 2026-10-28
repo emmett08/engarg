@@ -789,7 +789,7 @@ mod tests {
     }
 
     #[test]
-    fn old_receipts_cannot_register_without_the_new_opaque_protocol_probe() {
+    fn prior_receipts_cannot_register_under_the_current_context_policy() {
         let directory = tempfile::tempdir().unwrap();
         let store = PackageStore::new(directory.path()).unwrap();
         let contract = contract();
@@ -810,28 +810,30 @@ mod tests {
             .unwrap();
         let receipt = super::super::verification::tests::passing_receipt(identity.clone());
         assert!(receipt.passed);
-        let mut old = receipt.clone();
-        old.schema = "engarg.tool-tests/1".into();
-        std::fs::write(
-            attempt.join("test-results.json"),
-            serde_json::to_vec(&old).unwrap(),
-        )
-        .unwrap();
-        assert!(
-            store
-                .commit_verified(
-                    &key,
-                    &attempt,
-                    contract.clone(),
-                    candidate.clone(),
-                    profile.clone(),
-                    identity.clone(),
-                    old
-                )
-                .is_err()
-        );
-        assert!(store.lookup(&key, &identity).unwrap().is_none());
-        assert!(!attempt.join("manifest.json").exists());
+        for schema in ["engarg.tool-tests/1", "engarg.tool-tests/2"] {
+            let mut old = receipt.clone();
+            old.schema = schema.into();
+            std::fs::write(
+                attempt.join("test-results.json"),
+                serde_json::to_vec(&old).unwrap(),
+            )
+            .unwrap();
+            assert!(
+                store
+                    .commit_verified(
+                        &key,
+                        &attempt,
+                        contract.clone(),
+                        candidate.clone(),
+                        profile.clone(),
+                        identity.clone(),
+                        old
+                    )
+                    .is_err()
+            );
+            assert!(store.lookup(&key, &identity).unwrap().is_none());
+            assert!(!attempt.join("manifest.json").exists());
+        }
         std::fs::write(
             attempt.join("test-results.json"),
             serde_json::to_vec(&receipt).unwrap(),

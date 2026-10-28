@@ -2,9 +2,16 @@
 use crate::Error;
 use serde_json::{Value, json};
 
-/// Version 2 requires exact opaque reserved-key objects in fixture metadata.
+/// Version 3 keeps host-authored metadata inside its verification namespace.
 /// Changing mandatory protocol behaviour requires a new receipt version.
-pub const TEST_SCHEMA: &str = "engarg.tool-tests/2";
+pub const TEST_SCHEMA: &str = "engarg.tool-tests/3";
+
+/// Host diagnostics are opaque metadata, never a caller's operation selectors.
+pub fn protocol_fixture_context(name: &str) -> Result<Value, Error> {
+    Ok(json!({"engarg_verification":{
+        "fixture":name,"precision":protocol_precision_context()?
+    }}))
+}
 
 pub fn protocol_precision_context() -> Result<Value, Error> {
     eal_collector_contracts::strict_json_exact(br#"{

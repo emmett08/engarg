@@ -801,14 +801,13 @@ fn replay_synthetic_fixture(attempt: &Path) -> Result<String, Box<dyn std::error
         .fixtures
         .first()
         .ok_or("synthetic contract has no fixture")?;
-    let precision = engarg::tooling::verification::protocol_precision_context()?;
     let request = json!({
         "evidence_id": contract.need.id,
         "environment": "engarg_tool_fixture",
         "tool": "engarg_generated_fixture",
         "tool_version": "1",
         "input": fixture.input,
-        "context": {"precision": precision, "fixture": fixture.name},
+        "context": engarg::tooling::verification::protocol_fixture_context(&fixture.name)?,
     });
     let outcome = runner.execute(
         attempt,

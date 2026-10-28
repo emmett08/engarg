@@ -130,6 +130,23 @@ timestamps remain necessary for observations. A calculator retains the age of
 its inputs. Passing fixtures demonstrate the recorded cases. Scientific adequacy
 and source completeness need their own evidence.
 
+Make an exact timestamp-copy promise compatible with the runtime before freezing
+the operation. The current envelope accepts UTC RFC3339 timestamps with uppercase
+`T` and `Z`, a valid calendar date, seconds from `00` to `59`, and at most 64
+bytes. If an operation must return its input timestamp unchanged, restrict that
+input accordingly. Accepting `+00:00` while requiring unchanged output conflicts
+with the envelope contract. Verification checks required timestamp presence and
+syntax, but its generic fixture oracle compares the logical result value; inspect
+the generated timestamp handling and retained execution time separately.
+
+Host-authored test names and precision probes are opaque metadata under
+`context.engarg_verification`. They do not supply operation selectors such as
+`context.fixture`. The complete context must still survive unchanged in the
+response. Receipts use `engarg.tool-tests/3` for this context policy. Earlier
+receipts remain historical records and cannot register a current package;
+reverify the frozen source and fixtures explicitly rather than relabelling an old
+receipt. A code repair must preserve the authored operation's identity checks.
+
 Repairs retain the frozen contract, previous candidate, bounded failure
 diagnostics and remaining budgets. Source/build/test defects can receive another
 explicitly budgeted coding call. Provider errors, cancellation, infrastructure

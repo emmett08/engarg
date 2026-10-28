@@ -78,7 +78,9 @@ fn missing(
         return Ok(());
     }
     let declaration = name(&format!("pending_{role}"), target);
-    let reason = format!("{target}: no canonical {role} observation requirement was elaborated");
+    let reason = format!(
+        "{target}: no canonical {role} observation requirement was elaborated; author that explicit role and its evidence route or unavailable gap before rebuilding. Target coverage and a different role do not supply this observation"
+    );
     write_derived(
         declarations,
         DerivedSpec {
