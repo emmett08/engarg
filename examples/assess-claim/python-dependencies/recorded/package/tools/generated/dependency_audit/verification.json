@@ -1,0 +1,118 @@
+{
+  "schema": "engarg.tool-tests/3",
+  "language": "python",
+  "contract_sha256": "ce64b087d0c9268bfb6068ad64f803473dee1bd56050cb62a4df98f6b8c5dd42",
+  "candidate_sha256": "35d0185d2c1547ef7fcbb0ed1140aceecddd30c51e033d519609aaf6e7a9957e",
+  "source_sha256": "13f057fe30a70c7681946c599d47a60f3e7460dc57c95ca51d609aead1d78450",
+  "fixtures_sha256": "dc9a0a6cff8ac8410de999a2ae3c142dcf281467fcbb291ab26e1fff5f9d5abf",
+  "runner": {
+    "profile_sha256": "bf09b14f5ff520e30783eab480551a3577c9939d99bbfd71f6035eacfa9ce313",
+    "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+    "docker_sha256": "27f239f97492c434e091a70b41b8796c698f0aa2b6052c6f9c28da4ee7ae888b",
+    "runner_sha256": "4aec363228f57e6290d6d821fa68d5863ffea4340c4297d261252c492c994928",
+    "supervisor_sha256": "79435d541fc89e3eeecaacf24b97d811384b91173811c99c0ea8c91470e16f6a"
+  },
+  "passed": true,
+  "results": [
+    {
+      "name": "packaging_26_3_default_prerelease_membership",
+      "kind": "positive",
+      "passed": true,
+      "returncode": 0,
+      "stdout_sha256": "69865bccefcb290de4f82bdf1fb31efd2b05827106d367e5521e66da78a12f86",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed_ms": 19644,
+      "diagnostic": null
+    },
+    {
+      "name": "installed_root_version_conflict",
+      "kind": "negative",
+      "passed": true,
+      "returncode": 0,
+      "stdout_sha256": "a3a03d768fea455e8517f8ea26d61c6188e335dfb881df3c041fec2e4250fdd2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed_ms": 22433,
+      "diagnostic": null
+    },
+    {
+      "name": "conditional_extras_cycle_repeated_occurrences_and_late_propagation",
+      "kind": "positive",
+      "passed": true,
+      "returncode": 0,
+      "stdout_sha256": "bca97e44987e9822a088a51c217238489df5f5eb8b99049dd48499c0b77f2f77",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed_ms": 15866,
+      "diagnostic": null
+    },
+    {
+      "name": "empty_inventory_preserves_root_order_and_missing_versions",
+      "kind": "negative",
+      "passed": true,
+      "returncode": 0,
+      "stdout_sha256": "e43cd7347252fa7315e4ea67ca28f6bdc19e9d6e33e793b0d0a85c3235ada68e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "elapsed_ms": 18417,
+      "diagnostic": null
+    },
+    {
+      "name": "missing_version_is_unavailable_observation",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "ae0200d56b4fab5b489aced8587e74f41236e9f50aea878a234cb556ea81c012",
+      "elapsed_ms": 19731,
+      "diagnostic": null
+    },
+    {
+      "name": "reject_direct_url_in_unreachable_inventory",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "8e6a24dbb696a7e71c03e7e340885fb93eb75e0429356c1e959163ec5d4b6e5d",
+      "elapsed_ms": 19788,
+      "diagnostic": null
+    },
+    {
+      "name": "exhaust_shared_processing_budget_with_inactive_marker_contexts",
+      "kind": "acquisition_error",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "962c04c76597f86d2b7420ce3ebfcaad13b1e1540320cc5220f3b0c86dfa2ae9",
+      "elapsed_ms": 18760,
+      "diagnostic": null
+    },
+    {
+      "name": "malformed_json",
+      "kind": "protocol",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "d69c903828a8d3e3354ad9878a2967d17fbe9c07955709fd92ab451fd5f6dd6c",
+      "elapsed_ms": 20545,
+      "diagnostic": null
+    },
+    {
+      "name": "missing_identity",
+      "kind": "protocol",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "b1c260bedabbb8efb595c3f6e9843c48eec95238f4106a5e35d0f184ea6bd127",
+      "elapsed_ms": 21577,
+      "diagnostic": null
+    },
+    {
+      "name": "invalid_context",
+      "kind": "protocol",
+      "passed": true,
+      "returncode": 1,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "12a7603f5cabd5a3790b3d034793b3ff95eb7157d11fb0e3a813e0c3e4e60142",
+      "elapsed_ms": 28042,
+      "diagnostic": null
+    }
+  ]
+}

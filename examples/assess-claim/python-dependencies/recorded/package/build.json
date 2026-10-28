@@ -1,0 +1,153 @@
+{
+  "claims": {
+    "current_claim": "claim_63757272656e745f636c61696d",
+    "stronger_target": "claim_7374726f6e6765725f746172676574"
+  },
+  "executable_digest": "0fdf3032d661148b89779a297b1e58a39c43e6754f0997f5c277c899f5d8196f",
+  "files": {
+    "case.eal": "1eed6cfe2ec7a506da59e23acb510ea1d815d5e58a0450d565b12380834361f0",
+    "tools.toml": "592d96f87deb8bd1ab4efa02788daf41b0b56ccd3c5f45f1b394538bd46d5d72",
+    "tools/generated/dependency_audit/input.schema.json": "0b6803c30a8605552c64c80a3fb43343ecdc7e40281981eca9878b3607bd4a7c",
+    "tools/generated/dependency_audit/output.schema.json": "47e8f1c47ebf8d219f77cd83816662413280168bd0f83ba6fad74766c4721ae1",
+    "tools/generated/dependency_audit/source/collector.py": "f7c7b9993e27b9dcb41524e54e1e1ec9ad4aa0310c1fa7c6d397d0f20e95af9c",
+    "tools/generated/dependency_audit/tool.toml": "dde2127ab1e6a07c6f0cf4d1e001857e54a0bc00112ba3d37fccf3f75a5bca8b",
+    "tools/generated/dependency_audit/verification.json": "5ca11af959205e5c6d80873905b3c1747400a95931b6eb53e2e6cb32705fc3f8"
+  },
+  "language": "EAL/4",
+  "limitations": [
+    "The EAL/4 source contains all acquisition, derivation, acceptance and reasoning semantics. TOML selects actual tools; no execution-plan sidecar is needed.",
+    "Authored method queries are programme data. Empirical premise values and independent judgements are acquired observations; interpretation and scope remain explicit.",
+    "Shared source observations retain common provenance. An unsupported claim does not establish falsity.",
+    "R6: The host binding interface and actual execution provenance have not been supplied.",
+    "R7: No generated implementation, frozen verification cases or assessment exists.",
+    "R8: The runtime workload, authorised runtime operation and actual runtime results are unavailable.",
+    "R9: No actual implementation counterexample is supplied.",
+    "R10: No implementation assessment or frozen verification results are available.",
+    "R11: unscoped judgement remains unresolved; author the exact Judgement contract scope before a review can discharge it"
+  ],
+  "model_calls": 0,
+  "pending_reviews": [
+    {
+      "context": {
+        "engarg_export_digest": "a1b16c3fbe3e81c805cddab979f352bc918832887b0e789a500e324d4fb16500"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_5236_review",
+      "input": {
+        "acceptance": {
+          "kind": "unavailable",
+          "reason": "The host binding interface and actual execution provenance have not been supplied."
+        },
+        "criterion": "A program cannot attest its own image from a caller-provided label.",
+        "requirement": "R6",
+        "role": "support",
+        "scope": null,
+        "target": "A1"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "a1b16c3fbe3e81c805cddab979f352bc918832887b0e789a500e324d4fb16500"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_5237_review",
+      "input": {
+        "acceptance": {
+          "kind": "unavailable",
+          "reason": "No generated implementation, frozen verification cases or assessment exists."
+        },
+        "criterion": "The specification provides an algorithmic candidate but does not prove implementation fidelity.",
+        "requirement": "R7",
+        "role": "support",
+        "scope": null,
+        "target": "W1"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "a1b16c3fbe3e81c805cddab979f352bc918832887b0e789a500e324d4fb16500"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_5238_review",
+      "input": {
+        "acceptance": {
+          "kind": "unavailable",
+          "reason": "The runtime workload, authorised runtime operation and actual runtime results are unavailable."
+        },
+        "criterion": "Metadata cannot substitute for runtime observations.",
+        "requirement": "R8",
+        "role": "support",
+        "scope": null,
+        "target": "G2"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "a1b16c3fbe3e81c805cddab979f352bc918832887b0e789a500e324d4fb16500"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_5239_review",
+      "input": {
+        "acceptance": {
+          "kind": "unavailable",
+          "reason": "No actual implementation counterexample is supplied."
+        },
+        "criterion": "Positive activation requires a concrete false positive and cannot be inferred from missing qualification.",
+        "requirement": "R9",
+        "role": "challenge_activation",
+        "scope": null,
+        "target": "D1"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "a1b16c3fbe3e81c805cddab979f352bc918832887b0e789a500e324d4fb16500"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_523130_review",
+      "input": {
+        "acceptance": {
+          "kind": "unavailable",
+          "reason": "No implementation assessment or frozen verification results are available."
+        },
+        "criterion": "Resolution needs a coverage argument and implementation correspondence rather than merely the absence of a known counterexample.",
+        "requirement": "R10",
+        "role": "challenge_resolution",
+        "scope": null,
+        "target": "D1"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    },
+    {
+      "context": {
+        "engarg_export_digest": "a1b16c3fbe3e81c805cddab979f352bc918832887b0e789a500e324d4fb16500"
+      },
+      "environment": "engarg_case",
+      "evidence_id": "requirement_523131_review",
+      "input": {
+        "acceptance": {
+          "criterion": "A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.",
+          "kind": "judgement"
+        },
+        "criterion": "A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.",
+        "requirement": "R11",
+        "role": "support",
+        "scope": null,
+        "target": "W2"
+      },
+      "tool": "engarg_review_contract",
+      "tool_version": "1"
+    }
+  ],
+  "schema": "engarg.executable-package/1",
+  "source_digest": "1eed6cfe2ec7a506da59e23acb510ea1d815d5e58a0450d565b12380834361f0"
+}

@@ -1,0 +1,313 @@
+language "EAL/4"
+
+// Authored EngArg projection. Review contracts are not observations.
+// Keep the JSON export bundle for the complete canonical source and source map.
+
+environment engarg_case {
+  require engarg_export_digest == "a1b16c3fbe3e81c805cddab979f352bc918832887b0e789a500e324d4fb16500"
+}
+
+tool engarg_review_contract {
+  version "1"
+}
+
+tool source_646570656e64656e63795f6175646974 {
+  version "1"
+}
+
+evidence acquisition_646570656e64656e63795f6175646974 {
+  tool source_646570656e64656e63795f6175646974
+  kind observation
+  environment engarg_case
+  max_age 3600
+  input {"image_id":"sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2","metadata_directory":"/tmp","roots":["dowhy==0.14","causal-learn==0.1.4.8"]}
+  require true
+}
+
+evidence requirement_5231 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/satisfied"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (equal(values.v0, true)) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5232 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (equal(values.v0, true)) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5233 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/violations_count"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (exact_compare(values.v0, 0, "==", "1")) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5234 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/checked_distributions"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (exact_compare(values.v0, 2, ">=", "1")) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5235 {
+  kind calculation
+  environment engarg_case
+  max_age 3600
+  input {"values":{"coverage0":null,"v0":null}}
+  bind "/values/v0" from acquisition_646570656e64656e63795f6175646974 "/checked_requirements"
+  bind "/values/coverage0" from acquisition_646570656e64656e63795f6175646974 "/inventory_complete"
+  derive object("accepted", (exact_compare(values.v0, 2, ">=", "1")) and (values.coverage0 == true))
+  require accepted == true
+}
+
+evidence requirement_5236_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"kind":"unavailable","reason":"The host binding interface and actual execution provenance have not been supplied."},"criterion":"A program cannot attest its own image from a caller-provided label.","requirement":"R6","role":"support","scope":null,"target":"A1"}
+  require true
+}
+
+evidence requirement_5236 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_5236_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_5237_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"kind":"unavailable","reason":"No generated implementation, frozen verification cases or assessment exists."},"criterion":"The specification provides an algorithmic candidate but does not prove implementation fidelity.","requirement":"R7","role":"support","scope":null,"target":"W1"}
+  require true
+}
+
+evidence requirement_5237 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_5237_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_5238_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"kind":"unavailable","reason":"The runtime workload, authorised runtime operation and actual runtime results are unavailable."},"criterion":"Metadata cannot substitute for runtime observations.","requirement":"R8","role":"support","scope":null,"target":"G2"}
+  require true
+}
+
+evidence requirement_5238 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_5238_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_5239_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"kind":"unavailable","reason":"No actual implementation counterexample is supplied."},"criterion":"Positive activation requires a concrete false positive and cannot be inferred from missing qualification.","requirement":"R9","role":"challenge_activation","scope":null,"target":"D1"}
+  require true
+}
+
+evidence requirement_5239 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_5239_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_523130_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"kind":"unavailable","reason":"No implementation assessment or frozen verification results are available."},"criterion":"Resolution needs a coverage argument and implementation correspondence rather than merely the absence of a known counterexample.","requirement":"R10","role":"challenge_resolution","scope":null,"target":"D1"}
+  require true
+}
+
+evidence requirement_523130 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_523130_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence requirement_523131_review {
+  tool engarg_review_contract
+  kind review
+  environment engarg_case
+  max_age 86400
+  input {"acceptance":{"criterion":"A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.","kind":"judgement"},"criterion":"A scoped assessment accepts the operator-defined smoke tests as sufficient only for the stated runtime smoke-test target in the selected image.","requirement":"R11","role":"support","scope":null,"target":"W2"}
+  require true
+}
+
+evidence requirement_523131 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"review":null}
+  bind "/review" from requirement_523131_review ""
+  derive object("accepted", pending.required_observation)
+  require accepted == true
+}
+
+evidence target_support_4731 {
+  kind calculation
+  environment engarg_case
+  max_age 86400
+  input {"values":{"r0":null,"r1":null,"r2":null,"r3":null,"r4":null}}
+  bind "/values/r0" from requirement_5231 "/accepted"
+  bind "/values/r1" from requirement_5232 "/accepted"
+  bind "/values/r2" from requirement_5233 "/accepted"
+  bind "/values/r3" from requirement_5234 "/accepted"
+  bind "/values/r4" from requirement_5235 "/accepted"
+  derive object("accepted", values.r0 == true and values.r1 == true and values.r2 == true and values.r3 == true and values.r4 == true)
+  require accepted == true
+}
+
+assumption assumption_4131 {
+  statement "The host binds the audit to the selected image running Python 3.13 with packaging 26.3 and confines metadata reads to the selected directory."
+  environment engarg_case
+  validate requirement_5236
+}
+
+claim claim_63757272656e745f636c61696d {
+  statement "The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras.\nQualifier: Unsupported pending an actual complete audit, host binding confirmation and implementation qualification.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+claim claim_7374726f6e6765725f746172676574 {
+  statement "The selected image satisfies the metadata predicate and both roots import and pass every API assertion in an operator-defined runtime smoke-test workload.\nQualifier: Conditional on the metadata predicate and separately defined, collected and assessed runtime smoke-test evidence.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+claim ground_4731 {
+  statement "The complete selected-directory audit returns satisfied=true and inventory_complete=true with violations_count=0 and checked_distributions>=2 and checked_requirements>=2.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_4731 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_4731 = [evidence target_support_4731] via ground_reasoning_4731 => ground_4731
+
+claim ground_4732 {
+  statement "Both root packages import and pass every assertion in an operator-defined API smoke-test workload in the selected image.\nOriginal ground status: Missing.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+reasoning ground_reasoning_4732 {
+  method "structured/1"
+  rationale "Canonical acquisition and acceptance conditions support only the stated bounded ground. Authored interpretation is not mechanically proved."
+}
+
+argument ground_argument_4732 = [evidence requirement_5238] via ground_reasoning_4732 => ground_4732
+
+claim route_5731 {
+  statement "Candidate support for: The selected image's installed metadata contains dowhy==0.14 and causal-learn==0.1.4.8 and satisfies every applicable declared runtime dependency constraint reachable from these roots in its Python 3.13 environment with no explicitly requested root extras.\nQualifier: Unsupported pending an actual complete audit, host binding confirmation and implementation qualification.\nRule: A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate.\nOriginal inference: Deductive.\nApplicability: The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+reasoning warrant_5731 {
+  method "structured/1"
+  rationale "A complete and faithful audit with matching roots and no reachable applicable dependency violations entails the scoped metadata predicate.\nOriginal inference: Deductive; retained as authored structured/1, not a computational certificate.\nApplicability: The finite inventory and reachable closure must be complete under A1 and the implementation must faithfully apply PEP508 markers and PEP440 constraints with transitive extras."
+  backing [requirement_5237]
+}
+
+// Missing formal model or evidence keeps this route unavailable.
+evidence reasoning_unresolved_5731 {
+  kind unavailable_method
+  environment engarg_case
+  max_age 0
+  input {"binding":{"evidence_need_ids":["N1","N2","N3","N5"],"method":"deductive","reasons":["The needed coverage argument concerns finite metadata enumeration and a package-extra fixed-point algorithm rather than bounded propositional entailment alone.","No implementation assessment establishes correspondence between the proposed audit outputs and the claimed universal predicate."],"status":"unresolved"},"case_digest":"a1b16c3fbe3e81c805cddab979f352bc918832887b0e789a500e324d4fb16500","schema":"engarg.reasoning-unresolved/1","warrant_id":"W1"}
+  derive object("method_available", pending.method_available)
+  require method_available == true
+}
+
+argument route_argument_5731 = [evidence reasoning_unresolved_5731, requirement_523130, requirement_5237, assumptions assumption_4131, premises ground_4731] via warrant_5731 => route_5731
+
+claim route_5732 {
+  statement "Candidate support for: The selected image satisfies the metadata predicate and both roots import and pass every API assertion in an operator-defined runtime smoke-test workload.\nQualifier: Conditional on the metadata predicate and separately defined, collected and assessed runtime smoke-test evidence.\nRule: Accept the limited runtime target only when the metadata inference is adequate and actual runtime evidence passes every assertion in the assessed operator-defined smoke-test workload.\nOriginal inference: Practical.\nApplicability: The workload is defined before testing and its adequacy is assessed only for the limited smoke-test target in the same image.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}"
+  environment engarg_case
+}
+
+reasoning warrant_5732 {
+  method "structured/1"
+  rationale "Accept the limited runtime target only when the metadata inference is adequate and actual runtime evidence passes every assertion in the assessed operator-defined smoke-test workload.\nOriginal inference: Practical; retained as authored structured/1, not a computational certificate.\nApplicability: The workload is defined before testing and its adequacy is assessed only for the limited smoke-test target in the same image."
+  backing [requirement_523131]
+}
+
+argument route_argument_5732 = [evidence requirement_523131, premises ground_4731, ground_4732] via warrant_5732 => route_5732
+
+reasoning composition_reasoning_63757272656e745f636c61696d {
+  method "structured/1"
+  rationale "Declared JointlyRequired relationship. The single route requires the complete audit ground under the selected image and directory scope. Its adequacy depends on faithful audit semantics and host execution identity, neither of which is established by this authored plan.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review."
+}
+
+argument composition_argument_63757272656e745f636c61696d = [premises route_5731] via composition_reasoning_63757272656e745f636c61696d => claim_63757272656e745f636c61696d
+
+reasoning composition_reasoning_7374726f6e6765725f746172676574 {
+  method "structured/1"
+  rationale "Declared JointlyRequired relationship. The broader target jointly requires metadata consistency and separate runtime evidence for an operator-defined smoke-test workload in the same image. Metadata evidence is shared rather than counted as independent runtime confirmation.\nFor alternatives only the selected route is relied upon; other routes remain separately queryable. Cumulative combination sufficiency requires review."
+}
+
+argument composition_argument_7374726f6e6765725f746172676574 = [premises route_5732] via composition_reasoning_7374726f6e6765725f746172676574 => claim_7374726f6e6765725f746172676574
+
+claim assumption_condition_4131 {
+  statement "A usable native EAL validation supports this assumption: The host binds the audit to the selected image running Python 3.13 with packaging 26.3 and confines metadata reads to the selected directory.\nEngineering scope: {\"system_boundary\":\"Installed distribution metadata in /usr/local/lib/python3.13/site-packages in the selected immutable image.\",\"configuration\":\"Image sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2 with roots [\\\"dowhy==0.14\\\",\\\"causal-learn==0.1.4.8\\\"] and no explicitly requested root extras.\",\"operating_conditions\":\"Read actual installed metadata under Python 3.13 using packaging 26.3 without network access or package installation and without shell execution or host filesystem access.\",\"units\":\"Boolean predicates and dimensionless counts.\",\"time_horizon\":\"One actual audit observation accepted for at most 3600 seconds from its original observation time.\",\"consequences\":\"A false positive could authorise use of an inconsistent declared dependency closure, while an acquisition failure only withholds a conclusion.\"}\nOther authored conditions remain attached to the original applications."
+  environment engarg_case
+}
+
+reasoning assumption_condition_reasoning_4131 {
+  method "structured/1"
+  rationale "The explicit canonical validation and the native EAL assumption are jointly required. This bridge retains assumption attacks when an objection relies on the assumption; it does not establish truth independently."
+}
+
+argument assumption_condition_argument_4131 = [evidence requirement_5236, assumptions assumption_4131] via assumption_condition_reasoning_4131 => assumption_condition_4131
+
+objection objection_4431 = [evidence requirement_5239] -x> reasoning warrant_5731
+

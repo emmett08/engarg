@@ -1,0 +1,135 @@
+{
+  "schema": "engarg.recorded-claim-investigation/1",
+  "scope": "Historical installed-distribution metadata investigation, not a binary/API/scientific validity claim.",
+  "artifact_policy": "Native package, canonical argument/support, frozen contract and candidate copied byte-for-byte; collections and assessments are structured JSON extracts of real EAL responses. This summary supplies no new observation or review.",
+  "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+  "native_generation": {
+    "producer_engarg_sha256": "4aec363228f57e6290d6d821fa68d5863ffea4340c4297d261252c492c994928",
+    "successful_attempt_coding_calls": 1,
+    "verified_operations": 1,
+    "receipt_schema": "engarg.tool-tests/3",
+    "passed_cases": 10,
+    "receipt": "package/tools/generated/dependency_audit/verification.json",
+    "frozen_contract": "frozen-contract.json",
+    "frozen_candidate": "frozen-candidate.json",
+    "prior_attempts": [
+      "An earlier constructor incorrectly froze historical prerelease behavior. Its result was rejected after independent Packaging 26.3 API inspection; the public eal revise workflow records the explicit specification correction in support.json.",
+      "The first corrected implementation attempt stopped at a Docker snapshot creation timeout, after six passing cases. The successful attempt reused the frozen corrected contract with unchanged criteria and no manual source edits."
+    ]
+  },
+  "current_release_continuation": {
+    "engarg_sha256": "419b63cba906015c2228c4c7b40ddcb9c1bded54c4e3d9bf959f34f90b865d99",
+    "model_calls": 0,
+    "provider_credentials_removed": true,
+    "authored_report_snapshot_retained": true,
+    "glossary_tooltips_checked": 174
+  },
+  "runs": {
+    "positive": {
+      "source_digest": "1eed6cfe2ec7a506da59e23acb510ea1d815d5e58a0450d565b12380834361f0",
+      "executable_digest": "0fdf3032d661148b89779a297b1e58a39c43e6754f0997f5c277c899f5d8196f",
+      "collection": "positive/collection.json",
+      "assessment": "positive/assessment.json",
+      "observation_time": "2026-10-28T10:33:53.059406Z",
+      "input": {
+        "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+        "metadata_directory": "/usr/local/lib/python3.13/site-packages",
+        "roots": [
+          "dowhy==0.14",
+          "causal-learn==0.1.4.8"
+        ]
+      },
+      "data_digest": "2d8df5751f80b6c13d39b7d3e4d4a867a67735ff279642ceb42f8a13ae89ec40",
+      "input_digest": "8aa3751974eaa6ae2123a5281a8a4bb250cb41af9ef4a77ce2f2d8db2d9836bd",
+      "tool_binding_digest": "ee56480617e7a77839e8e4866a072a18b2dc990bf722ddd9bcc0cd0a3cefbafc",
+      "acquisition_status": "ok",
+      "acquisition_returncode": 0,
+      "observed": {
+        "satisfied": true,
+        "inventory_complete": true,
+        "violations_count": 0,
+        "checked_distributions": 50,
+        "checked_requirements": 93
+      },
+      "accepted_requirements": {
+        "R1": true,
+        "R2": true,
+        "R3": true,
+        "R4": true,
+        "R5": true
+      },
+      "valid": true,
+      "complete": true,
+      "claims": {
+        "current_claim": "unsupported",
+        "stronger_target": "unsupported"
+      }
+    },
+    "negative-control": {
+      "source_digest": "ccb807b9e1208c91a3aef9677ba883037e65b83e33e79b6811a2b626a15ed1ea",
+      "executable_digest": "e838c3cfe7a24943ad1902c67d2e3be37c77d4c822ad0b06c319fdcb80bab737",
+      "collection": "negative-control/collection.json",
+      "assessment": "negative-control/assessment.json",
+      "observation_time": "2026-10-28T10:38:10.169604Z",
+      "input": {
+        "image_id": "sha256:b6e5b7c0314ca219a8b51dbfd6c676737240443728c5d00390a00d396ec015a2",
+        "metadata_directory": "/tmp",
+        "roots": [
+          "dowhy==0.14",
+          "causal-learn==0.1.4.8"
+        ]
+      },
+      "data_digest": "c8843acc33038509a7f08aec073ce421ab403f0910da267b8b8293b5d68d79b5",
+      "input_digest": "575b0e874620c4b1ce1852f7a2f78d9bfb889337d064e9ca36e22173d2255798",
+      "tool_binding_digest": "98f2330a1723367c23a40bd9c6e0a1e29aacab525cc62ba0726010dcdaa35a9e",
+      "acquisition_status": "ok",
+      "acquisition_returncode": 0,
+      "observed": {
+        "satisfied": false,
+        "inventory_complete": true,
+        "violations_count": 2,
+        "checked_distributions": 0,
+        "checked_requirements": 2
+      },
+      "accepted_requirements": {
+        "R1": false,
+        "R2": true,
+        "R3": false,
+        "R4": false,
+        "R5": true
+      },
+      "valid": true,
+      "complete": true,
+      "claims": {
+        "current_claim": "unsupported",
+        "stronger_target": "unsupported"
+      }
+    }
+  },
+  "interpretation": [
+    "The five empirical predicates pass on the actual installed metadata. Overall claims remain unsupported because binding/implementation qualification and challenge obligations remain unresolved; no affirmative review was supplied.",
+    "The negative control changes only the metadata-directory input to /tmp and retains source, binding and predicates. It demonstrates rejection for missing roots and does not refute the original image claim.",
+    "Frozen verification cases are synthetic test inputs, separate from the positive and negative actual EAL collections.",
+    "These records retain their original timestamps; inspect them as historical evidence. Rerun to obtain a fresh observation under the authored 3600-second freshness bound.",
+    "The exact local image ID is required by the archived binding. Rebuilding another image requires a new explicitly scoped investigation and native export, not edits to these archived pins."
+  ],
+  "files_sha256": {
+    "argument.json": "f2fda0f6a3f269e3c6c8cf291edfe56472f37852ce9be20c1b0dcf5faf385a3f",
+    "frozen-candidate.json": "693b65f62623afc395d72e1200911334635b77fece91e876c1ed6a6810e6c8ad",
+    "frozen-contract.json": "54d16e4b8fcb33a71b7f2add2da1560fbfce049d3a8ae4723bb59d36f41575bd",
+    "negative-control/assessment.json": "bce114587f2fc533d93139002d689597a6893f4002f2671d5f72f4d048eba0ee",
+    "negative-control/case.eal": "ccb807b9e1208c91a3aef9677ba883037e65b83e33e79b6811a2b626a15ed1ea",
+    "negative-control/collection.json": "0e4d23c60fd087870208ce7535aaeb561f44653b12c4cd5a7efecb3c674eeb62",
+    "package/build.json": "f013a11d554a7d2b47dfbbd958c07d24dcdb5f8824563cdbd1c8f8f44e0d2ccd",
+    "package/case.eal": "1eed6cfe2ec7a506da59e23acb510ea1d815d5e58a0450d565b12380834361f0",
+    "package/tools/generated/dependency_audit/input.schema.json": "0b6803c30a8605552c64c80a3fb43343ecdc7e40281981eca9878b3607bd4a7c",
+    "package/tools/generated/dependency_audit/output.schema.json": "47e8f1c47ebf8d219f77cd83816662413280168bd0f83ba6fad74766c4721ae1",
+    "package/tools/generated/dependency_audit/source/collector.py": "f7c7b9993e27b9dcb41524e54e1e1ec9ad4aa0310c1fa7c6d397d0f20e95af9c",
+    "package/tools/generated/dependency_audit/tool.toml": "dde2127ab1e6a07c6f0cf4d1e001857e54a0bc00112ba3d37fccf3f75a5bca8b",
+    "package/tools/generated/dependency_audit/verification.json": "5ca11af959205e5c6d80873905b3c1747400a95931b6eb53e2e6cb32705fc3f8",
+    "package/tools.toml": "592d96f87deb8bd1ab4efa02788daf41b0b56ccd3c5f45f1b394538bd46d5d72",
+    "positive/assessment.json": "294b574e205434a7a794688d80866b1c77c3156fa2475f59f9a911fbdbde6925",
+    "positive/collection.json": "abeee55a4cbcac81d97027f0612d6c76000e28e347ff6b7bbe000fdb7a49e633",
+    "support.json": "e799bd8a279e0177f45b51967f5d6a68f514e67b6e4be8a81fd66ced0de0b8f7"
+  }
+}
