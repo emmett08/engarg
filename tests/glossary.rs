@@ -44,7 +44,7 @@ fn an_unknown_role_code_reports_an_actionable_error() {
 }
 
 #[test]
-fn html_keeps_definitions_once_inside_a_closed_native_disclosure() {
+fn html_keeps_canonical_definitions_once_and_links_tooltips_to_the_closed_glossary() {
     let request: Request = serde_json::from_str(include_str!("../examples/request.json")).unwrap();
     let case: ArgumentCase = serde_json::from_str(include_str!("../examples/case.json")).unwrap();
     let output = presentations::html(&request, &case).unwrap();
@@ -69,7 +69,9 @@ fn html_keeps_definitions_once_inside_a_closed_native_disclosure() {
             .replace('"', "&quot;")
             .replace('\'', "&#39;");
         assert!(body.contains(&definition), "missing {}", entry.code);
-        assert_eq!(output.matches(&definition).count(), 1, "{}", entry.code);
+        assert_eq!(body.matches(&definition).count(), 1, "{}", entry.code);
+        let target = format!("glossary-{}", anchor(&entry.code));
+        assert_eq!(output.matches(&format!("id=\"{target}\"")).count(), 1);
     }
 
     let limits = RenderLimits {
@@ -80,4 +82,14 @@ fn html_keeps_definitions_once_inside_a_closed_native_disclosure() {
         presentations::html_with_limits(&request, &case, None, limits),
         Err(RenderError::ResourceLimit("output bytes"))
     );
+}
+
+fn anchor(id: &str) -> String {
+    format!(
+        "node-{}",
+        id.as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
+    )
 }
