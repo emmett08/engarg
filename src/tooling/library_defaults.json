@@ -40,11 +40,30 @@
         "guidance": "Use refutation or graph falsification for the stated assumptions; passing a test does not prove causal validity."
       }
     ],
+    "abductive": [
+      {
+        "package": "pgmpy",
+        "reference": "https://github.com/pgmpy/pgmpy",
+        "guidance": "Posterior or MAP queries over supplied finite hypotheses, priors, conditional probability tables and observations; retain candidate-set and likelihood-model adequacy obligations and impossible evidence. Do not invent hypotheses or priors or treat the highest posterior as causal proof."
+      }
+    ],
+    "inductive": [
+      {
+        "package": "scipy",
+        "reference": "https://github.com/scipy/scipy",
+        "guidance": "Statistical estimation, tests and uncertainty for explicitly sampled observations; retain population, trial identities, exclusions and sampling assumptions. Do not substitute another interval for an authored Wilson bound or refresh source observation times."
+      },
+      {
+        "package": "scikit-learn",
+        "reference": "https://github.com/scikit-learn/scikit-learn",
+        "guidance": "Use only when the operation requires predictive fitting or validation, with declared features, split identities, leakage controls and held-out observations. Training fit does not establish generalisation, sampling adequacy or causality."
+      }
+    ],
     "counterfactual": [
       {
         "package": "dowhy",
         "reference": "https://github.com/py-why/dowhy",
-        "guidance": "Use graphical causal mechanisms with explicit interventions and factual conditioning; model-dependent results are not new observations."
+        "guidance": "Use gcm.counterfactual_samples with a supplied structural causal model and the same factual exogenous context under the intervention. Observed-data noise reconstruction requires invertible mechanisms; otherwise supply justified noise data. Interventional samples or predictive feature recourse are not individual counterfactuals; retain model adequacy obligations."
       }
     ],
     "statistical_inference": [
@@ -111,11 +130,25 @@
     "causal_identification": [],
     "causal_estimation": [],
     "causal_testing": [],
+    "abductive": [
+      {
+        "package": "statrs",
+        "reference": "https://github.com/statrs-dev/statrs",
+        "guidance": "Distribution PMF or interval-mass primitives for an explicitly supplied finite hypothesis and observation model; preserve priors, alternatives, uncertainty and a nonzero finite evidence normaliser. A density is not a probability mass. This is not a hypothesis-discovery or Bayesian-network engine."
+      }
+    ],
+    "inductive": [
+      {
+        "package": "statrs",
+        "reference": "https://github.com/statrs-dev/statrs",
+        "guidance": "Statistical summaries and distribution functions for declared samples, populations and uncertainty; retain trial identities and exclusions. Do not replace native Wilson-count semantics with another interval or treat a fitted model as sampling-design validation."
+      }
+    ],
     "counterfactual": [
       {
-        "package": "deep_causality",
-        "reference": "https://github.com/deepcausality-rs/deep_causality",
-        "guidance": "Dynamic causal model interventions and what-if runs; preserve accepted mechanisms, context and factual conditioning."
+        "package": "nalgebra",
+        "reference": "https://github.com/dimforge/nalgebra",
+        "guidance": "Linear-algebra primitives only for a supplied bounded affine structural causal model with fixed factual exogenous context. Replace the intervened structural equation, preserve the other mechanisms, and reject singular, nonfinite or unsupported systems. No causal identification, generic SCM engine or invented model; retain numerical tolerances and model adequacy obligations."
       }
     ],
     "statistical_inference": [
@@ -166,7 +199,27 @@
     "causal_identification": [],
     "causal_estimation": [],
     "causal_testing": [],
-    "counterfactual": [],
+    "abductive": [
+      {
+        "package": "gonum.org/v1/gonum/stat/distuv",
+        "reference": "https://pkg.go.dev/gonum.org/v1/gonum/stat/distuv",
+        "guidance": "Distribution probability-mass or interval-mass primitives for supplied finite hypotheses, priors and observation models; retain candidate-set adequacy and require a nonzero finite evidence normaliser. Densities are not probability masses. No automatic hypothesis discovery or Bayesian-network engine."
+      }
+    ],
+    "inductive": [
+      {
+        "package": "gonum.org/v1/gonum/stat",
+        "reference": "https://pkg.go.dev/gonum.org/v1/gonum/stat",
+        "guidance": "Statistical summaries and estimators for declared samples and populations; retain original trial identities, exclusions, sampling assumptions and uncertainty. Native Wilson-count semantics and authored acceptance criteria remain unchanged."
+      }
+    ],
+    "counterfactual": [
+      {
+        "package": "gonum.org/v1/gonum/mat",
+        "reference": "https://pkg.go.dev/gonum.org/v1/gonum/mat",
+        "guidance": "Matrix primitives only for a supplied bounded affine structural causal model with fixed factual exogenous context. Replace the intervened equation; require a square full-rank system and reject conditioning, nonfinite or unsupported-model failures. Never use least-squares output to resolve an unidentified causal model. No general causal engine."
+      }
+    ],
     "statistical_inference": [
       {
         "package": "gonum.org/v1/gonum/stat",
@@ -216,7 +269,27 @@
     ],
     "causal_estimation": [],
     "causal_testing": [],
-    "counterfactual": [],
+    "abductive": [
+      {
+        "package": "mathjs",
+        "reference": "https://github.com/josdejong/mathjs",
+        "guidance": "Numerical primitives for explicitly supplied finite hypotheses, priors and likelihoods: form weights and normalise only a positive finite evidence mass. Retain alternative hypotheses and likelihood uncertainty; this is not a Bayesian-network, hypothesis-discovery or causal-proof engine. Use its declared precision and matching module API."
+      }
+    ],
+    "inductive": [
+      {
+        "package": "simple-statistics",
+        "reference": "https://github.com/simple-statistics/simple-statistics",
+        "guidance": "Statistical summaries, regression or declared tests over actual sampled observations; retain population, sampling design, trial identities, exclusions and uncertainty. Training fit is not held-out validation, and a library must not substitute another interval for an authored Wilson bound."
+      }
+    ],
+    "counterfactual": [
+      {
+        "package": "mathjs",
+        "reference": "https://github.com/josdejong/mathjs",
+        "guidance": "Matrix primitives only for a supplied bounded affine structural causal model; preserve the factual exogenous context and replace the intervened equation. Check dimensions, residuals, finite values and unique solvability; solver success alone does not prove uniqueness. Reject unsupported models. No generic SCM engine, causal identification or feature-recourse substitution."
+      }
+    ],
     "statistical_inference": [
       {
         "package": "simple-statistics",
@@ -266,7 +339,27 @@
     ],
     "causal_estimation": [],
     "causal_testing": [],
-    "counterfactual": [],
+    "abductive": [
+      {
+        "package": "mathjs",
+        "reference": "https://github.com/josdejong/mathjs",
+        "guidance": "Numerical primitives for explicitly supplied finite hypotheses, priors and likelihoods: form weights and normalise only a positive finite evidence mass. Retain alternative hypotheses and likelihood uncertainty; this is not a Bayesian-network, hypothesis-discovery or causal-proof engine. Use bundled declarations and matching module settings."
+      }
+    ],
+    "inductive": [
+      {
+        "package": "simple-statistics",
+        "reference": "https://github.com/simple-statistics/simple-statistics",
+        "guidance": "Statistical summaries, regression or declared tests over actual sampled observations; retain population, sampling design, trial identities, exclusions and uncertainty. Training fit is not held-out validation. Preserve authored Wilson bounds and use bundled declarations with matching module settings."
+      }
+    ],
+    "counterfactual": [
+      {
+        "package": "mathjs",
+        "reference": "https://github.com/josdejong/mathjs",
+        "guidance": "Typed matrix primitives only for a supplied bounded affine structural causal model; preserve the factual exogenous context and replace the intervened equation. Check dimensions, residuals, finite values and unique solvability; solver success alone does not prove uniqueness. Reject unsupported models. No generic SCM engine, causal identification or feature-recourse substitution. Use bundled declarations and matching module settings."
+      }
+    ],
     "statistical_inference": [
       {
         "package": "simple-statistics",

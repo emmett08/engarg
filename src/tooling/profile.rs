@@ -185,4 +185,28 @@ mod tests {
             assert_eq!(loaded.profile.language, language);
         }
     }
+
+    #[test]
+    fn prepared_evidence_example_overrides_families_without_expanding_runtime_authority() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/toolchains/python-evidence.json");
+        let configuration = ToolchainConfiguration::load(&path).unwrap();
+        let resolved = configuration.libraries.resolve("python").unwrap();
+        assert!(!configuration.libraries.use_defaults);
+        assert_eq!(resolved.tasks["abductive"].choices[0].package, "scipy");
+        assert_eq!(
+            resolved.tasks["inductive"].choices[1].package,
+            "scikit-learn"
+        );
+        assert_eq!(resolved.tasks["counterfactual"].choices[0].package, "dowhy");
+        assert!(resolved.tasks.values().all(|rule| {
+            rule.source == crate::tooling::library_policy::LibrarySource::Operator
+                && rule.choices.iter().all(|choice| choice.version.is_some())
+        }));
+        let runtime = serde_json::to_value(&configuration.profile).unwrap();
+        assert_eq!(runtime["schema"], TOOLCHAIN_SCHEMA);
+        assert!(runtime.get("generation").is_none());
+        assert_eq!(runtime["runtime_network"], "none");
+        assert_eq!(runtime["inherit_env"], json!([]));
+    }
 }
