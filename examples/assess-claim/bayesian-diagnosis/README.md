@@ -1,5 +1,9 @@
 # Controlled Bayesian diagnosis with a generated pgmpy tool
 
+[Browse the argument in HTML](argument.html). The presentation keeps the authored
+conditional state beside the dated EAL result. Rendering preserves the original
+observation and review times.
+
 This investigation computes a consequence of the stipulated **PS-DIAG/1** model.
 It makes no claim about hardware failure rates, a diagnostic population or
 empirical causal validity. The [qualified native run](recorded/positive/execution.json)

@@ -27,6 +27,9 @@ and a completed EAL-host assessment, with measured-negative and missing-binding
 controls. [Prepared language images](docs/prepared-toolchain-verification.md)
 supply the pinned evidence packages before execution.
 
+Browse the [HTML argument examples](examples/assess-claim/index.html) to inspect
+the qualified investigations and the historical unsupported argument.
+
 For contributors, [architecture](docs/EXECUTABLE_ARCHITECTURE.md) explains the
 responsibility boundaries and [verification](docs/VALIDATION.md) gives the
 repository and installed-runtime checks. [Evaluation](docs/EVALUATION.md)

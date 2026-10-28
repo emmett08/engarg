@@ -1,5 +1,9 @@
 # Completed qualification of the real metadata claim
 
+[Browse the argument in HTML](argument.html). It preserves the authored
+unsupported assessment beside the later supported EAL outcome, with the original
+observation and review times.
+
 The [recorded EAL result](result.json) supports the current metadata claim for
 the exact immutable Python image and roots. On 28 October 2026 at
 12:26:39 UTC, the generated tool read 50 distributions, checked 93 applicable

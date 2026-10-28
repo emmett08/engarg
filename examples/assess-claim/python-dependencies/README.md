@@ -1,5 +1,10 @@
 # Assess the actual Python dependency environment
 
+Browse the [historical argument in HTML](recorded/argument.html) or the
+[completed qualification in HTML](qualified/argument.html). Each presentation
+keeps its authored state beside the dated EAL outcome and preserves the original
+observation and review times.
+
 This bounded claim asks whether the installed metadata for DoWhy 0.14 and
 causal-learn 0.1.4.8, and their reachable applicable runtime requirements, is
 consistent in the selected immutable image. It concerns real installed metadata.

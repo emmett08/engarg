@@ -66,6 +66,26 @@ conditions. Their full statements appear in the disclosure body, outside
 argument. Those conditions remain available when the display-depth setting omits
 deeper derivations.
 
+The [recorded HTML examples](../examples/assess-claim/index.html) present the
+Bayesian diagnosis, the qualified Python metadata claim and its earlier
+unsupported investigation. Their argument views preserve the admitted authored
+states; a separate context note identifies each dated EAL result and links to
+the retained assessment. Rendering preserves the original observation and review
+clocks.
+
+From the repository root, regenerate these pages with the public renderer:
+
+```sh
+python3 scripts/render-example-arguments.py --engarg /path/to/engarg
+```
+
+Use `--check` to compare the recorded pages with fresh rendering without changing
+the files:
+
+```sh
+python3 scripts/render-example-arguments.py --engarg /path/to/engarg --check
+```
+
 ## Append a retained audit safely
 
 `with_audit` accepts a decoded `serde_json::Value`. It checks JSON depth and work
