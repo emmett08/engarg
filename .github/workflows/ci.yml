@@ -68,10 +68,11 @@ jobs:
             --workspace "$RUNNER_TEMP/engarg-eal-probe" \
             --output "$RUNNER_TEMP/engarg-eal-probe/describe.json"
           python3 -c 'import json, os; from pathlib import Path; response=json.loads((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-probe/describe.json").read_text()); assert response["is_error"] is False; assert response["result"]["source_syntax"] == "EAL/4"; assert "structured/1" in response["result"]["methods"]'
-          printf 'EAL_COLLECTOR=%s\nENGARG_EAL_HOST=%s\n' \
-            "$engarg_runtime_root/bin/eal-collector" "$engarg_runtime_host" >> "$GITHUB_ENV"
+          printf 'EAL_COLLECTOR=%s\nENGARG_EAL_HOST=%s\nENGARG_EAL_CORE=%s\n' \
+            "$engarg_runtime_root/bin/eal-collector" "$engarg_runtime_host" \
+            "$engarg_runtime_root/bin/eal-core" >> "$GITHUB_ENV"
       - name: Execute installed EAL packages and reasoning modes
-        run: cargo test --locked --test executable_package --test executable_modes --test support_cli -- --ignored
+        run: cargo test --locked --test executable_package --test executable_modes --test support_cli --test aspic_view -- --ignored
 
   prepared-toolchains:
     name: Prepared evidence APIs (${{ matrix.family }})
@@ -187,12 +188,13 @@ jobs:
           export EAL_COLLECTOR="$PWD/.eal-producer/target/debug/eal-collector"
           export ENGARG_EAL_COORDINATE="$PWD/.eal-producer/target/debug/eal-coordinate"
           export EAL_CORE="$PWD/.eal-producer/target/debug/eal-core"
+          export ENGARG_EAL_CORE="$EAL_CORE"
           test -x "$ENGARG_EAL_HOST"
           test -x "$EAL_CORE"
           test -x "$ENGARG_EAL_COORDINATE"
           cargo +1.99.1 test --locked --test tooling_docker generated_interface_native_preflight -- --ignored
           cargo +1.99.1 test --locked --test eal_live --test eal_export --test native_collectors --test collector_catalogue_live -- --ignored
-          cargo +1.99.1 test --locked --test catalogue_workflow_native --test executable_package --test executable_modes -- --ignored
+          cargo +1.99.1 test --locked --test catalogue_workflow_native --test executable_package --test executable_modes --test aspic_view -- --ignored
 
           # Keep one real CLI/coordinator smoke check in automatic compatibility.
           # Exhaustive native topology/ticket sweeps run in ticket-acceptance.yml.

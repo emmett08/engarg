@@ -90,6 +90,14 @@ Claim support additionally depends on the criterion, applicable assumptions,
 reasoning and material challenges. Keep these distinctions when examining an
 unsupported result or deciding whether to revise the argument.
 
+To inspect the completed run as a finite ASPIC+ graph, use
+`engarg eal export-aspic --input investigation/case.eal --execution execution.json
+--eal-core "$EAL_BIN/eal-core" --output aspic-view.json`. This produces a separate
+`aspic-view/3` file for the companion visualiser. It preserves the retained
+observations and assessment clock without executing collectors. See
+[snapshot export](USAGE.md#inspect-an-aspic-snapshot) for method profiles, resource
+limits and the distinction between authored status and formal results.
+
 ## Verify portability and correspondence
 
 The package integration tests move only executable artefacts to a new workspace,
