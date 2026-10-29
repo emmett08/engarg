@@ -8,13 +8,13 @@ use engarg::{
 };
 use serde_json::{Value, json};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     io::Read,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 fn script(directory: &Path, body: &str) -> PathBuf {
@@ -296,6 +296,51 @@ async fn wait_for_descendant_shutdown(reader: &mut fs::File) -> bool {
     .unwrap_or(false)
 }
 
+fn fixture_process_snapshot(directory: &Path, fixture_pids: &[u32]) -> String {
+    let output = std::process::Command::new("/bin/ps")
+        .args(["-axo", "pid,ppid,pgid,state,command"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).unwrap();
+    let rows = text
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            Some((
+                fields.next()?.parse::<u32>().ok()?,
+                fields.next()?.parse::<u32>().ok()?,
+                line,
+            ))
+        })
+        .collect::<Vec<_>>();
+    let mut selected = fixture_pids.iter().copied().collect::<HashSet<_>>();
+    // Include the supervising process once, then only descendants of the
+    // selected fixture tree. Do not include unrelated host process commands.
+    if let Some((_, parent, _)) = rows.iter().find(|(pid, _, _)| *pid == fixture_pids[0]) {
+        selected.insert(*parent);
+    }
+    let root = directory.to_str().unwrap();
+    loop {
+        let previous = selected.len();
+        for (pid, parent, line) in &rows {
+            if selected.contains(parent) || line.contains(root) {
+                selected.insert(*pid);
+            }
+        }
+        if previous == selected.len() {
+            break;
+        }
+    }
+    std::iter::once("PID PPID PGID STATE COMMAND")
+        .chain(
+            rows.iter()
+                .filter_map(|(pid, _, line)| selected.contains(pid).then_some(*line)),
+        )
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[tokio::test]
 async fn deadline_and_caller_cancellation_stop_process_descendants() {
     for cancelled in [false, true] {
@@ -304,12 +349,17 @@ async fn deadline_and_caller_cancellation_stop_process_descendants() {
         let escaped = root.path().join("escaped");
         let effect_gate = root.path().join("allow-effect");
         let stop_gate = root.path().join("stop-fixture");
+        let options = root.path().join("shell-options");
+        let parent_pid = root.path().join("parent-pid");
+        let descendant_pid = root.path().join("descendant-pid");
         let (lifetime, mut reader) = descendant_lifetime(root.path());
         // The deadline constrains the owned process tree. A shell fixture
         // avoids measuring two cold Python interpreter startups on macOS.
         let executable = shell_script(
             root.path(),
             r#"
+set -o > "$6"
+printf '%s\n' "$$" > "$7"
 (
     trap '' TERM
     exec 3>"$3"
@@ -323,6 +373,7 @@ async fn deadline_and_caller_cancellation_stop_process_descendants() {
         printf escaped > "$2"
     fi
 ) &
+printf '%s\n' "$!" > "$8"
 wait
 "#,
         );
@@ -333,6 +384,9 @@ wait
             lifetime.to_str().unwrap().into(),
             effect_gate.to_str().unwrap().into(),
             stop_gate.to_str().unwrap().into(),
+            options.to_str().unwrap().into(),
+            parent_pid.to_str().unwrap().into(),
+            descendant_pid.to_str().unwrap().into(),
         ]);
         config.timeout = if cancelled {
             Duration::from_secs(5)
@@ -340,8 +394,20 @@ wait
             Duration::from_millis(400)
         };
         let model = Arc::new(CommandModel::new(config).unwrap());
+        let started = Instant::now();
         let worker = tokio::spawn(async move { model.complete(request()).await });
         wait_for_file(&ready).await;
+        wait_for_file(&descendant_pid).await;
+        let fixture_pids = [&parent_pid, &descendant_pid].map(|path| {
+            fs::read_to_string(path)
+                .unwrap()
+                .trim()
+                .parse::<u32>()
+                .unwrap()
+        });
+        let before_cancellation = fixture_process_snapshot(root.path(), &fixture_pids);
+        let before_cancellation_ms = started.elapsed().as_millis();
+        let shell_options = fs::read_to_string(options).unwrap();
         match reader.read(&mut [0u8; 1]) {
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
             // Opening the writer precedes ready. The deadline may correctly
@@ -358,10 +424,17 @@ wait
             assert!(error.contains("deadline"));
             assert!(error.contains("no automatic retry"));
         }
+        let caller_returned_ms = started.elapsed().as_millis();
         // The caller's deadline does not acknowledge cleanup. The child holds
         // its only FIFO writer throughout execution; EOF establishes that its
         // execution capability has ended, including when an orphan PID lingers.
         let stopped_on_cancellation = wait_for_descendant_shutdown(&mut reader).await;
+        let shutdown_observed_ms = started.elapsed().as_millis();
+        let after_cancellation = if stopped_on_cancellation {
+            String::new()
+        } else {
+            fixture_process_snapshot(root.path(), &fixture_pids)
+        };
         // Clean up a failing bounded fixture without allowing its effect.
         fs::write(&stop_gate, "stop").unwrap();
         let fixture_cleaned_up = wait_for_descendant_shutdown(&mut reader).await;
@@ -371,7 +444,7 @@ wait
         );
         assert!(
             stopped_on_cancellation,
-            "a descendant retained its execution capability after cancellation"
+            "a descendant retained its execution capability: cancelled={cancelled}, before_cancellation_ms={before_cancellation_ms}, caller_returned_ms={caller_returned_ms}, shutdown_observed_ms={shutdown_observed_ms}\nshell options:\n{shell_options}\nbefore cancellation:\n{before_cancellation}\nafter cancellation:\n{after_cancellation}"
         );
         fs::write(effect_gate, "allow effect").unwrap();
         assert!(
