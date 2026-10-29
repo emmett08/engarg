@@ -75,6 +75,14 @@ paired integration coverage.
 | Presentation | Views preserve the canonical graph, qualifications and resource limits. | Presentation unit tests and CLI rendering tests. |
 | ASPIC snapshot export | Exact retained source, observations, context, time and method profile reproduce the authored assessment before checked native export. | `aspic_view` admission tests and installed positive, negative, changed-input, bound and no-overwrite controls. |
 
+The command-provider cancellation regression checks both deadline expiry and
+explicit caller abort. A continuously held FIFO writer makes EOF an observation
+that the descendant has stopped executing, without confusing an orphan zombie
+PID with a live process. Failure diagnostics retain the cancellation mode,
+timings and process groups. The pinned EAL supervisor requests control-pipe
+hangup events on Darwin even after delivering the request; payload-read interest
+remains conditional so blocked collector input does not cause a busy loop.
+
 Focused commands help isolate a failure before the whole run:
 
 ```sh
