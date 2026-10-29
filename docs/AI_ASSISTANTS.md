@@ -84,9 +84,15 @@ Calls use EngArg's process supervisor, explicit environment selection, independe
 stdout/stderr byte bounds and a deadline. Cancellation owns descendant cleanup.
 Command calls have no automatic retries. The logical-call and returned-content
 budgets remain in force. For native presets, `--max-output-tokens` is a prompt
-instruction, not a provider-enforced token cap; process byte and time limits
-remain hard bounds. Logical-call budgets count CLI invocations; a native assistant
+instruction, not a provider-enforced token cap. Output byte limits and the
+caller's logical deadline remain enforced. Logical-call budgets count CLI invocations; a native assistant
 may make internal inference requests that EngArg does not observe.
+
+Cleanup has its own lifetime: a timed-out call can return while its worker still
+retains the concurrency slot and directory pending supervisor acknowledgement.
+This wait does not block Tokio runtime shutdown. If the whole EngArg process
+exits before acknowledgement, detached-thread destructors cannot remove that
+directory; the independent supervisor still owns process cancellation.
 
 ## Adapt another assistant
 

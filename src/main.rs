@@ -4,7 +4,7 @@ use engarg::{
     domain::{ArgumentCase, Request, case_schema, validate_case, validate_request},
     engine::{Mode, ProviderRunConfig, RunConfig},
     presentations,
-    provider::{ApiStyle, HttpConfig, Role, TransportConfig},
+    provider::{ApiStyle, Role, TransportConfig},
     render,
 };
 use serde::Serialize;
@@ -139,7 +139,7 @@ struct Analyse {
     #[arg(long, value_enum, default_value = "responses")]
     api: ApiStyle,
     /// Full endpoint URL, including /v1/responses or /v1/chat/completions.
-    #[arg(long, default_value = "https://api.openai.com/v1/responses")]
+    #[arg(long, default_value = assistant_options::DEFAULT_HTTP_ENDPOINT)]
     endpoint: String,
     /// Environment variable NAME containing the provider key. Never pass the key.
     #[arg(long, default_value = "ENGARG_API_KEY")]
@@ -512,7 +512,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         .flatten()
         .filter(|s| !s.trim().is_empty());
     if assistant.is_none()
-        && args.endpoint == "https://api.openai.com/v1/responses"
+        && args.endpoint == assistant_options::DEFAULT_HTTP_ENDPOINT
         && key.is_none()
     {
         return Err(Error::InvalidInput(format!(
@@ -568,42 +568,50 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         }
         Ok(())
     });
-    let http_config = || HttpConfig {
+    let http_options = || assistant_options::HttpOptions {
         endpoint: args.endpoint.clone(),
         api_key: key.clone(),
-        model: args.model.clone(),
         service_tier: args.service_tier.clone(),
         reasoning_effort: args.reasoning_effort.clone(),
-        role_models: role_models.clone(),
         style: args.api,
+        max_http_retries: args.http_retries,
+        retry_max_delay_secs: args.retry_max_delay_secs,
+    };
+    let completion_limits = assistant_options::CompletionLimits {
         timeout: Duration::from_secs(args.request_timeout_secs),
+        max_input_bytes: args.max_input_bytes,
         max_output_tokens: args.max_output_tokens,
-        max_body_bytes: args
+        max_output_bytes: args
             .max_response_bytes
             .saturating_mul(2)
             .saturating_add(65536),
+        max_concurrent_requests: usize::from(args.max_concurrent_requests),
     };
     let tooling_model = args
         .implement_tools
         .then(|| {
-            let mut config = http_config();
-            config.role_models.clear();
             assistant_options::configured_model(
                 assistant.as_ref(),
-                config,
-                transport_config.clone(),
+                assistant_options::ModelSelection {
+                    model: args.model.clone(),
+                    role_models: HashMap::new(),
+                },
+                completion_limits,
+                http_options(),
                 Arc::new(|_| Ok(())),
-                args.max_input_bytes,
             )
             .map(|model| progress.model(model))
         })
         .transpose()?;
     let model = progress.model(assistant_options::configured_model(
         assistant.as_ref(),
-        http_config(),
-        transport_config.clone(),
+        assistant_options::ModelSelection {
+            model: args.model.clone(),
+            role_models,
+        },
+        completion_limits,
+        http_options(),
         http_observer,
-        args.max_input_bytes,
     )?);
     *audit
         .lock()
@@ -723,7 +731,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             report["provider_config"] = serde_json::to_value(provider_config)?;
             report["target_runtime"] = serde_json::to_value(&target_runtime)?;
             let transport_limitation = if assistant.is_some() {
-                "Assistant commands run with a bounded deadline and output size, selected environment variables and no automatic retries. A temporary working directory is not a sandbox. Native CLI output-token limits are prompt instructions, not verified token caps. Logical-call budgets count CLI invocations; native assistants may make internal inference requests that EngArg does not observe. Completion model labels prefixed with assistant: record the configured selection when the assistant does not report an actual model. Local cancellation does not confirm remote completion or billing.".to_owned()
+                "Assistant calls have a bounded logical deadline and output size, selected environment variables and no automatic retries. Cleanup retains capacity and resources until supervisor acknowledgement and can outlive the caller. A temporary working directory is not a sandbox. Native CLI output-token limits are prompt instructions, not verified token caps. Logical-call budgets count CLI invocations; native assistants may make internal inference requests that EngArg does not observe. Completion model labels prefixed with assistant: record the configured selection when the assistant does not report an actual model. Local cancellation does not confirm remote completion or billing.".to_owned()
             } else {
                 format!(
                     "HTTP transport allows {} retries per logical call with a maximum retry delay of {} seconds and {} concurrent request sequences. HTTP attempts have a separate bound from the logical model-call budget.",

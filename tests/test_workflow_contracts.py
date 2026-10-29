@@ -1,6 +1,7 @@
 """Keep native-only CI selection complete and installed-runtime caches bounded."""
 
 from pathlib import Path
+import json
 import os
 import re
 import shlex
@@ -76,16 +77,23 @@ class WorkflowContractTests(unittest.TestCase):
     def test_runtime_cache_contains_only_admitted_payload_and_sensitive_key_inputs(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         checks, compatibility = workflow.split("\n  eal-compatibility:", 1)
-        runtime = "${{ runner.temp }}/engarg-eal-runtime/"
+        self.assertEqual(checks.count("uses: ./.github/actions/eal-runtime"), 2)
+        self.assertNotIn("uses: ./.github/actions/eal-runtime", compatibility)
+        self.assertNotIn("${{ runner.temp }}/engarg-eal-runtime/", workflow)
+        runtime = "${{ inputs.root }}/"
+        runtime_action = (ROOT / ".github/actions/eal-runtime/action.yml").read_text()
         paths = {
             line.strip()[len(runtime):]
-            for line in checks.splitlines()
+            for line in runtime_action.splitlines()
             if line.strip().startswith(runtime)
         }
         self.assertEqual(paths, {
             "bin", ".engarg-eal-runtime-owner.json", ".engarg-eal-runtime.json",
         })
-        self.assertNotIn(runtime, compatibility)
+        self.assertNotIn("restore-keys:", runtime_action)
+        install = producer_step(runtime_action, "    - name: Install and admit every pinned runtime companion\n")
+        self.assertNotIn("if:", install)
+        self.assertIn('bash scripts/install-eal-runtime.sh --root "$RUNTIME_ROOT"', install)
         action = (ROOT / ".github/actions/cargo-cache/action.yml").read_text()
         configuration = next(line for line in action.splitlines() if "CACHE_CONFIGURATION:" in line)
         for source in ["Cargo.lock", "**/Cargo.toml", "scripts/install-eal-runtime.sh"]:
@@ -96,6 +104,127 @@ class WorkflowContractTests(unittest.TestCase):
             (ROOT / "scripts/install-eal-runtime.sh").read_text(),
             r'(?m)^TOOLCHAIN = "[0-9]+\.[0-9]+\.[0-9]+"$',
         )
+
+    def test_installed_runtime_cache_identity_ignores_consumer_edits_but_tracks_producer_inputs(self):
+        action = (ROOT / ".github/actions/eal-runtime/action.yml").read_text()
+        identity = producer_step(action, "    - name: Identify compatible installed runtime\n")
+        script = textwrap.dedent(identity.split("      run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            commands = root / "commands"
+            commands.mkdir()
+            for command, variable in {"cargo": "METADATA_JSON", "cc": "CC_IDENTITY"}.items():
+                stub = commands / command
+                stub.write_text(f'#!/bin/sh\nprintf \'%s\\n\' "${{{variable}}}"\n')
+                stub.chmod(0o755)
+            installer = root / "installer.sh"
+            installer.write_text('TOOLCHAIN = "1.90.0"\n# installer contract\n')
+            action_file = root / "action.yml"
+            action_file.write_text(action)
+            source = "git+https://github.com/emmett08/eal-mcp?rev=" + "a" * 40
+            metadata = {"packages": [{"name": "engarg", "dependencies": [
+                {"name": "eal-core", "source": source},
+                {"name": "eal-process", "source": source},
+                {"name": "other", "source": "registry+unrelated"},
+            ]}]}
+            defaults = {
+                "PATH": str(commands) + os.pathsep + os.defpath,
+                "GITHUB_OUTPUT": str(root / "output"),
+                "RUNTIME_INSTALLER": str(installer), "RUNTIME_ACTION": str(action_file),
+                "METADATA_JSON": json.dumps(metadata), "CC_IDENTITY": "cc version 14",
+                "RUNNER_OS": "Linux", "RUNNER_ARCH": "X64",
+                "ImageOS": "ubuntu24", "ImageVersion": "20261025.1",
+                "CARGO_PROFILE_DEV_DEBUG": "line-tables-only",
+                "CARGO_PROFILE_TEST_DEBUG": "line-tables-only", "CARGO_INCREMENTAL": "0",
+            }
+
+            def fingerprint(**changes):
+                output = root / "output"
+                output.unlink(missing_ok=True)
+                result = subprocess.run(
+                    ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+                    cwd=root, env={**defaults, **changes}, capture_output=True, text=True,
+                )
+                return result, output.read_text() if output.exists() else ""
+
+            result, baseline = fingerprint()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertRegex(baseline, r"^key=eal-runtime-v1-[0-9a-f]{64}\n$")
+            (root / "Cargo.toml").write_text("# consumer-only change\n")
+            (root / "Cargo.lock").write_text("# unrelated consumer dependencies\n")
+            self.assertEqual(fingerprint(GITHUB_SHA="b" * 40, CARGO_BUILD_JOBS="2")[1], baseline)
+            self.assertEqual(fingerprint(CARGO_PROFILE_DEV_DEBUG="2", CARGO_PROFILE_TEST_DEBUG="2")[1], baseline)
+            metadata["packages"][0]["dependencies"].reverse()
+            self.assertEqual(fingerprint(METADATA_JSON=json.dumps(metadata))[1], baseline)
+            for changes in [
+                {"METADATA_JSON": defaults["METADATA_JSON"].replace("a" * 40, "c" * 40)},
+                {"METADATA_JSON": defaults["METADATA_JSON"].replace("emmett08/eal-mcp", "another/eal-mcp")},
+                {"CC_IDENTITY": "changed linker"}, {"RUNNER_OS": "macOS"},
+                {"RUNNER_ARCH": "ARM64"}, {"ImageOS": "ubuntu26"},
+                {"ImageVersion": "20261026.1"},
+                {"CARGO_PROFILE_RELEASE_OPT_LEVEL": "2"}, {"CARGO_INCREMENTAL": "1"},
+                {"RUSTFLAGS": "-C target-cpu=native"},
+                {"CARGO_ENCODED_RUSTFLAGS": "-C\x1ftarget-cpu=native"},
+                {"CARGO_BUILD_TARGET": "aarch64-unknown-linux-gnu"},
+                {"RUNTIME_CARGO_CONFIG": "changed Cargo configuration"},
+                {"CC": "clang"}, {"CFLAGS": "-O3"},
+                {"CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER": "aarch64-linux-gnu-gcc"},
+            ]:
+                with self.subTest(changes=changes):
+                    result, identity = fingerprint(**changes)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertNotEqual(identity, baseline)
+            installer.write_text('TOOLCHAIN = "1.90.1"\n# installer contract\n')
+            self.assertNotEqual(fingerprint()[1], baseline)
+            installer.write_text('TOOLCHAIN = "1.90.0"\n# installer contract\n')
+            action_file.write_text(action + "\n# action contract change\n")
+            self.assertNotEqual(fingerprint()[1], baseline)
+            action_file.write_text(action)
+            installer.write_text("# missing pinned toolchain\n")
+            result, identity = fingerprint()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(identity, "")
+
+    def test_installed_runtime_selection_exports_core_and_propagates_installer_failure(self):
+        action = (ROOT / ".github/actions/eal-runtime/action.yml").read_text()
+        install = producer_step(action, "    - name: Install and admit every pinned runtime companion\n")
+        script = textwrap.dedent(install.split("      run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scripts = root / "scripts"
+            scripts.mkdir()
+            stub = scripts / "install-eal-runtime.sh"
+            stub.write_text('#!/bin/sh\n[ "${INSTALL_FAIL:-0}" = 0 ] || exit 19\nprintf \'%s/bin/eal-host\\n\' "$2"\n')
+            prefix = root / "runtime"
+            environment = {
+                "PATH": os.defpath, "RUNTIME_ROOT": str(prefix),
+                "GITHUB_OUTPUT": str(root / "output"), "GITHUB_ENV": str(root / "environment"),
+                "GITHUB_PATH": str(root / "path"),
+            }
+            result = subprocess.run(
+                ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+                cwd=root, env=environment, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            selectors = dict(line.split("=", 1) for line in (root / "environment").read_text().splitlines())
+            for name, binary in {
+                "EAL_HOST": "eal-host", "ENGARG_EAL_HOST": "eal-host",
+                "EAL_COLLECTOR": "eal-collector", "ENGARG_EAL_COORDINATE": "eal-coordinate",
+                "EAL_CORE": "eal-core", "ENGARG_EAL_CORE": "eal-core",
+            }.items():
+                self.assertEqual(selectors[name], str(prefix / "bin" / binary))
+            self.assertEqual(selectors["EAL_BIN"], str(prefix / "bin"))
+            self.assertEqual((root / "path").read_text(), str(prefix / "bin") + "\n")
+            for name in ["environment", "path", "output"]:
+                (root / name).unlink()
+            result = subprocess.run(
+                ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c", script],
+                cwd=root, env={**environment, "INSTALL_FAIL": "1"}, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 19)
+            self.assertFalse((root / "environment").exists())
+            self.assertFalse((root / "path").exists())
+            self.assertFalse((root / "output").exists())
 
     def test_producer_cache_identity_tracks_native_inputs_not_consumer_edits(self):
         action = (ROOT / ".github/actions/eal-producer/action.yml").read_text()

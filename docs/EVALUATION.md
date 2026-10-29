@@ -113,8 +113,20 @@ when reproducing or interpreting a result.
 | [Token context](../benchmarks/token_usage.json) | Reference text-token counts for frozen completions and exact-context replay. | Live argument quality, hidden reasoning, cache behaviour and billed cost. |
 | [Planner](../benchmarks/planner_profile.json) | Complete deterministic compilation of identified synthetic planning shapes. | External discovery, model work and general production latency. |
 | [Installer](../benchmarks/installer_profile.json) | Controlled runtime installation at the recorded revisions and cache conditions. | Unmeasured machines, networks and future source revisions. |
+| [Contract verification](../benchmarks/contract_profile.json) | Paired synthetic contract admission and complete fixture verification, including rejected inputs and durable receipt writes. | Model calls, containers and general production latency; admission-only gains were not uniform. |
+| [JSON admission](../benchmarks/render_admission_profile.json) | Fresh debug CLI processes at the declared JSON size boundaries, with matching errors and byte limits. | Release performance, cold compilation, whole-suite or hosted-CI savings. |
+| [Runtime cache](../benchmarks/runtime_cache_profile.json) | Workflow coverage, cache identity independence and local warm identity/admission overhead for all 14 companions. | Hosted cache RPC time and future CI elapsed or invoice savings. |
 | [Route selection](../benchmarks/selection_profile.json) | The recorded finite selection-kernel workloads. | End-to-end investigation cost or general maintainability. |
 | [Finite EAL comparison](../benchmarks/eal4-20261027-final/measurement.md) | Source requests, retained observations, package/store bytes and elapsed execution for one synthetic snapshot claim. | Provider authoring, an external catalogue's completeness and general performance superiority. |
+
+The contract and JSON records retain alternating baseline/candidate process runs,
+preselected thresholds, binary and source identities, ranges and negative results.
+Their runners are `scripts/benchmark-contracts.py` and
+`scripts/benchmark-render-admission.py`. The contract comparison keeps both arms'
+dependency profiles equal; the JSON comparison isolates the development profile
+of the checked admission dependency. Assertions and overflow checks remain enabled.
+The runtime action adds measured warm preflight overhead in exchange for shared
+revision-specific payload identity. Its hosted CI benefit remains to be measured.
 
 The finite EAL comparison asks whether `fixture-v1` contains exactly three
 pairwise distinct case-sensitive strings. Its two local command sources use

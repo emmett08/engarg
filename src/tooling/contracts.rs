@@ -144,7 +144,7 @@ fn bounded_json(value: &Value) -> Result<(), Error> {
     Ok(())
 }
 
-fn validate_schema(schema: &Value) -> Result<(), Error> {
+fn validate_schema(schema: &Value) -> Result<jsonschema::Validator, Error> {
     bounded_json(schema)?;
     fn local(value: &Value, depth: usize) -> Result<(), Error> {
         if depth > 64 {
@@ -175,9 +175,7 @@ fn validate_schema(schema: &Value) -> Result<(), Error> {
         Ok(())
     }
     local(schema, 0)?;
-    jsonschema::validator_for(schema)
-        .map_err(|e| invalid(format!("invalid contract schema: {e}")))?;
-    Ok(())
+    jsonschema::validator_for(schema).map_err(|e| invalid(format!("invalid contract schema: {e}")))
 }
 
 fn parameter(name: &str) -> bool {
@@ -213,8 +211,10 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
             return Err(invalid("invalid or duplicate tool parameter"));
         }
     }
-    validate_schema(&draft.input_schema)?;
-    validate_schema(&draft.result_schema)?;
+    // Keep each admitted schema's compiled form for its fixture checks. The
+    // contract is immutably borrowed throughout this admission.
+    let input = validate_schema(&draft.input_schema)?;
+    let result = validate_schema(&draft.result_schema)?;
     if draft.input_schema["type"] != "object" || draft.input_schema["additionalProperties"] != false
     {
         return Err(invalid(
@@ -300,10 +300,6 @@ pub fn validate_contract(contract: &NeedContract) -> Result<(), Error> {
     if draft.fixtures.len() < 3 || draft.fixtures.len() > MAX_FIXTURES {
         return Err(invalid("tool contract requires 3 to 64 fixtures"));
     }
-    let input = jsonschema::validator_for(&draft.input_schema)
-        .map_err(|e| invalid(format!("invalid input schema: {e}")))?;
-    let result = jsonschema::validator_for(&draft.result_schema)
-        .map_err(|e| invalid(format!("invalid result schema: {e}")))?;
     let mut names = BTreeSet::new();
     let mut positive = Vec::new();
     let mut negative = Vec::new();

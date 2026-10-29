@@ -23,6 +23,39 @@ fn script(directory: &Path, body: &str) -> PathBuf {
     path
 }
 
+fn shell_script(directory: &Path, body: &str) -> PathBuf {
+    let path = directory.join("assistant.sh");
+    fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+    path
+}
+
+fn held_protocol_failure_supervisor(directory: &Path) -> PathBuf {
+    let quoted = directory.to_str().unwrap().replace('\'', "'\"'\"'");
+    shell_script(
+        directory,
+        &format!(
+            r#"
+directory='{quoted}'
+if [ -e "$directory/first-started" ]; then
+    printf second > "$directory/second-started"
+    printf invalid-supervisor-frame
+else
+    printf first > "$directory/first-started"
+    pwd > "$directory/cwd"
+    printf invalid-supervisor-frame
+    printf ready > "$directory/ready"
+    remaining=500
+    while [ ! -e "$directory/release" ] && [ "$remaining" -gt 0 ]; do
+        /bin/sleep 0.01
+        remaining=$((remaining - 1))
+    done
+fi
+"#
+        ),
+    )
+}
+
 fn config(executable: &Path, kind: AssistantKind) -> CommandConfig {
     CommandConfig {
         kind,
@@ -228,13 +261,18 @@ async fn deadline_and_caller_cancellation_stop_process_descendants() {
         let root = tempfile::tempdir().unwrap();
         let ready = root.path().join("ready");
         let escaped = root.path().join("escaped");
-        let executable = script(
+        // The deadline constrains the owned process tree. A shell fixture
+        // avoids measuring two cold Python interpreter startups on macOS.
+        let executable = shell_script(
             root.path(),
             r#"
-import json, os, subprocess, sys, time
-child = "import signal,sys,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); open(sys.argv[1], 'w').write('ready'); time.sleep(0.8); open(sys.argv[2], 'w').write('escaped')"
-subprocess.Popen(['/usr/bin/python3', '-c', child, sys.argv[1], sys.argv[2]])
-time.sleep(10)
+(
+    trap '' TERM
+    printf ready > "$1"
+    /bin/sleep 0.8
+    printf escaped > "$2"
+) &
+wait
 "#,
         );
         let mut config = config(&executable, AssistantKind::Command);
@@ -267,27 +305,33 @@ time.sleep(10)
 }
 
 #[tokio::test]
-async fn cancelled_process_keeps_its_admission_slot_until_descendants_are_gone() {
+async fn cancelled_process_keeps_its_admission_slot_until_descendants_stop() {
     let root = tempfile::tempdir().unwrap();
-    let ready = root.path().join("child-pid");
+    let ready = root.path().join("child-ready");
     let executable = script(
         root.path(),
         r#"
-import json, os, subprocess, sys, time
+import fcntl, json, os, signal, sys, time
 request = json.load(sys.stdin)
+lease_path = sys.argv[1] + '.lease'
 if request['request']['user'] == 'first':
-    child = "import os,signal,sys,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(10)"
-    subprocess.Popen(['/usr/bin/python3', '-c', child, sys.argv[1]])
+    if os.fork() == 0:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        with open(lease_path, 'a+') as lease:
+            fcntl.flock(lease, fcntl.LOCK_EX)
+            with open(sys.argv[1], 'w') as ready:
+                ready.write('locked')
+            time.sleep(10)
+        os._exit(0)
     time.sleep(10)
 else:
-    with open(sys.argv[1]) as file:
-        pid = int(file.read())
-    try:
-        os.kill(pid, 0)
-        previous_alive = True
-    except ProcessLookupError:
-        previous_alive = False
-    print(json.dumps({'content':json.dumps({'previous_alive':previous_alive}),'model':'m','input_tokens':None,'output_tokens':None,'request_id':None}))
+    with open(lease_path, 'a+') as lease:
+        try:
+            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            previous_executing = False
+        except BlockingIOError:
+            previous_executing = True
+    print(json.dumps({'content':json.dumps({'previous_executing':previous_executing}),'model':'m','input_tokens':None,'output_tokens':None,'request_id':None}))
 "#,
     );
     let mut config = config(&executable, AssistantKind::Command);
@@ -305,5 +349,93 @@ else:
     assert!(first.await.unwrap_err().is_cancelled());
     let completion = second.await.unwrap().unwrap();
     let content: Value = serde_json::from_str(&completion.content).unwrap();
-    assert_eq!(content["previous_alive"], false);
+    // A dead orphan can retain its PID as a zombie on macOS. The kernel
+    // releases this child's continuously held file lock when it terminates,
+    // so it measures execution ownership instead of PID-table occupancy.
+    assert_eq!(content["previous_executing"], false);
+}
+
+#[tokio::test]
+async fn protocol_failure_retains_directory_and_admission_until_supervisor_shutdown() {
+    let root = tempfile::tempdir().unwrap();
+    let ready = root.path().join("ready");
+    let second_started = root.path().join("second-started");
+    let release = root.path().join("release");
+    let mut config = config(Path::new("/bin/true"), AssistantKind::Command);
+    config.supervisor = held_protocol_failure_supervisor(root.path());
+    let model = Arc::new(CommandModel::new(config).unwrap());
+    let first_model = model.clone();
+    let first = tokio::spawn(async move { first_model.complete(request()).await });
+    wait_for_file(&ready).await;
+    let cwd = fs::read_to_string(root.path().join("cwd")).unwrap();
+    let second = tokio::spawn(async move { model.complete(request()).await });
+    // The malformed frame makes the protocol reader return immediately. The
+    // fake supervisor deliberately retains its inherited lifetime endpoint.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let retained_before_shutdown =
+        !first.is_finished() && !second_started.exists() && Path::new(cwd.trim()).is_dir();
+    // Release the bounded fixture before asserting, including on failure.
+    fs::write(release, "release").unwrap();
+    assert!(first.await.unwrap().is_err());
+    assert!(second.await.unwrap().is_err());
+    assert!(retained_before_shutdown);
+    assert!(second_started.exists());
+    assert!(!Path::new(cwd.trim()).exists());
+}
+
+#[tokio::test]
+async fn runtime_shutdown_keeps_its_deadline_while_worker_retains_cleanup_ownership() {
+    let root = tempfile::tempdir().unwrap();
+    let ready = root.path().join("ready");
+    let second_started = root.path().join("second-started");
+    let release = root.path().join("release");
+    let mut config = config(Path::new("/bin/true"), AssistantKind::Command);
+    config.supervisor = held_protocol_failure_supervisor(root.path());
+    config.timeout = Duration::from_millis(400);
+    let model = Arc::new(CommandModel::new(config).unwrap());
+    let first_model = model.clone();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let runtime_thread = std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let error = runtime
+            .block_on(first_model.complete(request()))
+            .unwrap_err()
+            .to_string();
+        drop(runtime);
+        sender.send(error).unwrap();
+    });
+    wait_for_file(&ready).await;
+    let cwd = fs::read_to_string(root.path().join("cwd")).unwrap();
+    let runtime_exited = tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            match receiver.try_recv() {
+                Ok(error) => break Some(error),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => break None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            }
+        }
+    })
+    .await;
+    let exited_before_shutdown =
+        matches!(&runtime_exited, Ok(Some(error)) if error.contains("deadline"));
+    let second = tokio::spawn(async move { model.complete(request()).await });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let ownership_retained = !second_started.exists() && Path::new(cwd.trim()).is_dir();
+    // Even a failing implementation is allowed to unwind its bounded fixture
+    // before the test joins the separate runtime thread or asserts.
+    fs::write(release, "release").unwrap();
+    assert!(second.await.unwrap().is_err());
+    runtime_thread.join().unwrap();
+    assert!(
+        exited_before_shutdown,
+        "runtime waited for supervisor cleanup"
+    );
+    assert!(ownership_retained);
+    assert!(second_started.exists());
+    assert!(!Path::new(cwd.trim()).exists());
 }

@@ -22,6 +22,20 @@ cargo test --locked --all-targets
 cargo build --locked --release
 ```
 
+`cargo test` runs tests concurrently by default. Give an active test run ownership
+of its executable artifacts: another Cargo invocation must not rebuild those
+same paths while tests are spawning the CLI. For development builds alongside
+verification, use a separate target directory for the verification lane:
+
+```sh
+CARGO_TARGET_DIR=target/verification cargo test --locked --all-targets
+```
+
+Keep that directory exclusive to the active verification run. Independent CI
+jobs already have separate workspaces and remain parallel. The shared installed
+runtime cache is keyed by the pinned EAL source and release build configuration;
+every cache hit still passes the installer's complete binary admission checks.
+
 The default test run reports environment-dependent tests as ignored. It therefore
 needs the installed checks below before it can establish acquisition, generated
 code execution or native assessment. Read the result for the selected tests

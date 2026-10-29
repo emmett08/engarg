@@ -1,15 +1,91 @@
-//! Shared admission and selection of operator-owned assistant command providers.
+//! CLI provider admission with common settings and transport-specific construction.
 use clap::{Args, ValueEnum};
 use engarg::{
     Error,
     engine::AssistantRunConfig,
     provider::{
         ApiStyle, AssistantKind, CommandConfig, CommandModel, Completion, CompletionRequest,
-        HttpConfig, HttpModel, HttpObserver, LanguageModel, TransportConfig,
+        HttpConfig, HttpModel, HttpObserver, LanguageModel, Role, TransportConfig,
     },
 };
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
+pub const DEFAULT_HTTP_ENDPOINT: &str = "https://api.openai.com/v1/responses";
+
+/// Model choices have the same meaning for each completion transport.
+pub struct ModelSelection {
+    pub model: String,
+    pub role_models: HashMap<Role, String>,
+}
+
+/// Shared request limits; token enforcement remains specific to the protocol.
+#[derive(Clone, Copy)]
+pub struct CompletionLimits {
+    pub timeout: Duration,
+    pub max_input_bytes: usize,
+    pub max_output_bytes: usize,
+    pub max_output_tokens: u32,
+    pub max_concurrent_requests: usize,
+}
+
+/// HTTP-only CLI settings. Credentials never enter retained provider metadata.
+pub struct HttpOptions {
+    pub endpoint: String,
+    pub api_key: Option<String>,
+    pub service_tier: Option<String>,
+    pub reasoning_effort: Option<String>,
+    pub style: ApiStyle,
+    pub max_http_retries: u8,
+    pub retry_max_delay_secs: u64,
+}
+
+impl HttpOptions {
+    fn validate_assistant_selection(&self) -> Result<(), Error> {
+        if self.service_tier.is_some()
+            || self.reasoning_effort.is_some()
+            || self.endpoint != DEFAULT_HTTP_ENDPOINT
+            || !matches!(self.style, ApiStyle::Responses)
+        {
+            return Err(Error::InvalidInput(
+                "assistant providers do not accept HTTP endpoint, API, service-tier or reasoning-effort options".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn model(
+        self,
+        selection: ModelSelection,
+        limits: CompletionLimits,
+        observer: HttpObserver,
+    ) -> Result<HttpModel, Error> {
+        HttpModel::new_with_transport(
+            HttpConfig {
+                endpoint: self.endpoint,
+                api_key: self.api_key,
+                model: selection.model,
+                role_models: selection.role_models,
+                service_tier: self.service_tier,
+                reasoning_effort: self.reasoning_effort,
+                style: self.style,
+                timeout: limits.timeout,
+                max_output_tokens: limits.max_output_tokens,
+                max_body_bytes: limits.max_output_bytes,
+            },
+            TransportConfig {
+                max_http_retries: self.max_http_retries,
+                retry_max_delay_secs: self.retry_max_delay_secs,
+                max_concurrent_requests: limits.max_concurrent_requests,
+            },
+            observer,
+        )
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum ProviderKind {
@@ -139,36 +215,24 @@ impl AdmittedAssistant {
         }
     }
 
-    pub fn model(
+    fn model(
         &self,
-        config: HttpConfig,
-        max_input_bytes: usize,
-        max_concurrent_requests: usize,
-    ) -> Result<ConfiguredModel, Error> {
-        if config.service_tier.is_some()
-            || config.reasoning_effort.is_some()
-            || config.endpoint != "https://api.openai.com/v1/responses"
-            || !matches!(config.style, ApiStyle::Responses)
-        {
-            return Err(Error::InvalidInput(
-                "assistant providers do not accept HTTP endpoint, API, service-tier or reasoning-effort options".into(),
-            ));
-        }
-        Ok(ConfiguredModel::Assistant(CommandModel::new(
-            CommandConfig {
-                kind: self.kind,
-                argv: self.settings.argv.clone(),
-                inherit_env: self.settings.inherit_env.clone(),
-                model: config.model,
-                role_models: config.role_models,
-                timeout: config.timeout,
-                max_input_bytes,
-                max_output_bytes: config.max_body_bytes,
-                max_output_tokens: config.max_output_tokens,
-                max_concurrent_requests,
-                supervisor: crate::tooling_commands::supervisor()?,
-            },
-        )?))
+        selection: ModelSelection,
+        limits: CompletionLimits,
+    ) -> Result<CommandModel, Error> {
+        CommandModel::new(CommandConfig {
+            kind: self.kind,
+            argv: self.settings.argv.clone(),
+            inherit_env: self.settings.inherit_env.clone(),
+            model: selection.model,
+            role_models: selection.role_models,
+            timeout: limits.timeout,
+            max_input_bytes: limits.max_input_bytes,
+            max_output_bytes: limits.max_output_bytes,
+            max_output_tokens: limits.max_output_tokens,
+            max_concurrent_requests: limits.max_concurrent_requests,
+            supervisor: crate::tooling_commands::supervisor()?,
+        })
     }
 }
 
@@ -189,17 +253,20 @@ impl LanguageModel for ConfiguredModel {
 
 pub fn configured_model(
     assistant: Option<&AdmittedAssistant>,
-    config: HttpConfig,
-    transport: TransportConfig,
+    selection: ModelSelection,
+    limits: CompletionLimits,
+    http: HttpOptions,
     observer: HttpObserver,
-    max_input_bytes: usize,
 ) -> Result<ConfiguredModel, Error> {
     match assistant {
         Some(assistant) => {
-            assistant.model(config, max_input_bytes, transport.max_concurrent_requests)
+            http.validate_assistant_selection()?;
+            assistant
+                .model(selection, limits)
+                .map(ConfiguredModel::Assistant)
         }
-        None => {
-            HttpModel::new_with_transport(config, transport, observer).map(ConfiguredModel::Http)
-        }
+        None => http
+            .model(selection, limits, observer)
+            .map(ConfiguredModel::Http),
     }
 }

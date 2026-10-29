@@ -76,11 +76,29 @@ own their wire encodings; the shared command transport owns environment selectio
 temporary working directories, byte limits, deadlines and cancellation. Selection
 does not move argument validation or evidence acquisition into an adapter.
 
+Common model selection and completion limits are separate from HTTP endpoint,
+credential and retry settings. The command builder consumes only the common
+settings. The enum selects a concrete implementation of the narrow trait; it
+does not require a hierarchy of provider objects. A new native protocol requires
+explicit selection changes, while another generic command adapter leaves the
+argument engine unchanged.
+
+An owned concurrency permit brackets each assistant worker, its supervisor
+acknowledgement and its temporary directory. A dedicated blocking worker reports
+through a oneshot channel, so a logical timeout does not make Tokio shutdown
+wait for cleanup. The worker retains resources until the supervisor closes its
+private retention endpoint, including protocol-error paths. Terminated processes
+awaiting OS reaping are distinguished from executing descendants in the tests.
+
 Assistant configuration remains operator authority. Retained provider metadata
 identifies the selected assistant and configuration digest, while old HTTP reports
 round-trip without added assistant fields. Unknown native model usage remains
 unknown. [Assistant providers](AI_ASSISTANTS.md) describes the protocol and the
 limits of native token-budget enforcement.
+
+Historical JSON remains compatible. Rust callers constructing
+`ProviderRunConfig` with a struct literal must add `assistant: None` for an HTTP
+configuration.
 
 ## Make revisions explicit
 

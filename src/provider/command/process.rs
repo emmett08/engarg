@@ -39,26 +39,40 @@ pub(super) async fn invoke(
     let supervisor = supervisor.to_owned();
     let cancellation = eal_process::CancellationToken::default();
     let _guard = CancellationGuard(cancellation.clone());
-    let outcome = tokio::task::spawn_blocking(move || {
-        // Keep the directory alive even when the async caller is cancelled.
-        // Its removal follows supervised descendant cleanup in this worker.
-        let _directory = directory;
-        // Admission belongs to the supervised lifetime, including cancellation
-        // cleanup that can outlive the async caller's deadline.
-        let _permit = permit;
-        eal_process::Supervisor::new(supervisor).run_with_stream_limits_and_cancellation(
-            request,
-            None,
-            &cancellation,
-            eal_process::StreamLimits {
-                max_stdout_bytes: max_output_bytes,
-                max_stderr_bytes: STDERR_LIMIT,
-            },
-        )
-    })
-    .await
-    .map_err(|_| Error::Provider("assistant command worker failed; no automatic retry".into()))?
-    .map_err(|_| Error::Provider("assistant command could not start; no automatic retry".into()))?;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let worker = std::thread::Builder::new()
+        .name("engarg-assistant".into())
+        .spawn(move || {
+            let result = {
+                // These owners can outlive the logical call and its runtime.
+                // Release them after supervisor acknowledgement, before the
+                // async caller can observe a completed result.
+                let _permit = permit;
+                let _directory = directory;
+                run_retained(
+                    supervisor,
+                    request,
+                    &cancellation,
+                    eal_process::StreamLimits {
+                        max_stdout_bytes: max_output_bytes,
+                        max_stderr_bytes: STDERR_LIMIT,
+                    },
+                )
+            };
+            let _ = sender.send(result);
+        })
+        .map_err(|_| {
+            Error::Provider("assistant command worker could not start; no automatic retry".into())
+        })?;
+    // A model semaphore bounds these dedicated workers. Runtime shutdown must
+    // not join a supervisor that is still holding its cleanup capability.
+    drop(worker);
+    let outcome = receiver
+        .await
+        .map_err(|_| Error::Provider("assistant command worker failed; no automatic retry".into()))?
+        .map_err(|_| {
+            Error::Provider("assistant command could not start; no automatic retry".into())
+        })?;
     if let Some(error) = outcome.execution_error {
         return Err(match error {
             eal_process::ExecutionError::Timeout => timeout_error(),
@@ -77,4 +91,89 @@ pub(super) async fn invoke(
         ));
     }
     Ok(outcome.stdout)
+}
+
+/// A process result can precede supervisor exit after a protocol or cleanup
+/// error. Keep ownership until the supervisor also closes its retention FD.
+fn run_retained(
+    supervisor: std::path::PathBuf,
+    request: eal_process::CommandRequest,
+    cancellation: &eal_process::CancellationToken,
+    limits: eal_process::StreamLimits,
+) -> Result<eal_process::ProcessOutcome, eal_process::ProcessError> {
+    #[cfg(unix)]
+    {
+        let retained = SupervisionLease::new()?;
+        let result = eal_process::Supervisor::new(supervisor)
+            .run_with_stream_limits_and_cancellation(
+                request,
+                Some(&retained),
+                cancellation,
+                limits,
+            );
+        drop(retained);
+        result
+    }
+    #[cfg(not(unix))]
+    {
+        eal_process::Supervisor::new(supervisor).run_with_stream_limits_and_cancellation(
+            request,
+            None,
+            cancellation,
+            limits,
+        )
+    }
+}
+
+#[cfg(unix)]
+struct SupervisionLease {
+    shutdown: std::os::unix::net::UnixStream,
+    retained: Option<std::os::unix::net::UnixStream>,
+}
+
+#[cfg(unix)]
+impl SupervisionLease {
+    fn new() -> std::io::Result<Self> {
+        let (shutdown, retained) = std::os::unix::net::UnixStream::pair()?;
+        Ok(Self {
+            shutdown,
+            retained: Some(retained),
+        })
+    }
+}
+
+#[cfg(unix)]
+impl eal_process::Retention for SupervisionLease {
+    fn duplicate_for_supervisor(&self) -> std::io::Result<std::process::Stdio> {
+        // UnixStream descriptors are close-on-exec. Only the explicit duplicate
+        // supplied as the supervisor's retention FD survives its exec. The
+        // supervisor replaces all command stdio, so the assistant cannot hold it.
+        Ok(std::process::Stdio::from(std::os::fd::OwnedFd::from(
+            self.retained
+                .as_ref()
+                .ok_or_else(|| std::io::Error::other("supervision lease is closing"))?
+                .try_clone()?,
+        )))
+    }
+}
+
+#[cfg(unix)]
+impl Drop for SupervisionLease {
+    fn drop(&mut self) {
+        use std::io::Read;
+        self.retained.take();
+        let mut buffer = [0u8; 1024];
+        loop {
+            match self.shutdown.read(&mut buffer) {
+                Ok(0) => return,
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                // A read error does not acknowledge supervisor shutdown.
+                // Retain the permit and directory while waiting for EOF.
+                Err(_) => loop {
+                    std::thread::park();
+                },
+            }
+        }
+    }
 }

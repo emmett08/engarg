@@ -55,3 +55,10 @@ strip = true
 [profile.dev.package."sha2:0.11.1"]
 opt-level = 3
 
+# Exact JSON admission scans every input byte before decoding. Optimise that
+# checked dependency in development too; retain its assertions and overflow checks.
+[profile.dev.package."eal-collector-contracts:0.1.0"]
+opt-level = 3
+debug-assertions = true
+overflow-checks = true
+

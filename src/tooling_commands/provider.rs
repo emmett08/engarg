@@ -2,9 +2,7 @@
 use clap::Args;
 use engarg::{
     Error,
-    provider::{
-        ApiStyle, Completion, CompletionRequest, HttpConfig, LanguageModel, TransportConfig,
-    },
+    provider::{ApiStyle, Completion, CompletionRequest, LanguageModel},
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -20,7 +18,7 @@ pub struct ProviderArgs {
     reasoning_effort: Option<String>,
     #[arg(long, value_enum, default_value = "responses")]
     api: ApiStyle,
-    #[arg(long, default_value = "https://api.openai.com/v1/responses")]
+    #[arg(long, default_value = crate::assistant_options::DEFAULT_HTTP_ENDPOINT)]
     endpoint: String,
     #[arg(long, default_value = "ENGARG_API_KEY")]
     api_key_env: String,
@@ -82,33 +80,35 @@ impl ProviderArgs {
             .flatten()
             .filter(|key| !key.trim().is_empty());
         let missing_key = (assistant.is_none()
-            && self.endpoint == "https://api.openai.com/v1/responses"
+            && self.endpoint == crate::assistant_options::DEFAULT_HTTP_ENDPOINT
             && key.is_none())
         .then(|| self.api_key_env.clone());
         let inner = crate::assistant_options::configured_model(
             assistant.as_ref(),
-            HttpConfig {
-                endpoint: self.endpoint.clone(),
-                api_key: key,
+            crate::assistant_options::ModelSelection {
                 model: self.model.clone(),
-                service_tier: self.service_tier.clone(),
-                reasoning_effort: self.reasoning_effort.clone(),
                 role_models: HashMap::new(),
-                style: self.api,
+            },
+            crate::assistant_options::CompletionLimits {
                 timeout: Duration::from_secs(self.request_timeout_secs),
+                max_input_bytes: self.max_input_bytes,
                 max_output_tokens: self.max_output_tokens,
-                max_body_bytes: self
+                max_output_bytes: self
                     .max_response_bytes
                     .saturating_mul(2)
                     .saturating_add(65_536),
-            },
-            TransportConfig {
-                max_http_retries: self.http_retries,
-                retry_max_delay_secs: self.retry_max_delay_secs,
                 max_concurrent_requests: 1,
             },
+            crate::assistant_options::HttpOptions {
+                endpoint: self.endpoint.clone(),
+                api_key: key,
+                service_tier: self.service_tier.clone(),
+                reasoning_effort: self.reasoning_effort.clone(),
+                style: self.api,
+                max_http_retries: self.http_retries,
+                retry_max_delay_secs: self.retry_max_delay_secs,
+            },
             Arc::new(|_| Ok(())),
-            self.max_input_bytes,
         )?;
         Ok(CodingModel {
             inner,

@@ -9,10 +9,7 @@ use sha2::{Digest, Sha256};
 use std::{fs::OpenOptions, io::Write, path::Path};
 
 use super::{
-    contracts::{
-        CodeCandidate, FixtureKind, NeedContract, contract_digest, digest_json, validate_candidate,
-        validate_contract,
-    },
+    contracts::{CodeCandidate, FixtureKind, NeedContract, digest_json, validate_candidate},
     protocol::{REJECTION_CASES, rejected},
     runner::{ExecutionMode, FixtureRunner, RunOutcome, RunnerIdentity},
 };
@@ -130,12 +127,13 @@ pub fn verify<R: FixtureRunner + ?Sized>(
     attempt: &Path,
     cancellation: &CancellationToken,
 ) -> Result<VerificationReceipt, Error> {
-    validate_contract(contract)?;
+    // Candidate admission includes the complete frozen-contract admission.
+    // This shared borrow cannot change before the corresponding receipt digest.
     validate_candidate(contract, candidate)?;
     let mut receipt = VerificationReceipt {
         schema: TEST_SCHEMA.into(),
         language: contract.language.clone(),
-        contract_sha256: contract_digest(contract)?,
+        contract_sha256: digest_json(contract)?,
         candidate_sha256: digest_json(candidate)?,
         source_sha256: digest_json(&candidate.files)?,
         fixtures_sha256: digest_json(&contract.draft.fixtures)?,

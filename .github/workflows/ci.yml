@@ -39,13 +39,6 @@ jobs:
         with:
           scope: checks
           toolchains: 1.99.1
-          # Cache the admitted installation payload, not its build tree or lock.
-          # The installer checks the pinned owner and every binary on each hit.
-          targets: |
-            target
-            ${{ runner.temp }}/engarg-eal-runtime/bin
-            ${{ runner.temp }}/engarg-eal-runtime/.engarg-eal-runtime-owner.json
-            ${{ runner.temp }}/engarg-eal-runtime/.engarg-eal-runtime.json
       - name: Check authoring script preflight
         run: |
           bash -n scripts/run-catalog-sync-authoring.sh
@@ -57,10 +50,13 @@ jobs:
       - name: Check recorded argument HTML
         run: python3 scripts/render-example-arguments.py --engarg target/debug/engarg --check
       - run: cargo build --locked --release
+      - uses: ./.github/actions/eal-runtime
+        with:
+          root: ${{ runner.temp }}/engarg-eal-runtime
       - name: Verify the installed pinned runtime and cached startup
         run: |
           engarg_runtime_root=$(python3 -c 'import os; from pathlib import Path; print((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-runtime").resolve())')
-          engarg_runtime_host=$(bash scripts/install-eal-runtime.sh --root "$engarg_runtime_root")
+          engarg_runtime_host="$ENGARG_EAL_HOST"
           test "$engarg_runtime_host" = "$engarg_runtime_root/bin/eal-host"
           test "$(bash scripts/install-eal-runtime.sh --root "$engarg_runtime_root")" = "$engarg_runtime_host"
           mkdir -p "$RUNNER_TEMP/engarg-eal-probe"
@@ -68,9 +64,6 @@ jobs:
             --workspace "$RUNNER_TEMP/engarg-eal-probe" \
             --output "$RUNNER_TEMP/engarg-eal-probe/describe.json"
           python3 -c 'import json, os; from pathlib import Path; response=json.loads((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-probe/describe.json").read_text()); assert response["is_error"] is False; assert response["result"]["source_syntax"] == "EAL/4"; assert "structured/1" in response["result"]["methods"]'
-          printf 'EAL_COLLECTOR=%s\nENGARG_EAL_HOST=%s\nENGARG_EAL_CORE=%s\n' \
-            "$engarg_runtime_root/bin/eal-collector" "$engarg_runtime_host" \
-            "$engarg_runtime_root/bin/eal-core" >> "$GITHUB_ENV"
       - name: Execute installed EAL packages and reasoning modes
         run: cargo test --locked --test executable_package --test executable_modes --test support_cli --test aspic_view -- --ignored
 
@@ -96,11 +89,6 @@ jobs:
         with:
           scope: prepared-${{ matrix.family }}
           toolchains: 1.99.1
-          targets: |
-            target
-            ${{ runner.temp }}/engarg-eal-runtime/bin
-            ${{ runner.temp }}/engarg-eal-runtime/.engarg-eal-runtime-owner.json
-            ${{ runner.temp }}/engarg-eal-runtime/.engarg-eal-runtime.json
       - name: Prepare the selected dependency image
         env:
           FAMILY: ${{ matrix.family }}
@@ -117,11 +105,9 @@ jobs:
               docker build --tag engarg-typescript-tools:5.9.3 examples/toolchains/typescript
               ;;
           esac
-      - name: Install matching execution runtime
-        run: |
-          runtime_host=$(bash scripts/install-eal-runtime.sh --root "$RUNNER_TEMP/engarg-eal-runtime")
-          printf 'ENGARG_EAL_HOST=%s\nEAL_COLLECTOR=%s/eal-collector\n' \
-            "$runtime_host" "$(dirname "$runtime_host")" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/eal-runtime
+        with:
+          root: ${{ runner.temp }}/engarg-eal-runtime
       - name: Verify offline APIs and the generated-tool protocol
         env:
           FAMILY: ${{ matrix.family }}
