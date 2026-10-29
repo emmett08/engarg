@@ -18,6 +18,7 @@ use std::{
 };
 
 const MAX_INPUT_BYTES: usize = 16 * 1_048_576;
+mod aspic;
 mod repair;
 
 #[derive(Subcommand)]
@@ -43,6 +44,8 @@ pub enum EalCommand {
     ToolRun(super::tooling_commands::ToolRunArgs),
     /// Compile a saved report into a portable, executable EAL/4 package.
     Export(ExportArgs),
+    /// Export a checked ASPIC+ viewer snapshot from a retained EAL execution.
+    ExportAspic(aspic::ExportAspicArgs),
     /// Check EAL source using the official host; no evidence is collected.
     Validate(SourceCommand),
     /// Plan evidence requirements for an EAL claim; no evidence is collected.
@@ -560,6 +563,7 @@ pub async fn execute(command: EalCommand) -> Result<(), Error> {
         EalCommand::ToolRun(args) => super::tooling_commands::tool_run(args).await,
         EalCommand::ToolExport(args) => super::tooling_commands::tool_export(args),
         EalCommand::Export(args) => execute_export(args),
+        EalCommand::ExportAspic(args) => aspic::execute(args).await,
         EalCommand::Validate(args) => {
             let document = source_document(&args.source)?;
             host_operation(

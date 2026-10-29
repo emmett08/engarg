@@ -59,6 +59,7 @@ paired integration coverage.
 | Native reasoning | Acquired values reach the selected method and its actual result governs support. | `executable_modes`, `eal_live`, `eal_export`. |
 | Coordination | Participant/round identity, routing, budgets and durable ticket stages remain distinct. | Debate tests and `ticket_native`. |
 | Presentation | Views preserve the canonical graph, qualifications and resource limits. | Presentation unit tests and CLI rendering tests. |
+| ASPIC snapshot export | Exact retained source, observations, context, time and method profile reproduce the authored assessment before checked native export. | `aspic_view` admission tests and installed positive, negative, changed-input, bound and no-overwrite controls. |
 
 Focused commands help isolate a failure before the whole run:
 
@@ -86,9 +87,10 @@ export EAL_BIN="$(dirname "$ENGARG_EAL_HOST")"
 export ENGARG_EAL_COORDINATE="$EAL_BIN/eal-coordinate"
 export EAL_COLLECTOR="$EAL_BIN/eal-collector"
 export EAL_CORE="$EAL_BIN/eal-core"
+export ENGARG_EAL_CORE="$EAL_CORE"
 export PATH="$EAL_BIN:$PATH"
 
-cargo test --locked --test executable_package --test executable_modes -- --ignored
+cargo test --locked --test executable_package --test executable_modes --test aspic_view -- --ignored
 cargo test --locked --test support_cli revised_public_authoring_package_executes_after_original_sources_are_removed -- --ignored
 cargo test --locked --test eal_live --test eal_export --test native_collectors --test collector_catalogue_live -- --ignored
 cargo test --locked --test ticket_native -- --ignored
