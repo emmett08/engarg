@@ -1,0 +1,29 @@
+name: Pinned EAL process contracts
+description: Exercise duplex cancellation on the consumer platform using the exact locked producer source.
+runs:
+  using: composite
+  steps:
+    - name: Verify pinned duplex backpressure cancellation
+      shell: bash
+      run: |
+        manifest=$(
+          python3 - <<'PY'
+        import json, pathlib, subprocess
+        metadata = json.loads(subprocess.check_output(
+            ['cargo', 'metadata', '--locked', '--format-version', '1'], text=True))
+        root = next(package for package in metadata['packages']
+                    if package['id'] == metadata['resolve']['root'])
+        sources = {dependency['source'] for dependency in root['dependencies']
+                   if dependency['name'] == 'eal-process'}
+        packages = [package for package in metadata['packages']
+                    if package['name'] == 'eal-process'
+                    and package['source'].split('#')[0] in sources]
+        if len(packages) != 1 or not pathlib.Path(packages[0]['manifest_path']).is_file():
+            raise SystemExit('Expected one locked EAL process source manifest')
+        print(packages[0]['manifest_path'])
+        PY
+        )
+        # Own separate outputs: never rebuild the running EngArg test binaries.
+        CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target/eal-process-contracts" \
+          cargo +1.90.0 test --locked --manifest-path "$manifest" \
+          --package eal-process --test duplex_backpressure

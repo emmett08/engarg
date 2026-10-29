@@ -34,11 +34,13 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pinned toolchain
-        run: rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt
+          rustup toolchain install 1.90.0 --profile minimal
       - uses: ./.github/actions/cargo-cache
         with:
           scope: checks
-          toolchains: 1.99.1
+          toolchains: 1.99.1 1.90.0
       - name: Check authoring script preflight
         run: |
           bash -n scripts/run-catalog-sync-authoring.sh
@@ -47,6 +49,7 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked --all-targets
+      - uses: ./.github/actions/eal-process-contracts
       - name: Check recorded argument HTML
         run: python3 scripts/render-example-arguments.py --engarg target/debug/engarg --check
       - run: cargo build --locked --release
@@ -142,7 +145,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: 3994535d442b3db79e4bcd83b0e77f0c2a18b7fe
+      EAL_REVISION: 1600e6d3147ba3d28d122c53a7fec933894d94eb
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'

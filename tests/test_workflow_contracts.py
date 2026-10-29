@@ -20,6 +20,91 @@ def producer_step(action, marker):
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_duplex_regression_uses_locked_source_and_platform_specific_builds(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        self.assertIn("os: [ubuntu-latest, macos-latest]", workflow)
+        self.assertIn("uses: ./.github/actions/eal-process-contracts", workflow)
+        self.assertIn("toolchains: 1.99.1 1.90.0", workflow)
+
+    def test_duplex_regression_runs_only_the_resolved_pinned_source(self):
+        action = (ROOT / ".github/actions/eal-process-contracts/action.yml").read_text()
+        step = producer_step(action, "    - name: Verify pinned duplex backpressure cancellation\n")
+        script = textwrap.dedent(step.split("      run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory(prefix="duplex contracts ") as temporary:
+            root = Path(temporary)
+            commands = root / "commands"
+            commands.mkdir()
+            stub = commands / "cargo"
+            stub.write_text(textwrap.dedent("""\
+                #!/usr/bin/env python3
+                import json, os, pathlib, sys
+                if sys.argv[1:] == ['metadata', '--locked', '--format-version', '1']:
+                    print(os.environ['METADATA_JSON'])
+                elif sys.argv[1:3] == ['+1.90.0', 'test']:
+                    pathlib.Path(os.environ['TRACE']).write_text(json.dumps({
+                        'arguments': sys.argv[1:],
+                        'target': os.environ.get('CARGO_TARGET_DIR'),
+                    }))
+                else:
+                    raise SystemExit(97)
+                """))
+            stub.chmod(0o755)
+            selected = root / "pinned source" / "Cargo.toml"
+            selected.parent.mkdir()
+            selected.touch()
+            foreign = root / "other source" / "Cargo.toml"
+            foreign.parent.mkdir()
+            foreign.touch()
+            source = "git+https://github.com/emmett08/eal-mcp?rev=" + "a" * 40
+            other = "git+https://github.com/example/other?rev=" + "b" * 40
+            metadata = {
+                'resolve': {'root': 'engarg-root'},
+                'packages': [
+                    {'id': 'engarg-root', 'name': 'engarg', 'dependencies': [
+                        {'name': 'eal-process', 'source': source},
+                    ]},
+                    {'id': 'foreign-process', 'name': 'eal-process',
+                     'source': other + '#' + 'b' * 40, 'manifest_path': str(foreign)},
+                    {'id': 'pinned-process', 'name': 'eal-process',
+                     'source': source + '#' + 'a' * 40, 'manifest_path': str(selected)},
+                ],
+            }
+            trace = root / "cargo invocation.json"
+
+            def run(value):
+                trace.unlink(missing_ok=True)
+                return subprocess.run(
+                    ['bash', '--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', script],
+                    cwd=root, capture_output=True, text=True, env={
+                        'PATH': str(commands) + os.pathsep + os.defpath,
+                        'GITHUB_WORKSPACE': str(root), 'TRACE': str(trace),
+                        'METADATA_JSON': json.dumps(value),
+                    },
+                )
+
+            result = run(metadata)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            invocation = json.loads(trace.read_text())
+            self.assertEqual(invocation['arguments'], [
+                '+1.90.0', 'test', '--locked', '--manifest-path', str(selected),
+                '--package', 'eal-process', '--test', 'duplex_backpressure',
+            ])
+            self.assertEqual(invocation['target'], str(root / 'target/eal-process-contracts'))
+            for failure in ['ambiguous', 'missing manifest', 'mismatched source']:
+                with self.subTest(failure=failure):
+                    invalid = json.loads(json.dumps(metadata))
+                    if failure == 'ambiguous':
+                        invalid['packages'].append({
+                            **invalid['packages'][-1], 'id': 'another-pinned-process',
+                        })
+                    elif failure == 'missing manifest':
+                        invalid['packages'][-1]['manifest_path'] = str(root / 'absent.toml')
+                    else:
+                        invalid['packages'][-1]['source'] = other + '#' + 'b' * 40
+                    result = run(invalid)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(trace.exists(), 'invalid source must not start Cargo tests')
+
     def test_compatibility_producer_matches_every_eal_dependency_pin(self):
         manifest = (ROOT / "Cargo.toml").read_text()
         dependencies = re.findall(r'(?m)^eal-[\w-]+\s*=', manifest)

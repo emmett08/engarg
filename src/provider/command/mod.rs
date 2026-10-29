@@ -1,6 +1,10 @@
 //! Bounded assistant subprocesses implementing the existing completion contract.
 mod augment;
+mod claude;
+mod codex;
+mod copilot;
 mod cursor;
+mod gemini;
 mod generic;
 mod native;
 mod process;
@@ -22,7 +26,26 @@ use tokio::sync::Semaphore;
 pub enum AssistantKind {
     Cursor,
     Augment,
+    Claude,
+    Codex,
+    Copilot,
+    Gemini,
     Command,
+}
+
+impl AssistantKind {
+    /// Stable protocol identifier used in retained metadata and command endpoints.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cursor => "cursor",
+            Self::Augment => "augment",
+            Self::Claude => "claude",
+            Self::Codex => "codex",
+            Self::Copilot => "copilot",
+            Self::Gemini => "gemini",
+            Self::Command => "command",
+        }
+    }
 }
 
 /// Explicit operator authority and resource limits for assistant execution.
@@ -146,6 +169,30 @@ impl CommandModel {
                 &request,
                 self.config.max_output_tokens,
             ),
+            AssistantKind::Claude => claude::encode(
+                &self.config.argv,
+                model,
+                &request,
+                self.config.max_output_tokens,
+            ),
+            AssistantKind::Codex => codex::encode(
+                &self.config.argv,
+                model,
+                &request,
+                self.config.max_output_tokens,
+            ),
+            AssistantKind::Copilot => copilot::encode(
+                &self.config.argv,
+                model,
+                &request,
+                self.config.max_output_tokens,
+            ),
+            AssistantKind::Gemini => gemini::encode(
+                &self.config.argv,
+                model,
+                &request,
+                self.config.max_output_tokens,
+            ),
             AssistantKind::Command => generic::encode(
                 &self.config.argv,
                 model,
@@ -180,6 +227,10 @@ impl CommandModel {
         let completion = match self.config.kind {
             AssistantKind::Cursor => cursor::decode(&bytes, model),
             AssistantKind::Augment => augment::decode(&bytes, model),
+            AssistantKind::Claude => claude::decode(&bytes, model),
+            AssistantKind::Codex => codex::decode(&bytes, model),
+            AssistantKind::Copilot => copilot::decode(&bytes, model),
+            AssistantKind::Gemini => gemini::decode(&bytes, model),
             AssistantKind::Command => generic::decode(&bytes),
         }?;
         if completion.content.trim().is_empty() || completion.model.trim().is_empty() {

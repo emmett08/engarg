@@ -63,9 +63,10 @@ your secret manager or shell environment; the commands pass the variable's name,
 never its secret value. For a compatible Chat Completions service, add
 `--api chat --endpoint https://YOUR_HOST/v1/chat/completions`.
 
-To use an authenticated local assistant instead, select `--provider cursor` or
-`--provider augment` and omit `--api-key-env OPENAI_API_KEY` from the authoring
-command. The [assistant guide](AI_ASSISTANTS.md) covers installation versions,
+To use an authenticated local assistant instead, select `--provider claude`,
+`codex`, `copilot`, `gemini`, `cursor` or `augment` and omit
+`--api-key-env OPENAI_API_KEY` from the authoring command. The
+[assistant guide](AI_ASSISTANTS.md) covers the supported CLI profiles,
 environment selection, recovery and custom adapters for other assistants.
 
 Create a new investigation directory outside the source checkout:

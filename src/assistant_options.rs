@@ -92,12 +92,16 @@ pub enum ProviderKind {
     Http,
     Cursor,
     Augment,
+    Claude,
+    Codex,
+    Copilot,
+    Gemini,
     Command,
 }
 
 #[derive(Args)]
 pub struct AssistantArgs {
-    /// Model transport: HTTP API, installed Cursor/Auggie CLI, or a JSON command adapter.
+    /// Model transport: HTTP API, an installed assistant CLI, or a JSON command adapter.
     #[arg(long, value_enum, default_value = "http", env = "ENGARG_PROVIDER")]
     pub provider: ProviderKind,
     /// TOML argv and inherit_env. Required for command; optional native CLI override.
@@ -147,6 +151,10 @@ impl AssistantArgs {
             }
             ProviderKind::Cursor => AssistantKind::Cursor,
             ProviderKind::Augment => AssistantKind::Augment,
+            ProviderKind::Claude => AssistantKind::Claude,
+            ProviderKind::Codex => AssistantKind::Codex,
+            ProviderKind::Copilot => AssistantKind::Copilot,
+            ProviderKind::Gemini => AssistantKind::Gemini,
             ProviderKind::Command => AssistantKind::Command,
         };
         let (settings, configuration_sha256) = if let Some(path) = &self.assistant_config {
@@ -169,6 +177,10 @@ impl AssistantArgs {
             let executable = match kind {
                 AssistantKind::Cursor => "agent",
                 AssistantKind::Augment => "auggie",
+                AssistantKind::Claude => "claude",
+                AssistantKind::Codex => "codex",
+                AssistantKind::Copilot => "copilot",
+                AssistantKind::Gemini => "gemini",
                 AssistantKind::Command => {
                     return Err(Error::InvalidInput(
                         "--provider command requires --assistant-config".into(),
@@ -208,11 +220,7 @@ impl AdmittedAssistant {
     }
 
     fn name(&self) -> &'static str {
-        match self.kind {
-            AssistantKind::Cursor => "cursor",
-            AssistantKind::Augment => "augment",
-            AssistantKind::Command => "command",
-        }
+        self.kind.as_str()
     }
 
     fn model(

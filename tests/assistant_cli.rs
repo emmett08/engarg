@@ -63,10 +63,20 @@ with open(calls_file, 'a') as log:
                          'secret_inherited': 'ASSISTANT_CLI_PRIVATE_VALUE' in os.environ}) + '\n')
 argument = json.loads(pathlib.Path(argument_file).read_text())
 content = json.dumps(argument)
-if kind == 'cursor':
+if kind in ('cursor', 'claude'):
     print(json.dumps({'type': 'result', 'subtype': 'success', 'is_error': False,
                       'result': content, 'session_id': 'synthetic-session'}))
-elif kind == 'augment':
+elif kind == 'codex':
+    for event in [
+        {'type': 'thread.started', 'thread_id': 'fixture-thread'},
+        {'type': 'turn.started'},
+        {'type': 'item.completed', 'item': {'id': 'answer', 'type': 'agent_message', 'text': content}},
+        {'type': 'turn.completed'},
+    ]:
+        print(json.dumps(event))
+elif kind == 'gemini':
+    print(json.dumps({'response': content, 'stats': {}}))
+elif kind in ('augment', 'copilot'):
     print(content)
 else:
     print(json.dumps({'content': content, 'model': 'adapter-reported-model',
@@ -257,27 +267,66 @@ fn native_assistants_receive_the_schema_and_preserve_unknown_usage() {
 }
 
 #[test]
+fn additional_native_presets_reach_unchanged_authoring_and_report_admission() {
+    for provider in ["claude", "codex", "copilot", "gemini"] {
+        let assistant = Assistant::new(provider, &argument());
+        succeeded(&assistant.analyse(provider).output().unwrap());
+        let records = assistant.records();
+        assert_eq!(records.len(), 1, "{provider}");
+        let prompt: Value = serde_json::from_str(records[0]["stdin"].as_str().unwrap()).unwrap();
+        assert_eq!(prompt["role"], "single");
+        assert!(prompt["output_schema"]["properties"]["original_claim"].is_object());
+        assert!(!prompt["user"].as_str().unwrap().is_empty());
+        assert_eq!(records[0]["secret_inherited"], false);
+        let argv = records[0]["argv"].as_array().unwrap();
+        assert!(argv.contains(&json!("--model")));
+        assert!(argv.contains(&json!("selected-role-model")));
+        let report: Value = serde_json::from_slice(&fs::read(&assistant.report).unwrap()).unwrap();
+        argument_assertions::assert_authored_argument(&report, &argument());
+        assert_eq!(report["provider_config"]["assistant"]["provider"], provider);
+        assert_eq!(
+            report["provider_config"]["endpoint"],
+            format!("command:{provider}")
+        );
+        assert_eq!(
+            report["transcript"][0]["response"]["model"],
+            format!("assistant:{provider}:selected-role-model")
+        );
+        assert!(report["transcript"][0]["response"]["input_tokens"].is_null());
+        assert!(report["transcript"][0]["response"]["output_tokens"].is_null());
+        engarg::report::read(&report).unwrap();
+    }
+}
+
+#[test]
 fn malformed_authored_argument_is_retained_in_audit_without_report_or_retry() {
-    let assistant = Assistant::new("command", &json!({}));
-    let audit = assistant.directory.path().join("audit.jsonl");
-    let output = assistant
-        .analyse("command")
-        .arg("--audit")
-        .arg(&audit)
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("invalid model output"));
-    assert!(!assistant.report.exists());
-    assert_eq!(assistant.records().len(), 1);
-    let events: Vec<Value> = fs::read_to_string(audit)
-        .unwrap()
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect();
-    assert!(events.iter().any(|event| {
-        event["event"] == "completion" && event["record"]["response"]["content"] == "{}"
-    }));
+    for provider in ["command", "claude", "codex", "copilot", "gemini"] {
+        let assistant = Assistant::new(provider, &json!({}));
+        let audit = assistant.directory.path().join("audit.jsonl");
+        let output = assistant
+            .analyse(provider)
+            .arg("--audit")
+            .arg(&audit)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("invalid model output"));
+        assert!(!assistant.report.exists());
+        assert_eq!(assistant.records().len(), 1);
+        let expected_content = if provider == "copilot" { "{}\n" } else { "{}" };
+        let events: Vec<Value> = fs::read_to_string(audit)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert!(
+            events.iter().any(|event| {
+                event["event"] == "completion"
+                    && event["record"]["response"]["content"] == expected_content
+            }),
+            "{provider} did not retain the exact candidate"
+        );
+    }
 }
 
 #[test]
@@ -302,7 +351,11 @@ fn every_model_backed_recovery_and_implementation_command_accepts_assistant_flag
         let help = String::from_utf8(output.stdout).unwrap();
         assert!(help.contains("--provider"));
         assert!(help.contains("--assistant-config"));
-        assert!(help.contains("http, cursor, augment, command"));
+        for provider in [
+            "http", "cursor", "augment", "claude", "codex", "copilot", "gemini", "command",
+        ] {
+            assert!(help.contains(provider), "{provider} missing from help");
+        }
     }
 }
 

@@ -67,7 +67,7 @@ def arguments(argv):
     parser.add_argument("--eal-host", default=os.environ.get("EAL_HOST", "eal-host"))
     parser.add_argument("--engarg", default=os.environ.get("ENGARG_BIN", "engarg"))
     parser.add_argument("--model", default=os.environ.get("ENGARG_MODEL"), help="explicit model or ENGARG_MODEL")
-    parser.add_argument("--provider", choices=("http", "cursor", "augment", "command"), default="http",
+    parser.add_argument("--provider", choices=("http", "cursor", "augment", "claude", "codex", "copilot", "gemini", "command"), default="http",
                         help="model API or local AI assistant backend")
     parser.add_argument("--assistant-config", type=Path, help="operator TOML for the selected assistant command")
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY", help="credential variable NAME, never its value")

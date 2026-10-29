@@ -166,7 +166,7 @@ else:
                 assert_eq!(completion.model, "assistant:augment:role-model");
                 assert_eq!(completion.request_id, None);
             }
-            AssistantKind::Command => unreachable!(),
+            _ => unreachable!(),
         }
     }
 }

@@ -158,7 +158,7 @@ class ClaimAssessmentTests(unittest.TestCase):
     def test_assistant_backends_reach_authoring_and_implementation_without_http_credentials(self):
         configuration = self.root / "assistant command.toml"
         configuration.write_text('argv = ["operator-assistant"]\ninherit_env = ["PATH"]\n')
-        for provider in ("cursor", "augment", "command"):
+        for provider in ("cursor", "augment", "claude", "codex", "copilot", "gemini", "command"):
             with self.subTest(provider=provider):
                 environment = {key: value for key, value in self.environment.items()
                                if key not in ("OPENAI_API_KEY", "ENGARG_API_KEY", "WORKFLOW_TEST_API_KEY")}

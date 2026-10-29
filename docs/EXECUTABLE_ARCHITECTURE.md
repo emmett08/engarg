@@ -71,8 +71,9 @@ for the distinction between a retained candidate and a failed provider exchange.
 ## Substitute the authoring provider at one contract
 
 HTTP models and supervised assistant commands implement `LanguageModel` with the
-same typed request and completion. Cursor, Auggie stable and generic JSON adapters
-own their wire encodings; the shared command transport owns environment selection,
+same typed request and completion. Cursor, Auggie stable, Claude Code, Codex,
+Copilot CLI, Gemini CLI and generic JSON adapters own their wire encodings;
+the shared command transport owns environment selection,
 temporary working directories, byte limits, deadlines and cancellation. Selection
 does not move argument validation or evidence acquisition into an adapter.
 
