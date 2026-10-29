@@ -3,14 +3,15 @@ use clap::Args;
 use engarg::{
     Error,
     provider::{
-        ApiStyle, Completion, CompletionRequest, HttpConfig, HttpModel, LanguageModel,
-        TransportConfig,
+        ApiStyle, Completion, CompletionRequest, HttpConfig, LanguageModel, TransportConfig,
     },
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 #[derive(Args)]
 pub struct ProviderArgs {
+    #[command(flatten)]
+    assistant: crate::assistant_options::AssistantArgs,
     #[arg(long, env = "ENGARG_MODEL")]
     model: String,
     #[arg(long, env = "ENGARG_SERVICE_TIER")]
@@ -40,14 +41,32 @@ pub struct ProviderArgs {
 
 impl ProviderArgs {
     /// Requested settings excluding credentials and credential variable names.
-    pub fn metadata(&self) -> serde_json::Value {
-        serde_json::json!({
+    fn metadata(
+        &self,
+        assistant: Option<&crate::assistant_options::AdmittedAssistant>,
+    ) -> serde_json::Value {
+        let mut value = serde_json::json!({
             "model":self.model,"endpoint":self.endpoint,"api":format!("{:?}",self.api),
             "service_tier":self.service_tier,"reasoning_effort":self.reasoning_effort,
             "max_output_tokens":self.max_output_tokens,"http_retries":self.http_retries,
             "retry_max_delay_secs":self.retry_max_delay_secs,
             "request_timeout_secs":self.request_timeout_secs,
-        })
+        });
+        if let Some(assistant) = assistant {
+            value["assistant"] =
+                serde_json::to_value(assistant.metadata()).expect("assistant metadata");
+            value["endpoint"] = serde_json::json!(assistant.endpoint());
+            value["api"] = serde_json::json!("AssistantCommand");
+            value
+                .as_object_mut()
+                .expect("provider metadata")
+                .remove("http_retries");
+            value
+                .as_object_mut()
+                .expect("provider metadata")
+                .remove("retry_max_delay_secs");
+        }
+        value
     }
 
     pub fn model(&self) -> Result<CodingModel, Error> {
@@ -56,12 +75,18 @@ impl ProviderArgs {
                 "resource limits must be positive".into(),
             ));
         }
-        let key = std::env::var(&self.api_key_env)
-            .ok()
+        let assistant = self.assistant.admit()?;
+        let key = assistant
+            .is_none()
+            .then(|| std::env::var(&self.api_key_env).ok())
+            .flatten()
             .filter(|key| !key.trim().is_empty());
-        let missing_key = (self.endpoint == "https://api.openai.com/v1/responses" && key.is_none())
-            .then(|| self.api_key_env.clone());
-        let inner = independent_model(
+        let missing_key = (assistant.is_none()
+            && self.endpoint == "https://api.openai.com/v1/responses"
+            && key.is_none())
+        .then(|| self.api_key_env.clone());
+        let inner = crate::assistant_options::configured_model(
+            assistant.as_ref(),
             HttpConfig {
                 endpoint: self.endpoint.clone(),
                 api_key: key,
@@ -82,16 +107,29 @@ impl ProviderArgs {
                 retry_max_delay_secs: self.retry_max_delay_secs,
                 max_concurrent_requests: 1,
             },
+            Arc::new(|_| Ok(())),
+            self.max_input_bytes,
         )?;
-        Ok(CodingModel { inner, missing_key })
+        Ok(CodingModel {
+            inner,
+            missing_key,
+            metadata: self.metadata(assistant.as_ref()),
+        })
     }
 }
 
 /// Cached reuse needs no provider credentials. A missing default-endpoint key
 /// becomes an admission error only if this stage actually needs a model call.
 pub struct CodingModel {
-    inner: HttpModel,
+    inner: crate::assistant_options::ConfiguredModel,
     missing_key: Option<String>,
+    metadata: serde_json::Value,
+}
+
+impl CodingModel {
+    pub fn metadata(&self) -> &serde_json::Value {
+        &self.metadata
+    }
 }
 
 impl LanguageModel for CodingModel {
@@ -103,14 +141,4 @@ impl LanguageModel for CodingModel {
         }
         self.inner.complete(request).await
     }
-}
-
-/// The coding stage has its own model instance, budget and audit. Argument role
-/// overrides and argument HTTP events do not enter its provider exchanges.
-pub fn independent_model(
-    mut config: HttpConfig,
-    transport: TransportConfig,
-) -> Result<HttpModel, Error> {
-    config.role_models.clear();
-    HttpModel::new_with_transport(config, transport, Arc::new(|_| Ok(())))
 }

@@ -46,6 +46,12 @@ operator image when its dependencies and interface fit the required operation.
 Both legacy runtime profiles and toolchain `/2` library preferences are accepted
 through EngArg's public CLI.
 
+For an installed assistant, replace `--api-key-env OPENAI_API_KEY` with
+`--provider cursor` or `--provider augment`; add `--assistant-config FILE` when
+the executable or inherited environment needs configuration. The script forwards
+these choices to authoring and implementation. See [assistant providers](AI_ASSISTANTS.md)
+for supported CLI versions and the protocol for other assistants.
+
 The [real Python dependency example](../examples/assess-claim/python-dependencies/README.md)
 includes a fully scoped request, an operator-selected Packaging library, a native
 generated package, frozen verification cases and actual positive/negative EAL

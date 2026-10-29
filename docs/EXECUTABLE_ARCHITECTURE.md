@@ -68,6 +68,20 @@ stages are present. It cannot continue a missing specialist response. See the
 [provider failure and recovery instructions](USAGE.md#3-author-and-inspect-the-argument)
 for the distinction between a retained candidate and a failed provider exchange.
 
+## Substitute the authoring provider at one contract
+
+HTTP models and supervised assistant commands implement `LanguageModel` with the
+same typed request and completion. Cursor, Auggie stable and generic JSON adapters
+own their wire encodings; the shared command transport owns environment selection,
+temporary working directories, byte limits, deadlines and cancellation. Selection
+does not move argument validation or evidence acquisition into an adapter.
+
+Assistant configuration remains operator authority. Retained provider metadata
+identifies the selected assistant and configuration digest, while old HTTP reports
+round-trip without added assistant fields. Unknown native model usage remains
+unknown. [Assistant providers](AI_ASSISTANTS.md) describes the protocol and the
+limits of native token-budget enforcement.
+
 ## Make revisions explicit
 
 An accepted argument may need a narrower population, a different inference or a

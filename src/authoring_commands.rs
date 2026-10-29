@@ -234,6 +234,7 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
         )
     };
     let model = args.provider.model()?;
+    let provider_metadata = model.metadata().clone();
     let audit = Mutex::new(authoring_checkpoint::private_new(&args.audit)?);
     let mut next = saved.clone();
     next.begin_repair(authoring_checkpoint::RepairAllowance {
@@ -256,13 +257,13 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
         );
     next.protocol_identity = authoring_checkpoint::protocol_identity();
     next.producer_version = env!("CARGO_PKG_VERSION").into();
-    next.provider_config = args.provider.metadata();
+    next.provider_config = provider_metadata.clone();
     next.failure = None;
     let checkpoint = Store::create(&args.next_checkpoint, next)?;
     append(
         &audit,
         &json!({"event":"authoring_resume_start","parent_checkpoint_sha256":parent_digest,
-        "recorded_calls":saved.transcript.len(),"additional_repairs":args.max_repairs,"provider_config":args.provider.metadata()}),
+        "recorded_calls":saved.transcript.len(),"additional_repairs":args.max_repairs,"provider_config":provider_metadata}),
     )?;
     let observer = |record: &CallRecord| {
         append(&audit, &json!({"event":"completion","record":record}))?;
@@ -307,7 +308,7 @@ async fn resume(args: ResumeArgs, progress: &crate::progress::Progress) -> Resul
         value["authoring_recovery"] = json!({"schema":"engarg.authoring-recovery/1","parent_checkpoint_sha256":parent_digest,"previous_checkpoint":parent_metadata,"previous_call_order":parent_call_order,
             "recorded_calls":saved.transcript.len(),"new_model_calls":added,"additional_repair_limit":args.max_repairs,
             "stage_byte_limits":{"max_input_bytes":args.provider.max_input_bytes,"max_response_bytes":args.provider.max_response_bytes},
-            "previous_provider_config":saved.provider_config,"provider_config":args.provider.metadata(),
+            "previous_provider_config":saved.provider_config,"provider_config":provider_metadata,
             "protocol_migration":saved.protocol_identity!=authoring_checkpoint::protocol_identity(),
             "previous_protocol":saved.protocol_identity,"current_protocol":authoring_checkpoint::protocol_identity()});
         let canonical = engarg::report::read(&value)?;

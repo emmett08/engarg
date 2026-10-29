@@ -4,7 +4,7 @@ use engarg::{
     domain::{ArgumentCase, Request, case_schema, validate_case, validate_request},
     engine::{Mode, ProviderRunConfig, RunConfig},
     presentations,
-    provider::{ApiStyle, HttpConfig, HttpModel, Role, TransportConfig},
+    provider::{ApiStyle, HttpConfig, Role, TransportConfig},
     render,
 };
 use serde::Serialize;
@@ -18,6 +18,7 @@ use std::{
     time::Duration,
 };
 
+mod assistant_options;
 mod authoring_commands;
 mod eal_commands;
 mod glossary_command;
@@ -115,6 +116,8 @@ struct Source {
 struct Analyse {
     #[command(flatten)]
     source: Source,
+    #[command(flatten)]
+    assistant: assistant_options::AssistantArgs,
     /// Default model identifier, supplied explicitly for reproducible selection.
     #[arg(long, env = "ENGARG_MODEL")]
     model: String,
@@ -162,10 +165,10 @@ struct Analyse {
     /// Maximum retry wait. A longer valid Retry-After stops the call instead of retrying early.
     #[arg(long, default_value_t = 120, value_parser = clap::value_parser!(u64).range(1..=3600))]
     retry_max_delay_secs: u64,
-    /// Concurrent HTTP sequences. Use 1 to pace the independent hybrid specialists.
+    /// Concurrent model requests. Use 1 to pace the independent hybrid specialists.
     #[arg(long, default_value_t = 3, value_parser = clap::value_parser!(u16).range(1..=64))]
     max_concurrent_requests: u16,
-    /// Deadline per logical call including HTTP admission, retry waits and response reads.
+    /// Deadline per logical call including admission, transport and response reads.
     #[arg(long, default_value_t = 120)]
     request_timeout_secs: u64,
     #[arg(long, default_value_t = 480)]
@@ -371,7 +374,8 @@ struct StartAudit<'a> {
     version: &'static str,
     request: &'a Request,
     config: &'a RunConfig,
-    transport_config: &'a TransportConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transport_config: Option<&'a TransportConfig>,
     #[serde(flatten)]
     provider_config: &'a ProviderRunConfig,
 }
@@ -501,10 +505,16 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             ));
         }
     }
-    let key = std::env::var(&args.api_key_env)
-        .ok()
+    let assistant = args.assistant.admit()?;
+    let key = assistant
+        .is_none()
+        .then(|| std::env::var(&args.api_key_env).ok())
+        .flatten()
         .filter(|s| !s.trim().is_empty());
-    if args.endpoint == "https://api.openai.com/v1/responses" && key.is_none() {
+    if assistant.is_none()
+        && args.endpoint == "https://api.openai.com/v1/responses"
+        && key.is_none()
+    {
         return Err(Error::InvalidInput(format!(
             "set {} to the provider API key",
             args.api_key_env
@@ -522,8 +532,15 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         max_response_bytes: args.max_response_bytes,
     };
     let provider_config = ProviderRunConfig {
-        endpoint: args.endpoint.clone(),
-        api: format!("{:?}", args.api),
+        assistant: assistant.as_ref().map(|assistant| assistant.metadata()),
+        endpoint: assistant
+            .as_ref()
+            .map_or_else(|| args.endpoint.clone(), |assistant| assistant.endpoint()),
+        api: if assistant.is_some() {
+            "AssistantCommand".into()
+        } else {
+            format!("{:?}", args.api)
+        },
         default_model: args.model.clone(),
         requested_service_tier: args.service_tier.clone(),
         requested_reasoning_effort: args.reasoning_effort.clone(),
@@ -569,14 +586,24 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
     let tooling_model = args
         .implement_tools
         .then(|| {
-            tooling_commands::provider::independent_model(http_config(), transport_config.clone())
-                .map(|model| progress.model(model))
+            let mut config = http_config();
+            config.role_models.clear();
+            assistant_options::configured_model(
+                assistant.as_ref(),
+                config,
+                transport_config.clone(),
+                Arc::new(|_| Ok(())),
+                args.max_input_bytes,
+            )
+            .map(|model| progress.model(model))
         })
         .transpose()?;
-    let model = progress.model(HttpModel::new_with_transport(
+    let model = progress.model(assistant_options::configured_model(
+        assistant.as_ref(),
         http_config(),
         transport_config.clone(),
         http_observer,
+        args.max_input_bytes,
     )?);
     *audit
         .lock()
@@ -592,7 +619,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             version: env!("CARGO_PKG_VERSION"),
             request: &request,
             config: &config,
-            transport_config: &transport_config,
+            transport_config: assistant.is_none().then_some(&transport_config),
             provider_config: &provider_config,
         },
     )?;
@@ -695,7 +722,20 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
         Ok(mut report) => {
             report["provider_config"] = serde_json::to_value(provider_config)?;
             report["target_runtime"] = serde_json::to_value(&target_runtime)?;
-            report["limitations"].as_array_mut().ok_or_else(||Error::InvalidOutput("Run limitations missing".into()))?.push(json!(format!("HTTP transport allows {} retries per logical call with a maximum retry delay of {} seconds and {} concurrent request sequences. HTTP attempts have a separate bound from the logical model-call budget.", transport_config.max_http_retries,transport_config.retry_max_delay_secs,transport_config.max_concurrent_requests)));
+            let transport_limitation = if assistant.is_some() {
+                "Assistant commands run with a bounded deadline and output size, selected environment variables and no automatic retries. A temporary working directory is not a sandbox. Native CLI output-token limits are prompt instructions, not verified token caps. Logical-call budgets count CLI invocations; native assistants may make internal inference requests that EngArg does not observe. Completion model labels prefixed with assistant: record the configured selection when the assistant does not report an actual model. Local cancellation does not confirm remote completion or billing.".to_owned()
+            } else {
+                format!(
+                    "HTTP transport allows {} retries per logical call with a maximum retry delay of {} seconds and {} concurrent request sequences. HTTP attempts have a separate bound from the logical model-call budget.",
+                    transport_config.max_http_retries,
+                    transport_config.retry_max_delay_secs,
+                    transport_config.max_concurrent_requests
+                )
+            };
+            report["limitations"]
+                .as_array_mut()
+                .ok_or_else(|| Error::InvalidOutput("Run limitations missing".into()))?
+                .push(json!(transport_limitation));
             let argument: ArgumentCase = serde_json::from_value(report["argument"].clone())?;
             let original = report;
             let input_sha256 = original["input_sha256"].clone();

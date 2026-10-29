@@ -1,8 +1,10 @@
-//! Model wire formats with a separate bounded HTTP transport.
+//! Model completion contracts with bounded HTTP and assistant-command adapters.
 
 use crate::Error;
 use reqwest::Url;
+pub mod command;
 mod http;
+pub use command::{AssistantKind, CommandConfig, CommandModel};
 mod response;
 mod retry_policy;
 pub use http::{HttpEvent, HttpObserver, TransportConfig};

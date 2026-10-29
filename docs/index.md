@@ -26,6 +26,10 @@ reviews, executes evidence collection through `eal-mcp`, assesses the retained
 observations and revises the argument when its conditions fail. Its commands use
 the public applications directly.
 
+[Assistant providers](AI_ASSISTANTS.md) use Cursor, Augment or another installed
+assistant for authoring and tool generation. The default HTTP integration remains
+available for Responses and Chat Completions services.
+
 Before a paid authoring run, [the finite inventory example](finite-inventory.md)
 checks the installed path with an actual local MCP source and command audit.
 Its supported conclusion concerns a synthetic three-entry snapshot. That narrow

@@ -1,6 +1,6 @@
 //! Admission and immutable input identities for operator-submitted tickets.
 use super::TicketArgs;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use engarg::{Error, domain::Request, engine::topology::DebateConfig};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -134,8 +134,23 @@ fn executable_file(path: &Path) -> bool {
     }
 }
 
+fn pin_provider(arguments: &mut Vec<String>) {
+    if !arguments
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .any(|pair| pair[0] == "--provider")
+    {
+        // Ticket authority comes from the admitted spec. Ambient provider
+        // selection must not change the historical HTTP default in later stages.
+        arguments.extend(["--provider".into(), "http".into()]);
+    }
+}
+
 pub fn validate_authoring(args: &[String]) -> Result<(), Error> {
     let allowed = [
+        "--provider",
+        "--assistant-config",
         "--model",
         "--service-tier",
         "--reasoning-effort",
@@ -170,11 +185,56 @@ pub fn validate_authoring(args: &[String]) -> Result<(), Error> {
     }
     Ok(())
 }
-fn admit_implementation(config: &mut Configuration, base: &Path) -> Result<(), Error> {
+
+/// Assistant authority is retained and checked like other operator input files.
+fn admit_assistant(
+    arguments: &mut [String],
+    base: &Path,
+    environment: &[String],
+) -> Result<Option<PathBuf>, Error> {
+    let pairs = arguments.as_chunks::<2>().0;
+    let provider = pairs
+        .iter()
+        .find(|pair| pair[0] == "--provider")
+        .map(|pair| crate::assistant_options::ProviderKind::from_str(&pair[1], false))
+        .transpose()
+        .map_err(|_| Error::InvalidInput("invalid ticket assistant provider".into()))?
+        .unwrap_or(crate::assistant_options::ProviderKind::Http);
+    let mut selected = None;
+    for pair in arguments.as_chunks_mut::<2>().0 {
+        if pair[0] != "--assistant-config" {
+            continue;
+        }
+        let path = resolve(base, Path::new(&pair[1]))?;
+        let settings = crate::assistant_options::read_config(&path)?;
+        if settings
+            .inherit_env
+            .iter()
+            .any(|name| !environment.contains(name))
+        {
+            return Err(Error::InvalidInput(
+                "assistant environment must be granted through ticket environment".into(),
+            ));
+        }
+        pair[1] = super::process::path(&path)?;
+        selected = Some(path);
+    }
+    crate::assistant_options::AssistantArgs {
+        provider,
+        assistant_config: selected.clone(),
+    }
+    .admit()?;
+    Ok(selected)
+}
+
+fn admit_implementation(config: &mut Configuration, base: &Path) -> Result<Option<PathBuf>, Error> {
     let Some(implementation) = &mut config.implementation else {
-        return Ok(());
+        return Ok(None);
     };
+    pin_provider(&mut implementation.provider_args);
     let allowed = [
+        "--provider",
+        "--assistant-config",
         "--model",
         "--service-tier",
         "--reasoning-effort",
@@ -202,6 +262,8 @@ fn admit_implementation(config: &mut Configuration, base: &Path) -> Result<(), E
     {
         return Err(Error::InvalidInput("implementation requires bounded provider options and a deadline within its ticket stage".into()));
     }
+    let assistant_config =
+        admit_assistant(&mut implementation.provider_args, base, &config.environment)?;
     implementation.toolchain = resolve(base, &implementation.toolchain)?;
     implementation.store =
         crate::path_admission::identity(&if implementation.store.is_absolute() {
@@ -245,10 +307,10 @@ fn admit_implementation(config: &mut Configuration, base: &Path) -> Result<(), E
         "--tools".into(),
         "tools.toml".into(),
     ];
-    admission.extend(arguments.clone());
+    admission.extend(implementation.provider_args.clone());
     crate::Cli::try_parse_from(admission)
         .map_err(|_| Error::InvalidInput("invalid implementation provider options".into()))?;
-    Ok(())
+    Ok(assistant_config)
 }
 
 pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
@@ -275,6 +337,7 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
     engarg::domain::validate_request(&config.request)
         .map_err(|errors| Error::InvalidInput(errors.join("; ")))?;
     config.debate.graphs()?;
+    pin_provider(&mut config.authoring_args);
     validate_authoring(&config.authoring_args)?;
     eal_collector_contracts::validate_environment_names(&config.environment, 64)
         .map_err(Error::InvalidInput)?;
@@ -293,6 +356,8 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
             "ticket environment must exist and include every collector credential reference".into(),
         ));
     }
+    let authoring_assistant =
+        admit_assistant(&mut config.authoring_args, base, &config.environment)?;
     let mut admission = vec![
         "engarg".to_owned(),
         "analyse".into(),
@@ -316,7 +381,7 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
             )));
         }
     }
-    admit_implementation(&mut config, base)?;
+    let implementation_assistant = admit_implementation(&mut config, base)?;
     config.tools = resolve(base, &config.tools)?;
     config.eal_host = resolve(base, &config.eal_host)?;
     if let Some(path) = &mut config.export_policy {
@@ -357,6 +422,8 @@ pub fn prepare(args: TicketArgs) -> Result<Prepared, Error> {
         ));
     }
     let mut paths = BTreeSet::from([source, config.eal_host.clone(), coordinator.clone()]);
+    paths.extend(authoring_assistant);
+    paths.extend(implementation_assistant);
     paths.extend(tool_files.iter().cloned());
     paths.extend(config.export_policy.iter().cloned());
     paths.extend(
@@ -534,6 +601,15 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let prepared = prepare(submission(root.path())).unwrap();
         let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
+        assert!(
+            snapshot
+                .configuration
+                .authoring_args
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .any(|pair| pair == &["--provider", "http"])
+        );
         let source = root
             .path()
             .join("tools/source.json")
@@ -603,6 +679,120 @@ mod tests {
         invalid_submission(vec!["--model", "fixture", "--max-calls", "1"], vec![]);
         invalid_submission(vec!["--model", "fixture"], vec!["UNGRANTED_SECRET"]);
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn assistant_configuration_is_resolved_and_pinned_before_authoring() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        let assistant = root.path().join("assistant.toml");
+        fs::write(
+            &assistant,
+            "argv=['operator-assistant']\ninherit_env=['PATH']\n",
+        )
+        .unwrap();
+        let mut value: serde_json::Value = read(&args.spec).unwrap();
+        value["authoring_args"] = serde_json::json!([
+            "--model",
+            "fixture",
+            "--provider",
+            "command",
+            "--assistant-config",
+            "assistant.toml"
+        ]);
+        fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
+        let prepared = prepare(args).unwrap();
+        let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
+        let assistant = assistant.canonicalize().unwrap();
+        assert_eq!(
+            snapshot.configuration.authoring_args.last().unwrap(),
+            assistant.to_str().unwrap()
+        );
+        assert!(
+            snapshot
+                .pins
+                .iter()
+                .any(|pin| pin.path == assistant && pin.retained.is_some())
+        );
+        fs::write(
+            assistant,
+            "argv=['changed-assistant']\ninherit_env=['PATH']\n",
+        )
+        .unwrap();
+        assert!(load(&prepared.snapshot, &prepared.snapshot_sha256).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn assistant_cannot_inherit_ungranted_ticket_environment() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        fs::write(
+            root.path().join("assistant.toml"),
+            "argv=['operator-assistant']\ninherit_env=['UNGRANTED_ASSISTANT_TOKEN']\n",
+        )
+        .unwrap();
+        let mut value: serde_json::Value = read(&args.spec).unwrap();
+        value["authoring_args"] = serde_json::json!([
+            "--model",
+            "fixture",
+            "--provider",
+            "command",
+            "--assistant-config",
+            "assistant.toml"
+        ]);
+        fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
+        let error = prepare(args).err().unwrap();
+        assert!(
+            error
+                .to_string()
+                .contains("assistant environment must be granted")
+        );
+        assert!(!root.path().join("run").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn command_provider_without_configuration_rejects_before_ticket_publication() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        let mut value: serde_json::Value = read(&args.spec).unwrap();
+        value["authoring_args"] =
+            serde_json::json!(["--model", "fixture", "--provider", "command"]);
+        fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(
+            prepare(args)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("--provider command requires --assistant-config")
+        );
+        assert!(!root.path().join("run").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn oversized_assistant_arguments_reject_before_ticket_publication() {
+        let root = tempfile::tempdir().unwrap();
+        let args = submission(root.path());
+        fs::write(
+            root.path().join("assistant.toml"),
+            format!("argv=['{}']\ninherit_env=['PATH']\n", "x".repeat(8193)),
+        )
+        .unwrap();
+        let mut value: serde_json::Value = read(&args.spec).unwrap();
+        value["authoring_args"] = serde_json::json!([
+            "--model",
+            "fixture",
+            "--provider",
+            "command",
+            "--assistant-config",
+            "assistant.toml"
+        ]);
+        fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(prepare(args).is_err());
+        assert!(!root.path().join("run").exists());
+    }
     #[cfg(unix)]
     #[test]
     fn implementation_authority_is_admitted_and_pinned_without_starting_a_model_or_docker() {
@@ -614,9 +804,15 @@ mod tests {
             "build_argv":[],"run_argv":["python3"],"inherit_env":[],"runtime_network":"none",
             "timeout_seconds":30,"memory_mb":128,"output_bytes":1048576
         })).unwrap()).unwrap();
+        let assistant = root.path().join("assistant.toml");
+        fs::write(
+            &assistant,
+            "argv=['operator-assistant']\ninherit_env=['PATH']\n",
+        )
+        .unwrap();
         let mut value: serde_json::Value = read(&args.spec).unwrap();
         value["collector_environment"] = serde_json::json!(["PATH"]);
-        value["implementation"] = serde_json::json!({"language":"python","toolchain":"toolchain.json","store":"store","provider_args":["--model","fixture"],"max_calls":2,"timeout_seconds":120});
+        value["implementation"] = serde_json::json!({"language":"python","toolchain":"toolchain.json","store":"store","provider_args":["--model","fixture","--provider","command","--assistant-config","assistant.toml"],"max_calls":2,"timeout_seconds":120});
         fs::write(&args.spec, serde_json::to_vec(&value).unwrap()).unwrap();
         let prepared = prepare(args).unwrap();
         let snapshot = load(&prepared.snapshot, &prepared.snapshot_sha256).unwrap();
@@ -627,6 +823,13 @@ mod tests {
                 .pins
                 .iter()
                 .any(|pin| pin.path == admitted_toolchain)
+        );
+        let admitted_assistant = assistant.canonicalize().unwrap();
+        assert!(
+            snapshot
+                .pins
+                .iter()
+                .any(|pin| pin.path == admitted_assistant)
         );
         assert!(!root.path().join("store").exists());
         fs::write(&toolchain, b"{}").unwrap();

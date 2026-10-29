@@ -49,7 +49,7 @@ paired integration coverage.
 
 | Boundary | What must remain true | EngArg checks |
 |---|---|---|
-| Provider transport | Bounded requests, safe failure diagnostics, explicit retry policy and retained usage. | `http_provider`, `http_retries` and provider unit tests. |
+| Provider transport | Bounded requests, safe failure diagnostics, explicit retry policy and retained usage. Assistant commands also preserve environment selection and descendant cleanup. | `http_provider`, `http_retries`, command-provider tests and provider unit tests. |
 | Report admission and recovery | Original completions constrain the argument. Each authoring or repair stage retains its own call and byte budgets. | `support_cli`, `support_recovery_cli`, `authoring_checkpoint` unit tests. |
 | Explicit revision | Parent identity, dissent and changed requirement reasons survive repeated revisions. Derived execution claims are invalidated. | `argument_revision`, `replan_cli`, installed repeated-revision check. |
 | Target runtime | Selected language and method contracts are checked before model calls. | `runtime_compatibility`, `tooling_cli`, ticket configuration tests. |

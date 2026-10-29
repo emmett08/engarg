@@ -10,6 +10,10 @@ initial argument to evidence collection, assessment and revision. Start with
 [the engineer's guide](docs/USAGE.md) for installation and the complete command
 sequence, including Rust, Go and TypeScript tool generation.
 
+Author with an HTTP model service or an installed [Cursor, Augment or other AI
+assistant](docs/AI_ASSISTANTS.md). Assistant providers use their CLI authentication
+and preserve the same argument validation and retained exchanges.
+
 An investigation executes from its EAL source, TOML tool bindings and referenced
 implementations:
 

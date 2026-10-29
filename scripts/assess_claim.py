@@ -67,6 +67,9 @@ def arguments(argv):
     parser.add_argument("--eal-host", default=os.environ.get("EAL_HOST", "eal-host"))
     parser.add_argument("--engarg", default=os.environ.get("ENGARG_BIN", "engarg"))
     parser.add_argument("--model", default=os.environ.get("ENGARG_MODEL"), help="explicit model or ENGARG_MODEL")
+    parser.add_argument("--provider", choices=("http", "cursor", "augment", "command"), default="http",
+                        help="model API or local AI assistant backend")
+    parser.add_argument("--assistant-config", type=Path, help="operator TOML for the selected assistant command")
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY", help="credential variable NAME, never its value")
     parser.add_argument("--api", choices=("responses", "chat"), default="responses")
     parser.add_argument("--endpoint", help="provider endpoint; defaults to the selected OpenAI protocol")
@@ -90,7 +93,14 @@ def arguments(argv):
         parser.error("--context requires --claim")
     if not options.model and (options.analysis is None or not options.no_implement_tools):
         parser.error("--model or ENGARG_MODEL is required")
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", options.api_key_env):
+    if options.provider == "command" and options.assistant_config is None:
+        parser.error("--provider command requires --assistant-config")
+    if options.provider == "http" and options.assistant_config is not None:
+        parser.error("--assistant-config requires an assistant provider")
+    if options.provider != "http" and (options.endpoint or options.reasoning_effort
+                                       or options.service_tier or options.api != "responses"):
+        parser.error("--endpoint, --api chat, --reasoning-effort and --service-tier require --provider http")
+    if options.provider == "http" and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", options.api_key_env):
         parser.error("--api-key-env must name an environment variable")
     if options.author_max_repairs >= options.author_max_calls:
         parser.error("--author-max-calls must reserve at least one non-repair call")
@@ -146,7 +156,8 @@ class Workflow:
         self.environment = dict(os.environ)
         self.environment["PATH"] = str(Path(self.host).parent) + os.pathsep + self.environment.get("PATH", "")
         for path, label in ((options.input, "request"), (options.analysis, "analysis"),
-                            (options.tools, "tool manifest"), (options.toolchain, "toolchain")):
+                            (options.tools, "tool manifest"), (options.toolchain, "toolchain"),
+                            (options.assistant_config, "assistant configuration")):
             if path is not None and not path.is_file():
                 raise WorkflowError(f"{label} is not a regular file: {path}")
         if options.tool_store is not None and options.tool_store.exists() and not options.tool_store.is_dir():
@@ -157,6 +168,10 @@ class Workflow:
                                  (Path(self.host).parent, "eal-process-supervisor")):
                 if not os.access(parent / name, os.X_OK):
                     raise WorkflowError(f"missing matching runtime companion: {parent / name}")
+        elif options.provider != "http" and options.analysis is None:
+            supervisor = Path(self.engarg).parent / "engarg-process-supervisor"
+            if not os.access(supervisor, os.X_OK):
+                raise WorkflowError(f"missing matching runtime companion: {supervisor}")
         self.root.parent.mkdir(parents=True, exist_ok=True)
         self.root.mkdir(mode=0o700)
         (self.root / "logs").mkdir()
@@ -168,8 +183,9 @@ class Workflow:
         self.summary = {
             "schema": "engarg.claim-assessment-run/1", "status": "running",
             "stage": "configuration",
-            "output_dir": str(self.root), "model": options.model,
-            "api_key_env": options.api_key_env, "stages": [],
+            "output_dir": str(self.root), "model": options.model, "provider": options.provider,
+            "api_key_env": options.api_key_env if options.provider == "http" else None,
+            "stages": [],
         }
         self.record()
 
@@ -216,13 +232,17 @@ class Workflow:
 
     def provider(self):
         value = self.options
-        endpoint = value.endpoint or ("https://api.openai.com/v1/responses" if value.api == "responses"
-                                      else "https://api.openai.com/v1/chat/completions")
-        result = ["--model", value.model, "--api-key-env", value.api_key_env,
-                  "--api", value.api, "--endpoint", endpoint,
+        result = ["--model", value.model, "--provider", value.provider,
                   "--request-timeout-secs", str(value.request_timeout_secs),
                   "--max-input-bytes", str(value.max_input_bytes),
                   "--max-response-bytes", str(value.max_response_bytes)]
+        if value.provider != "http":
+            if value.assistant_config is not None:
+                result += ["--assistant-config", str(value.assistant_config.absolute())]
+            return result
+        endpoint = value.endpoint or ("https://api.openai.com/v1/responses" if value.api == "responses"
+                                      else "https://api.openai.com/v1/chat/completions")
+        result += ["--api-key-env", value.api_key_env, "--api", value.api, "--endpoint", endpoint]
         for flag, selected in (("--reasoning-effort", value.reasoning_effort),
                                ("--service-tier", value.service_tier)):
             if selected:

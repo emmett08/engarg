@@ -155,6 +155,64 @@ class ClaimAssessmentTests(unittest.TestCase):
         self.assertEqual(self.summary()["verified_operations"], 0)
         self.assertEqual(self.summary()["implementation_model_calls"], 0)
 
+    def test_assistant_backends_reach_authoring_and_implementation_without_http_credentials(self):
+        configuration = self.root / "assistant command.toml"
+        configuration.write_text('argv = ["operator-assistant"]\ninherit_env = ["PATH"]\n')
+        for provider in ("cursor", "augment", "command"):
+            with self.subTest(provider=provider):
+                environment = {key: value for key, value in self.environment.items()
+                               if key not in ("OPENAI_API_KEY", "ENGARG_API_KEY", "WORKFLOW_TEST_API_KEY")}
+                result = subprocess.run([
+                    "bash", str(SCRIPT), *self.base, *map(str, self.source_args()),
+                    "--provider", provider, "--assistant-config", str(configuration),
+                ], cwd=self.root, env=environment, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for stage in ("analyse", "implement"):
+                    arguments = self.call(stage)
+                    self.assertEqual(arguments[arguments.index("--provider") + 1], provider)
+                    self.assertEqual(arguments[arguments.index("--assistant-config") + 1], str(configuration))
+                    for flag in ("--api-key-env", "--api", "--endpoint"):
+                        self.assertNotIn(flag, arguments)
+                self.assertEqual(self.summary()["provider"], provider)
+                self.assertIsNone(self.summary()["api_key_env"])
+                shutil.rmtree(self.output)
+                self.trace.unlink()
+
+    def test_native_assistant_preset_needs_no_command_configuration(self):
+        result = self.run_script(*self.source_args(), "--provider", "cursor")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("--assistant-config", self.call("analyse"))
+        self.assertNotIn("--endpoint", self.call("analyse"))
+
+    def test_default_http_selection_is_explicit_in_each_model_stage(self):
+        result = self.run_script(*self.source_args(), ENGARG_PROVIDER="command")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for stage in ("analyse", "implement"):
+            arguments = self.call(stage)
+            self.assertEqual(arguments[arguments.index("--provider") + 1], "http")
+
+    def test_invalid_assistant_options_precede_runtime_calls_and_output_creation(self):
+        for extra in (["--provider", "command"],
+                      ["--assistant-config", str(self.tools)],
+                      ["--provider", "augment", "--endpoint", "https://example.test/v1"],
+                      ["--provider", "augment", "--api", "chat"],
+                      ["--provider", "cursor", "--service-tier", "priority"],
+                      ["--provider", "cursor", "--assistant-config", str(self.root / "missing.toml")]):
+            with self.subTest(extra=extra):
+                result = self.run_script(*self.source_args(), *extra)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(self.calls(), [])
+                self.assertFalse(self.output.exists())
+
+    def test_assistant_authoring_admits_its_supervisor_before_creating_output(self):
+        (self.root / "engarg-process-supervisor").unlink()
+        result = self.run_script("--claim", "bounded claim", "--provider", "augment",
+                                 "--no-implement-tools", "--tools", self.tools)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("engarg-process-supervisor", result.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse(self.output.exists())
+
     def test_native_implementation_rechecks_missing_tools_despite_a_bound_authoring_snapshot(self):
         result = self.run_script(*self.source_args(), BOUND="1")
         self.assertEqual(result.returncode, 0, result.stderr)

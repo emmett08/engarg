@@ -120,13 +120,15 @@ async fn execute_inner(
     };
     // Reject deterministic configuration failures before spending a model call.
     let planner = crate::support_commands::admit(&args.evidence_config).await?;
+    let provider = args.provider.model()?;
+    let provider_metadata = provider.metadata().clone();
     let model = AuditModel {
-        inner: progress.model(args.provider.model()?),
+        inner: progress.model(provider),
         audit: &audit,
     };
     append(
         &audit,
-        &json!({"event":"support_recovery_start","input_report_sha256":source_digest,"recorded_calls":canonical.transcript.len(),"config":config,"provider_config":args.provider.metadata()}),
+        &json!({"event":"support_recovery_start","input_report_sha256":source_digest,"recorded_calls":canonical.transcript.len(),"config":config,"provider_config":provider_metadata}),
     )?;
     let observer =
         |record: &CallRecord| append(&audit, &json!({"event":"completion","record":record}));
@@ -173,7 +175,7 @@ async fn execute_inner(
         object.insert("support_recovery".into(), json!({
             "schema":"engarg.support-recovery/1","input_report_sha256":source_digest,
             "previous_report":raw,"recorded_calls":canonical.transcript.len(),
-            "model_calls":calls.len(),"repair_limit":args.max_repairs,"provider_config":args.provider.metadata(),
+            "model_calls":calls.len(),"repair_limit":args.max_repairs,"provider_config":provider_metadata,
             "audit_path":audit_path,"provider_requests":calls.iter().map(|call|&call.prompt).collect::<Vec<_>>()
         }));
         let warning = "Support recovery preserves the original argument and all recorded authoring calls. Retained pending designs are non-executable; remaining qualification, configuration and judgement gaps still require resolution.";
