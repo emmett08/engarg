@@ -36,6 +36,42 @@ def link(base, target, text):
     return f'<a href="{html.escape(relative, quote=True)}">{html.escape(text)}</a>'
 
 
+def bayesian_overview(base):
+    """Explain the model without changing the retained argument statements."""
+    explanation = link(base, base / "README.md", "Full model, derivation and qualification conditions")
+    return (
+        '<section class="assessment" aria-labelledby="model-and-claim">'
+        '<h2 id="model-and-claim">PS-DIAG/1: model and claim</h2>'
+        '<p>PS-DIAG/1 is a stipulated Bayesian network with three binary variables. '
+        '<code>Fault</code> represents a power-supply condition, healthy '
+        '(<code>0</code>) or faulty (<code>1</code>). <code>Alarm</code> and '
+        '<code>HeartbeatLost</code> represent Boolean alarm and heartbeat-loss '
+        'indications, with states <code>0</code> and <code>1</code> denoting false '
+        'and true. The model defines their probabilities and leaves the physical '
+        'means of producing either indication unspecified.</p>'
+        '<p>The edges are <code>Fault → Alarm</code> and '
+        '<code>Fault → HeartbeatLost</code>. The two indications are conditionally '
+        'independent given <code>Fault</code>. With the stipulated parameters and '
+        'both indications true, the exact posterior '
+        '<code>P(Fault=1 | Alarm=1, HeartbeatLost=1)</code> is '
+        '<code>152/201 ≈ 0.7562</code>, exceeding <code>0.75</code>. The evidence '
+        'normaliser is the unconditional probability of both indications, '
+        '<code>P(Alarm=1, HeartbeatLost=1) = 201/10000</code>.</p>'
+        '<p>The current claim requires a faithful, complete calculation of this '
+        'model consequence in the pinned pgmpy 1.1.2 runtime. Returned decimals '
+        'must agree with the exact references within absolute <code>1e-12</code> '
+        'under the declared fifteen-significant-digit policy. Support also '
+        'requires the scoped assessments, execution binding and original '
+        '86400-second record-age conditions. The stronger target adds source '
+        'assessment and qualification of the reusable operation against frozen '
+        'cases. Applying the posterior to physical hardware would require '
+        'evidence that the model represents that hardware.</p>'
+        '<p>The retained argument uses “sensor” and “flag” for these Boolean '
+        'diagnostic indications. Its original statements remain below. '
+        f'{explanation}.</p></section>'
+    )
+
+
 def build_pages(engarg):
     pages, rows = {}, []
     with tempfile.TemporaryDirectory(prefix="engarg-example-html-") as scratch:
@@ -92,7 +128,8 @@ def build_pages(engarg):
                 f'<p>Recorded assessment SHA-256: <code>{sha(assessment_path)}</code></p>'
                 '</details></aside>'
             )
-            page = page.replace(heading, f"<h1>{html.escape(title)}</h1>\n{note}", 1)
+            overview = bayesian_overview(base) if directory == "bayesian-diagnosis" else ""
+            page = page.replace(heading, f"<h1>{html.escape(title)}</h1>\n{overview}{note}", 1)
             pages[base / "argument.html"] = page.encode("utf-8")
             rows.append(
                 f'<tr><th scope="row">{link(EXAMPLES, base / "argument.html", title)}</th>'
