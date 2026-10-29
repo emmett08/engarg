@@ -1,0 +1,621 @@
+{
+  "schema": "engarg.runtime-cache-profile/1",
+  "decision": "retain for verified cache-identity independence and reduced duplicated payload namespaces; local warm-hit preflight overhead increases",
+  "inventory": {
+    "schema": "engarg.workflow-audit/1",
+    "revision": "71998c82c4bc48d329197db9329b8bfc70a78f37",
+    "inventory": {
+      "workflows": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "name": "Rust checks",
+          "triggers": [
+            "push:main",
+            "pull_request"
+          ],
+          "jobs": [
+            {
+              "id": "checks",
+              "matrix": [
+                "ubuntu-latest",
+                "macos-latest"
+              ]
+            },
+            {
+              "id": "prepared-toolchains",
+              "matrix": [
+                "python",
+                "rust",
+                "go",
+                "node"
+              ]
+            },
+            {
+              "id": "eal-compatibility",
+              "matrix": [
+                "ubuntu-latest"
+              ]
+            }
+          ],
+          "permissions": {
+            "contents": "read"
+          },
+          "cancellation": "Superseded PR revisions only; main pushes independent",
+          "selected_revision": "Event commit; PR merge ref",
+          "scripts": [
+            "scripts/run-catalog-sync-authoring.sh (syntax only)",
+            "scripts/install-eal-runtime.sh",
+            "scripts/render-example-arguments.py",
+            "tests/test_*.py",
+            "Cargo tests and Dockerfiles under examples/toolchains"
+          ]
+        },
+        {
+          "path": ".github/workflows/ticket-acceptance.yml",
+          "name": "Ticket acceptance",
+          "triggers": [
+            "pull_request:ring",
+            "workflow_dispatch:selected topology/all"
+          ],
+          "jobs": [
+            {
+              "id": "tickets",
+              "name": "Native ticket acceptance",
+              "matrix": [
+                "ubuntu-latest"
+              ]
+            }
+          ],
+          "permissions": {
+            "contents": "read"
+          },
+          "cancellation": "Superseded PR revisions only; manual runs independent",
+          "selected_revision": "Event commit; PR merge ref",
+          "scripts": [
+            "Cargo coordination_live and ticket_native tests"
+          ]
+        }
+      ],
+      "baseline_actions": [
+        {
+          "path": ".github/actions/cargo-cache/action.yml",
+          "callers": [
+            "checks",
+            "prepared-toolchains",
+            "eal-compatibility",
+            "tickets"
+          ],
+          "source": "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+          "ownership": "Consumer downloads and targets; baseline includes installed-runtime payload in five Linux caller scopes"
+        },
+        {
+          "path": ".github/actions/eal-producer/action.yml",
+          "callers": [
+            "eal-compatibility",
+            "tickets"
+          ],
+          "sources": [
+            "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+            "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
+          ],
+          "ownership": "Exact EAL revision producer debug builds; always Cargo freshness check"
+        }
+      ],
+      "graph": "No reusable-workflow calls, workflow_run chains, deployment jobs, schedules or path exclusions. Each job owns a separate runner and target directory.",
+      "constraints": "Retain all events, matrices, job/status names, permissions, manual topology selection and installed-release vs producer-debug acceptance.",
+      "unknowns": [
+        "Branch-protection required status settings inaccessible (GitHub403)",
+        "Remote billed duration/cost unavailable",
+        "External composite-action consumers not exhaustively searchable; no existing interfaces removed"
+      ],
+      "candidate_actions": [
+        {
+          "path": ".github/actions/eal-runtime/action.yml",
+          "callers": [
+            "checks",
+            "prepared-toolchains"
+          ],
+          "ownership": "Complete admitted installed release payload independent of consumer Cargo caches",
+          "compiler": "Pinned installer Rust selector1.90.0, installed on a cache miss; no extra toolchain install for lookup",
+          "profiles": "CARGO_PROFILE_RELEASE_* only"
+        }
+      ]
+    },
+    "diagnostic_observations": [
+      {
+        "run_id": 40856655041,
+        "job_id": 123389205785,
+        "name": "EAL producer and consumer contracts",
+        "started_at": "2026-10-29T10:19:35Z",
+        "completed_at": "2026-10-29T10:24:31Z",
+        "elapsed_seconds": 296,
+        "runtime_install_steps": [],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40856655041/job/123389205785"
+      },
+      {
+        "run_id": 40856655041,
+        "job_id": 123389205993,
+        "name": "Prepared evidence APIs (python)",
+        "started_at": "2026-10-29T10:19:35Z",
+        "completed_at": "2026-10-29T10:24:49Z",
+        "elapsed_seconds": 314,
+        "runtime_install_steps": [
+          {
+            "name": "Install matching execution runtime",
+            "seconds": 1
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40856655041/job/123389205993"
+      },
+      {
+        "run_id": 40856655041,
+        "job_id": 123389206085,
+        "name": "checks (ubuntu-latest)",
+        "started_at": "2026-10-29T10:19:35Z",
+        "completed_at": "2026-10-29T10:25:12Z",
+        "elapsed_seconds": 337,
+        "runtime_install_steps": [
+          {
+            "name": "Verify the installed pinned runtime and cached startup",
+            "seconds": 0
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40856655041/job/123389206085"
+      },
+      {
+        "run_id": 40856655041,
+        "job_id": 123389206169,
+        "name": "checks (macos-latest)",
+        "started_at": "2026-10-29T10:19:36Z",
+        "completed_at": "2026-10-29T10:26:29Z",
+        "elapsed_seconds": 413,
+        "runtime_install_steps": [
+          {
+            "name": "Verify the installed pinned runtime and cached startup",
+            "seconds": 1
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40856655041/job/123389206169"
+      },
+      {
+        "run_id": 40856655041,
+        "job_id": 123389206186,
+        "name": "Prepared evidence APIs (node)",
+        "started_at": "2026-10-29T10:19:35Z",
+        "completed_at": "2026-10-29T10:26:18Z",
+        "elapsed_seconds": 403,
+        "runtime_install_steps": [
+          {
+            "name": "Install matching execution runtime",
+            "seconds": 2
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40856655041/job/123389206186"
+      },
+      {
+        "run_id": 40856655041,
+        "job_id": 123389206203,
+        "name": "Prepared evidence APIs (rust)",
+        "started_at": "2026-10-29T10:19:35Z",
+        "completed_at": "2026-10-29T10:26:47Z",
+        "elapsed_seconds": 432,
+        "runtime_install_steps": [
+          {
+            "name": "Install matching execution runtime",
+            "seconds": 1
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40856655041/job/123389206203"
+      },
+      {
+        "run_id": 40856655041,
+        "job_id": 123389206277,
+        "name": "Prepared evidence APIs (go)",
+        "started_at": "2026-10-29T10:19:35Z",
+        "completed_at": "2026-10-29T10:29:22Z",
+        "elapsed_seconds": 587,
+        "runtime_install_steps": [
+          {
+            "name": "Install matching execution runtime",
+            "seconds": 313
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40856655041/job/123389206277"
+      },
+      {
+        "run_id": 40850215019,
+        "job_id": 123367517538,
+        "name": "checks (ubuntu-latest)",
+        "started_at": "2026-10-29T09:30:50Z",
+        "completed_at": "2026-10-29T09:36:39Z",
+        "elapsed_seconds": 349,
+        "runtime_install_steps": [
+          {
+            "name": "Verify the installed pinned runtime and cached startup",
+            "seconds": 0
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40850215019/job/123367517538"
+      },
+      {
+        "run_id": 40850215019,
+        "job_id": 123367517889,
+        "name": "EAL producer and consumer contracts",
+        "started_at": "2026-10-29T09:30:51Z",
+        "completed_at": "2026-10-29T09:34:33Z",
+        "elapsed_seconds": 222,
+        "runtime_install_steps": [],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40850215019/job/123367517889"
+      },
+      {
+        "run_id": 40850215019,
+        "job_id": 123367517890,
+        "name": "checks (macos-latest)",
+        "started_at": "2026-10-29T09:30:51Z",
+        "completed_at": "2026-10-29T09:49:36Z",
+        "elapsed_seconds": 1125,
+        "runtime_install_steps": [
+          {
+            "name": "Verify the installed pinned runtime and cached startup",
+            "seconds": 369
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40850215019/job/123367517890"
+      },
+      {
+        "run_id": 40850215019,
+        "job_id": 123367517915,
+        "name": "Prepared evidence APIs (rust)",
+        "started_at": "2026-10-29T09:30:51Z",
+        "completed_at": "2026-10-29T09:36:35Z",
+        "elapsed_seconds": 344,
+        "runtime_install_steps": [
+          {
+            "name": "Install matching execution runtime",
+            "seconds": 1
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40850215019/job/123367517915"
+      },
+      {
+        "run_id": 40850215019,
+        "job_id": 123367517934,
+        "name": "Prepared evidence APIs (go)",
+        "started_at": "2026-10-29T09:30:51Z",
+        "completed_at": "2026-10-29T09:33:32Z",
+        "elapsed_seconds": 161,
+        "runtime_install_steps": [
+          {
+            "name": "Install matching execution runtime",
+            "seconds": 1
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40850215019/job/123367517934"
+      },
+      {
+        "run_id": 40850215019,
+        "job_id": 123367517965,
+        "name": "Prepared evidence APIs (python)",
+        "started_at": "2026-10-29T09:30:51Z",
+        "completed_at": "2026-10-29T09:37:01Z",
+        "elapsed_seconds": 370,
+        "runtime_install_steps": [
+          {
+            "name": "Install matching execution runtime",
+            "seconds": 1
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40850215019/job/123367517965"
+      },
+      {
+        "run_id": 40850215019,
+        "job_id": 123367517994,
+        "name": "Prepared evidence APIs (node)",
+        "started_at": "2026-10-29T09:30:51Z",
+        "completed_at": "2026-10-29T09:37:41Z",
+        "elapsed_seconds": 410,
+        "runtime_install_steps": [
+          {
+            "name": "Install matching execution runtime",
+            "seconds": 2
+          }
+        ],
+        "url": "https://github.com/emmett08/engarg/actions/runs/40850215019/job/123367517994"
+      }
+    ],
+    "interpretation": "Historical CI timings are diagnostic observations, not paired candidate/baseline measurements. Baseline main Go runtime install took313s while other Linux runtime hits took0-2s; earlier PR macOS runtime install took369s. This motivates separating producer runtime cache validity from consumer edits; no future elapsed-time or invoice saving is claimed.",
+    "candidate": "A shared installed-runtime action removes the release payload from five Linux consumer cache scopes and keys one compatible payload namespace on full EAL source URI/revision, installer/action hashes, pinned Rust selector, native compiler, OS/image/architecture, Cargo configuration and release-profile/flag/target inputs; consumer dev/test profiles are excluded. Installer verifies every companion on hits and misses. New action exports EAL core and all selected runtime paths.",
+    "coverage": "Existing required statuses and native/debug vs installed-release checks retained. Composite action identity/invalidation and environment/failure propagation covered by executable mocked-step tests."
+  },
+  "warm_hit_measurement": {
+    "schema": "engarg.installed-runtime-hit-profile/1",
+    "revision": "71998c82c4bc48d329197db9329b8bfc70a78f37",
+    "installer_sha256": "0a4378e6d847c089b1418bf2d8f4e60684aacb672a77fb45c0540a5ae30be494",
+    "action_sha256": "5cb31159f6151604c26bc8eafeb534dfb42cca098cd22b5e262575062dd1b2df",
+    "runtime_revision": "030d4514e9c5e01c95690e0d921a5da2cf6525af",
+    "runtime_companions": [
+      "eal",
+      "eal-aspic-solve",
+      "eal-collector",
+      "eal-coordinate",
+      "eal-core",
+      "eal-host",
+      "eal-mas-server",
+      "eal-mcp",
+      "eal-method-worker",
+      "eal-process-supervisor",
+      "eal-runtime",
+      "eal-syntax",
+      "eal-tool-run",
+      "mas-protocol-codec"
+    ],
+    "boundary": "Warm local installed-runtime admission alone versus cache-identity preflight plus the same admission; remote cache transfer excluded.",
+    "decision_threshold": {
+      "primary": "Reduce compatible Linux runtime payload cache namespaces from5 to1",
+      "maximum_warm_median_overhead_ms": 250
+    },
+    "sampling": {
+      "independent_unit": "new subprocess invocation",
+      "warmup_runs_per_arm": 2,
+      "measured_runs_per_arm": 5,
+      "order": "alternating paired AB/BA"
+    },
+    "environment": {
+      "platform": "Linux-6.18.55-x86_64-with-glibc2.41",
+      "logical_cpus": 5,
+      "cpu_max": "400000 100000",
+      "memory_max": "17179869184"
+    },
+    "summary": {
+      "baseline": {
+        "median_ms": 448.896586,
+        "minimum_ms": 435.040942,
+        "maximum_ms": 525.215759
+      },
+      "candidate": {
+        "median_ms": 590.150494,
+        "minimum_ms": 542.342904,
+        "maximum_ms": 781.808386
+      }
+    },
+    "median_added_local_preflight_ms": 141.25390799999997,
+    "runs": [
+      {
+        "phase": "warmup",
+        "repetition": 0,
+        "arm": "baseline",
+        "elapsed_ns": 620422432,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "warmup",
+        "repetition": 0,
+        "arm": "candidate",
+        "elapsed_ns": 617807384,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "warmup",
+        "repetition": 1,
+        "arm": "candidate",
+        "elapsed_ns": 544371058,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "warmup",
+        "repetition": 1,
+        "arm": "baseline",
+        "elapsed_ns": 431228799,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 0,
+        "arm": "baseline",
+        "elapsed_ns": 435277117,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 0,
+        "arm": "candidate",
+        "elapsed_ns": 567542030,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 1,
+        "arm": "candidate",
+        "elapsed_ns": 590150494,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 1,
+        "arm": "baseline",
+        "elapsed_ns": 451060041,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 2,
+        "arm": "baseline",
+        "elapsed_ns": 435040942,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 2,
+        "arm": "candidate",
+        "elapsed_ns": 542342904,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 3,
+        "arm": "candidate",
+        "elapsed_ns": 781808386,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 3,
+        "arm": "baseline",
+        "elapsed_ns": 525215759,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 4,
+        "arm": "baseline",
+        "elapsed_ns": 448896586,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      },
+      {
+        "phase": "measured",
+        "repetition": 4,
+        "arm": "candidate",
+        "elapsed_ns": 661576621,
+        "host": "/workspace/.onboarding/engarg-eal4-runtime/bin/eal-host",
+        "receipt_unchanged": true
+      }
+    ],
+    "limitations": [
+      "This estimates local cache-hit preflight cost only.",
+      "No hosted CI duration or financial saving is inferred from these observations."
+    ]
+  },
+  "limits": [
+    "The hosted observation confirms shared-key restoration and admission; it is not a paired whole-workflow timing or invoice comparison.",
+    "Concurrent first cold misses can still build the same runtime before a payload has been saved."
+  ],
+  "hosted_observation": {
+    "schema": "engarg.hosted-runtime-cache-observation/1",
+    "source_commit": "963cd0ea607c6765bfb9a755032e5ffa94477582",
+    "repository": "emmett08/engarg",
+    "workflow_run_id": 40927717698,
+    "workflow_url": "https://github.com/emmett08/engarg/actions/runs/40927717698",
+    "action_source": "https://github.com/emmett08/engarg/blob/963cd0ea607c6765bfb9a755032e5ffa94477582/.github/actions/eal-runtime/action.yml",
+    "expected_runtime_revision": "030d4514e9c5e01c95690e0d921a5da2cf6525af",
+    "shared_runtime_key": "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+    "observations": [
+      {
+        "job_id": 123637567120,
+        "name": "Prepared evidence APIs (python)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567120",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:08:49Z",
+        "action_completed_at": "2026-10-29T18:13:58Z",
+        "action_duration_seconds": 309,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "concurrent_cold_miss_built_admitted_and_lost_duplicate_save_reservation",
+        "credential_free_log_extract": [
+          "2026-10-29T18:08:50.6739556Z Cache not found for input keys: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+          "2026-10-29T18:13:58.5228791Z Failed to save: Unable to reserve cache with key eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f, another job may be creating this cache."
+        ]
+      },
+      {
+        "job_id": 123637567330,
+        "name": "Prepared evidence APIs (rust)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567330",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:10:14Z",
+        "action_completed_at": "2026-10-29T18:15:29Z",
+        "action_duration_seconds": 315,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "concurrent_cold_miss_built_admitted_and_lost_duplicate_save_reservation",
+        "credential_free_log_extract": [
+          "2026-10-29T18:10:15.7139908Z Cache not found for input keys: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+          "2026-10-29T18:15:29.0727308Z Failed to save: Unable to reserve cache with key eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f, another job may be creating this cache."
+        ]
+      },
+      {
+        "job_id": 123637567338,
+        "name": "checks (ubuntu-latest)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567338",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:15:14Z",
+        "action_completed_at": "2026-10-29T18:15:15Z",
+        "action_duration_seconds": 1,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "restored_existing_exact_key",
+        "credential_free_log_extract": [
+          "2026-10-29T18:15:15.5623945Z Cache restored from key: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ]
+      },
+      {
+        "job_id": 123637567407,
+        "name": "Prepared evidence APIs (node)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567407",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:07:29Z",
+        "action_completed_at": "2026-10-29T18:12:40Z",
+        "action_duration_seconds": 311,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "cold_miss_built_admitted_and_saved",
+        "credential_free_log_extract": [
+          "2026-10-29T18:07:30.6820236Z Cache not found for input keys: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+          "2026-10-29T18:12:40.3900231Z Cache saved with key: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ]
+      },
+      {
+        "job_id": 123637567478,
+        "name": "Prepared evidence APIs (go)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567478",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:07:46Z",
+        "action_completed_at": "2026-10-29T18:12:54Z",
+        "action_duration_seconds": 308,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "concurrent_cold_miss_built_admitted_and_lost_duplicate_save_reservation",
+        "credential_free_log_extract": [
+          "2026-10-29T18:07:48.3982071Z Cache not found for input keys: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+          "2026-10-29T18:12:54.9605976Z Failed to save: Unable to reserve cache with key eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f, another job may be creating this cache."
+        ]
+      }
+    ],
+    "scope": "Observed cache identity and per-action durations for five Linux jobs in one hosted workflow run. Timestamps are GitHub job-step observations with one-second resolution.",
+    "inference": "All five callers used the same exact runtime cache key. The Node job saved the admitted payload before the later Ubuntu checks job restored it. Concurrent early misses built independently and handled the duplicate save reservation without failing.",
+    "limitations": [
+      "This is an observational cold-versus-warm comparison within one workflow, not a paired baseline/candidate experiment.",
+      "The action timing includes cache handling, installation/admission and publication where applicable; remote queue time and whole-workflow critical path are outside the comparison.",
+      "No net whole-workflow time reduction, runner consumption reduction or financial saving is inferred.",
+      "First cold callers still compiled concurrently; the change does not guarantee one compilation per new producer revision.",
+      "Installer admission success is observed through completed action steps; the raw binary payload hashes were not separately downloaded from CI."
+    ]
+  }
+}

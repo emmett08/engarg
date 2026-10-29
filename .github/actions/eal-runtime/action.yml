@@ -1,0 +1,94 @@
+name: Pinned installed EAL runtime
+description: Reuse and verify the complete pinned runtime independently of consumer build caches.
+inputs:
+  root:
+    description: Private installation prefix for all native companions.
+    required: true
+outputs:
+  host:
+    description: Admitted EAL host executable.
+    value: ${{ steps.install.outputs.host }}
+  bin:
+    description: Directory containing every admitted runtime companion.
+    value: ${{ steps.install.outputs.bin }}
+runs:
+  using: composite
+  steps:
+    - name: Identify compatible installed runtime
+      id: identity
+      shell: bash
+      env:
+        RUNTIME_INSTALLER: ${{ github.workspace }}/scripts/install-eal-runtime.sh
+        RUNTIME_ACTION: ${{ github.action_path }}/action.yml
+        RUNTIME_CARGO_CONFIG: ${{ hashFiles('.cargo/config*') }}
+      run: |
+        python3 - <<'PY'
+        import hashlib, json, os, pathlib, re, subprocess
+        installer = pathlib.Path(os.environ['RUNTIME_INSTALLER']).read_bytes()
+        toolchain = re.search(rb'(?m)^TOOLCHAIN = "([0-9]+\.[0-9]+\.[0-9]+)"$', installer)
+        if toolchain is None:
+            raise SystemExit('The installer must declare one exact Rust toolchain')
+        metadata = json.loads(subprocess.check_output(
+            ['cargo', 'metadata', '--locked', '--no-deps', '--format-version', '1'], text=True))
+        packages = [package for package in metadata['packages'] if package['name'] == 'engarg']
+        if len(packages) != 1:
+            raise SystemExit('Cargo metadata must identify one EngArg package')
+        sources = sorted({dependency['source'] for dependency in packages[0]['dependencies']
+                          if dependency['name'].startswith('eal-') and dependency.get('source')})
+        if not sources:
+            raise SystemExit('Cargo metadata must identify the EAL source')
+        # Cache identity observes the complete source URIs, including revisions.
+        # The installer remains the sole admission authority on misses and hits.
+        names = ['RUNNER_OS', 'RUNNER_ARCH', 'ImageOS', 'ImageVersion',
+                 'CARGO_INCREMENTAL', 'RUSTFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_BUILD_TARGET',
+                 'RUSTC', 'RUSTC_WRAPPER', 'RUSTC_WORKSPACE_WRAPPER', 'CC', 'CXX', 'AR',
+                 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'RUNTIME_CARGO_CONFIG']
+        # The installer builds --release; consumer dev/test profiles cannot
+        # change these artifacts and must not invalidate their shared cache.
+        names += sorted(name for name in os.environ if name.startswith('CARGO_PROFILE_RELEASE_'))
+        names += sorted(name for name in os.environ if name.startswith('CARGO_TARGET_')
+                        and name != 'CARGO_TARGET_DIR')
+        identity = {
+            'sources': sources,
+            'rust_toolchain': toolchain.group(1).decode(),
+            'installer_sha256': hashlib.sha256(installer).hexdigest(),
+            'action_sha256': hashlib.sha256(pathlib.Path(os.environ['RUNTIME_ACTION']).read_bytes()).hexdigest(),
+            'cc': subprocess.check_output(['cc', '--version'], text=True),
+            'environment': {name: os.environ.get(name) for name in names},
+        }
+        digest = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            output.write('key=eal-runtime-v1-' + digest + '\n')
+        PY
+    - name: Restore compatible installed runtime
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, Node.js 24
+      with:
+        path: |
+          ${{ inputs.root }}/bin
+          ${{ inputs.root }}/.engarg-eal-runtime-owner.json
+          ${{ inputs.root }}/.engarg-eal-runtime.json
+        key: ${{ steps.identity.outputs.key }}
+    - name: Install and admit every pinned runtime companion
+      id: install
+      shell: bash
+      env:
+        RUNTIME_ROOT: ${{ inputs.root }}
+      # Always verify source ownership and every binary hash, including on hits.
+      run: |
+        host=$(bash scripts/install-eal-runtime.sh --root "$RUNTIME_ROOT")
+        directory=$(dirname "$host")
+        printf 'host=%s\nbin=%s\n' "$host" "$directory" >> "$GITHUB_OUTPUT"
+        printf 'EAL_HOST=%s\nENGARG_EAL_HOST=%s\nEAL_COLLECTOR=%s/eal-collector\nENGARG_EAL_COORDINATE=%s/eal-coordinate\nEAL_CORE=%s/eal-core\nENGARG_EAL_CORE=%s/eal-core\nEAL_BIN=%s\n' \
+          "$host" "$host" "$directory" "$directory" "$directory" "$directory" "$directory" >> "$GITHUB_ENV"
+        printf '%s\n' "$directory" >> "$GITHUB_PATH"
+    - name: Save admitted installed runtime
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, Node.js 24
+      with:
+        # Save independently of later consumer tests; never cache build trees.
+        path: |
+          ${{ inputs.root }}/bin
+          ${{ inputs.root }}/.engarg-eal-runtime-owner.json
+          ${{ inputs.root }}/.engarg-eal-runtime.json
+        key: ${{ steps.identity.outputs.key }}

@@ -47,6 +47,9 @@ pub struct CallRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderRunConfig {
+    /// Absent for historical HTTP reports; command configuration values stay private.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assistant: Option<AssistantRunConfig>,
     pub endpoint: String,
     pub api: String,
     pub default_model: String,
@@ -57,6 +60,14 @@ pub struct ProviderRunConfig {
     pub max_output_tokens: u32,
     pub request_timeout_secs: u64,
     pub timeout_secs: u64,
+}
+
+/// Selected assistant protocol and identity of its operator-owned configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantRunConfig {
+    pub provider: crate::provider::AssistantKind,
+    pub configuration_sha256: Option<String>,
 }
 
 /// A reproducible argument assessment and the provider exchanges used to produce it.

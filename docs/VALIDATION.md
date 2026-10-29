@@ -22,6 +22,20 @@ cargo test --locked --all-targets
 cargo build --locked --release
 ```
 
+`cargo test` runs tests concurrently by default. Give an active test run ownership
+of its executable artifacts: another Cargo invocation must not rebuild those
+same paths while tests are spawning the CLI. For development builds alongside
+verification, use a separate target directory for the verification lane:
+
+```sh
+CARGO_TARGET_DIR=target/verification cargo test --locked --all-targets
+```
+
+Keep that directory exclusive to the active verification run. Independent CI
+jobs already have separate workspaces and remain parallel. The shared installed
+runtime cache is keyed by the pinned EAL source and release build configuration;
+every cache hit still passes the installer's complete binary admission checks.
+
 The default test run reports environment-dependent tests as ignored. It therefore
 needs the installed checks below before it can establish acquisition, generated
 code execution or native assessment. Read the result for the selected tests
@@ -49,7 +63,7 @@ paired integration coverage.
 
 | Boundary | What must remain true | EngArg checks |
 |---|---|---|
-| Provider transport | Bounded requests, safe failure diagnostics, explicit retry policy and retained usage. | `http_provider`, `http_retries` and provider unit tests. |
+| Provider transport | Bounded requests, safe failure diagnostics, explicit retry policy and retained usage. Assistant commands also preserve environment selection and descendant cleanup. | `http_provider`, `http_retries`, command-provider tests and provider unit tests. |
 | Report admission and recovery | Original completions constrain the argument. Each authoring or repair stage retains its own call and byte budgets. | `support_cli`, `support_recovery_cli`, `authoring_checkpoint` unit tests. |
 | Explicit revision | Parent identity, dissent and changed requirement reasons survive repeated revisions. Derived execution claims are invalidated. | `argument_revision`, `replan_cli`, installed repeated-revision check. |
 | Target runtime | Selected language and method contracts are checked before model calls. | `runtime_compatibility`, `tooling_cli`, ticket configuration tests. |
@@ -60,6 +74,14 @@ paired integration coverage.
 | Coordination | Participant/round identity, routing, budgets and durable ticket stages remain distinct. | Debate tests and `ticket_native`. |
 | Presentation | Views preserve the canonical graph, qualifications and resource limits. | Presentation unit tests and CLI rendering tests. |
 | ASPIC snapshot export | Exact retained source, observations, context, time and method profile reproduce the authored assessment before checked native export. | `aspic_view` admission tests and installed positive, negative, changed-input, bound and no-overwrite controls. |
+
+The command-provider cancellation regression checks both deadline expiry and
+explicit caller abort. A continuously held FIFO writer makes EOF an observation
+that the descendant has stopped executing, without confusing an orphan zombie
+PID with a live process. Failure diagnostics retain the cancellation mode,
+timings and process groups. The pinned EAL supervisor requests control-pipe
+hangup events on Darwin even after delivering the request; payload-read interest
+remains conditional so blocked collector input does not cause a busy loop.
 
 Focused commands help isolate a failure before the whole run:
 
