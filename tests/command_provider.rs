@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use std::{
     collections::HashMap,
     fs,
+    io::Read,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     sync::Arc,
@@ -255,12 +256,55 @@ async fn wait_for_file(path: &Path) {
     .unwrap();
 }
 
+fn descendant_lifetime(directory: &Path) -> (PathBuf, fs::File) {
+    let fifo = directory.join("descendant-lifetime");
+    // mkfifoat is absent from rustix's Apple API. The POSIX utility creates
+    // this owned fixture before the model's logical deadline starts.
+    assert!(
+        std::process::Command::new("mkfifo")
+            .args(["-m", "600"])
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let reader = rustix::fs::open(
+        &fifo,
+        rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::empty(),
+    )
+    .unwrap();
+    (fifo, fs::File::from(reader))
+}
+
+async fn wait_for_descendant_shutdown(reader: &mut fs::File) -> bool {
+    tokio::time::timeout(Duration::from_secs(3), async {
+        let mut byte = [0u8; 1];
+        loop {
+            match reader.read(&mut byte) {
+                Ok(0) => break true,
+                Ok(_) => break false,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(_) => break false,
+            }
+        }
+    })
+    .await
+    .unwrap_or(false)
+}
+
 #[tokio::test]
 async fn deadline_and_caller_cancellation_stop_process_descendants() {
     for cancelled in [false, true] {
         let root = tempfile::tempdir().unwrap();
         let ready = root.path().join("ready");
         let escaped = root.path().join("escaped");
+        let effect_gate = root.path().join("allow-effect");
+        let stop_gate = root.path().join("stop-fixture");
+        let (lifetime, mut reader) = descendant_lifetime(root.path());
         // The deadline constrains the owned process tree. A shell fixture
         // avoids measuring two cold Python interpreter startups on macOS.
         let executable = shell_script(
@@ -268,9 +312,16 @@ async fn deadline_and_caller_cancellation_stop_process_descendants() {
             r#"
 (
     trap '' TERM
+    exec 3>"$3"
     printf ready > "$1"
-    /bin/sleep 0.8
-    printf escaped > "$2"
+    remaining=10
+    while [ ! -e "$4" ] && [ ! -e "$5" ] && [ "$remaining" -gt 0 ]; do
+        /bin/sleep 1
+        remaining=$((remaining - 1))
+    done
+    if [ -e "$4" ]; then
+        printf escaped > "$2"
+    fi
 ) &
 wait
 "#,
@@ -279,6 +330,9 @@ wait
         config.argv.extend([
             ready.to_str().unwrap().into(),
             escaped.to_str().unwrap().into(),
+            lifetime.to_str().unwrap().into(),
+            effect_gate.to_str().unwrap().into(),
+            stop_gate.to_str().unwrap().into(),
         ]);
         config.timeout = if cancelled {
             Duration::from_secs(5)
@@ -288,6 +342,14 @@ wait
         let model = Arc::new(CommandModel::new(config).unwrap());
         let worker = tokio::spawn(async move { model.complete(request()).await });
         wait_for_file(&ready).await;
+        match reader.read(&mut [0u8; 1]) {
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+            // Opening the writer precedes ready. The deadline may correctly
+            // close it before a descheduled observer resumes; an explicit
+            // cancellation still requires a live writer before aborting.
+            Ok(0) if !cancelled => {}
+            result => panic!("unexpected descendant lifetime before cancellation: {result:?}"),
+        }
         if cancelled {
             worker.abort();
             assert!(worker.await.unwrap_err().is_cancelled());
@@ -296,10 +358,25 @@ wait
             assert!(error.contains("deadline"));
             assert!(error.contains("no automatic retry"));
         }
-        tokio::time::sleep(Duration::from_millis(950)).await;
+        // The caller's deadline does not acknowledge cleanup. The child holds
+        // its only FIFO writer throughout execution; EOF establishes that its
+        // execution capability has ended, including when an orphan PID lingers.
+        let stopped_on_cancellation = wait_for_descendant_shutdown(&mut reader).await;
+        // Clean up a failing bounded fixture without allowing its effect.
+        fs::write(&stop_gate, "stop").unwrap();
+        let fixture_cleaned_up = wait_for_descendant_shutdown(&mut reader).await;
+        assert!(
+            fixture_cleaned_up,
+            "the bounded descendant fixture did not stop"
+        );
+        assert!(
+            stopped_on_cancellation,
+            "a descendant retained its execution capability after cancellation"
+        );
+        fs::write(effect_gate, "allow effect").unwrap();
         assert!(
             !escaped.exists(),
-            "a descendant survived assistant cancellation"
+            "a descendant produced an effect after cleanup acknowledgement"
         );
     }
 }
@@ -361,7 +438,8 @@ async fn protocol_failure_retains_directory_and_admission_until_supervisor_shutd
     let ready = root.path().join("ready");
     let second_started = root.path().join("second-started");
     let release = root.path().join("release");
-    let mut config = config(Path::new("/bin/true"), AssistantKind::Command);
+    let executable = script(root.path(), ECHO);
+    let mut config = config(&executable, AssistantKind::Command);
     config.supervisor = held_protocol_failure_supervisor(root.path());
     let model = Arc::new(CommandModel::new(config).unwrap());
     let first_model = model.clone();
@@ -389,7 +467,8 @@ async fn runtime_shutdown_keeps_its_deadline_while_worker_retains_cleanup_owners
     let ready = root.path().join("ready");
     let second_started = root.path().join("second-started");
     let release = root.path().join("release");
-    let mut config = config(Path::new("/bin/true"), AssistantKind::Command);
+    let executable = script(root.path(), ECHO);
+    let mut config = config(&executable, AssistantKind::Command);
     config.supervisor = held_protocol_failure_supervisor(root.path());
     config.timeout = Duration::from_millis(400);
     let model = Arc::new(CommandModel::new(config).unwrap());

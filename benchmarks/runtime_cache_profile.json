@@ -500,7 +500,122 @@
     ]
   },
   "limits": [
-    "Hosted cache restore/save RPC time and future CI elapsed savings have not been measured.",
-    "Historical cold-miss durations describe earlier runs, not a controlled baseline/candidate comparison."
-  ]
+    "The hosted observation confirms shared-key restoration and admission; it is not a paired whole-workflow timing or invoice comparison.",
+    "Concurrent first cold misses can still build the same runtime before a payload has been saved."
+  ],
+  "hosted_observation": {
+    "schema": "engarg.hosted-runtime-cache-observation/1",
+    "source_commit": "963cd0ea607c6765bfb9a755032e5ffa94477582",
+    "repository": "emmett08/engarg",
+    "workflow_run_id": 40927717698,
+    "workflow_url": "https://github.com/emmett08/engarg/actions/runs/40927717698",
+    "action_source": "https://github.com/emmett08/engarg/blob/963cd0ea607c6765bfb9a755032e5ffa94477582/.github/actions/eal-runtime/action.yml",
+    "expected_runtime_revision": "030d4514e9c5e01c95690e0d921a5da2cf6525af",
+    "shared_runtime_key": "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+    "observations": [
+      {
+        "job_id": 123637567120,
+        "name": "Prepared evidence APIs (python)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567120",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:08:49Z",
+        "action_completed_at": "2026-10-29T18:13:58Z",
+        "action_duration_seconds": 309,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "concurrent_cold_miss_built_admitted_and_lost_duplicate_save_reservation",
+        "credential_free_log_extract": [
+          "2026-10-29T18:08:50.6739556Z Cache not found for input keys: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+          "2026-10-29T18:13:58.5228791Z Failed to save: Unable to reserve cache with key eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f, another job may be creating this cache."
+        ]
+      },
+      {
+        "job_id": 123637567330,
+        "name": "Prepared evidence APIs (rust)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567330",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:10:14Z",
+        "action_completed_at": "2026-10-29T18:15:29Z",
+        "action_duration_seconds": 315,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "concurrent_cold_miss_built_admitted_and_lost_duplicate_save_reservation",
+        "credential_free_log_extract": [
+          "2026-10-29T18:10:15.7139908Z Cache not found for input keys: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+          "2026-10-29T18:15:29.0727308Z Failed to save: Unable to reserve cache with key eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f, another job may be creating this cache."
+        ]
+      },
+      {
+        "job_id": 123637567338,
+        "name": "checks (ubuntu-latest)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567338",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:15:14Z",
+        "action_completed_at": "2026-10-29T18:15:15Z",
+        "action_duration_seconds": 1,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "restored_existing_exact_key",
+        "credential_free_log_extract": [
+          "2026-10-29T18:15:15.5623945Z Cache restored from key: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ]
+      },
+      {
+        "job_id": 123637567407,
+        "name": "Prepared evidence APIs (node)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567407",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:07:29Z",
+        "action_completed_at": "2026-10-29T18:12:40Z",
+        "action_duration_seconds": 311,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "cold_miss_built_admitted_and_saved",
+        "credential_free_log_extract": [
+          "2026-10-29T18:07:30.6820236Z Cache not found for input keys: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+          "2026-10-29T18:12:40.3900231Z Cache saved with key: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ]
+      },
+      {
+        "job_id": 123637567478,
+        "name": "Prepared evidence APIs (go)",
+        "url": "https://github.com/emmett08/engarg/actions/runs/40927717698/job/123637567478",
+        "job_conclusion": "success",
+        "action_name": "Run ./.github/actions/eal-runtime",
+        "action_conclusion": "success",
+        "action_started_at": "2026-10-29T18:07:46Z",
+        "action_completed_at": "2026-10-29T18:12:54Z",
+        "action_duration_seconds": 308,
+        "runtime_keys": [
+          "eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f"
+        ],
+        "cache_result": "concurrent_cold_miss_built_admitted_and_lost_duplicate_save_reservation",
+        "credential_free_log_extract": [
+          "2026-10-29T18:07:48.3982071Z Cache not found for input keys: eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f",
+          "2026-10-29T18:12:54.9605976Z Failed to save: Unable to reserve cache with key eal-runtime-v1-fe5394187dd40a50c21a60da246a0732afa328479caaf58e61e5151589e6955f, another job may be creating this cache."
+        ]
+      }
+    ],
+    "scope": "Observed cache identity and per-action durations for five Linux jobs in one hosted workflow run. Timestamps are GitHub job-step observations with one-second resolution.",
+    "inference": "All five callers used the same exact runtime cache key. The Node job saved the admitted payload before the later Ubuntu checks job restored it. Concurrent early misses built independently and handled the duplicate save reservation without failing.",
+    "limitations": [
+      "This is an observational cold-versus-warm comparison within one workflow, not a paired baseline/candidate experiment.",
+      "The action timing includes cache handling, installation/admission and publication where applicable; remote queue time and whole-workflow critical path are outside the comparison.",
+      "No net whole-workflow time reduction, runner consumption reduction or financial saving is inferred.",
+      "First cold callers still compiled concurrently; the change does not guarantee one compilation per new producer revision.",
+      "Installer admission success is observed through completed action steps; the raw binary payload hashes were not separately downloaded from CI."
+    ]
+  }
 }
