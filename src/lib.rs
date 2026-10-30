@@ -16,6 +16,7 @@ pub mod eal_observe;
 pub mod engine;
 pub mod export_policy;
 pub mod glossary;
+pub mod optimal_argument;
 pub mod package;
 pub mod presentations;
 pub mod prompts;

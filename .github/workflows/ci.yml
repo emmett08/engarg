@@ -68,7 +68,7 @@ jobs:
             --output "$RUNNER_TEMP/engarg-eal-probe/describe.json"
           python3 -c 'import json, os; from pathlib import Path; response=json.loads((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-probe/describe.json").read_text()); assert response["is_error"] is False; assert response["result"]["source_syntax"] == "EAL/4"; assert "structured/1" in response["result"]["methods"]'
       - name: Execute installed EAL packages and reasoning modes
-        run: cargo test --locked --test executable_package --test executable_modes --test support_cli --test aspic_view -- --ignored
+        run: cargo test --locked --test executable_package --test executable_modes --test support_cli --test aspic_view --test optimal_argument_cli -- --ignored
 
   prepared-toolchains:
     name: Prepared evidence APIs (${{ matrix.family }})
