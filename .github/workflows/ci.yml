@@ -149,7 +149,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: 31850c4cf2cc007a009c15eaa3908b93da4096e8
+      EAL_REVISION: 55f8cd14d605bbe8782a5ca083e5ed1459252e7b
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
