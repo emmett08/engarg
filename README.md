@@ -39,6 +39,11 @@ the qualified investigations and the historical unsupported argument.
 search over its alternative routes. Each candidate gets its own EAL execution;
 the search chooses the smallest supported selection and reports its limits.
 
+[Generate and investigate alternatives](docs/argument-investigation.md) with
+`engarg investigate`. Models propose repairs; fixed premise, formalisation and
+applicability checks and fresh native executions determine which candidates
+qualify for the size comparison.
+
 For contributors, [architecture](docs/EXECUTABLE_ARCHITECTURE.md) explains the
 responsibility boundaries and [verification](docs/VALIDATION.md) gives the
 repository and installed-runtime checks. [Evaluation](docs/EVALUATION.md)

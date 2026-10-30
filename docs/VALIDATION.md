@@ -71,6 +71,7 @@ paired integration coverage.
 | Portable package | Only admitted resources are copied. Context, local pins and relative paths survive movement. | `executable_package`, `eal_export`. |
 | Review import | Criterion, target, scope and final operator/compiler context match the actual acquisition. | `executable_package` and composed review adversities. |
 | Native reasoning | Acquired values reach the selected method and its actual result governs support. | `executable_modes`, `eal_live`, `eal_export`. |
+| Generated argument investigation | Fixed claims, evidence criteria and intended formalisation survive generation, repair, proof discharge and criticism. | `argument_investigation` and `optimal_argument` unit tests; paired native investigation test. |
 | Coordination | Participant/round identity, routing, budgets and durable ticket stages remain distinct. | Debate tests and `ticket_native`. |
 | Presentation | Views preserve the canonical graph, qualifications and resource limits. | Presentation unit tests and CLI rendering tests. |
 | ASPIC snapshot export | Exact retained source, observations, context, time and method profile reproduce the authored assessment before checked native export. | `aspic_view` admission tests and installed positive, negative, changed-input, bound and no-overwrite controls. |
@@ -113,6 +114,7 @@ export ENGARG_EAL_CORE="$EAL_CORE"
 export PATH="$EAL_BIN:$PATH"
 
 cargo test --locked --test executable_package --test executable_modes --test aspic_view -- --ignored
+cargo test --locked --test argument_investigation native_investigation -- --ignored
 cargo test --locked --test support_cli revised_public_authoring_package_executes_after_original_sources_are_removed -- --ignored
 cargo test --locked --test eal_live --test eal_export --test native_collectors --test collector_catalogue_live -- --ignored
 cargo test --locked --test ticket_native -- --ignored

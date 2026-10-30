@@ -117,6 +117,13 @@ pub(super) fn validate(case: &ArgumentCase, errors: &mut Vec<String>) {
                 ));
             }
             match &premise.correspondence {
+                FormalInputCorrespondence::AuthoredDefinition => {
+                    if bound.method.kind() != Some(ReasoningMethodKind::FiniteProbability)
+                        || bound.method.query.pointer(&premise.input_pointer).is_none()
+                    {
+                        errors.push(format!("{label} authored_definition must identify an explicit finite_probability/1 query definition"));
+                    }
+                }
                 FormalInputCorrespondence::IdentityValue {
                     source_input_index,
                     source_pointer,
@@ -243,8 +250,10 @@ pub(super) fn validate(case: &ArgumentCase, errors: &mut Vec<String>) {
                 )),
             }
         }
-        if bound.method.kind() != Some(ReasoningMethodKind::Deductive)
-            && bound.assumption_ids.is_empty()
+        if !matches!(
+            bound.method.kind(),
+            Some(ReasoningMethodKind::Deductive | ReasoningMethodKind::FiniteProbability)
+        ) && bound.assumption_ids.is_empty()
         {
             errors.push(format!(
                 "{label} statistical or causal model applicability needs named assumptions"

@@ -47,7 +47,7 @@ warrant premise and required measured field to an actual evidence need.
 `evidence_requirements` retain empirical observations, sampling/intervention
 design, model adequacy and applicability as separate obligations.
 
-Two correspondence forms are supported:
+Three correspondence forms are supported:
 
 - `identity_value` selects an acquired value using `source_input_index` and a
   `source_pointer`, then binds it to the method payload's `input_pointer`.
@@ -57,6 +57,10 @@ Two correspondence forms are supported:
   premise's empirical acceptance predicate must be satisfied before its authored
   interpretation licenses the formula. This dependency does not prove that prose
   and formula have the same meaning.
+- `authored_definition` identifies an explicit query field of
+  `finite_probability/1`. It treats the finite distribution as a stipulated
+  mathematical definition. It supplies no observation or evidence that the
+  distribution describes an external system.
 
 The conclusion names the claim, subject, quantity, unit, structured scope,
 validity interval and result predicate. Scope selectors and identity dimensions
@@ -69,6 +73,7 @@ from the conclusion's interval. Calculations and reuse cannot refresh source age
 | Method | Computation | Separate evidential obligations |
 | --- | --- | --- |
 | `deductive/1` | Finite propositional entailment and consistency | Each empirical premise and its interpretation. Inconsistent premises do not provide support by vacuous entailment |
+| `finite_probability/1` | Exact enumeration and rational comparison in a bounded finite Bayesian network | Authored definitions establish model consequences. External priors, likelihoods, sensor meanings and model applicability need their own evidence |
 | `inductive/1` | Wilson interval for acquired binomial successes and trials | Sampling design, population correspondence and applicability |
 | `abductive/1` | Bayesian conditioning within supplied hypotheses | Observation, priors, likelihood model and adequacy of the candidate set |
 | `causal/1` | Two-group mean contrast under declared randomised assignment | Treatment/control observations, intervention design and applicability |

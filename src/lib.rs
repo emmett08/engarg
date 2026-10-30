@@ -3,6 +3,11 @@
 //! Validation checks references and explicit status rules. It cannot establish
 //! empirical truth, logical soundness or the completeness of explored alternatives.
 
+// Shared independently authored integration fixtures also exercise unit-level
+// assurance boundaries without duplicating their contracts.
+#[cfg(test)]
+extern crate self as engarg;
+
 pub mod acquisition;
 pub mod aspic_view;
 pub mod authoring_checkpoint;

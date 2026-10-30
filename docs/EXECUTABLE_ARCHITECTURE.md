@@ -204,6 +204,15 @@ source of authority for the engineer to reconcile.
 
 ## Verify the boundary that changed
 
+`optimal_argument::development` orchestrates bounded proposal and sceptic calls
+through a `CandidateInvestigator` interface. It does not own evidence authority.
+`optimal_argument::assurance` evaluates the operator's frozen correspondence and
+discharge contract; `investigation::VerifiedInvestigator` admits explicit
+revisions and invokes native execution. The CLI owns private artifacts, input
+pins and provider configuration. These boundaries keep model criticism separate
+from acquired observations and mechanically checked results. See
+[argument investigation](argument-investigation.md) for the policy and artifacts.
+
 EAL/4 is the supported language and `engarg.run.v3` is the current report
 contract. Older source and report shapes require explicit reconstruction of their
 current contracts. Historical observations retain their original content and

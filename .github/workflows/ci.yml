@@ -69,6 +69,8 @@ jobs:
           python3 -c 'import json, os; from pathlib import Path; response=json.loads((Path(os.environ["RUNNER_TEMP"])/"engarg-eal-probe/describe.json").read_text()); assert response["is_error"] is False; assert response["result"]["source_syntax"] == "EAL/4"; assert "structured/1" in response["result"]["methods"]'
       - name: Execute installed EAL packages and reasoning modes
         run: cargo test --locked --test executable_package --test executable_modes --test support_cli --test aspic_view --test optimal_argument_cli -- --ignored
+      - name: Investigate generated arguments with frozen native checks
+        run: cargo test --locked --test argument_investigation native_investigation -- --ignored
 
   prepared-toolchains:
     name: Prepared evidence APIs (${{ matrix.family }})
@@ -145,7 +147,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: 1600e6d3147ba3d28d122c53a7fec933894d94eb
+      EAL_REVISION: ead1b9997b9c4f13d7d5409d87dff55afd9368b8
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -184,6 +186,7 @@ jobs:
           cargo +1.99.1 test --locked --test tooling_docker generated_interface_native_preflight -- --ignored
           cargo +1.99.1 test --locked --test eal_live --test eal_export --test native_collectors --test collector_catalogue_live -- --ignored
           cargo +1.99.1 test --locked --test catalogue_workflow_native --test executable_package --test executable_modes --test aspic_view -- --ignored
+          cargo +1.99.1 test --locked --test argument_investigation native_investigation -- --ignored
 
           # Keep one real CLI/coordinator smoke check in automatic compatibility.
           # Exhaustive native topology/ticket sweeps run in ticket-acceptance.yml.
