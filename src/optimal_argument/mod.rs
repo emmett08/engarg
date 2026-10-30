@@ -15,7 +15,10 @@ use crate::domain::{ArgumentCase, SupportRelationship};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub mod assurance;
+pub mod development;
 pub mod execution;
+pub mod investigation;
 mod search;
 pub use search::search;
 

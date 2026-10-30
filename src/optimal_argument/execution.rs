@@ -89,6 +89,30 @@ pub async fn assess(
     config: &ExecutionConfig,
     index: usize,
 ) -> Result<Assessment, Error> {
+    let argument = candidate.apply(&report.argument);
+    let revised = candidate_report(report, candidate);
+    retain_assessment(&argument, revised, config, index).await
+}
+
+/// Assess a complete, already proposed report through the same package,
+/// collection and native-replay boundary as route-selection optimisation.
+/// Development callers remain responsible for creating the report through
+/// checked explicit revision and mandatory assurance admission first.
+pub async fn assess_report(
+    report: &RunReport,
+    config: &ExecutionConfig,
+    index: usize,
+) -> Result<Assessment, Error> {
+    let admitted = crate::report::validate(report).map(|()| report.clone());
+    retain_assessment(&report.argument, admitted, config, index).await
+}
+
+async fn retain_assessment(
+    argument: &crate::domain::ArgumentCase,
+    admitted: Result<RunReport, Error>,
+    config: &ExecutionConfig,
+    index: usize,
+) -> Result<Assessment, Error> {
     let parent = config.output.join("candidates");
     match parent.symlink_metadata() {
         Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
@@ -104,11 +128,8 @@ pub async fn assess(
     let root = config.output.join(&artifact);
     directory(&root)?;
     // Retain a rejected proposal too, without representing it as an admitted run.
-    write_json(
-        &root.join("argument.json"),
-        &candidate.apply(&report.argument),
-    )?;
-    let assessed = match candidate_report(report, candidate) {
+    write_json(&root.join("argument.json"), argument)?;
+    let assessed = match admitted {
         Err(error) => failure("invalid_revision", &artifact, error),
         Ok(revised) => {
             write_json(&root.join("report.json"), &revised)?;

@@ -18,10 +18,12 @@ use std::{
     time::Duration,
 };
 
+mod argument_inputs;
 mod assistant_options;
 mod authoring_commands;
 mod eal_commands;
 mod glossary_command;
+mod investigation_command;
 mod optimal_argument_command;
 mod package_commands;
 mod path_admission;
@@ -55,6 +57,8 @@ enum Command {
     Analyse(Box<Analyse>),
     /// Find the smallest supported selection of declared argument routes; collects evidence.
     Optimise(optimal_argument_command::OptimiseArgs),
+    /// Generate, investigate, challenge and compare arguments under a fixed verification plan.
+    Investigate(Box<investigation_command::InvestigateArgs>),
     /// Inspect or resume initial authoring with retained paid exchanges.
     Authoring {
         #[command(subcommand)]
@@ -822,6 +826,7 @@ async fn execute(cli: Cli) -> Result<(), Error> {
         Command::TicketStage => ticket_commands::stage().await,
         Command::Analyse(args) => analyse(*args).await,
         Command::Optimise(args) => optimal_argument_command::execute(args).await,
+        Command::Investigate(args) => investigation_command::execute(*args).await,
         Command::Authoring { command } => authoring_commands::execute(command).await,
         Command::Eal { command } => eal_commands::execute(*command).await,
         Command::Demo { claim_only, output } => {

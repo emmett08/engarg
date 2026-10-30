@@ -95,6 +95,8 @@ pub struct BoundReasoningMethod {
 #[serde(rename_all = "snake_case")]
 pub enum ReasoningMethodKind {
     Deductive,
+    /// Exact consequence of an explicitly supplied finite probability model.
+    FiniteProbability,
     Inductive,
     Abductive,
     Causal,
@@ -106,6 +108,7 @@ impl ReasoningMethodKind {
     pub const fn identifier(self) -> &'static str {
         match self {
             Self::Deductive => "deductive/1",
+            Self::FiniteProbability => "finite_probability/1",
             Self::Inductive => "inductive/1",
             Self::Abductive => "abductive/1",
             Self::Causal => "causal/1",
@@ -117,6 +120,7 @@ impl ReasoningMethodKind {
     pub const fn inference(self) -> InferenceKind {
         match self {
             Self::Deductive => InferenceKind::Deductive,
+            Self::FiniteProbability => InferenceKind::Deductive,
             Self::Inductive => InferenceKind::Inductive,
             Self::Abductive => InferenceKind::Abductive,
             Self::Causal => InferenceKind::Causal,
@@ -128,6 +132,7 @@ impl ReasoningMethodKind {
     pub const fn required_evidence_role(self) -> MethodEvidenceRole {
         match self {
             Self::Deductive => MethodEvidenceRole::PremiseObservation,
+            Self::FiniteProbability => MethodEvidenceRole::PremiseObservation,
             Self::Inductive => MethodEvidenceRole::SamplingDesign,
             Self::Abductive => MethodEvidenceRole::HypothesisModel,
             Self::Causal => MethodEvidenceRole::InterventionDesign,
@@ -149,6 +154,7 @@ impl MethodSpecification {
     pub fn kind(&self) -> Option<ReasoningMethodKind> {
         match self.identifier.as_str() {
             "deductive/1" => Some(ReasoningMethodKind::Deductive),
+            "finite_probability/1" => Some(ReasoningMethodKind::FiniteProbability),
             "inductive/1" => Some(ReasoningMethodKind::Inductive),
             "abductive/1" => Some(ReasoningMethodKind::Abductive),
             "causal/1" => Some(ReasoningMethodKind::Causal),
@@ -264,6 +270,9 @@ pub struct FormalPremiseBinding {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum FormalInputCorrespondence {
+    /// A stipulated definition in the immutable authored query. This does not
+    /// assert that a physical system obeys the model; that needs separate support.
+    AuthoredDefinition,
     IdentityValue {
         source_input_index: usize,
         source_pointer: String,

@@ -2,6 +2,10 @@
 
 [Documentation](index.md) · [Argument model](DOMAIN_MODEL.md)
 
+For model-generated alternatives, premise investigation and formalisation
+repair, use [`engarg investigate`](argument-investigation.md). This chapter
+describes the deterministic search over routes already present in a report.
+
 After authoring an argument, `engarg optimise` searches its declared alternative
 routes for the unchanged `current_claim`. It checks support before minimising
 size. An unsupported short route cannot displace a supported longer route.

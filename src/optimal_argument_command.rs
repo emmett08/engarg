@@ -9,30 +9,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use std::{io::Write, path::PathBuf, time::Duration};
 
-fn pins(paths: &[PathBuf]) -> Result<Vec<String>, Error> {
-    paths
-        .iter()
-        .map(|path| {
-            engarg::bounded_file::sha256(path, 256 * 1_048_576, "optimisation input")
-                .map(|digest| digest.sha256)
-        })
-        .collect()
-}
-
-fn verify_inputs(
-    config: &ExecutionConfig,
-    paths: &[PathBuf],
-    expected: &[String],
-) -> Result<(), Error> {
-    let mut current = engarg::package::input_files(&config.tools)?;
-    current.push(config.eal_host.clone());
-    if current != paths || pins(&current)? != expected {
-        return Err(Error::InvalidInput(
-            "optimisation tool inputs or host changed during the run".into(),
-        ));
-    }
-    Ok(())
-}
+use crate::argument_inputs::{pins, verify_inputs};
 
 #[derive(Args)]
 pub struct OptimiseArgs {
@@ -87,38 +64,11 @@ pub async fn execute(args: OptimiseArgs) -> Result<(), Error> {
         .unwrap_or_default();
     policy.resolve(&report.argument)?;
     let tools = args.tools.canonicalize()?;
-    let output = super::path_admission::identity(&args.output_dir)?;
-    if output.symlink_metadata().is_ok() {
-        return Err(Error::InvalidInput(
-            "optimisation output must be a new directory".into(),
-        ));
-    }
-    let resource_tree = super::path_admission::identity(
-        &tools
-            .parent()
-            .expect("canonical manifest has a parent")
-            .join("tools"),
-    )?;
-    if output.starts_with(resource_tree) {
-        return Err(Error::InvalidInput(
-            "optimisation output must be outside the operator tools resource tree".into(),
-        ));
-    }
+    let output = crate::argument_inputs::output(&tools, &args.output_dir)?;
     // Check local resources and the selected runtime before creating a run or
     // contacting an evidence source. This does not collect observations.
     let mut input_files = engarg::package::input_files(&tools)?;
-    let eal_host = if args.eal_host.is_absolute() || args.eal_host.components().count() > 1 {
-        args.eal_host.canonicalize()?
-    } else {
-        std::env::var_os("PATH")
-            .into_iter()
-            .flat_map(|paths| std::env::split_paths(&paths).collect::<Vec<_>>())
-            .filter(|directory| directory.is_absolute())
-            .map(|directory| directory.join(&args.eal_host))
-            .find(|path| path.is_file())
-            .ok_or_else(|| Error::InvalidInput("selected eal-host not found on PATH".into()))?
-            .canonicalize()?
-    };
+    let eal_host = crate::argument_inputs::host(&args.eal_host)?;
     input_files.push(eal_host.clone());
     let input_pins = pins(&input_files)?;
     let target = engarg::runtime_compatibility::preflight(Some(&eal_host)).await?;
