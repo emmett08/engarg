@@ -35,6 +35,10 @@ supply the pinned evidence packages before execution.
 Browse the [HTML argument examples](examples/assess-claim/index.html) to inspect
 the qualified investigations and the historical unsupported argument.
 
+[Optimise an authored argument](docs/optimal-argument.md) with a bounded beam
+search over its alternative routes. Each candidate gets its own EAL execution;
+the search chooses the smallest supported selection and reports its limits.
+
 For contributors, [architecture](docs/EXECUTABLE_ARCHITECTURE.md) explains the
 responsibility boundaries and [verification](docs/VALIDATION.md) gives the
 repository and installed-runtime checks. [Evaluation](docs/EVALUATION.md)

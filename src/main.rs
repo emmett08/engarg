@@ -22,6 +22,7 @@ mod assistant_options;
 mod authoring_commands;
 mod eal_commands;
 mod glossary_command;
+mod optimal_argument_command;
 mod package_commands;
 mod path_admission;
 mod progress;
@@ -52,6 +53,8 @@ enum Command {
     TicketStage,
     /// Develop an argument and evidence plan from a claim through separate LLM calls.
     Analyse(Box<Analyse>),
+    /// Find the smallest supported selection of declared argument routes; collects evidence.
+    Optimise(optimal_argument_command::OptimiseArgs),
     /// Inspect or resume initial authoring with retained paid exchanges.
     Authoring {
         #[command(subcommand)]
@@ -818,6 +821,7 @@ async fn execute(cli: Cli) -> Result<(), Error> {
         Command::Ticket(args) => ticket_commands::run(args).await,
         Command::TicketStage => ticket_commands::stage().await,
         Command::Analyse(args) => analyse(*args).await,
+        Command::Optimise(args) => optimal_argument_command::execute(args).await,
         Command::Authoring { command } => authoring_commands::execute(command).await,
         Command::Eal { command } => eal_commands::execute(*command).await,
         Command::Demo { claim_only, output } => {

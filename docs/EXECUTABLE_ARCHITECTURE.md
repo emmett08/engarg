@@ -124,6 +124,16 @@ Coordinated authoring also retains participant and round identities. Replay
 uses the admitted debate configuration and preserves parallel arrival accounting.
 Two participants sharing a role still have distinct objections and histories.
 
+## Search alternative routes without changing their obligations
+
+`engarg optimise` searches alternative-route selections through a separate pure
+beam-search module. Its executor adopts changed selections only through the
+existing explicit revision API, builds each candidate with the same support
+criteria and collects fresh source-bound observations. It recomputes the native
+assessment before admitting a supported candidate. A separate optimisation
+receipt records search completeness and selected paths without extending the
+authored-report schema. See [argument optimisation](optimal-argument.md).
+
 ## Construct tools without granting them evidence status
 
 A missing acquisition with an authored parameterised specification can enter the
