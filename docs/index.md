@@ -47,6 +47,7 @@ within it and the contracts to inspect when a stage remains unresolved.
 | Can the proposed inference be executed faithfully? | [Reasoning methods and their limits](REASONING_METHODS.md) |
 | Which declared route gives the smallest supported argument? | [Bounded argument optimisation](optimal-argument.md) |
 | Can generated alternatives preserve the claim and pass independent checks? | [Argument investigation](argument-investigation.md) |
+| Do source values establish the formal premises under the intended conditions? | [Grounded assurance](grounded-assurance.md) |
 | How do I supply an existing source and control its authority? | [Private collectors and direct bindings](PRIVATE_COLLECTORS.md) |
 | How do I construct and verify a missing acquisition? | [Tool implementation](TOOL_IMPLEMENTATION.md) |
 | What must the portable investigation contain? | [Executable packages](executable-packages.md) |

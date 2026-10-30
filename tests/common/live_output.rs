@@ -19,6 +19,11 @@ pub fn generation_value(case: &impl Serialize) -> Value {
         .or_insert(Value::Null);
     if let Some(warrants) = value["warrants"].as_array_mut() {
         for warrant in warrants {
+            if let Some(binding) = warrant["reasoning_method"].as_object_mut()
+                && binding.get("status").and_then(Value::as_str) == Some("bound")
+            {
+                binding.entry("claim_mode").or_insert(json!("empirical"));
+            }
             if let Some(method) = warrant
                 .pointer_mut("/reasoning_method/method")
                 .and_then(Value::as_object_mut)

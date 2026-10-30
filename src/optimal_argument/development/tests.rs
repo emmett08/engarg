@@ -1,4 +1,6 @@
 //! Independent synthetic investigations exercise generation, repair and eligibility.
+#[path = "issue_tests.rs"]
+mod issue_tests;
 use super::*;
 use crate::{
     direct_planning::DirectPlan,
@@ -152,6 +154,14 @@ fn envelope(proposal: &SupportedArgument) -> String {
 
 fn clear_critic() -> String {
     json!({"critical_issues":[],"observations":[]}).to_string()
+}
+
+fn semantic_critic(description: &str) -> String {
+    json!({"critical_issues":[{
+        "id":"semantic_review","kind":"semantic","target_id":"current_claim",
+        "description":description,"obligation_ids":[],"check_ids":[],"artifacts":[]
+    }],"observations":[]})
+    .to_string()
 }
 
 struct MockModel {
@@ -469,12 +479,14 @@ async fn rejected_formulation_and_its_guard_diagnosis_reach_the_repair_call() {
 }
 
 #[tokio::test]
-async fn unresolved_sceptic_issue_vetoes_a_shorter_supported_result_and_guides_repair() {
+async fn reformulation_cannot_clear_substantive_issue_via_new_model_approval() {
     let original = report();
     let short = envelope(&shorter(&original));
     let mut repaired = shorter(&original);
     repaired.argument.warrants[0].rule = "Use the checked direct fixture correspondence required by the independently specified oracle.".into();
-    let criticism = json!({"critical_issues":["Check the missing interpretation correspondence with a distinguishing example."],"observations":[]}).to_string();
+    let criticism = semantic_critic(
+        "Check the missing interpretation correspondence with a distinguishing example.",
+    );
     let model = MockModel::new(vec![
         Ok(short),
         Ok(criticism),
@@ -493,7 +505,9 @@ async fn unresolved_sceptic_issue_vetoes_a_shorter_supported_result_and_guides_r
     .unwrap();
     assert!(!result.candidates[1].eligible);
     assert!(result.candidates[1].outcome.assessment.supported);
-    assert_eq!(result.best, Some(2));
+    assert_eq!(result.best, None);
+    assert!(!result.candidates[2].eligible);
+    assert!(!result.candidates[2].pending_critical_issues.is_empty());
     // The original remains in the width-one beam after the veto. Global failed
     // findings still need to reach a subsequent proposal from that parent.
     assert_eq!(
@@ -516,7 +530,7 @@ async fn unresolved_sceptic_issue_vetoes_a_shorter_supported_result_and_guides_r
 async fn repeated_identical_candidate_cannot_drop_a_prior_critical_issue() {
     let original = report();
     let short = envelope(&shorter(&original));
-    let criticism = json!({"critical_issues":["The interpretation needs an actual distinguishing check."],"observations":[]}).to_string();
+    let criticism = semantic_critic("The interpretation needs an actual distinguishing check.");
     let model = MockModel::new(vec![
         Ok(short.clone()),
         Ok(criticism),
@@ -533,7 +547,7 @@ async fn repeated_identical_candidate_cannot_drop_a_prior_critical_issue() {
     )
     .await
     .unwrap();
-    assert_eq!(result.best, Some(0));
+    assert_eq!(result.best, None);
     assert!(!result.candidates[2].eligible);
     assert_eq!(result.candidates[2].pending_critical_issues.len(), 1);
 }
@@ -547,7 +561,9 @@ async fn material_finding_vetoes_an_identical_baseline_as_well_as_the_new_copy()
     };
     let model = MockModel::new(vec![
         Ok(envelope(&identical)),
-        Ok(json!({"critical_issues":["The baseline interpretation needs its independent distinguishing check."],"observations":[]}).to_string()),
+        Ok(semantic_critic(
+            "The baseline interpretation needs its independent distinguishing check.",
+        )),
     ]);
     let events = Mutex::new(Vec::<Value>::new());
     let result = develop(
@@ -574,9 +590,13 @@ async fn material_finding_vetoes_an_identical_baseline_as_well_as_the_new_copy()
         result.candidates[0].pending_critical_issues,
         result.candidates[1].pending_critical_issues
     );
-    assert!(events.lock().unwrap().iter().any(|event| {
-        event["event"] == "semantic_veto" && event["candidate_indices"] == json!([0, 1])
-    }));
+    for index in [0, 1] {
+        assert!(
+            events.lock().unwrap().iter().any(|event| {
+                event["event"] == "issue_veto" && event["candidate_index"] == index
+            })
+        );
+    }
 }
 
 #[tokio::test]
@@ -587,7 +607,9 @@ async fn later_material_finding_vetoes_an_identical_previously_eligible_winner()
         Ok(short.clone()),
         Ok(clear_critic()),
         Ok(short),
-        Ok(json!({"critical_issues":["A distinguishing counterexample remains unresolved for this shortcut."],"observations":[]}).to_string()),
+        Ok(semantic_critic(
+            "A distinguishing counterexample remains unresolved for this shortcut.",
+        )),
     ]);
     let result = develop(
         &model,
@@ -614,8 +636,8 @@ async fn later_material_finding_vetoes_an_identical_previously_eligible_winner()
         result.candidates[1].pending_critical_issues,
         result.candidates[2].pending_critical_issues
     );
-    assert_eq!(result.best, Some(0));
-    assert!(result.candidates[0].eligible);
+    assert_eq!(result.best, None);
+    assert!(!result.candidates[0].eligible);
 }
 
 #[tokio::test]
@@ -637,7 +659,9 @@ async fn refreshed_receipt_timestamps_cannot_clear_an_identical_proposal_veto() 
     let short = envelope(&shorter(&original));
     let model = MockModel::new(vec![
         Ok(short.clone()),
-        Ok(json!({"critical_issues":["The intended interpretation still needs its distinguishing check."],"observations":[]}).to_string()),
+        Ok(semantic_critic(
+            "The intended interpretation still needs its distinguishing check.",
+        )),
         Ok(short),
         Ok(clear_critic()),
     ]);
@@ -670,7 +694,7 @@ async fn refreshed_receipt_timestamps_cannot_clear_an_identical_proposal_veto() 
         refreshed.pending_critical_issues,
         first.pending_critical_issues
     );
-    assert_eq!(result.best, Some(0));
+    assert_eq!(result.best, None);
 }
 
 #[tokio::test]

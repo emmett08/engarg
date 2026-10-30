@@ -1,4 +1,5 @@
 //! Check formal correspondences without treating plans as observed evidence.
+mod mathematical;
 
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -44,9 +45,9 @@ pub(super) fn validate(case: &ArgumentCase, errors: &mut Vec<String>) {
             ));
         }
         let method = bound.method.identifier();
-        if bound.formal_premises.is_empty()
+        if (!bound.is_mathematical()
+            && (bound.formal_premises.is_empty() || bound.evidence_requirements.is_empty()))
             || bound.formal_premises.len() > 128
-            || bound.evidence_requirements.is_empty()
             || bound.evidence_requirements.len() > 128
             || bound.assumption_ids.len() > 128
         {
@@ -80,6 +81,10 @@ pub(super) fn validate(case: &ArgumentCase, errors: &mut Vec<String>) {
                 .into_iter()
                 .map(|message| format!("{label} {message}")),
         );
+        if bound.is_mathematical() {
+            mathematical::validate(warrant, bound, errors);
+            continue;
+        }
         let known_premises: BTreeSet<_> = warrant.premise_ids.iter().map(String::as_str).collect();
         let mut mapped_premises = BTreeSet::new();
         let mut correspondences = BTreeSet::new();

@@ -1,4 +1,4 @@
-//! Bind measured premise fields to authored queries without acquiring formulae.
+//! Bind measured premise fields while closed mathematical queries remain source-free.
 use super::{
     CompiledEvidence, DerivedSpec, ProgramPlan, invalid, values, write_bind, write_derived,
 };
@@ -26,6 +26,11 @@ pub(super) fn compile(
         else {
             continue;
         };
+        if bound.is_mathematical() {
+            // Domain admission requires a closed native theorem. Its literal
+            // definitions are programme data, never an acquired observation.
+            continue;
+        }
         for premise in &bound.formal_premises {
             let requirement = elaboration
                 .requirements

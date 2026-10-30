@@ -151,6 +151,7 @@ impl CandidateInvestigator for VerifiedInvestigator {
         };
         let mut assessed = execution::assess_report(&report, &self.execution, index).await?;
         let path = self.execution.output.join(&assessed.artifact);
+        write(&path.join("proposal.json"), &proposal)?;
         let execution_path = path.join("execution.json");
         let envelope = if execution_path.exists() {
             let bytes =
@@ -167,6 +168,7 @@ impl CandidateInvestigator for VerifiedInvestigator {
             json!({})
         };
         assurance::finish(&mut receipt, &proposal, &envelope, &self.plan)?;
+        receipt.record_execution(&proposal, &report, &envelope, &assessed.status)?;
         if !receipt.passed() {
             assessed.supported = false;
             assessed.status = "verification_incomplete".into();
@@ -182,5 +184,13 @@ impl CandidateInvestigator for VerifiedInvestigator {
             assessment: assessed,
             verification: serde_json::to_value(receipt)?,
         })
+    }
+
+    async fn resolve_issues(
+        &self,
+        outcome: &CandidateOutcome,
+        issues: &[super::development::CriticalIssue],
+    ) -> Result<Vec<super::development::CheckedIssueResolution>, Error> {
+        assurance::resolution::resolve(outcome, issues)
     }
 }

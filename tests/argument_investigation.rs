@@ -194,7 +194,7 @@ fn frozen_checks_reject_wrong_query_criteria_and_missing_applicability() {
 
 #[tokio::test]
 #[ignore = "requires ENGARG_EAL_HOST selecting the paired native host"]
-async fn native_investigation_generates_a_shorter_checked_argument_and_repairs_rejections() {
+async fn native_investigation_retains_legacy_native_result_without_grounding_approval() {
     let root = tempfile::tempdir().unwrap();
     let (original, proposal, plan) = investigation_case::fixture(root.path());
     let original_digest = assurance::digest(&original).unwrap();
@@ -267,18 +267,24 @@ async fn native_investigation_generates_a_shorter_checked_argument_and_repairs_r
     );
     assert!(!result.candidates[1].eligible);
     assert!(!result.candidates[2].eligible);
-    assert_eq!(
-        result.best,
-        Some(3),
+    // Historical plan/1 checks establish the formal query and collected
+    // predicates, but never certify the missing source-to-symbol meanings.
+    assert!(
+        result.best.is_none(),
         "{}",
         serde_json::to_string_pretty(&result).unwrap()
     );
-    let selected = &result.candidates[3];
-    assert!(selected.outcome.assessment.supported);
-    assert_eq!(selected.length, Some(4));
+    let retained = &result.candidates[3];
+    assert!(!retained.outcome.assessment.supported);
+    assert_eq!(
+        retained.outcome.assessment.status,
+        "verification_incomplete"
+    );
+    assert!(!retained.eligible);
+    assert_eq!(retained.length, Some(4));
     assert_eq!(result.candidates[0].length, Some(5));
     assert!(!result.search_complete);
-    let report = selected.outcome.report.as_ref().unwrap();
+    let report = retained.outcome.report.as_ref().unwrap();
     assert_eq!(
         report.argument.current_claim.text,
         original.argument.current_claim.text
@@ -300,13 +306,14 @@ async fn native_investigation_generates_a_shorter_checked_argument_and_repairs_r
     assert_eq!(report.transcript.len(), original.transcript.len());
     assert_eq!(assurance::digest(&original).unwrap(), original_digest);
     let receipt: assurance::AssuranceReceipt =
-        serde_json::from_value(selected.outcome.verification.clone()).unwrap();
-    assert!(receipt.passed(), "{receipt:?}");
+        serde_json::from_value(retained.outcome.verification.clone()).unwrap();
+    assert!(!receipt.passed(), "{receipt:?}");
     assert!(
         receipt
             .checks
             .iter()
-            .all(|check| check.status == CheckStatus::Pass)
+            .any(|check| check.status == CheckStatus::Unknown
+                && check.details["legacy_missing_coverage"] == true)
     );
     for check in receipt
         .checks
@@ -317,7 +324,7 @@ async fn native_investigation_generates_a_shorter_checked_argument_and_repairs_r
         assert!(check.details["assessed_at"].is_string(), "{check:?}");
         assert_eq!(check.details["record_status"], "ok");
     }
-    let selected_path = output.join(&selected.outcome.assessment.artifact);
+    let retained_path = output.join(&retained.outcome.assessment.artifact);
     for file in [
         "report.json",
         "execution.json",
@@ -326,10 +333,16 @@ async fn native_investigation_generates_a_shorter_checked_argument_and_repairs_r
         "package/case.eal",
     ] {
         assert!(
-            selected_path.join(file).exists(),
+            retained_path.join(file).exists(),
             "Missing retained artifact {file}"
         );
     }
+    let native_assessment: Value =
+        serde_json::from_slice(&fs::read(retained_path.join("assessment.json")).unwrap()).unwrap();
+    assert_eq!(
+        native_assessment["supported"], true,
+        "The new unresolved grounding gate must not manufacture a native arithmetic failure"
+    );
     assert!(output.join("candidates/0001/verification.json").exists());
     assert!(output.join("candidates/0002/verification.json").exists());
     let requests = model.requests.lock().unwrap();

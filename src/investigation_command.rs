@@ -79,6 +79,17 @@ impl CandidateInvestigator for FrozenInvestigator {
         crate::argument_inputs::verify_inputs(&self.inner.execution, &self.files, &self.pins)?;
         result
     }
+
+    async fn resolve_issues(
+        &self,
+        outcome: &CandidateOutcome,
+        issues: &[development::CriticalIssue],
+    ) -> Result<Vec<development::CheckedIssueResolution>, Error> {
+        crate::argument_inputs::verify_inputs(&self.inner.execution, &self.files, &self.pins)?;
+        let result = self.inner.resolve_issues(outcome, issues).await;
+        crate::argument_inputs::verify_inputs(&self.inner.execution, &self.files, &self.pins)?;
+        result
+    }
 }
 
 pub async fn execute(args: InvestigateArgs) -> Result<(), Error> {

@@ -97,7 +97,13 @@ pub(super) fn references(
                 warrant.id, warrant.conclusion_id
             ));
         }
-        if warrant.premise_ids.is_empty() {
+        if warrant.premise_ids.is_empty()
+            && !warrant
+                .reasoning_method
+                .as_ref()
+                .and_then(|method| method.bound())
+                .is_some_and(|bound| bound.is_mathematical())
+        {
             errors.push(format!(
                 "warrant {} needs at least one ground or subclaim",
                 warrant.id

@@ -1,8 +1,12 @@
 //! Construct, investigate, challenge and repair bounded alternative arguments.
 mod calls;
 mod candidates;
+mod critic;
+mod issue_types;
+mod issues;
 mod prompts;
 mod types;
+pub use issue_types::*;
 pub use types::*;
 
 use crate::{
@@ -12,7 +16,8 @@ use crate::{
     support_requirements::{self, SupportedArgument},
 };
 use calls::{CallContext, Ledger};
-use candidates::{apply_criticism, candidate, compare};
+use candidates::{candidate, compare};
+use issues::IssueLedger;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
@@ -71,7 +76,7 @@ pub async fn develop<
         })?,
     };
     observer(
-        &json!({"event":"development_start","schema":"engarg.argument-development/1",
+        &json!({"event":"development_start","schema":"engarg.argument-development/2",
         "config":config,"original_report_sha256":digest(original)?}),
     )?;
     let baseline_outcome = investigator.assess(original, baseline, 0).await?;
@@ -87,6 +92,7 @@ pub async fn develop<
         calls: Vec::new(),
     };
     let mut failures = Vec::new();
+    let mut issues = IssueLedger::default();
     let mut rounds_completed = 0;
     let mut budget_exhausted = false;
     let mut pruned_states = 0usize;
@@ -104,6 +110,7 @@ pub async fn develop<
                 &candidates,
                 tool_context,
                 &failures,
+                &issues.entries(),
                 round,
             )?;
             let call_index = ledger.attempted;
@@ -191,7 +198,7 @@ pub async fn develop<
             }
             if proposed.outcome.report.is_some() {
                 if ledger.attempted < config.max_calls {
-                    let request = prompts::critic(original, &proposed)?;
+                    let request = prompts::critic(original, &proposed, &issues.entries())?;
                     let critic_index = ledger.attempted;
                     match calls::complete(
                         model,
@@ -200,52 +207,57 @@ pub async fn develop<
                         CallContext {
                             round,
                             parent_index,
-                            phase: "sceptic",
+                            phase: match prompts::review_phase(&proposed) {
+                                "post_execution" => "post_execution_sceptic",
+                                "execution_incomplete" => "execution_incomplete_sceptic",
+                                _ => "pre_execution_sceptic",
+                            },
                         },
                         &mut ledger,
                         observer,
                     )
                     .await?
                     {
-                        Ok(completion) => match prompts::parse_criticism(
-                            &completion.content,
-                            config.max_response_bytes,
-                        ) {
-                            Ok(criticism) => {
-                                for issue in &criticism.critical_issues {
-                                    record_failure(
-                                        &mut failures,
-                                        DevelopmentFailure {
-                                            round,
-                                            parent_index,
-                                            call_index: Some(critic_index),
-                                            phase: "sceptic_critical".into(),
-                                            reason: issue.clone(),
-                                        },
-                                        observer,
-                                    )?;
+                        Ok(completion) => {
+                            match critic::parse(&completion.content, config.max_response_bytes) {
+                                Ok(criticism) => {
+                                    for issue in &criticism.critical_issues {
+                                        record_failure(
+                                            &mut failures,
+                                            DevelopmentFailure {
+                                                round,
+                                                parent_index,
+                                                call_index: Some(critic_index),
+                                                phase: "sceptic_critical".into(),
+                                                reason: format!(
+                                                    "{}: {}",
+                                                    issue.id, issue.description
+                                                ),
+                                            },
+                                            observer,
+                                        )?;
+                                    }
+                                    issues.register(index, &criticism.critical_issues)?;
+                                    proposed.diagnostics.extend(
+                                        criticism.critical_issues.iter().map(|issue| {
+                                            format!("{}: {}", issue.id, issue.description)
+                                        }),
+                                    );
+                                    proposed.criticism = Some(criticism);
                                 }
-                                let vetoed =
-                                    apply_criticism(&mut proposed, criticism, &mut candidates);
-                                if !vetoed.is_empty() {
-                                    observer(&json!({"event":"semantic_veto",
-                                        "proposal_sha256":proposed.proposal_sha256,
-                                        "candidate_indices":vetoed,
-                                        "pending_critical_issues":proposed.pending_critical_issues}))?;
-                                }
+                                Err(error) => record_failure(
+                                    &mut failures,
+                                    DevelopmentFailure {
+                                        round,
+                                        parent_index,
+                                        call_index: Some(critic_index),
+                                        phase: "sceptic_parse".into(),
+                                        reason: error.to_string(),
+                                    },
+                                    observer,
+                                )?,
                             }
-                            Err(error) => record_failure(
-                                &mut failures,
-                                DevelopmentFailure {
-                                    round,
-                                    parent_index,
-                                    call_index: Some(critic_index),
-                                    phase: "sceptic_parse".into(),
-                                    reason: error.to_string(),
-                                },
-                                observer,
-                            )?,
-                        },
+                        }
                         Err(failure) => record_failure(&mut failures, failure, observer)?,
                     }
                 } else {
@@ -253,6 +265,23 @@ pub async fn develop<
                     proposed.diagnostics.push("No model-call allowance remains for the separate sceptic; candidate is not eligible".into());
                 }
                 next.insert(index);
+            }
+            // A new finding also applies to earlier candidate instances. Only
+            // exact investigator-owned evidence may resolve it for each one.
+            for checked in candidates.iter_mut().chain(std::iter::once(&mut proposed)) {
+                if let Err(error) = issues.reconcile(checked, investigator, observer).await {
+                    record_failure(
+                        &mut failures,
+                        DevelopmentFailure {
+                            round,
+                            parent_index: checked.parent_index.unwrap_or(0),
+                            call_index: None,
+                            phase: "issue_resolution".into(),
+                            reason: error.to_string(),
+                        },
+                        observer,
+                    )?;
+                }
             }
             observer(&json!({"event":"candidate_assessed","candidate":proposed}))?;
             candidates.push(proposed);
@@ -272,13 +301,14 @@ pub async fn develop<
         .min_by(|(_, left), (_, right)| compare(left, right))
         .map(|(index, _)| index);
     let result = DevelopmentResult {
-        schema:"engarg.argument-development/1".into(),config,
+        schema:"engarg.argument-development/2".into(),config,
         calls_attempted:ledger.attempted,calls:ledger.calls,rounds_completed,budget_exhausted,
         stop_reason:if budget_exhausted {"call_budget"} else {"round_limit"}.into(),
-        pruned_states,best,candidates,failures,search_complete:false,
+        pruned_states,best,candidates,issues:issues.entries(),failures,search_complete:false,
         limitations:vec![
             "The bounded model-generated family is not an exhaustive search of possible arguments; the result is a best checked candidate found.".into(),
             "An LLM sceptic can identify unresolved problems but its agreement is not a proof, observation or independent corroboration.".into(),
+            "Typed substantive issues persist across reformulations. Narrow factual check-state issues resolve only through investigator-owned evidence bound to the exact issue, admitted candidate and verification receipt.".into(),
             "Mandatory target, premise, formalisation, applicability and execution checks are owned by the supplied investigator; unknown or failed obligations cannot be promoted by model assertions.".into(),
             "Different candidates may collect at different times. Original observations and review clocks are not refreshed by reasoning or reuse.".into(),
         ],

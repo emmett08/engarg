@@ -24,7 +24,7 @@ Collection can contact external sources. Forward necessary variable names with
 
 ## Define what a successful revision must preserve
 
-The verification plan uses schema `engarg.assurance-plan/1`. Its checks name an
+The verification plan uses schema `engarg.assurance-plan/2`. Its checks name an
 original argument target, a role (`premise`, `formalisation`, `inference` or
 `applicability`), and one of these procedures:
 
@@ -51,6 +51,11 @@ For example, this is one check within a complete plan:
   }
 }
 ```
+
+The plan also contains EAL-owned source/formula and applicability contracts.
+[Grounded assurance](grounded-assurance.md) defines their coverage, mathematical
+mode, composition and migration rules. EngArg derives required coverage from
+the selected graph; a model cannot omit it by proposing a shorter check list.
 
 Every originally selected support requirement must have a `requirement` check
 or an explicitly permitted formal discharge. At least one formalisation check
@@ -116,9 +121,11 @@ nothing to this objective.
 
 The round, call, beam, byte and timeout limits bound the work. Failed model
 calls consume the call budget. Unreviewed proposals remain ineligible when the
-critic budget runs out. Critical findings against an identical argument and
-support elaboration remain binding when receipt timestamps change; a later
-reviewer's omission cannot clear them. Tool implementations and the host are
+critic budget runs out. Typed critical findings remain binding across changed formulations and receipt
+timestamps. A later reviewer's omission cannot clear them. Narrow findings about
+missing checks, evidence or lifecycle records can be resolved only by matching
+investigator-produced evidence bound to the exact issue, candidate and receipt.
+Semantic findings remain unresolved by source-check agreement alone. Tool implementations and the host are
 checked for changes between attempts; source data can change and observations
 retain their own times.
 
@@ -138,7 +145,38 @@ natural-language alternatives are not exhaustively enumerable. The plan's
 references and scope determine what has been checked, so inspect them alongside
 the selected argument before relying on it.
 
-## Run the synthetic acceptance example
+## Run the source-grounded acceptance example
+
+Export the current independent fixture, whose source computes count and
+distinctness from a retained identifier list and supplies explicit identity,
+unit, scope and interval metadata:
+
+```sh
+ENGARG_GROUNDED_FIXTURE_DIR="$PWD/work/grounded-fixture" \
+  cargo test --locked --test grounded_assurance export_grounded -- --ignored
+engarg investigate --input work/grounded-fixture/input.json \
+  --tools work/grounded-fixture/tools.toml \
+  --verification work/grounded-fixture/verification.json \
+  --eal-host "$ENGARG_EAL_HOST" --model "$ENGARG_MODEL" \
+  --api-key-env OPENAI_API_KEY --rounds 1 --max-calls 2 \
+  --output-dir work/grounded-result
+```
+
+This is an explicit synthetic protocol, not a physical power-supply observation.
+Native integration tests also cover a pure theorem with zero observations and
+mutations of source identity, units, scope, clocks, values and symbol bindings.
+
+A live run on 30 October 2026 used `gpt-6.1-sol` for two proposals and one
+sceptic review. The first generated four-node argument passed every fixed,
+grounding and applicability check; the sceptic reported no critical issues.
+It explicitly recognised the raw identifier predicates, original clocks and
+post-execution lifecycle. The equally short verified baseline remained selected.
+The second proposal changed the support evaluation contract and was rejected
+at admission. This run established an eligible generated alternative, not a
+shorter argument or a global optimum. Its actual execution and assurance receipt
+also exported together through `eal export-aspic --verification`.
+
+## Replay the historical incomplete fixture
 
 The independently authored test fixture contains a redundant proof condition,
 an incorrect premise mapping, and actual local source operations. It concerns a
@@ -160,10 +198,10 @@ engarg investigate --input work/investigation-fixture/input.json \
 The export destination must be empty. `proposal.json` is an independently
 specified accepted repair for inspecting the fixture and testing the verifier;
 the model-driven command receives only the input report, tools and verification
-plan. A generated run may fail to find that repair. The paired native test feeds
-wrong-query and weakened-criterion proposals before the valid repair and checks
-that only the repaired four-node current argument is selected, compared with
-five selected dependency nodes at the start.
+plan. A generated run may fail to find that repair. The paired native test retains wrong-query and weakened-criterion proposals,
+then a four-node repair that passes the original native checks. Its legacy plan
+still lacks semantic coverage, so the overall result remains unverified and
+selects no winner. The new gate deliberately preserves this negative result.
 
 A live smoke test on 30 October 2026 used `gpt-6.1-sol` for one proposal and one
 sceptic call. It generated a four-node candidate that passed native execution

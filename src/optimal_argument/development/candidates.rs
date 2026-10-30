@@ -1,7 +1,7 @@
-//! Classify checked candidates and preserve unresolved critical issues across repeats.
-use super::{CandidateOutcome, Criticism, DevelopmentCandidate, digest};
+//! Classify admitted candidates by independently checked support and selected size.
+use super::{CandidateOutcome, DevelopmentCandidate, candidate_digest, digest};
 use crate::domain::ArgumentIndex;
-use std::{cmp::Ordering, collections::BTreeSet};
+use std::cmp::Ordering;
 
 pub(super) fn candidate(
     index: usize,
@@ -38,7 +38,7 @@ pub(super) fn candidate(
         (None, None)
     };
     let proposal_sha256 = if let Some(report) = &outcome.report {
-        match digest(&(&report.argument, &report.support_elaboration)) {
+        match candidate_digest(report) {
             Ok(hash) => Some(hash),
             Err(error) => {
                 diagnostics.push(error.to_string());
@@ -80,6 +80,7 @@ pub(super) fn candidate(
         outcome,
         criticism: None,
         pending_critical_issues: Vec::new(),
+        issue_resolutions: Vec::new(),
         eligible,
         diagnostics,
     }
@@ -103,49 +104,4 @@ pub(super) fn compare(left: &DevelopmentCandidate, right: &DevelopmentCandidate)
         })
         .then_with(|| left.argument_sha256.cmp(&right.argument_sha256))
         .then_with(|| left.index.cmp(&right.index))
-}
-
-pub(super) fn apply_criticism(
-    proposed: &mut DevelopmentCandidate,
-    criticism: Criticism,
-    previous: &mut [DevelopmentCandidate],
-) -> Vec<usize> {
-    let same_proposal = |prior: &DevelopmentCandidate| {
-        proposed.proposal_sha256.is_some() && prior.proposal_sha256 == proposed.proposal_sha256
-    };
-    // Findings concern the argument and support, including earlier instances.
-    // Receipt clocks, new reviewer wording and later omission cannot discharge
-    // a finding. Until explicit checked issue resolutions exist, require a
-    // changed proposal before reconsideration.
-    proposed.pending_critical_issues = previous
-        .iter()
-        .filter(|prior| same_proposal(prior))
-        .flat_map(|prior| prior.pending_critical_issues.iter().cloned())
-        .chain(criticism.critical_issues.iter().cloned())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    let mut vetoed = Vec::new();
-    if !proposed.pending_critical_issues.is_empty() {
-        for prior in previous.iter_mut().filter(|prior| same_proposal(prior)) {
-            prior.pending_critical_issues = proposed.pending_critical_issues.clone();
-            prior.eligible = false;
-            let diagnosis = "A critical finding against this identical argument and support proposal remains unresolved";
-            if !prior.diagnostics.iter().any(|value| value == diagnosis) {
-                prior.diagnostics.push(diagnosis.into());
-            }
-            vetoed.push(prior.index);
-        }
-        vetoed.push(proposed.index);
-    }
-    proposed.eligible =
-        proposed.outcome.assessment.supported && proposed.pending_critical_issues.is_empty();
-    proposed
-        .diagnostics
-        .extend(criticism.critical_issues.iter().cloned());
-    if criticism.critical_issues.is_empty() && !proposed.pending_critical_issues.is_empty() {
-        proposed.diagnostics.push("Earlier critical issues remain unresolved for this identical argument and support proposal; refreshed verification metadata does not discharge them".into());
-    }
-    proposed.criticism = Some(criticism);
-    vetoed
 }
