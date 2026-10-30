@@ -296,6 +296,39 @@ async fn one_route_source_gains_a_shorter_checked_candidate_and_preserves_origin
             .collect::<Vec<_>>(),
         [Role::Constructor, Role::Sceptic]
     );
+    let construction_context: Value = serde_json::from_str(&requests[0].user).unwrap();
+    assert_eq!(
+        construction_context["objective"]["metric"],
+        "unique_selected_dependency_nodes"
+    );
+    assert_eq!(
+        construction_context["objective"]["target_id"],
+        "current_claim"
+    );
+    assert_eq!(construction_context["objective"]["parent_count"], 5);
+    assert_eq!(
+        construction_context["objective"]["shared_nodes_counted_once"],
+        true
+    );
+    assert_eq!(
+        construction_context["objective"]["unselected_canonical_nodes_counted"],
+        false
+    );
+    assert!(
+        requests[0]
+            .system
+            .contains("that warrant's formal_premises and evidence_requirements")
+    );
+    assert!(
+        requests[0]
+            .system
+            .contains("Preserve shared or referenced grounds")
+    );
+    assert!(
+        requests[0]
+            .system
+            .contains("deleting them does not improve this objective")
+    );
     assert!(
         events
             .lock()

@@ -324,6 +324,46 @@ pub(super) fn finish_requirement(
         vec![format!(
             "Native evidence assessment for the exact requirement {id}; source clocks preserved"
         )],
-        json!({"declaration":declaration,"native_evidence":evidence,"record_status":record["status"],"observed_at":record["collected_at"],"assessed_at":assessment["assessed_at"],"source_digest":run["source_digest"]}),
+        json!({"declaration":declaration,"native_evidence":evidence,"record_status":record["status"],
+            "evaluation_input":record["input"],"evaluation_value":record["value"],
+            "acceptance":requirement.acceptance,"dependencies":dependency_provenance(record),
+            "observed_at":record["collected_at"],"assessed_at":assessment["assessed_at"],"source_digest":run["source_digest"]}),
+    )
+}
+
+fn dependency_provenance(record: &Value) -> Value {
+    let Some(dependencies) = record["dependencies"].as_array() else {
+        return Value::Null;
+    };
+    // Only origin identities, digests and original clocks belong in the model
+    // view. In particular, never forward acquisition requests or contexts.
+    Value::Array(
+        dependencies
+            .iter()
+            .filter_map(Value::as_object)
+            .map(|dependency| {
+                Value::Object(
+                    [
+                        "evidence_id",
+                        "run_id",
+                        "origin_run_id",
+                        "source_digest",
+                        "data_digest",
+                        "input_digest",
+                        "acquisition_request_digest",
+                        "tool_binding_digest",
+                        "collected_at",
+                    ]
+                    .into_iter()
+                    .filter_map(|key| {
+                        dependency
+                            .get(key)
+                            .filter(|value| value.is_string() || value.is_null())
+                            .map(|value| (key.into(), value.clone()))
+                    })
+                    .collect(),
+                )
+            })
+            .collect(),
     )
 }

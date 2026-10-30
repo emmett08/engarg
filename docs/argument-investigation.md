@@ -96,6 +96,10 @@ digest. `pass`, `fail`, `unknown` and `error` remain distinct. Missing, stale or
 negative evidence prevents selection. A successful method execution must also
 satisfy its result predicate; completion alone supplies no support.
 
+Requirement receipts expose the input actually evaluated, its result, the
+original acceptance criterion and dependency clocks and digests. They omit raw
+acquisition requests, transport settings and unrelated source fields.
+
 Repair prompts include recent rejected proposals alongside their diagnostics,
 labelled as unadmitted data. Rejection never makes a proposal an executable
 parent. Verification receipt IDs identify checks; they are not supplied evidence
@@ -107,12 +111,16 @@ The smallest eligible selected dependency closure wins; shared nodes count
 once. This is a structural size measure. It does not rank all supported
 arguments by evidential strength.
 
+Nodes used only by other branches stay in the canonical argument and add
+nothing to this objective.
+
 The round, call, beam, byte and timeout limits bound the work. Failed model
 calls consume the call budget. Unreviewed proposals remain ineligible when the
 critic budget runs out. Critical findings against an identical argument and
 support elaboration remain binding when receipt timestamps change; a later
-reviewer's omission cannot clear them. Tool implementations and the host are checked for changes
-between attempts; source data can change and observations retain their own times.
+reviewer's omission cannot clear them. Tool implementations and the host are
+checked for changes between attempts; source data can change and observations
+retain their own times.
 
 ## What the checks establish
 
@@ -156,3 +164,13 @@ plan. A generated run may fail to find that repair. The paired native test feeds
 wrong-query and weakened-criterion proposals before the valid repair and checks
 that only the repaired four-node current argument is selected, compared with
 five selected dependency nodes at the start.
+
+A live smoke test on 30 October 2026 used `gpt-6.1-sol` for one proposal and one
+sceptic call. It generated a four-node candidate that passed native execution
+and the fixed checks. The sceptic questioned how the fixture's count/distinct
+measurements established the propositions `p` and `p implies q`, among other
+critical findings. The controller retained that veto and returned
+`no_verified_supported_candidate`, with null selected paths. The candidate,
+native result and criticism remained available for inspection. This records
+the gates' behaviour on one synthetic case; it leaves broader argument quality
+for a separate evaluation.

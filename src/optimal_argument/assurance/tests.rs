@@ -211,6 +211,69 @@ fn native_formal_check_and_empirical_checks_remain_separate() {
 }
 
 #[test]
+fn requirement_receipt_exposes_evaluated_projection_and_original_provenance_only() {
+    let original = original();
+    let candidate = candidate(&original);
+    let policy = policy(&original);
+    let requirement = candidate
+        .support_elaboration
+        .requirements
+        .iter()
+        .find(|requirement| requirement.target_id == "G1")
+        .unwrap();
+    let declaration = crate::eal_export::name("requirement", &requirement.id);
+    let input = json!({"values":{"v0":{"count":3,"distinct":true}}});
+    let dependency = json!({
+        "evidence_id":"acquisition_measured_source", "run_id":"retained-run",
+        "origin_run_id":"original-run", "collected_at":"2026-10-25T12:00:00Z",
+        "source_digest":"1".repeat(64), "data_digest":"2".repeat(64),
+        "input_digest":"3".repeat(64), "acquisition_request_digest":"4".repeat(64),
+        "tool_binding_digest":"5".repeat(64),
+        "acquisition_request":{"credential":"FORBIDDEN_RAW_REQUEST"},
+        "context":"FORBIDDEN_CONTEXT", "transport":"FORBIDDEN_TRANSPORT",
+        "env":{"TOKEN":"FORBIDDEN_ENV"}
+    });
+    let mut native = execution(&candidate, "available", json!([]));
+    let record = &mut native["result"]["collection"]["records"][&declaration];
+    record["input"] = input.clone();
+    record["value"] = json!({"accepted":true});
+    record["dependencies"] = json!([dependency]);
+    record["context"] = json!({"credential":"FORBIDDEN_RECORD_CONTEXT"});
+    native["result"]["collection"]["records"]["acquisition_unrelated"] =
+        json!({"value":{"other_measurement":"FORBIDDEN_UNSELECTED_SOURCE"}});
+    let mut receipt = prepare(&original, &candidate, &policy).unwrap();
+    finish(&mut receipt, &candidate, &native, &policy).unwrap();
+    assert!(receipt.passed());
+    let details = &receipt
+        .checks
+        .iter()
+        .find(|check| check.target_id == "G1")
+        .unwrap()
+        .details;
+    assert_eq!(details["evaluation_input"], input);
+    assert_eq!(details["evaluation_input"]["values"]["v0"]["count"], 3);
+    assert_eq!(details["evaluation_value"], json!({"accepted":true}));
+    assert_ne!(details["evaluation_input"], details["evaluation_value"]);
+    assert_eq!(
+        details["acceptance"],
+        serde_json::to_value(&requirement.acceptance).unwrap()
+    );
+    assert_eq!(details["observed_at"], "2026-10-25T12:00:00Z");
+    assert_eq!(details["assessed_at"], "2026-10-25T12:00:00Z");
+    let retained = &details["dependencies"][0];
+    assert_eq!(retained["origin_run_id"], "original-run");
+    assert_eq!(retained["collected_at"], "2026-10-25T12:00:00Z");
+    assert_eq!(retained["data_digest"], "2".repeat(64));
+    assert_eq!(retained["acquisition_request_digest"], "4".repeat(64));
+    assert_eq!(retained.as_object().unwrap().len(), 9);
+    assert!(
+        !serde_json::to_string(&receipt)
+            .unwrap()
+            .contains("FORBIDDEN_")
+    );
+}
+
+#[test]
 fn stale_and_failed_observations_remain_unknown_while_measured_negatives_fail() {
     let original = original();
     let proposal = candidate(&original);

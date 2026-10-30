@@ -380,7 +380,20 @@ pub fn prepare(
         return Ok(receipt);
     }
     for check in &plan.checks {
-        let result = checks::prepare_check(proposal, check)?;
+        let mut result = checks::prepare_check(proposal, check)?;
+        if let CheckProcedure::Requirement { requirement_id } = &check.procedure {
+            // Retain the original criterion even if an independently checked
+            // formal discharge permits changing the proposed declaration.
+            let original_requirement = original
+                .support_elaboration
+                .as_ref()
+                .unwrap()
+                .requirements
+                .iter()
+                .find(|r| &r.id == requirement_id)
+                .expect("plan validation resolves every original requirement");
+            result.details["acceptance"] = serde_json::to_value(&original_requirement.acceptance)?;
+        }
         if result.status == CheckStatus::Pass {
             receipt
                 .discharged_requirement_ids
@@ -412,10 +425,14 @@ pub fn finish(
     }
     for check in &plan.checks {
         if let CheckProcedure::Requirement { requirement_id } = &check.procedure {
-            let result = checks::finish_requirement(proposal, execution, check, requirement_id);
             let Some(slot) = receipt.checks.iter_mut().find(|slot| slot.id == check.id) else {
                 return Err(invalid("assurance receipt omits a declared check"));
             };
+            let original_acceptance = slot.details.get("acceptance").cloned().ok_or_else(|| {
+                invalid("assurance receipt omits its original acceptance criterion")
+            })?;
+            let mut result = checks::finish_requirement(proposal, execution, check, requirement_id);
+            result.details["acceptance"] = original_acceptance;
             *slot = result;
         }
     }
