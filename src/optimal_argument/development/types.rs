@@ -1,4 +1,5 @@
 //! Versioned records for bounded argument development and its independent checks.
+use super::{CheckedIssueResolution, CriticalIssue, RegisteredIssue};
 use crate::{Error, engine::RunReport, provider::Role, support_requirements::SupportedArgument};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -54,6 +55,16 @@ pub trait CandidateInvestigator: Send + Sync {
         proposal: SupportedArgument,
         index: usize,
     ) -> impl Future<Output = Result<CandidateOutcome, Error>> + Send;
+
+    /// Resolve only the exact typed issue with actual operator-owned checks and
+    /// receipt/binding evidence. The default preserves every finding as pending.
+    fn resolve_issues(
+        &self,
+        _outcome: &CandidateOutcome,
+        _issues: &[CriticalIssue],
+    ) -> impl Future<Output = Result<Vec<CheckedIssueResolution>, Error>> + Send {
+        async { Ok(vec![]) }
+    }
 }
 
 /// A separate sceptic can expose unresolved problems but supplies no proof or
@@ -61,7 +72,8 @@ pub trait CandidateInvestigator: Send + Sync {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Criticism {
-    pub critical_issues: Vec<String>,
+    #[serde(deserialize_with = "super::issue_types::deserialize_issues")]
+    pub critical_issues: Vec<CriticalIssue>,
     pub observations: Vec<String>,
 }
 
@@ -84,7 +96,10 @@ pub struct DevelopmentCandidate {
     pub rejected_proposal: Option<SupportedArgument>,
     pub outcome: CandidateOutcome,
     pub criticism: Option<Criticism>,
-    pub pending_critical_issues: Vec<String>,
+    #[serde(deserialize_with = "super::issue_types::deserialize_issues")]
+    pub pending_critical_issues: Vec<CriticalIssue>,
+    #[serde(default)]
+    pub issue_resolutions: Vec<CheckedIssueResolution>,
     pub eligible: bool,
     pub diagnostics: Vec<String>,
 }
@@ -133,6 +148,8 @@ pub struct DevelopmentResult {
     pub pruned_states: usize,
     pub best: Option<usize>,
     pub candidates: Vec<DevelopmentCandidate>,
+    #[serde(default)]
+    pub issues: Vec<RegisteredIssue>,
     pub failures: Vec<DevelopmentFailure>,
     /// LLM proposal space is not exhaustively enumerable by this bounded run.
     pub search_complete: bool,

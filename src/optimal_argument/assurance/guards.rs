@@ -98,7 +98,7 @@ fn node_value(case: &ArgumentCase, id: &str) -> Option<Value> {
 fn target_metadata(bound: &crate::domain::BoundReasoningMethod) -> Result<Value, Error> {
     let conclusion = &bound.conclusion;
     Ok(
-        json!({"subject":conclusion.subject,"quantity":conclusion.quantity,
+        json!({"claim_mode":bound.claim_mode,"subject":conclusion.subject,"quantity":conclusion.quantity,
         "unit":conclusion.unit,"scope":conclusion.scope.identity().map_err(invalid)?,
         "valid_from":conclusion.valid_from,"valid_until":conclusion.valid_until}),
     )

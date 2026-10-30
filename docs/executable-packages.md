@@ -97,6 +97,10 @@ To inspect the completed run as a finite ASPIC+ graph, use
 observations and assessment clock without executing collectors. See
 [snapshot export](USAGE.md#inspect-an-aspic-snapshot) for method profiles, resource
 limits and the distinction between authored status and formal results.
+For [grounded argument investigations](argument-investigation.md), add
+`--verification candidate/verification.json` to attach the candidate's matching
+assurance receipt. The viewer retains its supplied EngArg origin and each
+obligation's verdict separately from native computation completion.
 
 ## Verify portability and correspondence
 

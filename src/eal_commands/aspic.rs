@@ -24,6 +24,9 @@ pub struct ExportAspicArgs {
     /// Complete successful eal-host run JSON, retaining collection and assessment.
     #[arg(long)]
     execution: PathBuf,
+    /// Optional EngArg assurance-receipt/2 bound to this exact native execution.
+    #[arg(long)]
+    verification: Option<PathBuf>,
     /// Exact EAL goal name. Otherwise use the retained execution's claim.
     #[arg(long)]
     claim: Option<String>,
@@ -70,7 +73,7 @@ pub async fn execute(args: ExportAspicArgs) -> Result<(), Error> {
         MethodProfile::Aspic => "aspic",
         MethodProfile::All => "all",
     };
-    let view = engarg::aspic_view::export(
+    let mut view = engarg::aspic_view::export(
         &source,
         &execution,
         args.claim.as_deref(),
@@ -82,6 +85,11 @@ pub async fn execute(args: ExportAspicArgs) -> Result<(), Error> {
         },
     )
     .await?;
+    if let Some(path) = &args.verification {
+        let receipt: engarg::optimal_argument::assurance::AssuranceReceipt =
+            super::super::read_json(path, MAX_INPUT_BYTES)?;
+        engarg::aspic_view::attach_verification(&mut view, &execution, &receipt)?;
+    }
     for (field, maximum) in [("arguments", 4096), ("defeats", 65536)] {
         let count = view[field]
             .as_array()

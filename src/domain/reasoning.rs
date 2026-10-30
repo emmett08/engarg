@@ -79,16 +79,42 @@ impl ReasoningMethodBinding {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BoundReasoningMethod {
+    /// Omitted historical values keep the empirical source obligations. A
+    /// mathematical consequence concerns only the literal authored definitions.
+    #[serde(default, skip_serializing_if = "MethodClaimMode::is_empirical")]
+    pub claim_mode: MethodClaimMode,
     pub method: MethodSpecification,
     /// Every relied-upon warrant premise has an explicit input correspondence.
-    #[schemars(length(min = 1, max = 128))]
+    #[schemars(length(max = 128))]
     pub formal_premises: Vec<FormalPremiseBinding>,
-    #[schemars(length(min = 1, max = 128))]
+    #[schemars(length(max = 128))]
     pub evidence_requirements: Vec<MethodEvidenceRequirement>,
     /// Named applicability assumptions are dependencies, not verified metadata.
     #[schemars(length(max = 128))]
     pub assumption_ids: Vec<String>,
     pub conclusion: MethodConclusionBinding,
+}
+
+/// Mathematical validity does not establish an assertion about a physical
+/// system. Such an assertion retains the empirical and applicability duties.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MethodClaimMode {
+    #[default]
+    Empirical,
+    MathematicalConsequence,
+}
+
+impl MethodClaimMode {
+    pub const fn is_empirical(&self) -> bool {
+        matches!(self, Self::Empirical)
+    }
+}
+
+impl BoundReasoningMethod {
+    pub const fn is_mathematical(&self) -> bool {
+        matches!(self.claim_mode, MethodClaimMode::MathematicalConsequence)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

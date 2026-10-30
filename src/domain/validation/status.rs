@@ -72,10 +72,27 @@ pub(super) fn validate(
     {
         errors.push("refuted requires a sustained, evidence-backed rebuttal targeting current_claim exactly; missing support alone is insufficient".into());
     }
+    let closed_mathematical_case = !case.warrants.is_empty()
+        && case.warrants.iter().all(|warrant| {
+            warrant
+                .reasoning_method
+                .as_ref()
+                .and_then(|method| method.bound())
+                .is_some_and(|bound| bound.is_mathematical())
+        })
+        && case.grounds.is_empty()
+        && case
+            .assumptions
+            .iter()
+            .all(|assumption| !assumption.critical)
+        && case.defeaters.iter().all(|defeater| {
+            !defeater.material || defeater.status == DefeaterStatus::InapplicableAfterRevision
+        });
     if matches!(
         case.status,
         CaseStatus::Unsupported | CaseStatus::Conditional
     ) && case.evidence_plan.is_empty()
+        && !closed_mathematical_case
     {
         errors.push("unsupported or conditional cases need an evidence plan".into());
     }

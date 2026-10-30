@@ -3,6 +3,8 @@
 //! EAL owns assessment, translation, solving and checked export. Retained
 //! observations and operator-binding digests remain supplied provenance; this
 //! adapter neither acquires evidence nor authenticates a current tools registry.
+mod verification;
+pub use verification::attach_verification;
 
 use crate::Error;
 use eal_core::ExecutionLimits;

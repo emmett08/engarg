@@ -85,6 +85,7 @@ fn policy(original: &RunReport) -> AssurancePlan {
     AssurancePlan {
         schema: PLAN_SCHEMA.into(),
         checks,
+        verification: vec![],
     }
 }
 
@@ -200,7 +201,17 @@ fn native_formal_check_and_empirical_checks_remain_separate() {
         &plan,
     )
     .unwrap();
-    assert!(receipt.passed());
+    assert!(
+        !receipt.passed(),
+        "legacy checks cannot certify missing semantic coverage"
+    );
+    assert!(
+        receipt
+            .checks
+            .iter()
+            .filter(|c| c.id != "coverage:legacy_plan")
+            .all(|c| c.status == CheckStatus::Pass)
+    );
     assert!(
         receipt
             .checks
@@ -243,7 +254,10 @@ fn requirement_receipt_exposes_evaluated_projection_and_original_provenance_only
         json!({"value":{"other_measurement":"FORBIDDEN_UNSELECTED_SOURCE"}});
     let mut receipt = prepare(&original, &candidate, &policy).unwrap();
     finish(&mut receipt, &candidate, &native, &policy).unwrap();
-    assert!(receipt.passed());
+    assert!(
+        !receipt.passed(),
+        "legacy source receipts leave semantic coverage unknown"
+    );
     let details = &receipt
         .checks
         .iter()
@@ -883,4 +897,52 @@ fn logical_equivalence_cannot_turn_a_failed_entailment_into_a_false_result_claim
         "{:?}",
         receipt.checks
     );
+}
+
+#[test]
+fn lifecycle_marks_missing_or_mismatched_native_execution_incomplete() {
+    let original = original();
+    let candidate = candidate(&original);
+    let plan = policy(&original);
+    let mut receipt = prepare(&original, &candidate, &plan).unwrap();
+    receipt
+        .record_execution(&candidate, &original, &json!({}), "supported")
+        .unwrap();
+    assert_eq!(receipt.lifecycle.phase, "execution_incomplete");
+    assert!(!receipt.lifecycle.bindings.as_ref().unwrap().replay_checked);
+    let mut native = execution(&candidate, "available", json!([]));
+    native["result"]["executable_digest"] = json!("executable");
+    native["result"]["collection"]["source_digest"] = native["result"]["source_digest"].clone();
+    native["result"]["collection"]["collection_id"] = json!("collection");
+    native["result"]["collection"]["context"] = json!({});
+    native["result"]["assessment"]["source_digest"] = native["result"]["source_digest"].clone();
+    native["result"]["assessment"]["collection_id"] = json!("collection");
+    native["result"]["assessment"]["assessment_id"] = json!("assessment");
+    receipt
+        .record_execution(&candidate, &original, &native, "supported")
+        .unwrap();
+    assert_eq!(receipt.lifecycle.phase, "post_execution");
+    assert!(receipt.lifecycle.bindings.as_ref().unwrap().replay_checked);
+    for mutation in ["collection", "source", "complete", "executable", "schema"] {
+        let mut wrong = native.clone();
+        match mutation {
+            "collection" => wrong["result"]["assessment"]["collection_id"] = json!("other"),
+            "source" => wrong["result"]["collection"]["source_digest"] = json!("other"),
+            "complete" => wrong["result"]["assessment"]["complete"] = json!(false),
+            "executable" => wrong["result"]["executable_digest"] = json!(""),
+            "schema" => wrong["result"]["schema"] = json!("wrong"),
+            _ => unreachable!(),
+        }
+        receipt
+            .record_execution(&candidate, &original, &wrong, "supported")
+            .unwrap();
+        assert_eq!(
+            receipt.lifecycle.phase, "execution_incomplete",
+            "{mutation}"
+        );
+        assert!(
+            !receipt.lifecycle.bindings.as_ref().unwrap().replay_checked,
+            "{mutation}"
+        );
+    }
 }

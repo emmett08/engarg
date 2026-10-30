@@ -70,7 +70,9 @@ jobs:
       - name: Execute installed EAL packages and reasoning modes
         run: cargo test --locked --test executable_package --test executable_modes --test support_cli --test aspic_view --test optimal_argument_cli -- --ignored
       - name: Investigate generated arguments with frozen native checks
-        run: cargo test --locked --test argument_investigation native_investigation -- --ignored
+        run: |
+          cargo test --locked --test argument_investigation native_investigation -- --ignored
+          cargo test --locked --test grounded_assurance native_ -- --ignored
 
   prepared-toolchains:
     name: Prepared evidence APIs (${{ matrix.family }})
@@ -147,7 +149,7 @@ jobs:
     timeout-minutes: 25
     env:
       # Source includes the runtime fixes and versioned collector contract producer.
-      EAL_REVISION: ead1b9997b9c4f13d7d5409d87dff55afd9368b8
+      EAL_REVISION: 31850c4cf2cc007a009c15eaa3908b93da4096e8
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -187,6 +189,7 @@ jobs:
           cargo +1.99.1 test --locked --test eal_live --test eal_export --test native_collectors --test collector_catalogue_live -- --ignored
           cargo +1.99.1 test --locked --test catalogue_workflow_native --test executable_package --test executable_modes --test aspic_view -- --ignored
           cargo +1.99.1 test --locked --test argument_investigation native_investigation -- --ignored
+          cargo +1.99.1 test --locked --test grounded_assurance native_ -- --ignored
 
           # Keep one real CLI/coordinator smoke check in automatic compatibility.
           # Exhaustive native topology/ticket sweeps run in ticket-acceptance.yml.

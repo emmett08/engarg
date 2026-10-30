@@ -17,8 +17,9 @@ The strict current `engarg.run.v3` report supplies `request`, `argument` and
 `support_elaboration`. Optional retained discovery planning can supply the same
 typed support contracts through canonical report admission. Direct TOML tools are
 keyed by the logical acquisition ID. The builder converts them to distinct EAL operation names. A bound
-native method requires complete support elaboration, because its empirical
-premises must connect to actual acquisitions. Authoring can discover interfaces
+native method retains explicit support elaboration. Empirical premises connect
+to actual acquisitions; a closed mathematical argument can have empty support
+elaboration and an empty tool manifest. Authoring can discover interfaces
 or construct missing operations before the operator supplies those bindings.
 The operator manifest determines executable and credential authority.
 
@@ -39,6 +40,7 @@ requests and source identities.
 | Several requirements on one target | Conjunction of the already evaluated check results |
 | Ground | Claim supported by its canonical requirements |
 | Warrant | One native or structured reasoning application |
+| Closed mathematical consequence | Native zero-premise theorem over literal definitions, without evidence records |
 | Applicability assumption | Native EAL assumption with its explicit validator |
 | Challenge | Evidence-supported objection at the original target category |
 | Alternative discrimination | Its explicit requirements also gate the named claims |
@@ -87,6 +89,24 @@ review. The authored policy must supply the decision criteria.
 Unresolved method declarations remain explicit. Computation establishes the
 specified formal relation, not correspondence with arbitrary prose or the
 adequacy of a physical model.
+
+Every bound method has `claim_mode: "empirical"` or
+`"mathematical_consequence"`. Historical reports that omit the field retain the
+empirical contract. New mathematical claims require
+`conclusion.scope.kind: "mathematical_model"`, empty warrant premises and backing,
+and empty formal-premise, evidence-requirement and applicability-assumption lists.
+Their literal query contains the definitions. `deductive/1` requires
+`premises: []` and `entailed == true`, with consistency checked separately. A model
+entailment can be written as a closed implication theorem, such as
+`(p ∧ (p → q)) → q`. This proves the implication, without establishing the
+antecedent's truth or consistency. `finite_probability/1` requires its exact model comparison to
+return `satisfies == true`. A false conjecture is valid input to execution and
+receives an unsupported result. EngArg does not convert arbitrary premises into
+an unconditional proof or infer physical truth from this mode.
+
+A mixed argument can use a mathematical result as a subclaim and introduce a
+separate empirical warrant to apply it to an identified system. The empirical
+warrant retains its measured-source and model-applicability requirements.
 
 Native assumptions remain actual argument dependencies, including when an
 objection targets an applicability assumption. Challenges to claims, reasoning,

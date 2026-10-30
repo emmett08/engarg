@@ -244,6 +244,7 @@ pub fn fixture(root: &Path) -> (RunReport, SupportedArgument, AssurancePlan) {
     });
     let plan = AssurancePlan {
         schema: assurance::PLAN_SCHEMA.into(),
+        verification: vec![],
         checks,
     };
     plan.validate(&original).unwrap();

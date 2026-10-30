@@ -1,6 +1,12 @@
 //! Operator-owned checks bind proposed arguments to fixed evidence and formal targets.
+mod authority;
 mod checks;
+mod coverage;
 mod guards;
+mod lifecycle;
+mod observations;
+pub(super) mod resolution;
+pub use lifecycle::{ExecutionBindings, InvestigationLifecycle};
 
 use crate::{
     Error, domain::MethodResultPredicate, engine::RunReport,
@@ -11,13 +17,17 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 pub const PLAN_SCHEMA: &str = "engarg.assurance-plan/1";
-pub const RECEIPT_SCHEMA: &str = "engarg.assurance-receipt/1";
+pub const GROUNDED_PLAN_SCHEMA: &str = "engarg.assurance-plan/2";
+pub const RECEIPT_SCHEMA: &str = "engarg.assurance-receipt/2";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AssurancePlan {
     pub schema: String,
     pub checks: Vec<VerificationCheck>,
+    /// Operator-owned meanings; required coverage is derived from the graph.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub verification: Vec<eal_core::verification::Contract>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,6 +183,8 @@ pub struct AssuranceReceipt {
     pub checks: Vec<CheckResult>,
     pub discharged_requirement_ids: Vec<String>,
     pub limitations: Vec<String>,
+    pub verification_reports: Vec<eal_core::verification::Report>,
+    pub lifecycle: InvestigationLifecycle,
 }
 
 impl AssuranceReceipt {
@@ -190,7 +202,8 @@ impl AssuranceReceipt {
             && self.checks.iter().all(|check| {
                 check.status == CheckStatus::Pass
                     || (check.status == CheckStatus::Unknown
-                        && check.details["deferred_requirement"] == true)
+                        && (check.details["deferred_requirement"] == true
+                            || check.details["deferred_grounding"] == true))
             })
     }
 }
@@ -207,7 +220,7 @@ impl AssurancePlan {
     /// Admit operator policy before any paid model call or evidence collection.
     pub fn validate(&self, original: &RunReport) -> Result<(), Error> {
         crate::report::validate(original)?;
-        if self.schema != PLAN_SCHEMA
+        if !matches!(self.schema.as_str(), PLAN_SCHEMA | GROUNDED_PLAN_SCHEMA)
             || !(1..=128).contains(&self.checks.len())
             || serde_json::to_vec(self)?.len() > 1_048_576
         {
@@ -219,6 +232,7 @@ impl AssurancePlan {
             .support_elaboration
             .as_ref()
             .ok_or_else(|| invalid("assurance requires complete original support elaboration"))?;
+        coverage::validate_plan(self, original)?;
         let index = crate::domain::ArgumentIndex::new(&original.argument);
         let selected = index.selected_dependency("current_claim");
         let mut ids = BTreeSet::new();
@@ -365,6 +379,7 @@ pub fn prepare(
     let mut receipt = AssuranceReceipt {
         schema: RECEIPT_SCHEMA.into(), plan_sha256: digest(plan)?, source_report_sha256: digest(original)?,
         candidate_sha256: digest(proposal)?, checks: Vec::new(), discharged_requirement_ids: Vec::new(),
+        verification_reports: Vec::new(), lifecycle: InvestigationLifecycle::pending(&proposal.argument),
         limitations: vec![
             "Formal checks establish their declared programme-data relation. The independent operator reference still defines the intended interpretation.".into(),
             "Empirical premise truth and applicability are assessed through the actual scoped source evidence; no LLM assertion creates an observation.".into(),
@@ -404,6 +419,7 @@ pub fn prepare(
     receipt.discharged_requirement_ids.sort();
     receipt.discharged_requirement_ids.dedup();
     guards::check(original, proposal, plan, &mut receipt)?;
+    coverage::prepare(proposal, plan, &mut receipt)?;
     Ok(receipt)
 }
 
@@ -436,6 +452,7 @@ pub fn finish(
             *slot = result;
         }
     }
+    coverage::finish(proposal, execution, plan, receipt)?;
     Ok(())
 }
 

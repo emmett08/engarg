@@ -31,6 +31,14 @@ than maintaining another method schema registry. During assessment, EAL
 recomputes retained derivations against their parents to check integrity.
 This does not create another observation or independent confirmation.
 
+Each bound method declares `claim_mode`. Historical omissions retain `empirical`
+mode and its source obligations. An explicit `mathematical_consequence` concerns
+only literal authored definitions in `mathematical_model` scope. A closed native
+deductive theorem or exact finite-probability comparison executes without source
+observations. The compiler creates no evidence record to echo its definitions.
+Mathematical results do not establish model applicability to a physical system;
+that use needs a separate empirical argument and its evidence.
+
 The [compiler mapping](EAL_MAPPING.md) explains how argument elements become
 source declarations. The [package contract](executable-packages.md) explains
 which files move with the executable investigation.

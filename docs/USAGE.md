@@ -554,6 +554,14 @@ exact EAL claim name and is required when the original run assessed all claims
 without selecting a goal. The output is published only after successful checked
 export and never replaces an existing file.
 
+For a [grounded argument investigation](argument-investigation.md), add
+`--verification candidate/verification.json` to inspect the candidate's
+`engarg.assurance-receipt/2` reports beside the graph. The receipt must match the
+execution's source, executable, collection and assessment identities and record
+completed normalization and native replay. The viewer labels these supplied
+reports as EngArg assurance, separately from native method reports. Completed
+verification can still contain failed or unknown obligations.
+
 The retained assessment must be valid and complete. A complete unsupported
 claim or measured-negative result can still be exported. The wrapper checks
 that native reassessment reproduces the retained assessment, including source,

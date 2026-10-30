@@ -17,12 +17,24 @@ fn id(value: &str) -> bool {
     value.len() <= 256 && eal_collector_contracts::identifier(value)
 }
 
-/// Every represented material component has an obligation, including supplied grounds.
+/// Every empirical material component has an obligation, including supplied
+/// grounds. Explicit closed mathematical warrants execute as native theorems.
 pub fn material_targets(case: &ArgumentCase) -> BTreeSet<String> {
     case.grounds
         .iter()
         .map(|value| value.id.clone())
-        .chain(case.warrants.iter().map(|value| value.id.clone()))
+        .chain(
+            case.warrants
+                .iter()
+                .filter(|warrant| {
+                    !warrant
+                        .reasoning_method
+                        .as_ref()
+                        .and_then(|method| method.bound())
+                        .is_some_and(|bound| bound.is_mathematical())
+                })
+                .map(|value| value.id.clone()),
+        )
         .chain(
             case.assumptions
                 .iter()
@@ -173,7 +185,16 @@ pub fn validate_elaboration(case: &ArgumentCase, elaboration: &SupportElaboratio
     if !super::supported_schema(&elaboration.schema) {
         errors.push("unsupported support elaboration schema".into());
     }
-    if elaboration.requirements.is_empty()
+    let closed_mathematical_case = !case.warrants.is_empty()
+        && case.warrants.iter().all(|warrant| {
+            warrant
+                .reasoning_method
+                .as_ref()
+                .and_then(|method| method.bound())
+                .is_some_and(|bound| bound.is_mathematical())
+        })
+        && material_targets(case).is_empty();
+    if (elaboration.requirements.is_empty() && !closed_mathematical_case)
         || elaboration.requirements.len() > MAX_RECORDS
         || elaboration.acquisitions.len() + elaboration.derivations.len() > MAX_RECORDS
         || elaboration.evaluations.len() > MAX_RECORDS

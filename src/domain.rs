@@ -3,6 +3,7 @@
 //! Records retain their established string wire encoding. ValidatedArgument
 //! borrows the source and owns the index used by downstream operations.
 
+mod authoring_schema;
 mod diagnostics;
 mod dissent;
 mod identifiers;
@@ -11,6 +12,7 @@ mod reasoning;
 mod records;
 mod validation;
 
+pub use authoring_schema::case_schema;
 pub use diagnostics::{DiagnosticCode, DomainDiagnostic};
 pub use dissent::*;
 pub use identifiers::{ArgumentId, EvidenceId, NeedId};
