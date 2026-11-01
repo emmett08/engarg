@@ -84,6 +84,10 @@ cases and distinguishes historical measurements from current software coverage.
 [The complete-workflow study](support-study.md) freezes the inputs, executes each
 phase and retains failures, resource use and independent judgements.
 
+The [Observatory pilot](observatory-pilot.md) links authoring-check receipts to
+a sample issue and PR, and describes the separate private observations needed
+to estimate human effort.
+
 For EAL's language and runtime contracts, continue with the
 [EAL documentation](https://github.com/emmett08/eal-mcp/blob/main/docs/index.md).
 EngArg's dependency and installation helper select an exact producer revision,
