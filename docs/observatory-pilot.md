@@ -42,6 +42,10 @@ is the actual project label emitted by the participant's context watcher. A
 GitHub branch or account alone does not establish who controlled a tool or how
 much human attention was spent on it.
 
+The fixed task ID identifies this bounded instrumentation pilot. For unrelated
+future work, configure the actual issue/task mapping before treating receipts
+as evidence for that work; this sample issue is not its requirement.
+
 ## Evidence and delivery
 
 The action separately retains GitHub's original actor, rerun actor and trigger
