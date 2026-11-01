@@ -11,13 +11,14 @@ observation scope.
 | Protocol | `observatory-linked-pilot-v1` |
 | Task | `engarg-authoring-effort-pilot` |
 | Sample issue | [#49](https://github.com/emmett08/engarg/issues/49) |
+| Implementation PR | [#50](https://github.com/emmett08/engarg/pull/50) |
 | Implementation branch | `feat/observatory-effort-pilot` |
 | Observatory revision | `38f022d2d2f6e015fa42a23f1bc335783e263708` |
 
-The implementation PR closes #49. These exact protocol and task IDs must also
-appear in the private effort configuration. After opening the PR, Observatory's
-`sync-links` command can validate its closing-issue relationship and retain the
-actual PR number and branch. This is the relevant configuration fragment; add
+PR #50 closes #49. These exact protocol and task IDs must also appear in the
+private effort configuration. Observatory's `sync-links` command can validate
+the closing-issue relationship and retain the actual PR number and branch.
+This is the relevant configuration fragment; add
 real participant windows and device bucket IDs privately before collecting:
 
 ```json
@@ -29,7 +30,7 @@ real participant windows and device bucket IDs privately before collecting:
       "repository": "emmett08/engarg",
       "issue_number": 49,
       "branches": ["feat/observatory-effort-pilot"],
-      "pull_requests": [],
+      "pull_requests": [50],
       "projects": ["engarg"]
     }
   ]
