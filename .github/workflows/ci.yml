@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   checks:
+    name: checks (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -33,6 +34,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Configure Observatory execution evidence
+        id: observatory
+        uses: emmett08/engineering-work-observatory@38f022d2d2f6e015fa42a23f1bc335783e263708
+        with:
+          protocol-id: observatory-linked-pilot-v1
+          task-id: engarg-authoring-effort-pilot
+          controller: unknown
+          job-name: checks (${{ matrix.os }})
+          matrix: '{"os":"${{ matrix.os }}"}'
       - name: Install pinned toolchain
         run: |
           rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt
@@ -45,7 +55,17 @@ jobs:
         run: |
           bash -n scripts/run-catalog-sync-authoring.sh
           bash -n scripts/install-eal-runtime.sh
-          python3 -m unittest discover -s tests -p 'test_*.py'
+          python3 "$OBSERVATORY_RECORDER" run \
+            --tool python3 --tool-version "$(python3 --version)" \
+            --purpose development --check-name authoring-script-preflight \
+            --logical-call-id authoring-script-preflight \
+            -- python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Publish authoring check receipts
+        if: always() && steps.observatory.outcome == 'success'
+        uses: emmett08/engineering-work-observatory@38f022d2d2f6e015fa42a23f1bc335783e263708
+        with:
+          mode: publish
+          directory: ${{ steps.observatory.outputs.directory }}
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked --all-targets

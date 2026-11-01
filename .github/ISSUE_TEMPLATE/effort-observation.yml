@@ -1,0 +1,89 @@
+name: Optional effort observation
+description: Record an occasional declared effort summary; keep private activity and sampled response files off GitHub.
+title: "[Effort observation] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This public issue records an optional self-report. It is supporting evidence, not a measured duration or a probability-sampled response. Unknown effort is acceptable. Do not infer hours from CI runtime, commit timestamps or an assistant's estimate.
+
+        For sampled calibration, use the private, generated Observatory review form: it binds responses to the frozen frame and selected intervals. Do not attach that response file or raw activity logs here. This issue is not automatically imported into the estimator.
+  - type: input
+    id: protocol
+    attributes:
+      label: Protocol ID
+      value: observatory-linked-pilot-v1
+    validations:
+      required: true
+  - type: input
+    id: task
+    attributes:
+      label: Task ID
+      value: engarg-authoring-effort-pilot
+    validations:
+      required: true
+  - type: input
+    id: links
+    attributes:
+      label: Task issue and related PR
+      description: Link the task issue and the PR to which this observation applies.
+      value: "https://github.com/emmett08/engarg/issues/49"
+    validations:
+      required: true
+  - type: input
+    id: participant
+    attributes:
+      label: Participant pseudonym
+      description: Optional study pseudonym; do not assume the posting GitHub account identifies the person who performed the work.
+  - type: input
+    id: window
+    attributes:
+      label: Observation window (UTC)
+      description: Give the start and end of the period covered, or write unknown. This window is not itself an effort duration.
+      placeholder: "2026-11-02T09:00:00Z to 2026-11-02T10:00:00Z, or unknown"
+    validations:
+      required: true
+  - type: dropdown
+    id: basis
+    attributes:
+      label: Observation basis
+      options:
+        - Unknown / unavailable
+        - Participant recall
+        - Participant timer or contemporaneous notes
+        - Other declared evidence (explain below)
+    validations:
+      required: true
+  - type: input
+    id: minutes
+    attributes:
+      label: Human person-minutes (optional)
+      description: Enter a recalled/measured value or a range only if supported. Leave blank or write unknown when unavailable. Enter zero only for explicitly observed no work.
+      placeholder: "unknown"
+  - type: dropdown
+    id: role
+    attributes:
+      label: Work role
+      options:
+        - Unknown / mixed (explain below)
+        - Specification
+        - Implementation
+        - Review
+        - Testing
+        - Coordination
+        - Repair
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope, basis and uncertainty
+      description: State what is included, possible overlaps with other observations, and uncertainty. Use aggregate descriptions only; exclude window titles, file paths, credentials, prompts and private response records.
+  - type: checkboxes
+    id: acknowledgement
+    attributes:
+      label: Provenance
+      options:
+        - label: I understand this is a declared supporting observation and is not automatically used as a randomized sample response or accepted as ground truth.
+          required: true
