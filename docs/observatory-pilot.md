@@ -42,9 +42,9 @@ is the actual project label emitted by the participant's context watcher. A
 GitHub branch or account alone does not establish who controlled a tool or how
 much human attention was spent on it.
 
-The fixed task ID identifies this bounded instrumentation pilot. For unrelated
-future work, configure the actual issue/task mapping before treating receipts
-as evidence for that work; this sample issue is not its requirement.
+The workflow supplies the pilot task ID only for PR #50. Other PRs and main
+pushes leave the task unknown. For broader adoption, configure the actual
+issue/task mapping before treating those receipts as evidence for a requirement.
 
 ## Evidence and delivery
 

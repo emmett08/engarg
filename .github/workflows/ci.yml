@@ -39,7 +39,7 @@ jobs:
         uses: emmett08/engineering-work-observatory@38f022d2d2f6e015fa42a23f1bc335783e263708
         with:
           protocol-id: observatory-linked-pilot-v1
-          task-id: engarg-authoring-effort-pilot
+          task-id: ${{ github.event.pull_request.number == 50 && 'engarg-authoring-effort-pilot' || '' }}
           controller: unknown
           job-name: checks (${{ matrix.os }})
           matrix: '{"os":"${{ matrix.os }}"}'
