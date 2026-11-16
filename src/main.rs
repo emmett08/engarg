@@ -1,7 +1,7 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use engarg::{
     Error,
-    domain::{ArgumentCase, Request, case_schema, validate_case, validate_request},
+    domain::{ArgumentCase, Request, case_schema, validate_case},
     engine::{Mode, ProviderRunConfig, RunConfig},
     presentations,
     provider::{ApiStyle, Role, TransportConfig},
@@ -28,6 +28,7 @@ mod optimal_argument_command;
 mod package_commands;
 mod path_admission;
 mod progress;
+mod request_input;
 mod support_commands;
 mod ticket_commands;
 mod tooling_commands;
@@ -55,6 +56,8 @@ enum Command {
     TicketStage,
     /// Develop an argument and evidence plan from a claim through separate LLM calls.
     Analyse(Box<Analyse>),
+    /// Prepare an analysis request without model calls.
+    Request(request_input::PrepareRequest),
     /// Find the smallest supported selection of declared argument routes; collects evidence.
     Optimise(optimal_argument_command::OptimiseArgs),
     /// Generate, investigate, challenge and compare arguments under a fixed verification plan.
@@ -109,20 +112,9 @@ enum Command {
 }
 
 #[derive(Args)]
-#[group(required = true, multiple = false)]
-struct Source {
-    /// Claim to develop. Context and evidence are optional.
-    #[arg(long)]
-    claim: Option<String>,
-    /// JSON containing a claim and optional context/evidence. Sources are not fetched.
-    #[arg(long)]
-    input: Option<PathBuf>,
-}
-
-#[derive(Args)]
 struct Analyse {
     #[command(flatten)]
-    source: Source,
+    source: request_input::Source,
     #[command(flatten)]
     assistant: assistant_options::AssistantArgs,
     /// Default model identifier, supplied explicitly for reproducible selection.
@@ -159,7 +151,7 @@ struct Analyse {
     /// Extra calls to correct invalid final model output. Reserve these in max-calls.
     #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=3))]
     max_repairs: u8,
-    #[arg(long, default_value_t = 1_048_576)]
+    #[arg(long, default_value_t = request_input::DEFAULT_MAX_INPUT_BYTES)]
     max_input_bytes: usize,
     #[arg(long, default_value_t = 131_072)]
     max_response_bytes: usize,
@@ -291,8 +283,8 @@ fn private_file(path: &Path) -> Result<File, Error> {
     Ok(options.open(path)?)
 }
 
-fn emit(output: &Output, content: String) -> Result<(), Error> {
-    match &output.output {
+fn emit(output: Option<&Path>, content: String) -> Result<(), Error> {
+    match output {
         Some(path) => {
             let mut f = private_file(path)?;
             if let Err(error) = f
@@ -440,20 +432,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             "--implement-tools requires --format json and --output".into(),
         ));
     }
-    let request: Request = match (args.source.claim, args.source.input) {
-        (Some(claim), None) => Request {
-            claim,
-            context: String::new(),
-            evidence: vec![],
-        },
-        (None, Some(path)) => read_json(&path, args.max_input_bytes)?,
-        _ => {
-            return Err(Error::InvalidInput(
-                "supply exactly one of --claim or --input".into(),
-            ));
-        }
-    };
-    validate_request(&request).map_err(|v| Error::InvalidInput(v.join("; ")))?;
+    let request = args.source.load(args.max_input_bytes)?;
     let target_runtime = engarg::runtime_compatibility::preflight(args.eal_host.as_deref()).await?;
     if args.tools.is_some() && args.evidence_planning != EvidencePlanning::Direct {
         return Err(Error::InvalidInput(
@@ -775,7 +754,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
                             // argument at the caller's requested normal output path.
                             let content =
                                 report_content(&args.output, &request, &argument, &original)?;
-                            emit(&args.output, content)?;
+                            emit(args.output.output.as_deref(), content)?;
                             audit_event(
                                 &audit,
                                 &json!({
@@ -792,7 +771,7 @@ async fn analyse_with_progress(args: Analyse, progress: &progress::Progress) -> 
             };
             progress.phase("writing argument report");
             let content = report_content(&args.output, &request, &argument, &final_report)?;
-            match emit(&args.output, content) {
+            match emit(args.output.output.as_deref(), content) {
                 Ok(()) => audit_event(
                     &audit,
                     &json!({"event":"success","input_sha256":input_sha256}),
@@ -825,6 +804,7 @@ async fn execute(cli: Cli) -> Result<(), Error> {
         Command::Ticket(args) => ticket_commands::run(args).await,
         Command::TicketStage => ticket_commands::stage().await,
         Command::Analyse(args) => analyse(*args).await,
+        Command::Request(args) => args.run(),
         Command::Optimise(args) => optimal_argument_command::execute(args).await,
         Command::Investigate(args) => investigation_command::execute(*args).await,
         Command::Authoring { command } => authoring_commands::execute(command).await,
@@ -846,7 +826,7 @@ async fn execute(cli: Cli) -> Result<(), Error> {
             validate_case(&request, &argument).map_err(|v| Error::InvalidOutput(v.join("; ")))?;
             let report = json!({"schema_version":"engarg.demo.v2","execution_mode":"offline_synthetic_fixture","request":request,"argument":argument,"limitations":["No model calls, evidence verification or experiments were performed. This is a synthetic demonstration."]});
             let content = report_content(&output, &request, &argument, &report)?;
-            emit(&output, content)
+            emit(output.output.as_deref(), content)
         }
         Command::Render { input, output } => {
             let report: serde_json::Value = read_json(&input, 16 * 1_048_576)?;
@@ -862,7 +842,7 @@ async fn execute(cli: Cli) -> Result<(), Error> {
                 })?)?;
             validate_case(&request, &argument).map_err(|v| Error::InvalidOutput(v.join("; ")))?;
             emit(
-                &output,
+                output.output.as_deref(),
                 report_content(&output, &request, &argument, &report)?,
             )
         }

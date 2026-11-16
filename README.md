@@ -15,6 +15,11 @@ CLI, Gemini CLI, Cursor, Augment or other assistant](docs/AI_ASSISTANTS.md).
 Assistant providers use their CLI authentication and preserve the same argument
 validation and retained exchanges.
 
+Use `engarg analyse --evidence-file PATH` to supply a local text excerpt to
+authoring. Use `engarg request` to prepare the same input as JSON offline.
+The [local evidence examples](docs/USAGE.md#use-local-evidence-files) show
+both routes.
+
 An investigation executes from its EAL source, TOML tool bindings and referenced
 implementations:
 

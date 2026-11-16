@@ -113,7 +113,11 @@ enum Input {
     Evidence,
     Claim,
     MinimalJson,
+    LocalEvidence,
 }
+
+const LOCAL_CONTEXT: &str = "Use this synthetic scope. Retain unresolved evidence obligations.";
+const LOCAL_EXCERPT: &str = "Fixture setup is retained.\r\nActual run timing is still missing.\r\n";
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum ReadingFixture {
@@ -196,6 +200,24 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
     };
     let request: Value = serde_json::from_str(request_text).unwrap();
     let expected_claim = request["claim"].as_str().unwrap().to_owned();
+    let local_evidence = matches!(input, Input::LocalEvidence);
+    let (expected_context, expected_evidence) = if local_evidence {
+        let digest = engarg::authoring_checkpoint::digest(LOCAL_EXCERPT.as_bytes());
+        (
+            LOCAL_CONTEXT,
+            json!([{
+                "id": "file_1",
+                "title": "fixture notes.txt",
+                "source": format!("sha256:{digest}"),
+                "excerpt": LOCAL_EXCERPT,
+                "kind": "local-file",
+                "checked_by_user": false,
+            }]),
+        )
+    } else {
+        ("", json!([]))
+    };
+    let provider_evidence = expected_evidence.clone();
     let expected_argument = case_fixture(claim_only, reading);
     let response_case = expected_argument.clone();
     let base_calls = if mode == "single" { 1 } else { 6 };
@@ -218,8 +240,8 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
             let envelope: Value = serde_json::from_str(body["input"].as_str().unwrap()).unwrap();
             assert_eq!(envelope["request"]["claim"], expected_claim);
             if claim_only {
-                assert_eq!(envelope["request"]["context"], "");
-                assert_eq!(envelope["request"]["evidence"], json!([]));
+                assert_eq!(envelope["request"]["context"], expected_context);
+                assert_eq!(envelope["request"]["evidence"], provider_evidence);
                 assert!(
                     body["instructions"]
                         .as_str()
@@ -320,6 +342,16 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
             let path = directory.path().join("claim.json");
             std::fs::write(&path, request_text).unwrap();
             command.arg("--input").arg(path);
+        }
+        Input::LocalEvidence => {
+            let path = directory.path().join("fixture notes.txt");
+            std::fs::write(&path, LOCAL_EXCERPT).unwrap();
+            command
+                .arg("--claim")
+                .arg(request["claim"].as_str().unwrap())
+                .args(["--context", LOCAL_CONTEXT, "--max-calls", "1"])
+                .arg("--evidence-file")
+                .arg(path);
         }
     }
     if matches!(input, Input::MinimalJson) {
@@ -513,7 +545,8 @@ fn run_configured(corrupt_final: bool, input: Input, mode: &str, options: CaseOp
                 .all(|record| { record["response"]["service_tier"] == "default" })
         );
         if claim_only {
-            assert_eq!(report["request"]["evidence"], json!([]));
+            assert_eq!(report["request"]["context"], expected_context);
+            assert_eq!(report["request"]["evidence"], expected_evidence);
             assert_eq!(report["argument"]["status"], "conditional");
             assert!(
                 report["argument"]["grounds"]
@@ -646,6 +679,19 @@ fn cli_can_retain_the_direct_case_provider_contract_without_tool_planning() {
     run_configured(
         false,
         Input::MinimalJson,
+        "single",
+        CaseOptions {
+            tool_planning: false,
+            ..CaseOptions::default()
+        },
+    );
+}
+
+#[test]
+fn analyse_supplies_context_and_local_evidence_to_the_model_and_preserves_them_in_the_report() {
+    run_configured(
+        false,
+        Input::LocalEvidence,
         "single",
         CaseOptions {
             tool_planning: false,
