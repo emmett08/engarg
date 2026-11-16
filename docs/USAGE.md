@@ -150,6 +150,62 @@ variables. The authoring model sees operation contracts, not command lines or
 credential values. Relative paths resolve from the manifest's directory. See
 [private tools](PRIVATE_COLLECTORS.md) for the transport boundary.
 
+### Use local evidence files
+
+Suppose `runner-notes.md` records the conditions of a CI timing observation
+and `paired-timings.csv` holds the measurements. Pass each file you want the
+authoring model to read with a separate `--evidence-file` flag. To review the
+argument first, use a single model request and omit acquisition planning:
+
+```sh
+engarg analyse --claim 'The specified CI test groups take less time in parallel.' \
+  --context 'Use the attached paired runs for the identified revision and Linux runner.' \
+  --evidence-file runner-notes.md --evidence-file paired-timings.csv \
+  --model "$ENGARG_MODEL" --api-key-env OPENAI_API_KEY \
+  --mode single --max-calls 1 --max-repairs 0 --http-retries 0 \
+  --no-tool-planning --format markdown --output timing-argument.md
+```
+
+Use regular UTF-8 files that contain text. EngArg preserves the text as the
+excerpt, uses the basename as the title and records the SHA-256 digest as the
+source. It sets `checked_by_user` to `false`. The `--max-input-bytes` limit
+applies to the whole prepared JSON request, including attachment metadata.
+These excerpts supply material for authoring. Bind source tools separately
+when the investigation needs to acquire or verify observations in EAL.
+
+To inspect the request before sending it to a model, prepare it offline:
+
+```sh
+engarg request --claim 'The specified CI test groups take less time in parallel.' \
+  --context 'Use the attached paired runs for the identified revision and Linux runner.' \
+  --evidence-file runner-notes.md --evidence-file paired-timings.csv \
+  --output timing-request.json
+```
+
+To add the same files to the more detailed `request.json` above, use its
+existing claim and context:
+
+```sh
+engarg request --input request.json \
+  --evidence-file runner-notes.md --evidence-file paired-timings.csv \
+  --output request-with-files.json
+```
+
+`engarg request` sends JSON to stdout when you omit `--output`. It accepts
+`--claim` with optional `--context`, or `--input` with the context already in
+the JSON. Both `request` and `analyse` keep the input's evidence records and
+append the new files in flag order. They assign IDs such as `file_1`, skipping
+IDs already in use. Use `request-with-files.json` as `--input` in the next
+section. With concrete bindings for all required acquisitions, you can also
+pass it to the [claim-assessment script](assess-any-claim.md):
+
+```sh
+bash "$ENGARG_REPO/scripts/assess-claim.sh" \
+  --input request-with-files.json --tools tools.toml --no-implement-tools \
+  --model "$ENGARG_MODEL" --eal-host "$EAL_HOST" \
+  --output-dir timing-assessment-001
+```
+
 ## 3. Author and inspect the argument
 
 ```sh
